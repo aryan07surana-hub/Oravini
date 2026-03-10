@@ -107,16 +107,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Get admin user (for client chat to address the admin)
   app.get("/api/admin-user", requireAuth, async (req, res) => {
-    const allUsers = await storage.getAllClients();
-    const admin = await storage.getUserByEmail("admin@brandverse.com") ||
-      await (async () => {
-        const { db } = await import("./db");
-        const { users } = await import("@shared/schema");
-        const { eq } = await import("drizzle-orm");
-        const [a] = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
-        return a;
-      })();
-    if (!admin) return res.status(404).json({ message: "Not found" });
+    const admin = await storage.getUserByEmail("admin@brandverse.com");
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
     const { password, ...safe } = admin;
     res.json(safe);
   });
