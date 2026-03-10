@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
-  TrendingUp, Clock, ArrowRight, ChevronRight, AlertCircle
+  TrendingUp, Clock, ArrowRight, ChevronRight, AlertCircle, CalendarPlus
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -106,12 +106,33 @@ export default function ClientDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard icon={TrendingUp} label="Overall Progress" value={`${avgProgress}%`} sub="Across all tracks" color="bg-primary/10 text-primary" />
           <StatCard icon={CheckCircle2} label="Tasks Done" value={completedTasks} sub={`${pendingTasks} pending`} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
           <StatCard icon={FileText} label="Documents" value={(docs || []).length} sub="Shared with you" color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
           <StatCard icon={MessageSquare} label="Call Sessions" value={(calls || []).length} sub="Total recorded" color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
         </div>
+
+        {/* Calendly Booking Banner */}
+        <a
+          href="https://calendly.com/brandversee/30min"
+          target="_blank"
+          rel="noreferrer"
+          data-testid="book-a-call-banner"
+          className="flex items-center gap-5 p-5 mb-8 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 transition-all duration-200 group shadow-sm"
+        >
+          <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
+            <CalendarPlus className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-base text-white">Whenever you want to book a call, book it here</p>
+            <p className="text-sm text-white/70 mt-0.5">30-minute strategy session · calendly.com/brandversee</p>
+          </div>
+          <div className="flex items-center gap-2 bg-white/15 rounded-lg px-4 py-2 flex-shrink-0 group-hover:bg-white/25 transition-colors">
+            <span className="text-sm font-semibold text-white">Book Now</span>
+            <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </a>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Progress */}
@@ -119,10 +140,8 @@ export default function ClientDashboard() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">Program Progress</CardTitle>
-                <Link href="/progress">
-                  <a className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
-                    View details <ArrowRight className="w-3 h-3" />
-                  </a>
+                <Link href="/progress" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                  View details <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </CardHeader>

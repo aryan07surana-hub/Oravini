@@ -67,10 +67,8 @@ export default function AdminDashboard() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">Active Clients</CardTitle>
-                <Link href="/admin/clients">
-                  <a className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
-                    View all <ArrowRight className="w-3 h-3" />
-                  </a>
+                <Link href="/admin/clients" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                  View all <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </CardHeader>
@@ -86,25 +84,25 @@ export default function AdminDashboard() {
                 (clients || []).slice(0, 5).map((client: any) => {
                   const initials = client.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
                   return (
-                    <Link key={client.id} href={`/admin/clients/${client.id}`}>
-                      <a
-                        data-testid={`client-row-${client.id}`}
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer"
-                      >
-                        <Avatar className="w-9 h-9 flex-shrink-0">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{client.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{client.email}</p>
-                        </div>
-                        {client.program && (
-                          <Badge variant="secondary" className="text-[10px] flex-shrink-0">
-                            {client.program.split(" ").slice(0, 2).join(" ")}
-                          </Badge>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      </a>
+                    <Link
+                      key={client.id}
+                      href={`/admin/clients/${client.id}`}
+                      data-testid={`client-row-${client.id}`}
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer"
+                    >
+                      <Avatar className="w-9 h-9 flex-shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{client.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{client.email}</p>
+                      </div>
+                      {client.program && (
+                        <Badge variant="secondary" className="text-[10px] flex-shrink-0">
+                          {client.program.split(" ").slice(0, 2).join(" ")}
+                        </Badge>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     </Link>
                   );
                 })
@@ -158,10 +156,8 @@ export default function AdminDashboard() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">Recent Messages</CardTitle>
-                <Link href="/admin/chat">
-                  <a className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
-                    Open chat <ArrowRight className="w-3 h-3" />
-                  </a>
+                <Link href="/admin/chat" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                  Open chat <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
             </CardHeader>
@@ -169,22 +165,22 @@ export default function AdminDashboard() {
               {(conversations || []).slice(0, 3).map((conv: any) => {
                 const initials = conv.client?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
                 return (
-                  <Link key={conv.client?.id} href="/admin/chat">
-                    <a
-                      data-testid={`conv-row-${conv.client?.id}`}
-                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer"
-                    >
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-xs font-bold">{initials}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{conv.client?.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{conv.lastMessage?.content}</p>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                        {conv.lastMessage && format(new Date(conv.lastMessage.createdAt), "MMM d")}
-                      </p>
-                    </a>
+                  <Link
+                    key={conv.client?.id}
+                    href="/admin/chat"
+                    data-testid={`conv-row-${conv.client?.id}`}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors cursor-pointer"
+                  >
+                    <Avatar className="w-9 h-9 flex-shrink-0">
+                      <AvatarFallback className="bg-secondary text-secondary-foreground text-xs font-bold">{initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{conv.client?.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{conv.lastMessage?.content}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground flex-shrink-0">
+                      {conv.lastMessage && format(new Date(conv.lastMessage.createdAt), "MMM d")}
+                    </p>
                   </Link>
                 );
               })}

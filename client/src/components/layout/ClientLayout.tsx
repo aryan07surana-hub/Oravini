@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone, Bell,
-  LogOut, ChevronRight, Zap, Menu, X
+  LogOut, ChevronRight, Zap, Menu, X, CalendarPlus
 } from "lucide-react";
 import { useState } from "react";
 
@@ -77,29 +77,47 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             const active = location === href;
             const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
             return (
-              <Link key={href} href={href}>
-                <a
-                  data-testid={`nav-${label.toLowerCase().replace(" ", "-")}`}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {badge > 0 && (
-                    <Badge className={`text-[10px] h-5 min-w-5 px-1.5 ${active ? "bg-white/20 text-white border-0" : "bg-primary text-primary-foreground border-0"}`}>
-                      {badge}
-                    </Badge>
-                  )}
-                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                </a>
+              <Link
+                key={href}
+                href={href}
+                data-testid={`nav-${label.toLowerCase().replace(" ", "-")}`}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">{label}</span>
+                {badge > 0 && (
+                  <Badge className={`text-[10px] h-5 min-w-5 px-1.5 ${active ? "bg-white/20 text-white border-0" : "bg-primary text-primary-foreground border-0"}`}>
+                    {badge}
+                  </Badge>
+                )}
+                {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
             );
           })}
         </nav>
+
+        {/* Book a Call CTA */}
+        <div className="px-4 pb-3">
+          <a
+            href="https://calendly.com/brandversee/30min"
+            target="_blank"
+            rel="noreferrer"
+            data-testid="sidebar-book-call"
+            className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
+          >
+            <CalendarPlus className="w-4 h-4 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold leading-tight">Book a Call</p>
+              <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+          </a>
+        </div>
 
         {/* User */}
         <div className="p-4 border-t border-sidebar-border">

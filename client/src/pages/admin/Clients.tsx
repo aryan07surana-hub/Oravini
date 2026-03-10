@@ -184,8 +184,7 @@ export default function AdminClients() {
             {filtered.map((client: any) => {
               const initials = client.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
               return (
-                <Link key={client.id} href={`/admin/clients/${client.id}`}>
-                  <a>
+                <Link key={client.id} href={`/admin/clients/${client.id}`} className="block">
                     <Card
                       data-testid={`client-card-${client.id}`}
                       className="border border-card-border hover:border-primary/30 transition-all duration-200 cursor-pointer"
@@ -225,7 +224,6 @@ export default function AdminClients() {
                         </div>
                       </CardContent>
                     </Card>
-                  </a>
                 </Link>
               );
             })}
