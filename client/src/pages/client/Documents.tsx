@@ -1,17 +1,23 @@
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   FileText, Download, Search, FileAudio, FileSpreadsheet, FileCheck,
-  BookOpen, Clipboard, File, Filter
+  BookOpen, Clipboard, File, Plus, Upload, Link2, Loader2, Trash2, X, ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 const typeConfig: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   recording: { label: "Recording", icon: FileAudio, color: "text-purple-600", bg: "bg-purple-100 dark:bg-purple-900/30" },
@@ -24,15 +30,89 @@ const typeConfig: Record<string, { label: string; icon: any; color: string; bg: 
 };
 
 const filterTypes = ["all", "recording", "summary", "audit", "strategy", "worksheet", "contract", "other"];
+const defaultForm = { title: "", description: "", fileUrl: "", fileType: "other", fileSize: "" };
 
 export default function ClientDocuments() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [open, setOpen] = useState(false);
+  const [uploadTab, setUploadTab] = useState<"device" | "link">("device");
+  const [form, setForm] = useState({ ...defaultForm });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: docs, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/documents"],
+  const { data: docs, isLoading } = useQuery<any[]>({ queryKey: ["/api/documents"] });
+
+  const addDoc = useMutation({
+    mutationFn: (docData: any) => apiRequest("POST", "/api/documents", docData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({ title: "Document uploaded!" });
+      setOpen(false);
+      setForm({ ...defaultForm });
+      setSelectedFile(null);
+      setUploadTab("device");
+    },
+    onError: (err: any) => toast({ title: "Upload failed", description: err.message, variant: "destructive" }),
   });
+
+  const deleteDoc = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/documents/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      toast({ title: "Document removed" });
+    },
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (!form.title) setForm(p => ({ ...p, title: file.name.replace(/\.[^/.]+$/, "") }));
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (!form.title) setForm(p => ({ ...p, title: file.name.replace(/\.[^/.]+$/, "") }));
+  };
+
+  const handleSubmit = async () => {
+    if (!form.title) {
+      toast({ title: "Please enter a title", variant: "destructive" });
+      return;
+    }
+    if (uploadTab === "device") {
+      if (!selectedFile) {
+        toast({ title: "Please select a file", variant: "destructive" });
+        return;
+      }
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", selectedFile);
+        const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!res.ok) throw new Error("Upload failed");
+        const { fileUrl, fileSize } = await res.json();
+        addDoc.mutate({ ...form, fileUrl, fileSize });
+      } catch (err: any) {
+        toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      if (!form.fileUrl) {
+        toast({ title: "Please enter a file URL", variant: "destructive" });
+        return;
+      }
+      addDoc.mutate(form);
+    }
+  };
 
   const filtered = (docs || []).filter((d: any) => {
     const matchSearch = d.title.toLowerCase().includes(search.toLowerCase()) || d.description?.toLowerCase().includes(search.toLowerCase());
@@ -40,12 +120,137 @@ export default function ClientDocuments() {
     return matchSearch && matchFilter;
   });
 
+  const isSubmitting = uploading || addDoc.isPending;
+  const canSubmit = form.title && (uploadTab === "device" ? !!selectedFile : !!form.fileUrl);
+
   return (
     <ClientLayout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">Documents</h1>
-          <p className="text-muted-foreground mt-1">All files shared with you by your coach</p>
+        <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Documents</h1>
+            <p className="text-muted-foreground mt-1">Files shared with you and your uploads</p>
+          </div>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setForm({ ...defaultForm }); setSelectedFile(null); setUploadTab("device"); } }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-upload-doc-client" className="gap-2" size="sm">
+                <Plus className="w-4 h-4" />
+                Upload File
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader><DialogTitle>Upload Document</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Title</Label>
+                  <Input data-testid="input-client-doc-title" placeholder="Document title" className="mt-1.5" value={form.title} onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Textarea placeholder="Brief description" className="mt-1.5" value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Document Type</Label>
+                  <Select value={form.fileType} onValueChange={(v) => setForm(p => ({ ...p, fileType: v }))}>
+                    <SelectTrigger className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["recording", "summary", "audit", "strategy", "worksheet", "contract", "other"].map((t) => (
+                        <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Upload Method</Label>
+                  <div className="flex mt-1.5 rounded-lg border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      data-testid="client-tab-device"
+                      onClick={() => setUploadTab("device")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${uploadTab === "device" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <Upload className="w-4 h-4" /> From Device
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="client-tab-link"
+                      onClick={() => setUploadTab("link")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${uploadTab === "link" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <Link2 className="w-4 h-4" /> From Link
+                    </button>
+                  </div>
+
+                  {uploadTab === "device" ? (
+                    <div
+                      className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${selectedFile ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleDrop}
+                      data-testid="client-dropzone"
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        data-testid="client-input-file"
+                      />
+                      {selectedFile ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <FileText className="w-5 h-5 text-primary" />
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-foreground">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedFile.size > 1024 * 1024
+                                ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
+                                : `${Math.round(selectedFile.size / 1024)} KB`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                            className="ml-2 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm font-medium text-foreground">Click or drag & drop</p>
+                          <p className="text-xs text-muted-foreground mt-1">Any file up to 50 MB</p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <Input
+                        data-testid="client-input-url"
+                        placeholder="https://drive.google.com/..."
+                        value={form.fileUrl}
+                        onChange={(e) => setForm(p => ({ ...p, fileUrl: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1.5">Google Drive, Dropbox, or any public link</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  data-testid="button-client-submit-doc"
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || isSubmitting}
+                  className="gap-2"
+                >
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> Upload</>}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Filters */}
@@ -80,9 +285,7 @@ export default function ClientDocuments() {
 
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array(4).fill(0).map((_, i) => (
-              <Skeleton key={i} className="h-36 w-full" />
-            ))}
+            {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-36 w-full" />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -91,7 +294,7 @@ export default function ClientDocuments() {
             </div>
             <h3 className="text-base font-semibold text-foreground mb-1">No documents found</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              {search || filter !== "all" ? "Try adjusting your search or filter" : "Your coach hasn't shared any documents yet"}
+              {search || filter !== "all" ? "Try adjusting your search or filter" : "No documents yet — upload one above!"}
             </p>
           </div>
         ) : (
@@ -99,6 +302,7 @@ export default function ClientDocuments() {
             {filtered.map((doc: any) => {
               const cfg = typeConfig[doc.fileType] || typeConfig.other;
               const Icon = cfg.icon;
+              const isOwn = doc.uploadedBy === user?.id;
               return (
                 <Card
                   key={doc.id}
@@ -113,9 +317,16 @@ export default function ClientDocuments() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="text-sm font-semibold text-foreground leading-tight">{doc.title}</h3>
-                          <Badge variant="secondary" className="text-[10px] px-2 py-0.5 flex-shrink-0 capitalize">
-                            {cfg.label}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Badge variant="secondary" className="text-[10px] px-2 py-0.5 capitalize">
+                              {cfg.label}
+                            </Badge>
+                            {isOwn && (
+                              <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+                                Mine
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {doc.description && (
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>
@@ -126,16 +337,30 @@ export default function ClientDocuments() {
                             <span>·</span>
                             <span>{format(new Date(doc.createdAt), "MMM d, yyyy")}</span>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            data-testid={`download-doc-${doc.id}`}
-                            onClick={() => window.open(doc.fileUrl, "_blank")}
-                            className="h-7 px-3 text-xs gap-1.5"
-                          >
-                            <Download className="w-3 h-3" />
-                            Download
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            {isOwn && (
+                              <button
+                                onClick={() => deleteDoc.mutate(doc.id)}
+                                className="text-muted-foreground hover:text-destructive p-1 transition-colors"
+                                data-testid={`delete-my-doc-${doc.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              data-testid={`download-doc-${doc.id}`}
+                              onClick={() => window.open(doc.fileUrl, "_blank")}
+                              className="h-7 px-3 text-xs gap-1.5"
+                            >
+                              {doc.fileUrl.startsWith("/uploads/") ? (
+                                <><Download className="w-3 h-3" /> Download</>
+                              ) : (
+                                <><ExternalLink className="w-3 h-3" /> Open</>
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>

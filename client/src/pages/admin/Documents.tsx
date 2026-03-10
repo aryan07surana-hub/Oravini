@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Plus, Search, Trash2, ExternalLink, Filter } from "lucide-react";
+import { FileText, Plus, Search, Trash2, ExternalLink, Upload, Link2, Loader2, X } from "lucide-react";
 import { format } from "date-fns";
 
 const typeConfig: Record<string, { color: string; bg: string }> = {
@@ -26,31 +26,34 @@ const typeConfig: Record<string, { color: string; bg: string }> = {
   other: { color: "text-gray-600", bg: "bg-gray-100 dark:bg-gray-900/30" },
 };
 
+const defaultForm = { clientId: "", title: "", description: "", fileUrl: "", fileType: "strategy", fileSize: "" };
+
 export default function AdminDocuments() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [filterClient, setFilterClient] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ clientId: "", title: "", description: "", fileUrl: "", fileType: "strategy", fileSize: "" });
+  const [uploadTab, setUploadTab] = useState<"device" | "link">("device");
+  const [form, setForm] = useState({ ...defaultForm });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: docs, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/documents"],
-  });
-
-  const { data: clients } = useQuery<any[]>({
-    queryKey: ["/api/clients"],
-  });
+  const { data: docs, isLoading } = useQuery<any[]>({ queryKey: ["/api/documents"] });
+  const { data: clients } = useQuery<any[]>({ queryKey: ["/api/clients"] });
 
   const addDoc = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/documents", form),
+    mutationFn: (docData: typeof form) => apiRequest("POST", "/api/documents", docData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
-      toast({ title: "Document added!" });
+      toast({ title: "Document uploaded!" });
       setOpen(false);
-      setForm({ clientId: "", title: "", description: "", fileUrl: "", fileType: "strategy", fileSize: "" });
+      setForm({ ...defaultForm });
+      setSelectedFile(null);
+      setUploadTab("device");
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Upload failed", description: err.message, variant: "destructive" }),
   });
 
   const deleteDoc = useMutation({
@@ -61,6 +64,54 @@ export default function AdminDocuments() {
     },
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (!form.title) setForm(p => ({ ...p, title: file.name.replace(/\.[^/.]+$/, "") }));
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (!form.title) setForm(p => ({ ...p, title: file.name.replace(/\.[^/.]+$/, "") }));
+  };
+
+  const handleSubmit = async () => {
+    if (!form.clientId || !form.title) {
+      toast({ title: "Please fill in client and title", variant: "destructive" });
+      return;
+    }
+
+    if (uploadTab === "device") {
+      if (!selectedFile) {
+        toast({ title: "Please select a file", variant: "destructive" });
+        return;
+      }
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", selectedFile);
+        const res = await fetch("/api/upload", { method: "POST", body: fd, credentials: "include" });
+        if (!res.ok) throw new Error("Upload failed");
+        const { fileUrl, fileSize } = await res.json();
+        addDoc.mutate({ ...form, fileUrl, fileSize });
+      } catch (err: any) {
+        toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      if (!form.fileUrl) {
+        toast({ title: "Please enter a file URL", variant: "destructive" });
+        return;
+      }
+      addDoc.mutate(form);
+    }
+  };
+
   const clientMap = Object.fromEntries((clients || []).map((c: any) => [c.id, c]));
 
   const filtered = (docs || []).filter((d: any) => {
@@ -70,6 +121,9 @@ export default function AdminDocuments() {
     return matchSearch && matchClient && matchType;
   });
 
+  const isSubmitting = uploading || addDoc.isPending;
+  const canSubmit = form.clientId && form.title && (uploadTab === "device" ? !!selectedFile : !!form.fileUrl);
+
   return (
     <AdminLayout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
@@ -78,7 +132,7 @@ export default function AdminDocuments() {
             <h1 className="text-2xl font-bold text-foreground">Documents</h1>
             <p className="text-muted-foreground mt-1">{(docs || []).length} total documents across all clients</p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setForm({ ...defaultForm }); setSelectedFile(null); setUploadTab("device"); } }}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-doc-global" className="gap-2">
                 <Plus className="w-4 h-4" />
@@ -88,6 +142,7 @@ export default function AdminDocuments() {
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Upload Document</DialogTitle></DialogHeader>
               <div className="space-y-4">
+                {/* Client */}
                 <div>
                   <Label>Client</Label>
                   <Select value={form.clientId} onValueChange={(v) => setForm(p => ({ ...p, clientId: v }))}>
@@ -101,10 +156,20 @@ export default function AdminDocuments() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Title</Label><Input placeholder="Document title" className="mt-1.5" value={form.title} onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))} /></div>
-                <div><Label>Description</Label><Textarea placeholder="Brief description" className="mt-1.5" value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} /></div>
-                <div><Label>File URL / Link</Label><Input placeholder="https://drive.google.com/..." className="mt-1.5" value={form.fileUrl} onChange={(e) => setForm(p => ({ ...p, fileUrl: e.target.value }))} /></div>
-                <div><Label>File Size (optional)</Label><Input placeholder="e.g. 2.4 MB" className="mt-1.5" value={form.fileSize} onChange={(e) => setForm(p => ({ ...p, fileSize: e.target.value }))} /></div>
+
+                {/* Title */}
+                <div>
+                  <Label>Title</Label>
+                  <Input data-testid="input-doc-title" placeholder="Document title" className="mt-1.5" value={form.title} onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))} />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Textarea placeholder="Brief description" className="mt-1.5" value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} />
+                </div>
+
+                {/* Document Type */}
                 <div>
                   <Label>Document Type</Label>
                   <Select value={form.fileType} onValueChange={(v) => setForm(p => ({ ...p, fileType: v }))}>
@@ -118,14 +183,92 @@ export default function AdminDocuments() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Upload method tabs */}
+                <div>
+                  <Label>Upload Method</Label>
+                  <div className="flex mt-1.5 rounded-lg border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      data-testid="tab-device-upload"
+                      onClick={() => setUploadTab("device")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${uploadTab === "device" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <Upload className="w-4 h-4" /> From Device
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="tab-link-upload"
+                      onClick={() => setUploadTab("link")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${uploadTab === "link" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <Link2 className="w-4 h-4" /> From Link
+                    </button>
+                  </div>
+
+                  {uploadTab === "device" ? (
+                    <div
+                      className={`mt-2 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${selectedFile ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/30 hover:bg-muted/50"}`}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleDrop}
+                      data-testid="dropzone-file"
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        data-testid="input-file-device"
+                      />
+                      {selectedFile ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <FileText className="w-5 h-5 text-primary" />
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-foreground">{selectedFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedFile.size > 1024 * 1024
+                                ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`
+                                : `${Math.round(selectedFile.size / 1024)} KB`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                            className="ml-2 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm font-medium text-foreground">Click or drag & drop</p>
+                          <p className="text-xs text-muted-foreground mt-1">Any file up to 50 MB</p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <Input
+                        data-testid="input-file-url"
+                        placeholder="https://drive.google.com/..."
+                        value={form.fileUrl}
+                        onChange={(e) => setForm(p => ({ ...p, fileUrl: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1.5">Google Drive, Dropbox, or any public link</p>
+                    </div>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button
                   data-testid="button-save-doc-global"
-                  onClick={() => addDoc.mutate()}
-                  disabled={!form.clientId || !form.title || !form.fileUrl || addDoc.isPending}
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || isSubmitting}
+                  className="gap-2"
                 >
-                  {addDoc.isPending ? "Uploading..." : "Share Document"}
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> Share Document</>}
                 </Button>
               </DialogFooter>
             </DialogContent>

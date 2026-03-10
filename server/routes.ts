@@ -2,10 +2,27 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
+
+const uploadsDir = path.resolve("uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 function requireAuth(req: Request, res: Response, next: Function) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
@@ -22,6 +39,8 @@ const clients = new Map<string, WebSocket>();
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
+
+  app.use("/uploads", (await import("express")).default.static(uploadsDir));
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
@@ -74,6 +93,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const hashed = await hashPassword(newPassword);
     await storage.updateUser(user.id, { password: hashed });
     res.json({ message: "Password updated" });
+  });
+
+  // File upload endpoint (authenticated users)
+  app.post("/api/upload", requireAuth, upload.single("file"), (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileSize = req.file.size > 1024 * 1024
+      ? `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(req.file.size / 1024)} KB`;
+    res.json({ fileUrl, fileName: req.file.originalname, fileSize });
+  });
+
+  // Get admin user (for client chat to address the admin)
+  app.get("/api/admin-user", requireAuth, async (req, res) => {
+    const allUsers = await storage.getAllClients();
+    const admin = await storage.getUserByEmail("admin@brandverse.com") ||
+      await (async () => {
+        const { db } = await import("./db");
+        const { users } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [a] = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
+        return a;
+      })();
+    if (!admin) return res.status(404).json({ message: "Not found" });
+    const { password, ...safe } = admin;
+    res.json(safe);
   });
 
   // Users / Clients
@@ -153,17 +198,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(doc);
   });
 
-  app.post("/api/documents", requireAdmin, async (req, res) => {
-    const parsed = insertDocumentSchema.safeParse({ ...req.body, uploadedBy: (req.user as any).id });
+  app.post("/api/documents", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = user.role === "client" ? user.id : req.body.clientId;
+    const derivedFileName = req.body.fileName || (req.body.fileUrl ? req.body.fileUrl.split("/").pop()?.split("?")[0] || req.body.title : req.body.title) || req.body.title;
+    const parsed = insertDocumentSchema.safeParse({ ...req.body, fileName: derivedFileName, clientId, uploadedBy: user.id });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const doc = await storage.createDocument(parsed.data);
-    const notifMsg = `New document shared: ${doc.title}`;
-    await storage.createNotification({ clientId: doc.clientId, message: notifMsg, type: "document" });
-    sendToUser(doc.clientId, { type: "notification", message: notifMsg });
+    if (user.role === "client") {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) sendToUser(admin.id, { type: "notification", message: `Client uploaded a document: ${doc.title}` });
+    } else {
+      const notifMsg = `New document shared: ${doc.title}`;
+      await storage.createNotification({ clientId: doc.clientId, message: notifMsg, type: "document" });
+      sendToUser(doc.clientId, { type: "notification", message: notifMsg });
+    }
     res.json(doc);
   });
 
-  app.delete("/api/documents/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/documents/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const doc = await storage.getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && doc.uploadedBy !== user.id) return res.status(403).json({ message: "Forbidden" });
+    if (doc.fileUrl.startsWith("/uploads/")) {
+      const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
     await storage.deleteDocument(req.params.id);
     res.json({ message: "Deleted" });
   });
@@ -210,12 +271,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(prog || { offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
   });
 
-  app.put("/api/progress/:clientId", requireAdmin, async (req, res) => {
+  app.put("/api/progress/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
     const data = { ...req.body, clientId: req.params.clientId };
     const parsed = insertProgressSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const prog = await storage.upsertProgress(parsed.data);
     sendToUser(req.params.clientId, { type: "progress_update" });
+    if (user.role === "client") {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) sendToUser(admin.id, { type: "progress_update", clientId: req.params.clientId });
+    }
     res.json(prog);
   });
 

@@ -7,29 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Paperclip, MessageSquare, Zap } from "lucide-react";
+import { Send, MessageSquare, Zap, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 
 export default function ClientChat() {
   const { user } = useAuth();
   const [message, setMessage] = useState("");
-  const [adminId, setAdminId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Find admin - in a real app we'd have a proper endpoint
-  const { data: allDocs } = useQuery<any[]>({ queryKey: ["/api/documents"] });
-
-  useEffect(() => {
-    if (allDocs && allDocs.length > 0) {
-      setAdminId(allDocs[0].uploadedBy);
-    }
-  }, [allDocs]);
+  const { data: adminUser } = useQuery<any>({ queryKey: ["/api/admin-user"] });
+  const adminId = adminUser?.id;
 
   const { data: messages, isLoading } = useQuery<any[]>({
     queryKey: adminId ? [`/api/messages/${adminId}`] : [],
     enabled: !!adminId,
-    refetchInterval: 10000,
+    refetchInterval: 8000,
   });
 
   const sendMsg = useMutation({
@@ -41,17 +34,17 @@ export default function ClientChat() {
   });
 
   useEffect(() => {
-    if (user?.id) {
-      const ws = new WebSocket(`${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws?userId=${user.id}`);
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "message") {
-          queryClient.invalidateQueries({ queryKey: [`/api/messages/${adminId}`] });
-        }
-      };
-      wsRef.current = ws;
-      return () => ws.close();
-    }
+    if (!user?.id) return;
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws?userId=${user.id}`);
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "message") {
+        queryClient.invalidateQueries({ queryKey: [`/api/messages/${adminId}`] });
+      }
+    };
+    wsRef.current = ws;
+    return () => ws.close();
   }, [user?.id, adminId]);
 
   useEffect(() => {
@@ -60,9 +53,7 @@ export default function ClientChat() {
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim() && adminId) {
-      sendMsg.mutate(message.trim());
-    }
+    if (message.trim() && adminId) sendMsg.mutate(message.trim());
   };
 
   const initials = (name: string) => name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
@@ -78,7 +69,7 @@ export default function ClientChat() {
           <div>
             <p className="text-sm font-semibold text-foreground">Brandverse Team</p>
             <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
               <p className="text-xs text-muted-foreground">Online</p>
             </div>
           </div>
@@ -86,20 +77,12 @@ export default function ClientChat() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {!adminId ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-40" />
-                <p className="text-sm text-muted-foreground">No conversations yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Your coach will reach out soon</p>
-              </div>
-            </div>
-          ) : isLoading ? (
+          {isLoading ? (
             <div className="space-y-4">
-              {Array(5).fill(0).map((_, i) => (
+              {Array(4).fill(0).map((_, i) => (
                 <div key={i} className={`flex gap-3 ${i % 2 === 0 ? "" : "flex-row-reverse"}`}>
-                  <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-                  <Skeleton className="h-12 w-52 rounded-2xl" />
+                  <Skeleton className="w-7 h-7 rounded-full flex-shrink-0" />
+                  <Skeleton className="h-10 w-48 rounded-2xl" />
                 </div>
               ))}
             </div>
@@ -108,14 +91,14 @@ export default function ClientChat() {
               <div className="text-center">
                 <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-40" />
                 <p className="text-sm text-muted-foreground">No messages yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Start the conversation!</p>
+                <p className="text-xs text-muted-foreground mt-1">Start the conversation — say hi!</p>
               </div>
             </div>
           ) : (
             <>
               {(messages || []).map((msg: any, i: number) => {
                 const isMe = msg.senderId === user?.id;
-                const showDate = i === 0 || new Date(msg.createdAt).toDateString() !== new Date((messages as any)[i-1].createdAt).toDateString();
+                const showDate = i === 0 || new Date(msg.createdAt).toDateString() !== new Date((messages as any)[i - 1].createdAt).toDateString();
                 return (
                   <div key={msg.id}>
                     {showDate && (
@@ -141,9 +124,14 @@ export default function ClientChat() {
                         }`}>
                           {msg.content}
                         </div>
-                        <span className="text-[10px] text-muted-foreground px-1">
-                          {format(new Date(msg.createdAt), "h:mm a")}
-                        </span>
+                        <div className={`flex items-center gap-1 px-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                          <span className="text-[10px] text-muted-foreground">
+                            {format(new Date(msg.createdAt), "h:mm a")}
+                          </span>
+                          {isMe && (
+                            <CheckCheck className={`w-3 h-3 ${msg.read ? "text-primary" : "text-muted-foreground"}`} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -159,7 +147,7 @@ export default function ClientChat() {
           <form onSubmit={handleSend} className="flex gap-3 items-center">
             <Input
               data-testid="input-message"
-              placeholder="Type a message..."
+              placeholder={adminId ? "Type a message to Brandverse..." : "Loading..."}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="flex-1 h-10"
