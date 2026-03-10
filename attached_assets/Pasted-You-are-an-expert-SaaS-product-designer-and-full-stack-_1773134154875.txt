@@ -1,0 +1,68 @@
+You are an expert SaaS product designer and full-stack developer.
+I want to build a simple client portal dashboard web app for my company called Brandverse.
+The goal of the platform is to manage clients, store documents, track progress, and communicate with clients in one place.
+Build a clean SaaS-style dashboard UI similar to modern platforms.
+Platform Name
+Brandverse Client Portal
+Target Users
+Coaches and consultants who are my clients.
+Core Objective
+The platform should allow me to:
+• Upload documents for clients • Share call recordings and summaries • Track their progress • Give feedback after calls • Store signed contracts • Communicate through a built-in chat • Keep clients accountable with reminders
+Core Pages
+1. Login Page
+Create a professional login page with:
+• Email login • Password login • Option for users to create a password • Forgot password option • Clean modern UI
+After login → redirect to client dashboard
+2. Client Dashboard
+Main dashboard should show:
+Client name Program progress tracker Next call date Recent updates Documents shared Tasks pending
+Include widgets such as:
+• Progress tracker bar • Upcoming calls • Latest uploads • Action items for the client
+3. Documents Section
+Create a document hub where I can upload:
+• Call recordings • Call summaries • Monetization audit documents • Strategy documents • Worksheets
+Each client should have their own folder.
+Clients should be able to:
+• View • Download • Comment
+4. Call Feedback System
+After every call I should be able to upload:
+• Call recording • Call summary • Feedback notes • Action steps for client
+Clients should be able to mark tasks as completed.
+5. Contract Section
+Clients should be able to:
+• View signed contract • Download it anytime • See agreement details
+6. Progress Tracking
+Create a progress tracker where I can update:
+• Offer creation progress • Funnel progress • Content progress • Monetization progress
+Show it visually with progress bars or completion percentages.
+7. Chat System
+Inside the dashboard there should be a built-in chat between me and the client.
+Features:
+• Real-time chat • File sharing • Voice note support (optional) • Notification when a message is received
+8. Reminder System
+Allow me to send reminders like:
+• Upload content • Complete assignments • Prepare for calls
+Clients should receive dashboard notifications.
+9. Admin Panel (For Me)
+I should be able to:
+• Add new clients • Upload documents • Update progress • Send reminders • Upload call recordings • See all clients in one dashboard
+10. Design Style
+Use a clean SaaS style interface:
+Minimal Professional Black + white + modern accent colors
+Brand Name: Brandverse
+Pages should feel like a premium startup dashboard.
+Technical Suggestions
+Recommend the best tech stack for building this:
+• Frontend • Backend • Database • Authentication system • File storage
+The platform should be scalable and secure.
+Also generate:
+• The database structure • The UI layout • The main features architecture
+If possible also suggest no-code or low-code tools that can build this quickly.
+One Quick Tip (Important)
+If you want to build this 10x faster, ask Claude after this:
+“Build this using Supabase + Next.js + Tailwind so it can become a real SaaS.”
+Or even easier:
+Use builders like:
+• Bubble • Glide • Softr
+These can make your Brandverse portal live in like 1–2 days
