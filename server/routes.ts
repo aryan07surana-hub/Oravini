@@ -120,11 +120,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ message: "Password reset" });
   });
 
-  // Profile update for self
+  // Profile update for self (name, phone, program, email)
   app.patch("/api/profile", requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
-    const { name, phone, program } = req.body;
-    const updated = await storage.updateUser(userId, { name, phone, program });
+    const { name, phone, program, email } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (program !== undefined) updateData.program = program;
+    if (email !== undefined) updateData.email = email;
+    const updated = await storage.updateUser(userId, updateData);
     const { password, ...safe } = updated;
     res.json(safe);
   });

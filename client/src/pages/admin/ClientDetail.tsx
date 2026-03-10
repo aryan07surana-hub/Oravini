@@ -19,7 +19,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, TrendingUp, FileText, Phone, Bell, Trash2,
   Plus, CheckCircle2, Circle, Clock, Save, Calendar, Mail,
-  Sliders, ChevronRight, ExternalLink, Download
+  Sliders, ChevronRight, ExternalLink, Download, KeyRound, Eye, EyeOff
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -35,6 +35,9 @@ export default function AdminClientDetail({ id }: { id: string }) {
   const [callForm, setCallForm] = useState({ title: "", summary: "", feedbackNotes: "", actionSteps: "", callDate: "", recordingUrl: "" });
   const [taskForm, setTaskForm] = useState({ title: "", description: "", dueDate: "" });
   const [reminderMsg, setReminderMsg] = useState("");
+  const [credEmail, setCredEmail] = useState("");
+  const [credPassword, setCredPassword] = useState("");
+  const [showCredPassword, setShowCredPassword] = useState(false);
 
   const { data: client, isLoading } = useQuery<any>({
     queryKey: [`/api/clients/${id}`],
@@ -135,6 +138,26 @@ export default function AdminClientDetail({ id }: { id: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/tasks/${id}`] }),
   });
 
+  const updateClientEmail = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/clients/${id}`, { email: credEmail }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/clients/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "Email updated!", description: "Client login email has been changed." });
+      setCredEmail("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const resetClientPassword = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/clients/${id}/reset-password`, { newPassword: credPassword }),
+    onSuccess: () => {
+      toast({ title: "Password reset!", description: "Client password has been updated." });
+      setCredPassword("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   if (isLoading) return (
     <AdminLayout>
       <div className="p-8 max-w-5xl mx-auto space-y-4">
@@ -204,12 +227,13 @@ export default function AdminClientDetail({ id }: { id: string }) {
         </div>
 
         <Tabs defaultValue="progress" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-lg">
+          <TabsList className="grid grid-cols-6 w-full max-w-xl">
             <TabsTrigger value="progress" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" /><span className="hidden sm:inline">Progress</span></TabsTrigger>
             <TabsTrigger value="documents" className="gap-1.5"><FileText className="w-3.5 h-3.5" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
             <TabsTrigger value="calls" className="gap-1.5"><Phone className="w-3.5 h-3.5" /><span className="hidden sm:inline">Calls</span></TabsTrigger>
             <TabsTrigger value="tasks" className="gap-1.5"><Sliders className="w-3.5 h-3.5" /><span className="hidden sm:inline">Tasks</span></TabsTrigger>
             <TabsTrigger value="reminders" className="gap-1.5"><Bell className="w-3.5 h-3.5" /><span className="hidden sm:inline">Notify</span></TabsTrigger>
+            <TabsTrigger value="access" className="gap-1.5"><KeyRound className="w-3.5 h-3.5" /><span className="hidden sm:inline">Access</span></TabsTrigger>
           </TabsList>
 
           {/* Progress Tab */}
@@ -491,6 +515,87 @@ export default function AdminClientDetail({ id }: { id: string }) {
                 >
                   <Bell className="w-4 h-4" />
                   {sendReminder.isPending ? "Sending..." : "Send Notification"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Access Tab */}
+          <TabsContent value="access" className="space-y-4">
+            {/* Change Email */}
+            <Card className="border border-card-border">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-primary" />
+                  Change Login Email
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Current email</p>
+                  <p className="text-sm font-medium text-foreground">{client?.email}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>New email address</Label>
+                  <Input
+                    data-testid="input-client-new-email"
+                    type="email"
+                    placeholder="newaddress@example.com"
+                    value={credEmail}
+                    onChange={(e) => setCredEmail(e.target.value)}
+                  />
+                </div>
+                <Button
+                  data-testid="button-update-client-email"
+                  onClick={() => updateClientEmail.mutate()}
+                  disabled={!credEmail || credEmail === client?.email || updateClientEmail.isPending}
+                  className="gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {updateClientEmail.isPending ? "Saving..." : "Update Email"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Reset Password */}
+            <Card className="border border-card-border">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-primary" />
+                  Reset Client Password
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">Set a new password for this client. Share it with them securely.</p>
+                <div className="space-y-2">
+                  <Label>New password</Label>
+                  <div className="relative">
+                    <Input
+                      data-testid="input-client-new-password"
+                      type={showCredPassword ? "text" : "password"}
+                      placeholder="At least 6 characters"
+                      value={credPassword}
+                      onChange={(e) => setCredPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCredPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <Button
+                  data-testid="button-reset-client-password"
+                  onClick={() => resetClientPassword.mutate()}
+                  disabled={!credPassword || credPassword.length < 6 || resetClientPassword.isPending}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  {resetClientPassword.isPending ? "Resetting..." : "Reset Password"}
                 </Button>
               </CardContent>
             </Card>

@@ -16,6 +16,7 @@ import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
 import AdminChat from "@/pages/admin/Chat";
 import AdminDocuments from "@/pages/admin/Documents";
+import AdminSettings from "@/pages/admin/Settings";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -84,6 +85,9 @@ function Router() {
       </Route>
       <Route path="/admin/documents">
         {() => <ProtectedRoute component={AdminDocuments} adminOnly />}
+      </Route>
+      <Route path="/admin/settings">
+        {() => <ProtectedRoute component={AdminSettings} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -22,6 +22,10 @@ export default function AdminChat() {
     refetchInterval: 15000,
   });
 
+  const { data: allClients, isLoading: clientsLoading } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+  });
+
   const { data: messages, isLoading: msgsLoading } = useQuery<any[]>({
     queryKey: selectedClientId ? [`/api/messages/${selectedClientId}`] : [],
     enabled: !!selectedClientId,
@@ -64,51 +68,72 @@ export default function AdminChat() {
   };
 
   const initials = (name: string) => name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
-  const selectedConv = (conversations || []).find((c: any) => c.client?.id === selectedClientId);
+
+  const convMap = new Map((conversations || []).map((c: any) => [c.client?.id, c]));
+
+  const mergedClients = (allClients || []).map((client: any) => {
+    const conv = convMap.get(client.id);
+    return { client, lastMessage: conv?.lastMessage || null };
+  }).sort((a: any, b: any) => {
+    if (a.lastMessage && b.lastMessage) {
+      return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime();
+    }
+    if (a.lastMessage) return -1;
+    if (b.lastMessage) return 1;
+    return 0;
+  });
+
+  const selectedClient = (allClients || []).find((c: any) => c.id === selectedClientId);
+  const selectedConv = convMap.get(selectedClientId || "");
 
   return (
     <AdminLayout>
       <div className="h-[calc(100vh-0px)] flex overflow-hidden">
-        {/* Conversations sidebar */}
+        {/* Clients sidebar */}
         <div className={`w-full lg:w-80 xl:w-96 border-r border-border flex flex-col flex-shrink-0 ${selectedClientId ? "hidden lg:flex" : "flex"}`}>
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold text-foreground">Messages</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{(conversations || []).length} conversations</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{(allClients || []).length} clients</p>
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {convsLoading ? (
+            {(convsLoading || clientsLoading) ? (
               <div className="p-4 space-y-3">
                 {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
               </div>
-            ) : (conversations || []).length === 0 ? (
+            ) : mergedClients.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <MessageSquare className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
-                <p className="text-sm text-muted-foreground">No conversations yet</p>
+                <p className="text-sm text-muted-foreground">No clients yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Add clients to start messaging</p>
               </div>
             ) : (
               <div className="p-2">
-                {(conversations || []).map((conv: any) => {
-                  const isSelected = selectedClientId === conv.client?.id;
+                {mergedClients.map(({ client, lastMessage }: any) => {
+                  const isSelected = selectedClientId === client.id;
                   return (
                     <button
-                      key={conv.client?.id}
-                      data-testid={`conv-${conv.client?.id}`}
-                      onClick={() => setSelectedClientId(conv.client?.id)}
+                      key={client.id}
+                      data-testid={`conv-${client.id}`}
+                      onClick={() => setSelectedClientId(client.id)}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${isSelected ? "bg-primary/10 border border-primary/20" : "hover:bg-accent"}`}
                     >
                       <Avatar className="w-10 h-10 flex-shrink-0">
                         <AvatarFallback className={`text-xs font-bold ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                          {initials(conv.client?.name)}
+                          {initials(client.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{conv.client?.name}</p>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.lastMessage?.content}</p>
+                        <p className="text-sm font-semibold text-foreground">{client.name}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {lastMessage ? lastMessage.content : <span className="italic opacity-60">No messages yet — say hi!</span>}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                        {conv.lastMessage && format(new Date(conv.lastMessage.createdAt), "MMM d")}
-                      </p>
+                      {lastMessage && (
+                        <p className="text-[10px] text-muted-foreground flex-shrink-0">
+                          {format(new Date(lastMessage.createdAt), "MMM d")}
+                        </p>
+                      )}
                     </button>
                   );
                 })}
@@ -123,7 +148,7 @@ export default function AdminChat() {
             <div className="flex-1 flex items-center justify-center text-center">
               <div>
                 <MessageSquare className="w-14 h-14 text-muted-foreground mx-auto mb-3 opacity-30" />
-                <p className="text-muted-foreground">Select a conversation to start chatting</p>
+                <p className="text-muted-foreground">Select a client to start chatting</p>
               </div>
             </div>
           ) : (
@@ -135,12 +160,12 @@ export default function AdminChat() {
                 </button>
                 <Avatar className="w-9 h-9">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                    {initials(selectedConv?.client?.name)}
+                    {initials(selectedClient?.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{selectedConv?.client?.name}</p>
-                  <p className="text-xs text-muted-foreground">{selectedConv?.client?.email}</p>
+                  <p className="text-sm font-semibold text-foreground">{selectedClient?.name}</p>
+                  <p className="text-xs text-muted-foreground">{selectedClient?.email}</p>
                 </div>
               </div>
 
@@ -160,6 +185,7 @@ export default function AdminChat() {
                     <div className="text-center">
                       <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-40" />
                       <p className="text-sm text-muted-foreground">No messages yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Send {selectedClient?.name?.split(" ")[0]} a message to get started</p>
                     </div>
                   </div>
                 ) : (
@@ -170,7 +196,7 @@ export default function AdminChat() {
                         <div key={msg.id} className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`} data-testid={`admin-msg-${msg.id}`}>
                           <Avatar className="w-7 h-7 flex-shrink-0 mt-1">
                             <AvatarFallback className={`text-[10px] font-bold ${isMe ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                              {isMe ? "BV" : initials(selectedConv?.client?.name)}
+                              {isMe ? "BV" : initials(selectedClient?.name)}
                             </AvatarFallback>
                           </Avatar>
                           <div className={`max-w-[70%] flex flex-col gap-1 ${isMe ? "items-end" : "items-start"}`}>
@@ -194,7 +220,7 @@ export default function AdminChat() {
                 <form onSubmit={handleSend} className="flex gap-3 items-center">
                   <Input
                     data-testid="admin-input-message"
-                    placeholder={`Message ${selectedConv?.client?.name || "client"}...`}
+                    placeholder={`Message ${selectedClient?.name?.split(" ")[0] || "client"}...`}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     className="flex-1 h-10"

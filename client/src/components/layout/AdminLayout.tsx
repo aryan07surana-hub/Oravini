@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  LayoutDashboard, Users, FileText, MessageSquare,
+  LayoutDashboard, Users, FileText, MessageSquare, Settings,
   LogOut, ChevronRight, Menu, X, Bell
 } from "lucide-react";
 import { useState } from "react";
@@ -20,6 +20,7 @@ const navItems = [
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
