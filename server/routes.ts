@@ -250,6 +250,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(msg);
   });
 
+  app.patch("/api/messages/:id", requireAuth, async (req, res) => {
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "Content required" });
+    const msg = await storage.getMessage(req.params.id);
+    if (!msg) return res.status(404).json({ message: "Not found" });
+    if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
+    const updated = await storage.updateMessage(req.params.id, content.trim());
+    const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
+    sendToUser(otherId, { type: "message_updated", message: updated });
+    res.json(updated);
+  });
+
+  app.delete("/api/messages/:id", requireAuth, async (req, res) => {
+    const msg = await storage.getMessage(req.params.id);
+    if (!msg) return res.status(404).json({ message: "Not found" });
+    if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
+    await storage.deleteMessage(req.params.id);
+    const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
+    sendToUser(otherId, { type: "message_deleted", messageId: req.params.id });
+    res.json({ message: "Deleted" });
+  });
+
   app.get("/api/messages/unread/count", requireAuth, async (req, res) => {
     const count = await storage.getUnreadCount((req.user as any).id);
     res.json({ count });

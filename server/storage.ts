@@ -32,6 +32,9 @@ export interface IStorage {
   getMessagesBetween(userA: string, userB: string): Promise<Message[]>;
   getConversations(adminId: string): Promise<{ clientId: string; lastMessage: Message }[]>;
   createMessage(msg: InsertMessage): Promise<Message>;
+  updateMessage(id: string, content: string): Promise<Message>;
+  deleteMessage(id: string): Promise<void>;
+  getMessage(id: string): Promise<Message | undefined>;
   markMessagesRead(senderId: string, receiverId: string): Promise<void>;
   getUnreadCount(receiverId: string): Promise<number>;
 
@@ -85,6 +88,14 @@ class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string) {
+    // Cascade delete all related data before removing user
+    await db.delete(notifications).where(eq(notifications.clientId, id));
+    await db.delete(tasks).where(eq(tasks.clientId, id));
+    await db.delete(callFeedback).where(eq(callFeedback.clientId, id));
+    await db.delete(progress).where(eq(progress.clientId, id));
+    await db.delete(documents).where(eq(documents.clientId, id));
+    await db.delete(documents).where(eq(documents.uploadedBy, id));
+    await db.delete(messages).where(or(eq(messages.senderId, id), eq(messages.receiverId, id)));
     await db.delete(users).where(eq(users.id, id));
   }
 
@@ -139,6 +150,20 @@ class DatabaseStorage implements IStorage {
   async createMessage(msg: InsertMessage) {
     const [created] = await db.insert(messages).values(msg).returning();
     return created;
+  }
+
+  async getMessage(id: string) {
+    const [msg] = await db.select().from(messages).where(eq(messages.id, id));
+    return msg;
+  }
+
+  async updateMessage(id: string, content: string) {
+    const [updated] = await db.update(messages).set({ content }).where(eq(messages.id, id)).returning();
+    return updated;
+  }
+
+  async deleteMessage(id: string) {
+    await db.delete(messages).where(eq(messages.id, id));
   }
 
   async markMessagesRead(senderId: string, receiverId: string) {
