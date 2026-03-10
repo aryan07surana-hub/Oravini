@@ -1,38 +1,232 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { eq, and, or, desc } from "drizzle-orm";
+import {
+  users, documents, messages, progress, callFeedback, tasks, notifications,
+  type User, type InsertUser, type Document, type InsertDocument,
+  type Message, type InsertMessage, type Progress, type InsertProgress,
+  type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
+  type Notification, type InsertNotification,
+} from "@shared/schema";
 
-// modify the interface with any CRUD methods
-// you might need
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = drizzle(pool);
 
 export interface IStorage {
+  // Users
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getAllClients(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, data: Partial<InsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+
+  // Documents
+  getDocumentsByClient(clientId: string): Promise<Document[]>;
+  getAllDocuments(): Promise<Document[]>;
+  getDocument(id: string): Promise<Document | undefined>;
+  createDocument(doc: InsertDocument): Promise<Document>;
+  deleteDocument(id: string): Promise<void>;
+
+  // Messages
+  getMessagesBetween(userA: string, userB: string): Promise<Message[]>;
+  getConversations(adminId: string): Promise<{ clientId: string; lastMessage: Message }[]>;
+  createMessage(msg: InsertMessage): Promise<Message>;
+  markMessagesRead(senderId: string, receiverId: string): Promise<void>;
+  getUnreadCount(receiverId: string): Promise<number>;
+
+  // Progress
+  getProgress(clientId: string): Promise<Progress | undefined>;
+  upsertProgress(data: InsertProgress): Promise<Progress>;
+
+  // Call Feedback
+  getCallFeedbackByClient(clientId: string): Promise<CallFeedback[]>;
+  getCallFeedback(id: string): Promise<CallFeedback | undefined>;
+  createCallFeedback(data: InsertCallFeedback): Promise<CallFeedback>;
+  updateCallFeedback(id: string, data: Partial<InsertCallFeedback>): Promise<CallFeedback>;
+  deleteCallFeedback(id: string): Promise<void>;
+
+  // Tasks
+  getTasksByClient(clientId: string): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, data: Partial<InsertTask>): Promise<Task>;
+  deleteTask(id: string): Promise<void>;
+
+  // Notifications
+  getNotificationsByClient(clientId: string): Promise<Notification[]>;
+  createNotification(notif: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(clientId: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+class DatabaseStorage implements IStorage {
+  async getUser(id: string) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getUserByEmail(email: string) {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+  async getAllClients() {
+    return db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
+  }
+
+  async createUser(user: InsertUser) {
+    const [created] = await db.insert(users).values(user).returning();
+    return created;
+  }
+
+  async updateUser(id: string, data: Partial<InsertUser>) {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async deleteUser(id: string) {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getDocumentsByClient(clientId: string) {
+    return db.select().from(documents).where(eq(documents.clientId, clientId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getAllDocuments() {
+    return db.select().from(documents).orderBy(desc(documents.createdAt));
+  }
+
+  async getDocument(id: string) {
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    return doc;
+  }
+
+  async createDocument(doc: InsertDocument) {
+    const [created] = await db.insert(documents).values(doc).returning();
+    return created;
+  }
+
+  async deleteDocument(id: string) {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async getMessagesBetween(userA: string, userB: string) {
+    return db.select().from(messages).where(
+      or(
+        and(eq(messages.senderId, userA), eq(messages.receiverId, userB)),
+        and(eq(messages.senderId, userB), eq(messages.receiverId, userA))
+      )
+    ).orderBy(messages.createdAt);
+  }
+
+  async getConversations(adminId: string) {
+    const allMsgs = await db.select().from(messages).where(
+      or(eq(messages.senderId, adminId), eq(messages.receiverId, adminId))
+    ).orderBy(desc(messages.createdAt));
+
+    const seen = new Set<string>();
+    const result: { clientId: string; lastMessage: Message }[] = [];
+    for (const msg of allMsgs) {
+      const clientId = msg.senderId === adminId ? msg.receiverId : msg.senderId;
+      if (!seen.has(clientId)) {
+        seen.add(clientId);
+        result.push({ clientId, lastMessage: msg });
+      }
+    }
+    return result;
+  }
+
+  async createMessage(msg: InsertMessage) {
+    const [created] = await db.insert(messages).values(msg).returning();
+    return created;
+  }
+
+  async markMessagesRead(senderId: string, receiverId: string) {
+    await db.update(messages).set({ read: true }).where(
+      and(eq(messages.senderId, senderId), eq(messages.receiverId, receiverId))
     );
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getUnreadCount(receiverId: string) {
+    const unread = await db.select().from(messages).where(
+      and(eq(messages.receiverId, receiverId), eq(messages.read, false))
+    );
+    return unread.length;
+  }
+
+  async getProgress(clientId: string) {
+    const [prog] = await db.select().from(progress).where(eq(progress.clientId, clientId));
+    return prog;
+  }
+
+  async upsertProgress(data: InsertProgress) {
+    const existing = await this.getProgress(data.clientId);
+    if (existing) {
+      const [updated] = await db.update(progress).set({ ...data, updatedAt: new Date() }).where(eq(progress.clientId, data.clientId)).returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(progress).values(data).returning();
+      return created;
+    }
+  }
+
+  async getCallFeedbackByClient(clientId: string) {
+    return db.select().from(callFeedback).where(eq(callFeedback.clientId, clientId)).orderBy(desc(callFeedback.callDate));
+  }
+
+  async getCallFeedback(id: string) {
+    const [cf] = await db.select().from(callFeedback).where(eq(callFeedback.id, id));
+    return cf;
+  }
+
+  async createCallFeedback(data: InsertCallFeedback) {
+    const [created] = await db.insert(callFeedback).values(data).returning();
+    return created;
+  }
+
+  async updateCallFeedback(id: string, data: Partial<InsertCallFeedback>) {
+    const [updated] = await db.update(callFeedback).set(data).where(eq(callFeedback.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCallFeedback(id: string) {
+    await db.delete(callFeedback).where(eq(callFeedback.id, id));
+  }
+
+  async getTasksByClient(clientId: string) {
+    return db.select().from(tasks).where(eq(tasks.clientId, clientId)).orderBy(desc(tasks.createdAt));
+  }
+
+  async createTask(task: InsertTask) {
+    const [created] = await db.insert(tasks).values(task).returning();
+    return created;
+  }
+
+  async updateTask(id: string, data: Partial<InsertTask>) {
+    const [updated] = await db.update(tasks).set(data).where(eq(tasks.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTask(id: string) {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  async getNotificationsByClient(clientId: string) {
+    return db.select().from(notifications).where(eq(notifications.clientId, clientId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async createNotification(notif: InsertNotification) {
+    const [created] = await db.insert(notifications).values(notif).returning();
+    return created;
+  }
+
+  async markNotificationRead(id: string) {
+    await db.update(notifications).set({ read: true }).where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(clientId: string) {
+    await db.update(notifications).set({ read: true }).where(eq(notifications.clientId, clientId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
