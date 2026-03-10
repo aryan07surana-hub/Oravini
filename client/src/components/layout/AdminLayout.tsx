@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Zap, Menu, X, Bell
+  LayoutDashboard, Users, FileText, MessageSquare,
+  LogOut, ChevronRight, Menu, X, Bell
 } from "lucide-react";
 import { useState } from "react";
 
@@ -38,15 +38,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
-        <div className="p-6 border-b border-sidebar-border flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="font-bold text-sidebar-foreground text-sm tracking-tight">Brandverse</span>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Admin Panel</p>
-            </div>
+        <div className="px-6 py-5 border-b border-sidebar-border flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.25em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 tracking-wider uppercase">Admin Panel</p>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
             <X className="w-4 h-4" />
@@ -117,12 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <button onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center">
-              <Zap className="w-3 h-3 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-sm">Brandverse Admin</span>
-          </div>
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</span>
         </header>
 
         <main className="flex-1 overflow-auto">
