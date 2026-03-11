@@ -7,7 +7,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
-import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema } from "@shared/schema";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 
 const uploadsDir = path.resolve("uploads");
@@ -221,6 +221,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ message: "Deleted" });
   });
 
+  // Materials Library
+  app.get("/api/materials", requireAuth, async (req, res) => {
+    const materials = await storage.getMaterials();
+    res.json(materials);
+  });
+
+  app.post("/api/materials", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const derivedFileName = req.body.fileName || (req.body.fileUrl ? req.body.fileUrl.split("/").pop()?.split("?")[0] || req.body.title : req.body.title) || req.body.title;
+    const parsed = insertDocumentSchema.safeParse({
+      ...req.body,
+      fileName: derivedFileName,
+      clientId: user.id,
+      uploadedBy: user.id,
+      fileType: "material",
+    });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const doc = await storage.createDocument(parsed.data);
+    res.json(doc);
+  });
+
+  app.delete("/api/materials/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const doc = await storage.getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Not found" });
+    if (doc.fileUrl.startsWith("/uploads/")) {
+      const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    await storage.deleteDocument(req.params.id);
+    res.json({ message: "Deleted" });
+  });
+
   // Messages / Chat
   app.get("/api/messages/:otherUserId", requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
@@ -376,6 +411,92 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
     await storage.markAllNotificationsRead((req.user as any).id);
     res.json({ message: "All marked read" });
+  });
+
+  // Client submits their own call feedback
+  app.patch("/api/calls/:id/client-feedback", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const cf = await storage.getCallFeedback(req.params.id);
+    if (!cf) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== cf.clientId) return res.status(403).json({ message: "Forbidden" });
+    const { clientFeedback, clientLearnings } = req.body;
+    const updated = await storage.updateCallFeedback(req.params.id, { clientFeedback, clientLearnings });
+    res.json(updated);
+  });
+
+  // Content Posts
+  app.get("/api/content/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
+    const posts = await storage.getContentPostsByClient(req.params.clientId);
+    res.json(posts);
+  });
+
+  app.post("/api/content", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const data = { ...req.body, clientId: user.role === "admin" ? req.body.clientId : user.id };
+    const parsed = insertContentPostSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const post = await storage.createContentPost(parsed.data);
+    await storage.createNotification({
+      clientId: post.clientId,
+      message: `Reminder: Update metrics for your ${post.platform} ${post.contentType} posted on ${new Date(post.postDate).toLocaleDateString()}`,
+      type: "metric_reminder",
+    });
+    res.json(post);
+  });
+
+  app.patch("/api/content/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const post = await storage.getContentPost(req.params.id);
+    if (!post) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
+    const updated = await storage.updateContentPost(req.params.id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/content/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const post = await storage.getContentPost(req.params.id);
+    if (!post) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
+    await storage.deleteContentPost(req.params.id);
+    res.json({ message: "Deleted" });
+  });
+
+  // Income Goals
+  app.get("/api/income-goal/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
+    const goal = await storage.getIncomeGoal(req.params.clientId);
+    res.json(goal || null);
+  });
+
+  app.post("/api/income-goal", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const data = { ...req.body, clientId: user.role === "admin" ? req.body.clientId : user.id };
+    const parsed = insertIncomeGoalSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const goal = await storage.upsertIncomeGoal(parsed.data);
+    res.json(goal);
+  });
+
+  // Chat file upload
+  app.post("/api/messages/upload", requireAuth, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file" });
+    const { receiverId } = req.body;
+    if (!receiverId) return res.status(400).json({ message: "receiverId required" });
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const msg = await storage.createMessage({
+      senderId: (req.user as any).id,
+      receiverId,
+      content: req.file.originalname,
+      fileUrl,
+      fileName: req.file.originalname,
+      fileMime: req.file.mimetype,
+    });
+    sendToUser(receiverId, { type: "message", message: msg });
+    res.json(msg);
   });
 
   return httpServer;

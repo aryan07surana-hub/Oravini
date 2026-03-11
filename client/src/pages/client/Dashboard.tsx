@@ -5,30 +5,190 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
-  TrendingUp, Clock, ArrowRight, ChevronRight, AlertCircle, CalendarPlus
+  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+
+const QUOTES = [
+  "Success is not the key to happiness. Happiness is the key to success.",
+  "The secret of getting ahead is getting started.",
+  "Don't watch the clock; do what it does. Keep going.",
+  "The harder you work for something, the greater you'll feel when you achieve it.",
+  "Success usually comes to those who are too busy to be looking for it.",
+  "Dreams don't work unless you do.",
+  "The only way to do great work is to love what you do.",
+  "It always seems impossible until it's done.",
+  "Push yourself, because no one else is going to do it for you.",
+  "Great things never come from comfort zones.",
+  "Dream it. Wish it. Do it.",
+  "Success doesn't just find you. You have to go out and get it.",
+  "The key to success is to focus on goals, not obstacles.",
+  "Believe you can and you're halfway there.",
+  "Act as if what you do makes a difference. It does.",
+  "What you get by achieving your goals is not as important as what you become.",
+  "You don't have to be great to start, but you have to start to be great.",
+  "Don't stop when you're tired. Stop when you're done.",
+  "Wake up with determination. Go to bed with satisfaction.",
+  "Little things make big days.",
+  "It's going to be hard, but hard is not impossible.",
+  "Don't wait for opportunity. Create it.",
+  "Sometimes we're tested not to show our weaknesses, but to discover our strengths.",
+  "The key is to keep company only with people who uplift you.",
+  "Change your thoughts and you change your world.",
+  "Either you run the day or the day runs you.",
+  "A year from now you may wish you had started today.",
+  "Never give up on a dream just because of the time it will take to accomplish it.",
+  "Opportunities don't happen, you create them.",
+  "The road to success and the road to failure are almost exactly the same.",
+];
+
+function getDailyQuote() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return QUOTES[dayOfYear % QUOTES.length];
+}
+
+function WorldClock({ city, timezone }: { city: string; timezone: string }) {
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      setTime(new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: timezone }).format(new Date()));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [timezone]);
+  const date = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: timezone }).format(new Date());
+  return (
+    <div className="flex-1 min-w-0">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{city}</p>
+      <p className="text-lg font-bold text-foreground font-mono tabular-nums">{time}</p>
+      <p className="text-[10px] text-muted-foreground">{date}</p>
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, sub, color }: any) {
   return (
     <Card data-testid={`stat-${label.toLowerCase().replace(/\s+/g, "-")}`} className="border border-card-border bg-card">
       <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
-            <Icon className="w-5 h-5" />
-          </div>
+        <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
+          <Icon className="w-5 h-5" />
         </div>
         <p className="text-2xl font-bold text-foreground">{value}</p>
         <p className="text-sm font-medium text-foreground mt-0.5">{label}</p>
         {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+function IncomeGoalCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [months, setMonths] = useState("6");
+
+  const { data: goal } = useQuery<any>({
+    queryKey: [`/api/income-goal/${userId}`],
+    enabled: !!userId,
+  });
+
+  const save = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/income-goal", { goalAmount: +amount, timeframeMonths: +months, currency: "USD" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/income-goal/${userId}`] });
+      toast({ title: "Goal set!" });
+      setOpen(false);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (goal) {
+    return (
+      <Card className="border border-primary/30 bg-primary/5">
+        <CardContent className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Target className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Your 6-Month Goal</p>
+            <p className="text-xl font-bold text-foreground">${Number(goal.goalAmount).toLocaleString()} <span className="text-sm font-normal text-muted-foreground">in {goal.timeframeMonths} months</span></p>
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <button className="text-xs text-primary hover:underline flex-shrink-0" data-testid="button-edit-goal">Edit</button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Update Income Goal</DialogTitle></DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div>
+                  <label className="text-sm font-medium text-foreground">How much do you want to make?</label>
+                  <div className="relative mt-1">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={goal.goalAmount} className="pl-9" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
+                  <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
+                </div>
+                <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-goal">
+                  {save.isPending ? "Saving..." : "Update Goal"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Card className="border border-dashed border-primary/30 bg-primary/5 cursor-pointer hover:border-primary/50 transition-colors">
+        <DialogTrigger asChild>
+          <CardContent className="p-4 flex items-center gap-4" data-testid="button-set-goal">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Target className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Set Your Income Goal</p>
+              <p className="text-xs text-muted-foreground">How much do you want to make in the next 6 months?</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
+          </CardContent>
+        </DialogTrigger>
+      </Card>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Set Your Income Goal</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground mt-1">How much money do you want to make in the next 6 months?</p>
+        <div className="space-y-4 mt-2">
+          <div>
+            <label className="text-sm font-medium text-foreground">Target Amount</label>
+            <div className="relative mt-1">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="10000" className="pl-9" data-testid="input-goal-amount" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
+            <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
+          </div>
+          <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-goal">
+            {save.isPending ? "Saving..." : "Set My Goal"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -50,14 +210,9 @@ export default function ClientDashboard() {
     queryKey: ["/api/notifications"],
   });
 
-  const { data: docs } = useQuery<any[]>({
-    queryKey: ["/api/documents"],
-  });
-
-  const { data: calls } = useQuery<any[]>({
-    queryKey: [`/api/calls/${user?.id}`],
-    enabled: !!user?.id,
-  });
+  const { data: docs } = useQuery<any[]>({ queryKey: ["/api/documents"] });
+  const { data: calls } = useQuery<any[]>({ queryKey: [`/api/calls/${user?.id}`], enabled: !!user?.id });
+  const { data: contentPosts } = useQuery<any[]>({ queryKey: [`/api/content/${user?.id}`], enabled: !!user?.id });
 
   const markAllRead = useMutation({
     mutationFn: () => apiRequest("POST", "/api/notifications/read-all"),
@@ -76,41 +231,70 @@ export default function ClientDashboard() {
   const completedTasks = (tasks || []).filter((t: any) => t.completed).length;
   const pendingTasks = (tasks || []).filter((t: any) => !t.completed).length;
   const unreadNotifs = (notifications || []).filter((n: any) => !n.read);
+  const totalContentViews = (contentPosts || []).reduce((s: number, p: any) => s + p.views, 0);
+  const totalFollowers = (contentPosts || []).reduce((s: number, p: any) => s + p.followersGained + p.subscribersGained, 0);
+
+  const dailyQuote = getDailyQuote();
 
   return (
     <ClientLayout>
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+      <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 data-testid="text-welcome" className="text-2xl lg:text-3xl font-bold text-foreground">
-                Welcome back, {user?.name?.split(" ")[0]} 👋
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                {user?.program && <span className="font-medium">{user.program}</span>}
-              </p>
-            </div>
-            {user?.nextCallDate && (
-              <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
-                <Calendar className="w-4 h-4 text-primary" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Next call</p>
-                  <p className="text-sm font-semibold text-primary">
-                    {format(new Date(user.nextCallDate), "MMM d, h:mm a")}
-                  </p>
-                </div>
-              </div>
-            )}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 data-testid="text-welcome" className="text-2xl lg:text-3xl font-bold text-foreground">
+              Welcome back, {user?.name?.split(" ")[0]} 👋
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              {user?.program && <span className="font-medium">{user.program}</span>}
+            </p>
           </div>
+          {user?.nextCallDate && (
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
+              <Calendar className="w-4 h-4 text-primary" />
+              <div>
+                <p className="text-xs text-muted-foreground">Next call</p>
+                <p className="text-sm font-semibold text-primary">{format(new Date(user.nextCallDate), "MMM d, h:mm a")}</p>
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Daily Quote */}
+        <Card className="border border-primary/20 bg-primary/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Quote className="w-5 h-5 text-primary flex-shrink-0 mt-0.5 opacity-70" />
+            <div>
+              <p className="text-sm italic text-foreground leading-relaxed">"{dailyQuote}"</p>
+              <p className="text-[10px] text-muted-foreground mt-1.5">Daily inspiration · {format(new Date(), "MMMM d, yyyy")}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Income Goal */}
+        {user?.id && <IncomeGoalCard userId={user.id} />}
+
+        {/* World Clocks */}
+        <Card className="border border-card-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-4 h-4 text-muted-foreground" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">World Clocks</p>
+            </div>
+            <div className="grid grid-cols-3 gap-6">
+              <WorldClock city="Dubai" timezone="Asia/Dubai" />
+              <WorldClock city="London" timezone="Europe/London" />
+              <WorldClock city="New York" timezone="America/New_York" />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={TrendingUp} label="Overall Progress" value={`${avgProgress}%`} sub="Across all tracks" color="bg-primary/10 text-primary" />
           <StatCard icon={CheckCircle2} label="Tasks Done" value={completedTasks} sub={`${pendingTasks} pending`} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
-          <StatCard icon={FileText} label="Documents" value={(docs || []).length} sub="Shared with you" color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
-          <StatCard icon={MessageSquare} label="Call Sessions" value={(calls || []).length} sub="Total recorded" color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
+          <StatCard icon={Eye} label="Content Views" value={totalContentViews.toLocaleString()} sub={`${(contentPosts || []).length} posts`} color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
+          <StatCard icon={Users} label="Followers Gained" value={`+${totalFollowers}`} sub="Total growth" color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
         </div>
 
         {/* Calendly Booking Banner */}
@@ -119,7 +303,7 @@ export default function ClientDashboard() {
           target="_blank"
           rel="noreferrer"
           data-testid="book-a-call-banner"
-          className="flex items-center gap-5 p-5 mb-8 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 transition-all duration-200 group shadow-sm"
+          className="flex items-center gap-5 p-5 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 transition-all duration-200 group shadow-sm"
         >
           <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
             <CalendarPlus className="w-6 h-6 text-white" />
@@ -177,17 +361,11 @@ export default function ClientDashboard() {
                   <Bell className="w-4 h-4" />
                   Notifications
                   {unreadNotifs.length > 0 && (
-                    <Badge className="bg-primary text-primary-foreground text-[10px] h-5 px-1.5 border-0">
-                      {unreadNotifs.length}
-                    </Badge>
+                    <Badge className="bg-primary text-primary-foreground text-[10px] h-5 px-1.5 border-0">{unreadNotifs.length}</Badge>
                   )}
                 </CardTitle>
                 {unreadNotifs.length > 0 && (
-                  <button
-                    onClick={() => markAllRead.mutate()}
-                    className="text-xs text-primary hover:underline"
-                    data-testid="mark-all-read"
-                  >
+                  <button onClick={() => markAllRead.mutate()} className="text-xs text-primary hover:underline" data-testid="mark-all-read">
                     Mark all read
                   </button>
                 )}
@@ -206,16 +384,12 @@ export default function ClientDashboard() {
                   <div
                     key={n.id}
                     data-testid={`notification-${n.id}`}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                      !n.read ? "bg-primary/5 border-primary/20" : "bg-card border-card-border"
-                    }`}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${!n.read ? "bg-primary/5 border-primary/20" : "bg-card border-card-border"}`}
                   >
                     <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${!n.read ? "text-primary" : "text-muted-foreground"}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {format(new Date(n.createdAt), "MMM d, h:mm a")}
-                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(n.createdAt), "MMM d, h:mm a")}</p>
                     </div>
                     {!n.read && <div className="w-1.5 h-1.5 bg-primary rounded-full mt-1 flex-shrink-0" />}
                   </div>
@@ -225,8 +399,38 @@ export default function ClientDashboard() {
           </Card>
         </div>
 
+        {/* Content Summary */}
+        {(contentPosts || []).length > 0 && (
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">Content Performance</CardTitle>
+                <Link href="/content-tracking" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                  Full tracker <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: "Total Posts", value: (contentPosts || []).length, icon: FileText, color: "text-purple-400" },
+                  { label: "Total Views", value: totalContentViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
+                  { label: "Instagram", value: (contentPosts || []).filter((p: any) => p.platform === "instagram").length, icon: Instagram, color: "text-pink-400" },
+                  { label: "YouTube", value: (contentPosts || []).filter((p: any) => p.platform === "youtube").length, icon: Youtube, color: "text-red-400" },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div key={label} className="text-center">
+                    <Icon className={`w-6 h-6 ${color} mx-auto mb-1`} />
+                    <p className="text-xl font-bold text-foreground">{value}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tasks */}
-        <Card className="mt-6 border border-card-border">
+        <Card className="border border-card-border">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold">Action Items</CardTitle>
@@ -247,27 +451,17 @@ export default function ClientDashboard() {
                   <div
                     key={task.id}
                     data-testid={`task-${task.id}`}
-                    className={`flex items-start gap-3 p-3.5 rounded-lg border transition-all ${
-                      task.completed ? "opacity-60 bg-muted/30 border-border" : "bg-card border-card-border hover:border-primary/30"
-                    }`}
+                    className={`flex items-start gap-3 p-3.5 rounded-lg border transition-all ${task.completed ? "opacity-60 bg-muted/30 border-border" : "bg-card border-card-border hover:border-primary/30"}`}
                   >
-                    <button
-                      onClick={() => toggleTask.mutate({ id: task.id, completed: !task.completed })}
-                      data-testid={`toggle-task-${task.id}`}
-                      className="mt-0.5 flex-shrink-0"
-                    >
+                    <button onClick={() => toggleTask.mutate({ id: task.id, completed: !task.completed })} data-testid={`toggle-task-${task.id}`} className="mt-0.5 flex-shrink-0">
                       {task.completed
                         ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                         : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
                       }
                     </button>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{task.description}</p>
-                      )}
+                      <p className={`text-sm font-medium ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
+                      {task.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{task.description}</p>}
                     </div>
                     {task.dueDate && (
                       <div className="flex items-center gap-1 flex-shrink-0">

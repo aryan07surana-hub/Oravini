@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, MessageSquare, Zap, Pencil, Trash2, Check, X } from "lucide-react";
+import { Send, MessageSquare, Zap, Pencil, Trash2, Check, X, Paperclip, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,9 +18,11 @@ export default function ClientChat() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: adminUser } = useQuery<any>({ queryKey: ["/api/admin-user"] });
   const adminId = adminUser?.id;
@@ -80,6 +82,25 @@ export default function ClientChat() {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && adminId) sendMsg.mutate(message.trim());
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !adminId) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("receiverId", adminId);
+      const res = await fetch("/api/messages/upload", { method: "POST", body: fd, credentials: "include" });
+      if (!res.ok) throw new Error("Upload failed");
+      queryClient.invalidateQueries({ queryKey: [`/api/messages/${adminId}`] });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const startEdit = (msg: any) => {
@@ -169,6 +190,18 @@ export default function ClientChat() {
                             <button onClick={() => confirmEdit(msg.id)} className="text-primary hover:text-primary/80"><Check className="w-4 h-4" /></button>
                             <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
                           </div>
+                        ) : msg.fileUrl ? (
+                          <div className={`rounded-2xl overflow-hidden border ${isMe ? "border-primary/30" : "border-card-border"}`}>
+                            {msg.fileMime?.startsWith("image/") ? (
+                              <img src={msg.fileUrl} alt={msg.fileName || "image"} className="max-w-[240px] max-h-[180px] object-cover" />
+                            ) : (
+                              <a href={msg.fileUrl} target="_blank" rel="noreferrer" download className={`flex items-center gap-3 px-4 py-3 ${isMe ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>
+                                <FileText className="w-5 h-5 flex-shrink-0" />
+                                <span className="text-sm font-medium truncate max-w-[160px]">{msg.fileName || msg.content}</span>
+                                <Download className="w-4 h-4 flex-shrink-0" />
+                              </a>
+                            )}
+                          </div>
                         ) : (
                           <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                             isMe
@@ -212,16 +245,20 @@ export default function ClientChat() {
 
         {/* Input */}
         <div className="border-t border-border px-6 py-4 bg-background flex-shrink-0">
-          <form onSubmit={handleSend} className="flex gap-3 items-center">
+          <form onSubmit={handleSend} className="flex gap-2 items-center">
+            <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden" onChange={handleFileUpload} data-testid="client-file-input" />
+            <Button type="button" variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={uploading || !adminId} data-testid="client-button-attach">
+              <Paperclip className="w-4 h-4" />
+            </Button>
             <Input
               data-testid="input-message"
-              placeholder={adminId ? "Type a message to Brandverse..." : "Loading..."}
+              placeholder={uploading ? "Uploading..." : adminId ? "Type a message to Brandverse..." : "Loading..."}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="flex-1 h-10"
-              disabled={!adminId}
+              disabled={!adminId || uploading}
             />
-            <Button type="submit" size="icon" data-testid="button-send" disabled={!message.trim() || !adminId || sendMsg.isPending} className="h-10 w-10 flex-shrink-0">
+            <Button type="submit" size="icon" data-testid="button-send" disabled={!message.trim() || !adminId || sendMsg.isPending || uploading} className="h-10 w-10 flex-shrink-0">
               <Send className="w-4 h-4" />
             </Button>
           </form>

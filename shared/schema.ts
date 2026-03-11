@@ -1,10 +1,13 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const roleEnum = pgEnum("role", ["admin", "client"]);
-export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", "strategy", "worksheet", "contract", "other"]);
+export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", "strategy", "worksheet", "contract", "material", "other"]);
+export const platformEnum = pgEnum("platform", ["instagram", "youtube"]);
+export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video"]);
+export const funnelStageEnum = pgEnum("funnel_stage", ["top", "middle", "bottom"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -40,6 +43,7 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   fileUrl: text("file_url"),
   fileName: text("file_name"),
+  fileMime: text("file_mime"),
   read: boolean("read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -63,6 +67,8 @@ export const callFeedback = pgTable("call_feedback", {
   feedbackNotes: text("feedback_notes"),
   actionSteps: text("action_steps"),
   callDate: timestamp("call_date").notNull(),
+  clientFeedback: text("client_feedback"),
+  clientLearnings: text("client_learnings"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -85,6 +91,34 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const contentPosts = pgTable("content_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  platform: platformEnum("platform").notNull(),
+  contentType: contentTypeEnum("content_type").notNull(),
+  title: text("title"),
+  postUrl: text("post_url"),
+  postDate: timestamp("post_date").notNull(),
+  funnelStage: funnelStageEnum("funnel_stage"),
+  views: integer("views").notNull().default(0),
+  likes: integer("likes").notNull().default(0),
+  comments: integer("comments").notNull().default(0),
+  saves: integer("saves").notNull().default(0),
+  followersGained: integer("followers_gained").notNull().default(0),
+  subscribersGained: integer("subscribers_gained").notNull().default(0),
+  metricsReminded: boolean("metrics_reminded").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const incomeGoals = pgTable("income_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id).unique(),
+  goalAmount: real("goal_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  timeframeMonths: integer("timeframe_months").notNull().default(6),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, read: true });
@@ -92,6 +126,8 @@ export const insertProgressSchema = createInsertSchema(progress).omit({ id: true
 export const insertCallFeedbackSchema = createInsertSchema(callFeedback).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
+export const insertContentPostSchema = createInsertSchema(contentPosts).omit({ id: true, createdAt: true });
+export const insertIncomeGoalSchema = createInsertSchema(incomeGoals).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -107,3 +143,7 @@ export type Task = typeof tasks.$inferSelect;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type ContentPost = typeof contentPosts.$inferSelect;
+export type InsertContentPost = z.infer<typeof insertContentPostSchema>;
+export type IncomeGoal = typeof incomeGoals.$inferSelect;
+export type InsertIncomeGoal = z.infer<typeof insertIncomeGoalSchema>;

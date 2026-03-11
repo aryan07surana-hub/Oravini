@@ -1,12 +1,14 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, gte, lte } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
+  contentPosts, incomeGoals,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
   type Notification, type InsertNotification,
+  type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -24,6 +26,7 @@ export interface IStorage {
   // Documents
   getDocumentsByClient(clientId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
+  getMaterials(): Promise<Document[]>;
   getDocument(id: string): Promise<Document | undefined>;
   createDocument(doc: InsertDocument): Promise<Document>;
   deleteDocument(id: string): Promise<void>;
@@ -60,6 +63,17 @@ export interface IStorage {
   createNotification(notif: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(clientId: string): Promise<void>;
+
+  // Content Posts
+  getContentPostsByClient(clientId: string): Promise<ContentPost[]>;
+  getContentPost(id: string): Promise<ContentPost | undefined>;
+  createContentPost(post: InsertContentPost): Promise<ContentPost>;
+  updateContentPost(id: string, data: Partial<InsertContentPost>): Promise<ContentPost>;
+  deleteContentPost(id: string): Promise<void>;
+
+  // Income Goals
+  getIncomeGoal(clientId: string): Promise<IncomeGoal | undefined>;
+  upsertIncomeGoal(data: InsertIncomeGoal): Promise<IncomeGoal>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -105,6 +119,10 @@ class DatabaseStorage implements IStorage {
 
   async getAllDocuments() {
     return db.select().from(documents).orderBy(desc(documents.createdAt));
+  }
+
+  async getMaterials() {
+    return db.select().from(documents).where(eq(documents.fileType, "material")).orderBy(desc(documents.createdAt));
   }
 
   async getDocument(id: string) {
@@ -251,6 +269,45 @@ class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(clientId: string) {
     await db.update(notifications).set({ read: true }).where(eq(notifications.clientId, clientId));
+  }
+
+  async getContentPostsByClient(clientId: string) {
+    return db.select().from(contentPosts).where(eq(contentPosts.clientId, clientId)).orderBy(desc(contentPosts.postDate));
+  }
+
+  async getContentPost(id: string) {
+    const [post] = await db.select().from(contentPosts).where(eq(contentPosts.id, id));
+    return post;
+  }
+
+  async createContentPost(post: InsertContentPost) {
+    const [created] = await db.insert(contentPosts).values(post).returning();
+    return created;
+  }
+
+  async updateContentPost(id: string, data: Partial<InsertContentPost>) {
+    const [updated] = await db.update(contentPosts).set(data).where(eq(contentPosts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteContentPost(id: string) {
+    await db.delete(contentPosts).where(eq(contentPosts.id, id));
+  }
+
+  async getIncomeGoal(clientId: string) {
+    const [goal] = await db.select().from(incomeGoals).where(eq(incomeGoals.clientId, clientId));
+    return goal;
+  }
+
+  async upsertIncomeGoal(data: InsertIncomeGoal) {
+    const existing = await this.getIncomeGoal(data.clientId);
+    if (existing) {
+      const [updated] = await db.update(incomeGoals).set(data).where(eq(incomeGoals.clientId, data.clientId)).returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(incomeGoals).values(data).returning();
+      return created;
+    }
   }
 }
 

@@ -7,11 +7,16 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 **Key features:**
 - Role-based access: Admin panel and Client dashboard
 - Document management (recordings, summaries, contracts, worksheets, etc.)
+- Materials Library: admin-uploaded shared resources visible to all clients
 - Progress tracking with visual progress bars
-- Call feedback system with action items/tasks
-- Real-time chat via WebSockets
+- Call feedback system (two-way: admin and client submit feedback)
+- Real-time chat via WebSockets with image/file upload support
 - Notification/reminder system
+- Content tracking: Instagram + YouTube post metrics with calendar and AI summary report
+- Income goal tracking with monthly progress bar
+- Dashboard: daily motivational quote, world clocks (Dubai/London/NYC), income goal card, content metrics
 - Session-based authentication with Passport.js
+- Admin ClientDetail: 7-tab view including Content tab (content posts + income goal per client)
 
 ## User Preferences
 
@@ -60,12 +65,14 @@ Preferred communication style: Simple, everyday language.
 
 **Schema tables:**
 - `users` — both admin and client accounts, with role enum (`admin` | `client`), program name, next call date, phone
-- `documents` — files linked to a client and uploader; typed with `doc_type` enum (recording, summary, audit, strategy, worksheet, contract, other)
-- `messages` — direct messages between users with read status and optional file attachment
+- `documents` — files linked to a client and uploader; typed with `doc_type` enum (recording, summary, audit, strategy, worksheet, contract, material, other); fileType="material" = shared library resource
+- `messages` — direct messages between users with read status, optional file attachment (fileUrl, fileName, fileMime)
 - `progress` — per-client progress percentages for offer creation, funnel, content, monetization (unique per client)
-- `call_feedback` — call records with recording URL, summary, feedback notes, action steps
+- `call_feedback` — call records with recording URL, summary, admin feedback, client feedback + learnings
 - `tasks` — action items per client with completion status
 - `notifications` — dashboard notifications per user with read status
+- `content_posts` — Instagram/YouTube post metrics per client (views, likes, comments, followers, revenue, postDate, funnelStage)
+- `income_goals` — monthly income target and current income per client (unique per client)
 
 All IDs use PostgreSQL `gen_random_uuid()` defaults.
 

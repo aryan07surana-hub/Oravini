@@ -19,7 +19,8 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, TrendingUp, FileText, Phone, Bell, Trash2,
   Plus, CheckCircle2, Circle, Clock, Save, Calendar, Mail,
-  Sliders, ChevronRight, ExternalLink, Download, KeyRound, Eye, EyeOff
+  Sliders, ChevronRight, ExternalLink, Download, KeyRound, Eye, EyeOff,
+  Instagram, Youtube, Target, BarChart2
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -65,6 +66,14 @@ export default function AdminClientDetail({ id }: { id: string }) {
 
   const { data: tasks, isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: [`/api/tasks/${id}`],
+  });
+
+  const { data: contentPosts } = useQuery<any[]>({
+    queryKey: [`/api/content/${id}`],
+  });
+
+  const { data: incomeGoal } = useQuery<any>({
+    queryKey: [`/api/income-goal/${id}`],
   });
 
   const updateProgress = useMutation({
@@ -227,11 +236,12 @@ export default function AdminClientDetail({ id }: { id: string }) {
         </div>
 
         <Tabs defaultValue="progress" className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full max-w-xl">
+          <TabsList className="grid grid-cols-7 w-full max-w-2xl">
             <TabsTrigger value="progress" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" /><span className="hidden sm:inline">Progress</span></TabsTrigger>
             <TabsTrigger value="documents" className="gap-1.5"><FileText className="w-3.5 h-3.5" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
             <TabsTrigger value="calls" className="gap-1.5"><Phone className="w-3.5 h-3.5" /><span className="hidden sm:inline">Calls</span></TabsTrigger>
             <TabsTrigger value="tasks" className="gap-1.5"><Sliders className="w-3.5 h-3.5" /><span className="hidden sm:inline">Tasks</span></TabsTrigger>
+            <TabsTrigger value="content" className="gap-1.5"><BarChart2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Content</span></TabsTrigger>
             <TabsTrigger value="reminders" className="gap-1.5"><Bell className="w-3.5 h-3.5" /><span className="hidden sm:inline">Notify</span></TabsTrigger>
             <TabsTrigger value="access" className="gap-1.5"><KeyRound className="w-3.5 h-3.5" /><span className="hidden sm:inline">Access</span></TabsTrigger>
           </TabsList>
@@ -471,6 +481,83 @@ export default function AdminClientDetail({ id }: { id: string }) {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Content Tab */}
+          <TabsContent value="content" className="space-y-4">
+            {incomeGoal && (
+              <Card className="border border-card-border">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Target className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Monthly Income Goal</p>
+                      <p className="text-lg font-bold text-primary">
+                        {incomeGoal.currency || "€"}{Number(incomeGoal.monthlyTarget || 0).toLocaleString()}
+                      </p>
+                      {incomeGoal.currentMonthIncome && (
+                        <div className="mt-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                            <span>Current: {incomeGoal.currency || "€"}{Number(incomeGoal.currentMonthIncome).toLocaleString()}</span>
+                            <span>{Math.round((Number(incomeGoal.currentMonthIncome) / Number(incomeGoal.monthlyTarget)) * 100)}%</span>
+                          </div>
+                          <Progress value={Math.min(100, Math.round((Number(incomeGoal.currentMonthIncome) / Number(incomeGoal.monthlyTarget)) * 100))} className="h-1.5" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            <Card className="border border-card-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-primary" /> Content Posts
+                  <Badge variant="secondary" className="ml-auto">{(contentPosts || []).length} posts</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!contentPosts || contentPosts.length === 0 ? (
+                  <div className="text-center py-10">
+                    <BarChart2 className="w-8 h-8 text-muted-foreground opacity-40 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No content posts tracked yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {contentPosts.map((post: any) => (
+                      <div key={post.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${post.platform === "instagram" ? "bg-purple-500/20" : "bg-red-500/20"}`}>
+                          {post.platform === "instagram"
+                            ? <Instagram className="w-3.5 h-3.5 text-purple-500" />
+                            : <Youtube className="w-3.5 h-3.5 text-red-500" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-foreground truncate">{post.title}</p>
+                            <Badge variant="outline" className="text-[10px] capitalize">{post.contentType?.replace("_", " ")}</Badge>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                            {post.views != null && <span>👁 {Number(post.views).toLocaleString()}</span>}
+                            {post.likes != null && <span>❤️ {Number(post.likes).toLocaleString()}</span>}
+                            {post.comments != null && <span>💬 {Number(post.comments).toLocaleString()}</span>}
+                            {post.followers != null && <span>+{Number(post.followers).toLocaleString()} followers</span>}
+                            {post.revenue != null && Number(post.revenue) > 0 && <span>💰 {incomeGoal?.currency || "€"}{Number(post.revenue).toLocaleString()}</span>}
+                            {post.postDate && <span>{format(new Date(post.postDate), "MMM d")}</span>}
+                          </div>
+                        </div>
+                        {post.postUrl && (
+                          <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary flex-shrink-0">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Reminders Tab */}

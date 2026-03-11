@@ -11,6 +11,7 @@ import ClientDocuments from "@/pages/client/Documents";
 import ClientChat from "@/pages/client/Chat";
 import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
+import ClientContentTracking from "@/pages/client/ContentTracking";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
@@ -70,6 +71,9 @@ function Router() {
       </Route>
       <Route path="/calls">
         {() => <ProtectedRoute component={ClientCalls} />}
+      </Route>
+      <Route path="/content-tracking">
+        {() => <ProtectedRoute component={ClientContentTracking} />}
       </Route>
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} adminOnly />}

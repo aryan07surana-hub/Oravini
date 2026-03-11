@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone, Bell,
-  LogOut, ChevronRight, Menu, X, CalendarPlus
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2
 } from "lucide-react";
 import { useState } from "react";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/content-tracking", label: "Content Tracking", icon: BarChart2 },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/progress", label: "Progress", icon: TrendingUp },
