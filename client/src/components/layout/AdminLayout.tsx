@@ -11,11 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Bell
+  LogOut, ChevronRight, ChevronDown, Menu, X, BarChart2, TrendingUp, Clock
 } from "lucide-react";
 import { useState } from "react";
 
-const navItems = [
+const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/documents", label: "Documents", icon: FileText },
@@ -28,8 +28,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const logout = useLogout();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [trackingOpen, setTrackingOpen] = useState(location.startsWith("/admin/tracking"));
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "A";
+  const isTrackingActive = location.startsWith("/admin/tracking");
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -37,7 +39,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
         <div className="px-6 py-5 border-b border-sidebar-border flex items-center justify-between">
           <div>
@@ -49,9 +50,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = location === href || (href !== "/admin" && location.startsWith(href));
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {mainNavItems.map(({ href, label, icon: Icon }) => {
+            const active = location === href || (href !== "/admin" && location.startsWith(href) && !location.startsWith("/admin/tracking"));
             return (
               <Link
                 key={href}
@@ -70,9 +71,54 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Link>
             );
           })}
+
+          <div>
+            <button
+              onClick={() => setTrackingOpen(o => !o)}
+              data-testid="admin-nav-tracking-toggle"
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                isTrackingActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              <BarChart2 className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">Tracking</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${trackingOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {trackingOpen && (
+              <div className="mt-1 ml-3 pl-4 border-l border-sidebar-border space-y-1">
+                <Link
+                  href="/admin/tracking"
+                  onClick={() => setMobileOpen(false)}
+                  data-testid="admin-nav-content-tracking"
+                  className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-all ${
+                    location === "/admin/tracking"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  }`}
+                >
+                  <BarChart2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="flex-1">Content Tracking</span>
+                  {location !== "/admin/tracking" && <ChevronRight className="w-3 h-3 opacity-50" />}
+                </Link>
+
+                <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm opacity-50 cursor-not-allowed">
+                  <TrendingUp className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-muted-foreground">Sales Tracking</span>
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">Soon</Badge>
+                </div>
+                <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm opacity-50 cursor-not-allowed">
+                  <BarChart2 className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                  <span className="flex-1 text-muted-foreground">Ad Tracking</span>
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">Soon</Badge>
+                </div>
+              </div>
+            )}
+          </div>
         </nav>
 
-        {/* Admin badge */}
         <div className="px-4 pb-2">
           <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2.5">
             <p className="text-xs font-semibold text-primary">Admin Access</p>

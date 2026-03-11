@@ -434,7 +434,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/content", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const data = { ...req.body, clientId: user.role === "admin" ? req.body.clientId : user.id };
+    const data = {
+      ...req.body,
+      clientId: user.role === "admin" ? req.body.clientId : user.id,
+      postDate: req.body.postDate ? new Date(req.body.postDate) : undefined,
+    };
     const parsed = insertContentPostSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const post = await storage.createContentPost(parsed.data);

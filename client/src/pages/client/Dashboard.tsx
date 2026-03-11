@@ -68,10 +68,10 @@ function WorldClock({ city, timezone }: { city: string; timezone: string }) {
   }, [timezone]);
   const date = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: timezone }).format(new Date());
   return (
-    <div className="flex-1 min-w-0">
+    <div className="flex-1 min-w-0 text-center">
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{city}</p>
-      <p className="text-lg font-bold text-foreground font-mono tabular-nums">{time}</p>
-      <p className="text-[10px] text-muted-foreground">{date}</p>
+      <p className="text-xl font-bold text-foreground font-mono tabular-nums mt-0.5">{time}</p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{date}</p>
     </div>
   );
 }
@@ -91,13 +91,73 @@ function StatCard({ icon: Icon, label, value, sub, color }: any) {
   );
 }
 
-function IncomeGoalCard({ userId }: { userId: string }) {
+function GoalDialog({ userId, autoOpen }: { userId: string; autoOpen: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [months, setMonths] = useState("6");
 
-  const { data: goal } = useQuery<any>({
+  useEffect(() => {
+    if (autoOpen) {
+      const shown = sessionStorage.getItem("goalDialogShown");
+      if (!shown) {
+        setOpen(true);
+        sessionStorage.setItem("goalDialogShown", "1");
+      }
+    }
+  }, [autoOpen]);
+
+  const save = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/income-goal", { goalAmount: +amount, timeframeMonths: +months, currency: "USD" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/income-goal/${userId}`] });
+      toast({ title: "Goal set! Let's make it happen 🎯" });
+      setOpen(false);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button className="text-xs text-primary hover:underline" data-testid="button-set-goal-trigger">Set Goal</button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-xl">Welcome to Brandverse! 🎉</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground mt-1">Let's start by setting your income goal. How much money do you want to make in the next 6 months?</p>
+        <div className="space-y-4 mt-3">
+          <div>
+            <label className="text-sm font-medium text-foreground">Target Amount (USD)</label>
+            <div className="relative mt-1">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 100000" className="pl-9" data-testid="input-goal-amount-welcome" autoFocus />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
+            <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
+          </div>
+          <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-welcome-goal">
+            {save.isPending ? "Saving..." : "Set My Goal"}
+          </Button>
+          <button onClick={() => setOpen(false)} className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
+            Skip for now
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IncomeGoalCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [editOpen, setEditOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [months, setMonths] = useState("6");
+
+  const { data: goal, isLoading } = useQuery<any>({
     queryKey: [`/api/income-goal/${userId}`],
     enabled: !!userId,
   });
@@ -106,89 +166,75 @@ function IncomeGoalCard({ userId }: { userId: string }) {
     mutationFn: () => apiRequest("POST", "/api/income-goal", { goalAmount: +amount, timeframeMonths: +months, currency: "USD" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/income-goal/${userId}`] });
-      toast({ title: "Goal set!" });
-      setOpen(false);
+      toast({ title: "Goal updated!" });
+      setEditOpen(false);
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  if (goal) {
+  if (isLoading) {
     return (
-      <Card className="border border-primary/30 bg-primary/5">
-        <CardContent className="p-4 flex items-center gap-4">
-          <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Target className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Your 6-Month Goal</p>
-            <p className="text-xl font-bold text-foreground">${Number(goal.goalAmount).toLocaleString()} <span className="text-sm font-normal text-muted-foreground">in {goal.timeframeMonths} months</span></p>
-          </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <button className="text-xs text-primary hover:underline flex-shrink-0" data-testid="button-edit-goal">Edit</button>
-            </DialogTrigger>
-            <DialogContent className="max-w-sm">
-              <DialogHeader><DialogTitle>Update Income Goal</DialogTitle></DialogHeader>
-              <div className="space-y-4 mt-2">
-                <div>
-                  <label className="text-sm font-medium text-foreground">How much do you want to make?</label>
-                  <div className="relative mt-1">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={goal.goalAmount} className="pl-9" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
-                  <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
-                </div>
-                <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-goal">
-                  {save.isPending ? "Saving..." : "Update Goal"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+      <Card className="border border-card-border">
+        <CardContent className="p-6 flex flex-col justify-between h-full">
+          <Skeleton className="h-8 w-24 mb-4" />
+          <Skeleton className="h-6 w-full" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Card className="border border-dashed border-primary/30 bg-primary/5 cursor-pointer hover:border-primary/50 transition-colors">
-        <DialogTrigger asChild>
-          <CardContent className="p-4 flex items-center gap-4" data-testid="button-set-goal">
-            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Target className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Set Your Income Goal</p>
-              <p className="text-xs text-muted-foreground">How much do you want to make in the next 6 months?</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
-          </CardContent>
-        </DialogTrigger>
-      </Card>
-      <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle>Set Your Income Goal</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground mt-1">How much money do you want to make in the next 6 months?</p>
-        <div className="space-y-4 mt-2">
-          <div>
-            <label className="text-sm font-medium text-foreground">Target Amount</label>
-            <div className="relative mt-1">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="10000" className="pl-9" data-testid="input-goal-amount" />
-            </div>
+    <Card className={`border ${goal ? "border-primary/30 bg-primary/5" : "border-dashed border-primary/30 bg-primary/5"}`}>
+      <CardContent className="p-6 h-full flex flex-col">
+        <div className="flex items-start justify-between mb-4">
+          <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center">
+            <Target className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
-            <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
-          </div>
-          <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-goal">
-            {save.isPending ? "Saving..." : "Set My Goal"}
-          </Button>
+          {goal && (
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+              <DialogTrigger asChild>
+                <button className="text-xs text-primary hover:underline" data-testid="button-edit-goal">Edit</button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>Update Income Goal</DialogTitle></DialogHeader>
+                <div className="space-y-4 mt-2">
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Target Amount</label>
+                    <div className="relative mt-1">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={String(goal.goalAmount)} className="pl-9" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground">Timeframe (months)</label>
+                    <Input type="number" value={months} onChange={e => setMonths(e.target.value)} min="1" max="24" className="mt-1" />
+                  </div>
+                  <Button className="w-full" onClick={() => save.mutate()} disabled={!amount || save.isPending} data-testid="button-save-goal">
+                    {save.isPending ? "Saving..." : "Update Goal"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="flex-1 flex flex-col justify-end">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Income Goal</p>
+          {goal ? (
+            <>
+              <p className="text-2xl font-bold text-foreground">${Number(goal.goalAmount).toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground mt-1">in {goal.timeframeMonths} months</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-semibold text-foreground">Not set yet</p>
+              <p className="text-xs text-muted-foreground mt-1 mb-3">Set a goal to stay focused</p>
+              <GoalDialog userId={userId} autoOpen={false} />
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -214,6 +260,11 @@ export default function ClientDashboard() {
   const { data: calls } = useQuery<any[]>({ queryKey: [`/api/calls/${user?.id}`], enabled: !!user?.id });
   const { data: contentPosts } = useQuery<any[]>({ queryKey: [`/api/content/${user?.id}`], enabled: !!user?.id });
 
+  const { data: goal, isLoading: goalLoading } = useQuery<any>({
+    queryKey: [`/api/income-goal/${user?.id}`],
+    enabled: !!user?.id,
+  });
+
   const markAllRead = useMutation({
     mutationFn: () => apiRequest("POST", "/api/notifications/read-all"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
@@ -235,11 +286,15 @@ export default function ClientDashboard() {
   const totalFollowers = (contentPosts || []).reduce((s: number, p: any) => s + p.followersGained + p.subscribersGained, 0);
 
   const dailyQuote = getDailyQuote();
+  const showGoalDialog = !goalLoading && goal === null && !!user?.id;
 
   return (
     <ClientLayout>
+      {showGoalDialog && user?.id && (
+        <GoalDialog userId={user.id} autoOpen={true} />
+      )}
+
       <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 data-testid="text-welcome" className="text-2xl lg:text-3xl font-bold text-foreground">
@@ -260,34 +315,42 @@ export default function ClientDashboard() {
           )}
         </div>
 
-        {/* Daily Quote */}
-        <Card className="border border-primary/20 bg-primary/5">
-          <CardContent className="p-4 flex items-start gap-3">
-            <Quote className="w-5 h-5 text-primary flex-shrink-0 mt-0.5 opacity-70" />
-            <div>
-              <p className="text-sm italic text-foreground leading-relaxed">"{dailyQuote}"</p>
-              <p className="text-[10px] text-muted-foreground mt-1.5">Daily inspiration · {format(new Date(), "MMMM d, yyyy")}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Income Goal */}
-        {user?.id && <IncomeGoalCard userId={user.id} />}
-
-        {/* World Clocks */}
-        <Card className="border border-card-border">
+        {/* World Clocks Bar — always at the top */}
+        <Card className="border border-card-border" data-testid="world-clocks-bar">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <Globe className="w-4 h-4 text-muted-foreground" />
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">World Clocks</p>
             </div>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="flex items-center divide-x divide-border">
               <WorldClock city="Dubai" timezone="Asia/Dubai" />
-              <WorldClock city="London" timezone="Europe/London" />
+              <div className="flex-1 min-w-0 text-center px-4">
+                <WorldClock city="London" timezone="Europe/London" />
+              </div>
               <WorldClock city="New York" timezone="America/New_York" />
             </div>
           </CardContent>
         </Card>
+
+        {/* Two square cards: Daily Quote + Income Goal */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="border border-primary/20 bg-primary/5 min-h-[180px]" data-testid="daily-quote-card">
+            <CardContent className="p-6 flex flex-col h-full">
+              <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center mb-4">
+                <Quote className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Daily Quote</p>
+                <p className="text-sm italic text-foreground leading-relaxed">"{dailyQuote}"</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
+            </CardContent>
+          </Card>
+
+          <div className="min-h-[180px]" data-testid="income-goal-card">
+            {user?.id && <IncomeGoalCard userId={user.id} />}
+          </div>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -405,7 +468,7 @@ export default function ClientDashboard() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">Content Performance</CardTitle>
-                <Link href="/content-tracking" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                <Link href="/tracking/content" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
                   Full tracker <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>

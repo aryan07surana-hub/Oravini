@@ -12,9 +12,13 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 - Call feedback system (two-way: admin and client submit feedback)
 - Real-time chat via WebSockets with image/file upload support
 - Notification/reminder system
-- Content tracking: Instagram + YouTube post metrics with calendar and AI summary report
-- Income goal tracking with monthly progress bar
-- Dashboard: daily motivational quote, world clocks (Dubai/London/NYC), income goal card, content metrics
+- Content tracking: separate Instagram (/tracking/content/instagram) and YouTube (/tracking/content/youtube) pages
+- Tracking nav section: expandable in both sidebars with sub-items (Content Tracking, Sales Tracking [soon], Ad Tracking [soon])
+- Report Generator per platform: generate Last 2 Weeks or Last 4 Weeks performance summaries
+- Auto metric-reminder notification created on each content post log (48-72 hour prompt)
+- Income goal tracking: set goal on first join via auto-open dialog; displays on dashboard
+- Dashboard: world clocks bar at top, then two square side-by-side cards (Daily Quote + Income Goal)
+- Admin Content Tracking (/admin/tracking): client selector + Instagram/YouTube tabs + per-client reports
 - Session-based authentication with Passport.js
 - Admin ClientDetail: 7-tab view including Content tab (content posts + income goal per client)
 

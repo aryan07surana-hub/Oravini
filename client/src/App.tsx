@@ -11,13 +11,14 @@ import ClientDocuments from "@/pages/client/Documents";
 import ClientChat from "@/pages/client/Chat";
 import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
-import ClientContentTracking from "@/pages/client/ContentTracking";
+import { ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
 import AdminChat from "@/pages/admin/Chat";
 import AdminDocuments from "@/pages/admin/Documents";
 import AdminSettings from "@/pages/admin/Settings";
+import AdminTracking from "@/pages/admin/Tracking";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -72,8 +73,20 @@ function Router() {
       <Route path="/calls">
         {() => <ProtectedRoute component={ClientCalls} />}
       </Route>
+      <Route path="/tracking/content/instagram">
+        {() => <ProtectedRoute component={InstagramTracking} />}
+      </Route>
+      <Route path="/tracking/content/youtube">
+        {() => <ProtectedRoute component={YouTubeTracking} />}
+      </Route>
+      <Route path="/tracking/content">
+        {() => <ProtectedRoute component={ContentTrackingIndex} />}
+      </Route>
+      <Route path="/tracking">
+        {() => <ProtectedRoute component={ContentTrackingIndex} />}
+      </Route>
       <Route path="/content-tracking">
-        {() => <ProtectedRoute component={ClientContentTracking} />}
+        {() => <ProtectedRoute component={ContentTrackingIndex} />}
       </Route>
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} adminOnly />}
@@ -92,6 +105,9 @@ function Router() {
       </Route>
       <Route path="/admin/settings">
         {() => <ProtectedRoute component={AdminSettings} adminOnly />}
+      </Route>
+      <Route path="/admin/tracking">
+        {() => <ProtectedRoute component={AdminTracking} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>
