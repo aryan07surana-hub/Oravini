@@ -13,7 +13,7 @@ import {
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
   LogOut, ChevronRight, ChevronDown, Menu, X, CalendarPlus, BarChart2,
-  Instagram, Youtube, Clock
+  Instagram, Youtube, Clock, CalendarDays
 } from "lucide-react";
 import { useState } from "react";
 
@@ -30,7 +30,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const logout = useLogout();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [trackingOpen, setTrackingOpen] = useState(location.startsWith("/tracking") || location === "/content-tracking");
+  const [trackingOpen, setTrackingOpen] = useState(
+    location.startsWith("/tracking") || location === "/content-tracking"
+  );
 
   const { data: notifications } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
@@ -141,6 +143,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <Youtube className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="flex-1">YouTube</span>
                   {location !== "/tracking/content/youtube" && <ChevronRight className="w-3 h-3 opacity-50" />}
+                </Link>
+
+                <Link
+                  href="/tracking/content/calendar"
+                  onClick={() => setMobileOpen(false)}
+                  data-testid="nav-tracking-calendar"
+                  className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-all ${
+                    location === "/tracking/content/calendar"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent"
+                  }`}
+                >
+                  <CalendarDays className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="flex-1">Calendar</span>
+                  {location !== "/tracking/content/calendar" && <ChevronRight className="w-3 h-3 opacity-50" />}
                 </Link>
 
                 <div className="mt-1 space-y-1">

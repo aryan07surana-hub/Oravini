@@ -12,6 +12,7 @@ import ClientChat from "@/pages/client/Chat";
 import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
 import { ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
+import ContentCalendar from "@/pages/client/ContentCalendar";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
@@ -78,6 +79,9 @@ function Router() {
       </Route>
       <Route path="/tracking/content/youtube">
         {() => <ProtectedRoute component={YouTubeTracking} />}
+      </Route>
+      <Route path="/tracking/content/calendar">
+        {() => <ProtectedRoute component={ContentCalendar} />}
       </Route>
       <Route path="/tracking/content">
         {() => <ProtectedRoute component={ContentTrackingIndex} />}
