@@ -132,6 +132,19 @@ export const incomeGoals = pgTable("income_goals", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const callBookings = pgTable("call_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").references(() => users.id),
+  inviteeName: text("invitee_name").notNull(),
+  inviteeEmail: text("invitee_email").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  eventName: text("event_name"),
+  status: text("status").notNull().default("scheduled"),
+  calendlyEventUri: text("calendly_event_uri"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, read: true });
@@ -141,6 +154,7 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
 export const insertContentPostSchema = createInsertSchema(contentPosts).omit({ id: true, createdAt: true });
 export const insertIncomeGoalSchema = createInsertSchema(incomeGoals).omit({ id: true, createdAt: true });
+export const insertCallBookingSchema = createInsertSchema(callBookings).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -160,3 +174,5 @@ export type ContentPost = typeof contentPosts.$inferSelect;
 export type InsertContentPost = z.infer<typeof insertContentPostSchema>;
 export type IncomeGoal = typeof incomeGoals.$inferSelect;
 export type InsertIncomeGoal = z.infer<typeof insertIncomeGoalSchema>;
+export type CallBooking = typeof callBookings.$inferSelect;
+export type InsertCallBooking = z.infer<typeof insertCallBookingSchema>;

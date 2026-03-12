@@ -12,12 +12,24 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 - Call feedback system (two-way: admin and client submit feedback)
 - Real-time chat via WebSockets with image/file upload support
 - Notification/reminder system
-- Content tracking: separate Instagram (/tracking/content/instagram) and YouTube (/tracking/content/youtube) pages
-- Tracking nav section: expandable in both sidebars with sub-items (Content Tracking, Sales Tracking [soon], Ad Tracking [soon])
-- Report Generator per platform: generate Last 2 Weeks or Last 4 Weeks performance summaries
+- Tracking hub: /tracking shows 3 big cards (Content Metrics, Sales [soon], Ad [soon])
+- Content Metrics: /tracking/content shows 3 big cards (Instagram, YouTube, Calendar)
+- Instagram Tracking: month-by-month grid, click month → full month dashboard with daily post grouping
+- YouTube Tracking: same month-by-month structure as Instagram
+- Per-post engagement rate auto-calculated: (likes+comments+saves)/views*100, color-coded badge
+- Per-post metric update stages: Initial, 2-Week, 4-Week (via MetricsUpdateDialog with tabs)
+- Visual analytics charts: bar chart (monthly views), pie chart (content type breakdown), line chart (engagement trend)
+- AI Report Generator: 5-second animated loading, then Gemini-powered report with summary, insights, recommendations
+- Content Calendar: /tracking/content/calendar shows posts visually on a calendar
+- AI Content Ideas: /ai-ideas with Gemini, copy/heart-save per idea
+- Admin Calendar: /admin/calendar with full monthly calendar, Calendly bookings, call feedback events
+- Calendly integration: webhook at /api/webhooks/calendly auto-stores bookings, matches to client accounts
+- Course Modules section on dashboard with "Coming Soon" placeholder cards
+- Sidebar: single "Tracking" link (no expandable), "AI Content Ideas" link
+- Admin sidebar: Calendar link added
 - Auto metric-reminder notification created on each content post log (48-72 hour prompt)
 - Income goal tracking: set goal on first join via auto-open dialog; displays on dashboard
-- Dashboard: world clocks bar at top, then two square side-by-side cards (Daily Quote + Income Goal)
+- Dashboard: world clocks bar at top, Daily Quote + Income Goal cards, Course Modules section
 - Admin Content Tracking (/admin/tracking): client selector + Instagram/YouTube tabs + per-client reports
 - Session-based authentication with Passport.js
 - Admin ClientDetail: 7-tab view including Content tab (content posts + income goal per client)

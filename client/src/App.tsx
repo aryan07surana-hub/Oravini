@@ -11,7 +11,7 @@ import ClientDocuments from "@/pages/client/Documents";
 import ClientChat from "@/pages/client/Chat";
 import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
-import { ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
+import { TrackingHome, ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
 import ContentCalendar from "@/pages/client/ContentCalendar";
 import AIIdeas from "@/pages/client/AIIdeas";
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -21,6 +21,7 @@ import AdminChat from "@/pages/admin/Chat";
 import AdminDocuments from "@/pages/admin/Documents";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminTracking from "@/pages/admin/Tracking";
+import AdminCalendar from "@/pages/admin/AdminCalendar";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -91,10 +92,10 @@ function Router() {
         {() => <ProtectedRoute component={ContentTrackingIndex} />}
       </Route>
       <Route path="/tracking">
-        {() => <ProtectedRoute component={ContentTrackingIndex} />}
+        {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
       <Route path="/content-tracking">
-        {() => <ProtectedRoute component={ContentTrackingIndex} />}
+        {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} adminOnly />}
@@ -116,6 +117,9 @@ function Router() {
       </Route>
       <Route path="/admin/tracking">
         {() => <ProtectedRoute component={AdminTracking} adminOnly />}
+      </Route>
+      <Route path="/admin/calendar">
+        {() => <ProtectedRoute component={AdminCalendar} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>

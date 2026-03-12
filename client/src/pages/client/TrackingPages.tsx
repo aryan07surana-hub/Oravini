@@ -10,15 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
+  PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Legend
+} from "recharts";
 import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
-  Star, AlertTriangle, FileText, Clock, ChevronRight, ArrowLeft, Plus, Trash2,
-  Pencil, BarChart2, Bell
+  Star, FileText, Clock, ChevronRight, ArrowLeft, Plus, Trash2, Pencil,
+  BarChart2, Bell, Sparkles, Loader2, DollarSign, CalendarDays, Activity,
+  Calendar, TrendingDown, RefreshCw, Zap
 } from "lucide-react";
-import { format, subWeeks, isAfter } from "date-fns";
+import { format, getMonth, getYear, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
 
 const FUNNEL_LABELS: Record<string, string> = { top: "Top of Funnel", middle: "Middle of Funnel", bottom: "Bottom of Funnel" };
 const CONTENT_TYPE_LABELS: Record<string, string> = { reel: "Reel", carousel: "Carousel", story: "Story", video: "Video", post: "Post" };
@@ -34,6 +44,21 @@ const TYPE_COLORS: Record<string, string> = {
   video: "bg-red-500/10 text-red-400 border-red-500/20",
   post: "bg-blue-500/10 text-blue-400 border-blue-500/20",
 };
+const CHART_COLORS = ["#d4b461", "#6366f1", "#ec4899", "#22c55e", "#f97316", "#14b8a6"];
+
+function engRate(views: number, likes: number, comments: number, saves: number): number | null {
+  if (!views || views === 0) return null;
+  return (likes + comments + saves) / views * 100;
+}
+
+function EngagementBadge({ rate }: { rate: number | null }) {
+  if (rate === null) return <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">N/A</Badge>;
+  const color = rate >= 3
+    ? "bg-green-500/10 text-green-400 border-green-500/30"
+    : rate >= 1 ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+    : "bg-red-500/10 text-red-400 border-red-500/30";
+  return <Badge variant="outline" className={`text-[10px] border ${color}`}>{rate.toFixed(2)}% ER</Badge>;
+}
 
 function PostForm({ clientId, platform, post, onClose }: { clientId: string; platform: string; post?: any; onClose: () => void }) {
   const { toast } = useToast();
@@ -54,17 +79,15 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
   });
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  const liveEr = engRate(+form.views, +form.likes, +form.comments, +form.saves);
+
   const mutation = useMutation({
     mutationFn: (data: any) => isEdit
       ? apiRequest("PATCH", `/api/content/${post.id}`, data)
       : apiRequest("POST", "/api/content", { ...data, clientId, platform }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] });
-      if (!isEdit) {
-        toast({ title: "Post logged!", description: "You'll receive a reminder in 48–72 hours to update your metrics." });
-      } else {
-        toast({ title: "Post updated!" });
-      }
+      toast({ title: isEdit ? "Post updated!" : "Post logged!", description: isEdit ? "Metrics recalculated." : "You'll get a reminder to update metrics in 48–72h." });
       onClose();
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -81,7 +104,7 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label>{isYt ? "Video Title" : "Title / Description"}</Label>
@@ -100,9 +123,7 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
           <Select value={form.contentType} onValueChange={v => set("contentType", v)}>
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {isYt ? (
-                <SelectItem value="video">Video</SelectItem>
-              ) : (
+              {isYt ? <SelectItem value="video">Video</SelectItem> : (
                 <>
                   <SelectItem value="reel">Reel</SelectItem>
                   <SelectItem value="carousel">Carousel</SelectItem>
@@ -129,25 +150,32 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
       </div>
 
       <div className="border-t border-border pt-4">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Metrics</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Initial Metrics</p>
+          {!isYt && liveEr !== null && (
+            <Badge variant="outline" className={`text-[10px] border ${liveEr >= 3 ? "bg-green-500/10 text-green-400 border-green-500/30" : liveEr >= 1 ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}>
+              {liveEr.toFixed(2)}% Engagement Rate
+            </Badge>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label className="text-xs">Views</Label>
-            <Input type="number" min="0" value={form.views} onChange={e => set("views", e.target.value)} className="mt-1 h-9" />
+            <Input type="number" min="0" value={form.views} onChange={e => set("views", e.target.value)} className="mt-1 h-9" data-testid="input-views" />
           </div>
           {!isYt && (
             <>
               <div>
                 <Label className="text-xs">Likes</Label>
-                <Input type="number" min="0" value={form.likes} onChange={e => set("likes", e.target.value)} className="mt-1 h-9" />
+                <Input type="number" min="0" value={form.likes} onChange={e => set("likes", e.target.value)} className="mt-1 h-9" data-testid="input-likes" />
               </div>
               <div>
                 <Label className="text-xs">Comments</Label>
-                <Input type="number" min="0" value={form.comments} onChange={e => set("comments", e.target.value)} className="mt-1 h-9" />
+                <Input type="number" min="0" value={form.comments} onChange={e => set("comments", e.target.value)} className="mt-1 h-9" data-testid="input-comments" />
               </div>
               <div>
                 <Label className="text-xs">Saves</Label>
-                <Input type="number" min="0" value={form.saves} onChange={e => set("saves", e.target.value)} className="mt-1 h-9" />
+                <Input type="number" min="0" value={form.saves} onChange={e => set("saves", e.target.value)} className="mt-1 h-9" data-testid="input-saves" />
               </div>
             </>
           )}
@@ -155,338 +183,857 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
             <Label className="text-xs">{isYt ? "Subscribers Gained" : "Followers Gained"}</Label>
             <Input type="number" min="0" value={isYt ? form.subscribersGained : form.followersGained} onChange={e => set(isYt ? "subscribersGained" : "followersGained", e.target.value)} className="mt-1 h-9" />
           </div>
+          {isYt && (
+            <div>
+              <Label className="text-xs">Likes</Label>
+              <Input type="number" min="0" value={form.likes} onChange={e => set("likes", e.target.value)} className="mt-1 h-9" />
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex gap-3 pt-2">
         <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-        <Button type="submit" className="flex-1" disabled={mutation.isPending}>
-          {mutation.isPending ? "Saving..." : isEdit ? "Update" : "Log Post"}
+        <Button type="submit" className="flex-1" disabled={mutation.isPending} data-testid="button-submit-post">
+          {mutation.isPending ? "Saving..." : isEdit ? "Update Post" : "Log Post"}
         </Button>
       </div>
     </form>
   );
 }
 
-function ReportGenerator({ posts, platform }: { posts: any[]; platform: "instagram" | "youtube" }) {
-  const [period, setPeriod] = useState<2 | 4 | null>(null);
+function MetricsUpdateDialog({ post, clientId, platform, open, onClose }: { post: any; clientId: string; platform: string; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const isYt = platform === "youtube";
 
-  if (!period) {
-    return (
-      <Card className="border border-card-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-primary" /> Report Generator
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">Generate a performance summary for a specific time period.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="h-12 flex flex-col gap-0.5" onClick={() => setPeriod(2)} data-testid="button-report-2weeks">
-              <span className="text-sm font-semibold">Last 2 Weeks</span>
-              <span className="text-[10px] text-muted-foreground">14-day summary</span>
-            </Button>
-            <Button variant="outline" className="h-12 flex flex-col gap-0.5" onClick={() => setPeriod(4)} data-testid="button-report-4weeks">
-              <span className="text-sm font-semibold">Last 4 Weeks</span>
-              <span className="text-[10px] text-muted-foreground">28-day summary</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const [form2w, setForm2w] = useState({
+    views2w: post?.views2w ?? "",
+    likes2w: post?.likes2w ?? "",
+    comments2w: post?.comments2w ?? "",
+    saves2w: post?.saves2w ?? "",
+    followersGained2w: post?.followersGained2w ?? "",
+    subscribersGained2w: post?.subscribersGained2w ?? "",
+  });
 
-  const cutoff = subWeeks(new Date(), period);
-  const filtered = posts.filter(p => isAfter(new Date(p.postDate), cutoff));
-  const best = filtered.length > 0 ? [...filtered].sort((a, b) => b.views - a.views)[0] : null;
-  const totalViews = filtered.reduce((s, p) => s + p.views, 0);
-  const totalFollowers = filtered.reduce((s, p) => s + p.followersGained + p.subscribersGained, 0);
-  const totalEngagement = filtered.reduce((s, p) => s + p.likes + p.comments + p.saves, 0);
-  const totalSubs = filtered.reduce((s, p) => s + p.subscribersGained, 0);
+  const [form4w, setForm4w] = useState({
+    views4w: post?.views4w ?? "",
+    likes4w: post?.likes4w ?? "",
+    comments4w: post?.comments4w ?? "",
+    saves4w: post?.saves4w ?? "",
+    followersGained4w: post?.followersGained4w ?? "",
+    subscribersGained4w: post?.subscribersGained4w ?? "",
+  });
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => apiRequest("PATCH", `/api/content/${post.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] });
+      toast({ title: "Metrics updated!", description: "Engagement rates recalculated." });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const save2w = () => {
+    mutation.mutate(Object.fromEntries(
+      Object.entries(form2w).filter(([, v]) => v !== "").map(([k, v]) => [k, +v])
+    ));
+  };
+
+  const save4w = () => {
+    mutation.mutate(Object.fromEntries(
+      Object.entries(form4w).filter(([, v]) => v !== "").map(([k, v]) => [k, +v])
+    ));
+  };
+
+  const er0 = engRate(post?.views, post?.likes, post?.comments, post?.saves);
+  const er2 = engRate(post?.views2w, post?.likes2w, post?.comments2w, post?.saves2w);
+  const er4 = engRate(post?.views4w, post?.likes4w, post?.comments4w, post?.saves4w);
+
+  if (!open || !post) return null;
 
   return (
-    <Card className="border border-primary/30 bg-primary/5">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-primary" />
-            Last {period * 7} Days Report
-          </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPeriod(null)} data-testid="button-close-report">
-            <ArrowLeft className="w-3 h-3 mr-1" /> New Report
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No posts logged in the last {period * 7} days.</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-base">Update Metrics — {post.title || "Untitled"}</DialogTitle>
+        </DialogHeader>
+        <Tabs defaultValue="initial">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="initial">Initial</TabsTrigger>
+            <TabsTrigger value="2w">2-Week</TabsTrigger>
+            <TabsTrigger value="4w">4-Week</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="initial" className="space-y-4 pt-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground">Posted {format(new Date(post.postDate), "MMMM d, yyyy")}</p>
+              <EngagementBadge rate={er0} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Total Posts", value: filtered.length, icon: FileText, color: "text-primary" },
-                { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
-                platform === "instagram"
-                  ? { label: "Total Engagement", value: totalEngagement.toLocaleString(), icon: Heart, color: "text-red-400" }
-                  : { label: "Subscribers Gained", value: `+${totalSubs}`, icon: Users, color: "text-green-400" },
-                { label: "Followers Gained", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
-              ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} className="bg-card border border-card-border rounded-xl p-3">
-                  <Icon className={`w-4 h-4 ${color} mb-1.5`} />
-                  <p className="text-lg font-bold text-foreground">{value}</p>
+                { label: "Views", value: post.views },
+                ...(isYt ? [] : [
+                  { label: "Likes", value: post.likes },
+                  { label: "Comments", value: post.comments },
+                  { label: "Saves", value: post.saves },
+                ]),
+                { label: isYt ? "Subscribers" : "Followers", value: isYt ? post.subscribersGained : post.followersGained },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-card border border-card-border rounded-lg p-3">
                   <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-lg font-bold text-foreground">{(value || 0).toLocaleString()}</p>
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground text-center">Initial metrics are read-only. Edit via the pencil icon.</p>
+          </TabsContent>
 
-            {best && (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
-                <Star className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-semibold text-green-400">Best Performing</p>
-                  <p className="text-sm font-medium text-foreground mt-0.5">{best.title || "Untitled"}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {best.views.toLocaleString()} views · {CONTENT_TYPE_LABELS[best.contentType]} · {format(new Date(best.postDate), "MMM d")}
-                  </p>
-                </div>
+          <TabsContent value="2w" className="space-y-4 pt-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground">2-Week performance update</p>
+              <EngagementBadge rate={er2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Views at 2 Weeks</Label>
+                <Input type="number" min="0" placeholder={post.views?.toString() || "0"} value={form2w.views2w} onChange={e => setForm2w(f => ({ ...f, views2w: e.target.value }))} className="mt-1 h-9" data-testid="input-views2w" />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">All Posts in Period</p>
-              {filtered.sort((a, b) => b.views - a.views).map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-2.5 bg-card border border-card-border rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{p.title || "Untitled"}</p>
-                    <p className="text-[10px] text-muted-foreground">{format(new Date(p.postDate), "MMM d")} · {p.views.toLocaleString()} views</p>
+              {!isYt && (
+                <>
+                  <div>
+                    <Label className="text-xs">Likes at 2 Weeks</Label>
+                    <Input type="number" min="0" value={form2w.likes2w} onChange={e => setForm2w(f => ({ ...f, likes2w: e.target.value }))} className="mt-1 h-9" />
                   </div>
-                  <Badge variant="outline" className={`text-[10px] border ${TYPE_COLORS[p.contentType] || ""}`}>
-                    {CONTENT_TYPE_LABELS[p.contentType]}
-                  </Badge>
-                </div>
-              ))}
+                  <div>
+                    <Label className="text-xs">Comments at 2 Weeks</Label>
+                    <Input type="number" min="0" value={form2w.comments2w} onChange={e => setForm2w(f => ({ ...f, comments2w: e.target.value }))} className="mt-1 h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Saves at 2 Weeks</Label>
+                    <Input type="number" min="0" value={form2w.saves2w} onChange={e => setForm2w(f => ({ ...f, saves2w: e.target.value }))} className="mt-1 h-9" />
+                  </div>
+                </>
+              )}
+              <div>
+                <Label className="text-xs">{isYt ? "Subscribers at 2 Weeks" : "Followers at 2 Weeks"}</Label>
+                <Input type="number" min="0" value={isYt ? form2w.subscribersGained2w : form2w.followersGained2w} onChange={e => setForm2w(f => ({ ...f, [isYt ? "subscribersGained2w" : "followersGained2w"]: e.target.value }))} className="mt-1 h-9" />
+              </div>
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            <Button onClick={save2w} disabled={mutation.isPending} className="w-full" data-testid="button-save-2w">
+              {mutation.isPending ? "Saving..." : "Save 2-Week Metrics"}
+            </Button>
+          </TabsContent>
+
+          <TabsContent value="4w" className="space-y-4 pt-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground">4-Week performance update</p>
+              <EngagementBadge rate={er4} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Views at 4 Weeks</Label>
+                <Input type="number" min="0" placeholder={post.views?.toString() || "0"} value={form4w.views4w} onChange={e => setForm4w(f => ({ ...f, views4w: e.target.value }))} className="mt-1 h-9" data-testid="input-views4w" />
+              </div>
+              {!isYt && (
+                <>
+                  <div>
+                    <Label className="text-xs">Likes at 4 Weeks</Label>
+                    <Input type="number" min="0" value={form4w.likes4w} onChange={e => setForm4w(f => ({ ...f, likes4w: e.target.value }))} className="mt-1 h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Comments at 4 Weeks</Label>
+                    <Input type="number" min="0" value={form4w.comments4w} onChange={e => setForm4w(f => ({ ...f, comments4w: e.target.value }))} className="mt-1 h-9" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Saves at 4 Weeks</Label>
+                    <Input type="number" min="0" value={form4w.saves4w} onChange={e => setForm4w(f => ({ ...f, saves4w: e.target.value }))} className="mt-1 h-9" />
+                  </div>
+                </>
+              )}
+              <div>
+                <Label className="text-xs">{isYt ? "Subscribers at 4 Weeks" : "Followers at 4 Weeks"}</Label>
+                <Input type="number" min="0" value={isYt ? form4w.subscribersGained4w : form4w.followersGained4w} onChange={e => setForm4w(f => ({ ...f, [isYt ? "subscribersGained4w" : "followersGained4w"]: e.target.value }))} className="mt-1 h-9" />
+              </div>
+            </div>
+            <Button onClick={save4w} disabled={mutation.isPending} className="w-full" data-testid="button-save-4w">
+              {mutation.isPending ? "Saving..." : "Save 4-Week Metrics"}
+            </Button>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-export function ContentTrackingIndex() {
-  return (
-    <ClientLayout>
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Tracking</h1>
-          <p className="text-muted-foreground mt-1">Monitor your content performance and growth</p>
+function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "instagram" | "youtube" }) {
+  const [stage, setStage] = useState<"idle" | "loading" | "done">("idle");
+  const [progress, setProgress] = useState(0);
+  const [report, setReport] = useState<any>(null);
+  const [loadingText, setLoadingText] = useState("Initializing AI...");
+  const { toast } = useToast();
+
+  const loadingSteps = [
+    "Initializing AI analysis...",
+    "Scanning content performance data...",
+    "Calculating engagement patterns...",
+    "Identifying top performers...",
+    "Generating growth insights...",
+  ];
+
+  const generate = async () => {
+    setStage("loading");
+    setProgress(0);
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      setProgress(Math.min(step * 20, 95));
+      setLoadingText(loadingSteps[Math.min(step, loadingSteps.length - 1)]);
+    }, 900);
+
+    try {
+      const res = await apiRequest("POST", "/api/ai/content-report", { posts, platform });
+      clearInterval(interval);
+      setProgress(100);
+      const data = await res.json();
+      setTimeout(() => {
+        setReport(data);
+        setStage("done");
+      }, 500);
+    } catch (e: any) {
+      clearInterval(interval);
+      setStage("idle");
+      toast({ title: "Report failed", description: e.message, variant: "destructive" });
+    }
+  };
+
+  if (stage === "idle") {
+    return (
+      <div className="border border-primary/20 rounded-2xl p-6 bg-primary/5 flex flex-col items-center gap-4 text-center">
+        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+          <Sparkles className="w-7 h-7 text-primary" />
         </div>
-
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Content Tracking</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link href="/tracking/content/instagram">
-              <Card className="border border-card-border hover:border-pink-500/40 hover:bg-pink-500/5 transition-all duration-200 cursor-pointer group" data-testid="card-instagram-tracking">
-                <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-pink-500/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-pink-500/20 transition-colors">
-                    <Instagram className="w-6 h-6 text-pink-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">Instagram</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Track reels, carousels, posts & stories</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-                </CardContent>
-              </Card>
-            </Link>
+          <h3 className="font-semibold text-foreground">AI Report Generator</h3>
+          <p className="text-xs text-muted-foreground mt-1">Get AI-powered insights, engagement analysis, and growth recommendations</p>
+        </div>
+        <Button onClick={generate} disabled={posts.length === 0} data-testid="button-generate-ai-report" className="gap-2">
+          <Sparkles className="w-4 h-4" /> Generate AI Report
+        </Button>
+        {posts.length === 0 && <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>}
+      </div>
+    );
+  }
 
-            <Link href="/tracking/content/youtube">
-              <Card className="border border-card-border hover:border-red-500/40 hover:bg-red-500/5 transition-all duration-200 cursor-pointer group" data-testid="card-youtube-tracking">
-                <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-red-500/20 transition-colors">
-                    <Youtube className="w-6 h-6 text-red-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">YouTube</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Track video views & subscriber growth</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-                </CardContent>
-              </Card>
-            </Link>
+  if (stage === "loading") {
+    return (
+      <div className="border border-primary/20 rounded-2xl p-8 bg-primary/5 flex flex-col items-center gap-5 text-center">
+        <div className="relative">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+            <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full animate-ping" />
+        </div>
+        <div className="space-y-2 w-full max-w-xs">
+          <p className="text-sm font-medium text-foreground animate-pulse">{loadingText}</p>
+          <Progress value={progress} className="h-1.5" />
+          <p className="text-xs text-muted-foreground">{progress}% complete</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!report) return null;
+
+  return (
+    <div className="border border-primary/30 rounded-2xl overflow-hidden">
+      <div className="bg-primary/10 border-b border-primary/20 px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Sparkles className="w-5 h-5 text-primary" />
+          <div>
+            <p className="font-semibold text-sm text-foreground">AI Content Report</p>
+            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {posts.length} posts analyzed</p>
           </div>
         </div>
-
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Coming Soon</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { label: "Sales Tracking", desc: "Track deals, pipelines, and revenue conversions", color: "text-emerald-400" },
-              { label: "Ad Tracking", desc: "Monitor paid ad performance and ROI", color: "text-blue-400" },
-            ].map(({ label, desc, color }) => (
-              <Card key={label} className="border border-dashed border-border bg-card/50 opacity-70" data-testid={`card-${label.toLowerCase().replace(" ", "-")}`}>
-                <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">{label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] flex-shrink-0">Coming Soon</Badge>
-                </CardContent>
-              </Card>
+        <Button variant="ghost" size="sm" onClick={() => setStage("idle")} className="text-xs h-7">
+          <RefreshCw className="w-3 h-3 mr-1" /> New Report
+        </Button>
+      </div>
+      <div className="p-5 space-y-4">
+        {report.summary && (
+          <div className="p-4 bg-card border border-card-border rounded-xl">
+            <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Executive Summary</p>
+            <p className="text-sm text-foreground leading-relaxed">{report.summary}</p>
+          </div>
+        )}
+        {report.insights && report.insights.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Key Insights</p>
+            {report.insights.map((insight: string, i: number) => (
+              <div key={i} className="flex items-start gap-2.5 p-3 bg-card border border-card-border rounded-lg">
+                <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-foreground">{insight}</p>
+              </div>
             ))}
           </div>
+        )}
+        {report.topPost && (
+          <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="w-4 h-4 text-yellow-400" />
+              <p className="text-xs font-semibold text-green-400">Top Performing Post</p>
+            </div>
+            <p className="text-sm font-medium text-foreground">{report.topPost.title}</p>
+            <p className="text-xs text-muted-foreground mt-1">{report.topPost.reason}</p>
+          </div>
+        )}
+        {report.recommendations && report.recommendations.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recommendations</p>
+            {report.recommendations.map((rec: string, i: number) => (
+              <div key={i} className="flex items-start gap-2.5 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                <TrendingUp className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-foreground">{rec}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {report.avgEngagement !== undefined && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-primary">{report.avgEngagement}%</p>
+              <p className="text-xs text-muted-foreground">Avg Engagement</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-blue-400">{report.avgViews?.toLocaleString() || "—"}</p>
+              <p className="text-xs text-muted-foreground">Avg Views</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
+              <p className="text-lg font-bold text-green-400">{report.growthTrend || "—"}</p>
+              <p className="text-xs text-muted-foreground">Growth Trend</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: string }) {
+  const isYt = platform === "youtube";
+
+  const byMonth = MONTHS.map((month, i) => {
+    const monthPosts = posts.filter(p => getMonth(new Date(p.postDate)) === i);
+    const totalViews = monthPosts.reduce((s, p) => s + p.views, 0);
+    const avgEr = monthPosts.length > 0
+      ? monthPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / monthPosts.length
+      : 0;
+    return { month: month.slice(0, 3), views: totalViews, er: +avgEr.toFixed(2), posts: monthPosts.length };
+  }).filter(m => m.posts > 0);
+
+  const typeData = Object.entries(
+    posts.reduce((acc, p) => { acc[p.contentType] = (acc[p.contentType] || 0) + 1; return acc; }, {} as Record<string, number>)
+  ).map(([name, value]) => ({ name: CONTENT_TYPE_LABELS[name] || name, value }));
+
+  if (posts.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="border border-card-border">
+          <CardHeader className="pb-3 pt-4 px-5">
+            <CardTitle className="text-sm flex items-center gap-2"><BarChart2 className="w-4 h-4 text-primary" />Monthly Views</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-4">
+            {byMonth.length > 0 ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={byMonth} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <RechartTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="views" fill="#d4b461" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <p className="text-xs text-muted-foreground text-center py-8">No data yet</p>}
+          </CardContent>
+        </Card>
+
+        {!isYt && (
+          <Card className="border border-card-border">
+            <CardHeader className="pb-3 pt-4 px-5">
+              <CardTitle className="text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-primary" />Content Type Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {typeData.length > 0 ? (
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width="50%" height={160}>
+                    <PieChart>
+                      <Pie data={typeData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value" paddingAngle={3}>
+                        {typeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">
+                    {typeData.map((d, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        <span className="text-xs text-foreground flex-1">{d.name}</span>
+                        <span className="text-xs font-semibold text-foreground">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="text-xs text-muted-foreground text-center py-8">No data yet</p>}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isYt && byMonth.length > 1 && (
+          <Card className="border border-card-border lg:col-span-2">
+            <CardHeader className="pb-3 pt-4 px-5">
+              <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Engagement Rate Trend</CardTitle>
+            </CardHeader>
+            <CardContent className="px-3 pb-4">
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={byMonth} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
+                  <RechartTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                  <Line type="monotone" dataKey="er" stroke="#d4b461" strokeWidth={2} dot={{ fill: "#d4b461", r: 3 }} name="Engagement %" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; platform: string; clientId: string; onEdit: (p: any) => void; onDelete: (id: string) => void }) {
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const isYt = platform === "youtube";
+  const er0 = engRate(post.views, post.likes, post.comments, post.saves);
+  const er2 = engRate(post.views2w, post.likes2w, post.comments2w, post.saves2w);
+  const er4 = engRate(post.views4w, post.likes4w, post.comments4w, post.saves4w);
+
+  const has2w = post.views2w !== null && post.views2w !== undefined;
+  const has4w = post.views4w !== null && post.views4w !== undefined;
+
+  return (
+    <>
+      <Card data-testid={`post-${post.id}`} className="border border-card-border hover:border-primary/30 transition-all duration-200">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-sm font-semibold text-foreground">{post.title || "Untitled"}</span>
+                <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${TYPE_COLORS[post.contentType] || ""}`}>{CONTENT_TYPE_LABELS[post.contentType]}</Badge>
+                {post.funnelStage && <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${FUNNEL_COLORS[post.funnelStage] || ""}`}>{FUNNEL_LABELS[post.funnelStage]}</Badge>}
+                {!isYt && <EngagementBadge rate={er0} />}
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">{format(new Date(post.postDate), "MMMM d, yyyy")}</p>
+              {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline block mb-2 truncate">{post.postUrl}</a>}
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{post.views.toLocaleString()}</span>
+                {!isYt && <>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{post.likes.toLocaleString()}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{post.comments.toLocaleString()}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Bookmark className="w-3 h-3" />{post.saves.toLocaleString()}</span>
+                </>}
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{isYt ? post.subscribersGained : post.followersGained}</span>
+              </div>
+
+              {(has2w || has4w) && (
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  {has2w && (
+                    <div className="flex items-center gap-1.5 bg-blue-500/5 border border-blue-500/20 rounded-lg px-2 py-1">
+                      <RefreshCw className="w-3 h-3 text-blue-400" />
+                      <span className="text-[10px] text-blue-400">2W: {post.views2w?.toLocaleString()} views</span>
+                      {!isYt && er2 !== null && <span className="text-[10px] text-blue-400">· {er2.toFixed(1)}% ER</span>}
+                    </div>
+                  )}
+                  {has4w && (
+                    <div className="flex items-center gap-1.5 bg-purple-500/5 border border-purple-500/20 rounded-lg px-2 py-1">
+                      <RefreshCw className="w-3 h-3 text-purple-400" />
+                      <span className="text-[10px] text-purple-400">4W: {post.views4w?.toLocaleString()} views</span>
+                      {!isYt && er4 !== null && <span className="text-[10px] text-purple-400">· {er4.toFixed(1)}% ER</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5 flex-shrink-0">
+              <button onClick={() => setMetricsOpen(true)} data-testid={`update-metrics-${post.id}`} title="Update 2w/4w metrics" className="text-muted-foreground hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-primary/10">
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => onEdit(post)} data-testid={`edit-post-${post.id}`} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => onDelete(post.id)} data-testid={`delete-post-${post.id}`} className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-accent">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <MetricsUpdateDialog post={post} clientId={clientId} platform={platform} open={metricsOpen} onClose={() => setMetricsOpen(false)} />
+    </>
+  );
+}
+
+function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any[]; platform: string; monthKey: string; onBack: () => void; clientId: string }) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [editPost, setEditPost] = useState<any>(null);
+  const [showReport, setShowReport] = useState(false);
+  const { toast } = useToast();
+  const isYt = platform === "youtube";
+
+  const [year, month] = monthKey.split("-").map(Number);
+  const monthName = MONTHS[month - 1];
+  const fullMonthPosts = posts;
+
+  const del = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/content/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] }); toast({ title: "Post deleted" }); },
+  });
+
+  const totalViews = fullMonthPosts.reduce((s, p) => s + p.views, 0);
+  const totalFollowers = fullMonthPosts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
+  const avgEr = fullMonthPosts.length > 0
+    ? fullMonthPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / fullMonthPosts.length
+    : 0;
+  const bestPost = fullMonthPosts.length > 0 ? [...fullMonthPosts].sort((a, b) => b.views - a.views)[0] : null;
+
+  const byDay: Record<string, any[]> = {};
+  fullMonthPosts.forEach(p => {
+    const day = format(new Date(p.postDate), "yyyy-MM-dd");
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(p);
+  });
+  const days = Object.keys(byDay).sort().reverse();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} data-testid="button-back-month" className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-xl font-bold text-foreground">{monthName} {year}</h2>
+          <p className="text-xs text-muted-foreground">{fullMonthPosts.length} posts · {isYt ? "YouTube" : "Instagram"}</p>
         </div>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" onClick={() => setAddOpen(true)} data-testid="button-log-post-month">
+            <Plus className="w-4 h-4 mr-1.5" /> Log {isYt ? "Video" : "Post"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Posts This Month", value: fullMonthPosts.length, icon: isYt ? Youtube : Instagram, color: isYt ? "text-red-400" : "text-pink-400" },
+          { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
+          { label: !isYt ? "Avg Engagement" : "Subscribers", value: !isYt ? `${avgEr.toFixed(2)}%` : `+${totalFollowers}`, icon: !isYt ? Activity : Users, color: "text-primary" },
+          { label: !isYt ? "Followers Gained" : "Total Likes", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} className="border border-card-border">
+            <CardContent className="p-4">
+              <Icon className={`w-4 h-4 ${color} mb-2`} />
+              <p className="text-xl font-bold text-foreground">{value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {bestPost && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+          <Star className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-yellow-400">Best Post This Month</p>
+            <p className="text-sm font-medium text-foreground mt-0.5">{bestPost.title || "Untitled"}</p>
+            <p className="text-xs text-muted-foreground">{bestPost.views.toLocaleString()} views · {format(new Date(bestPost.postDate), "MMM d")}</p>
+          </div>
+        </div>
+      )}
+
+      <MonthlyAnalyticsCharts posts={fullMonthPosts} platform={platform} />
+
+      {fullMonthPosts.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-2xl">
+          {isYt ? <Youtube className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" /> : <Instagram className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />}
+          <p className="text-sm text-muted-foreground font-medium">No posts logged for {monthName}</p>
+          <Button size="sm" className="mt-4" onClick={() => setAddOpen(true)}>
+            <Plus className="w-4 h-4 mr-1.5" /> Log First Post
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Daily Posts</p>
+          {days.map(day => (
+            <div key={day}>
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-xs font-semibold text-muted-foreground">{format(new Date(day), "EEEE, MMMM d")}</p>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5">{byDay[day].length}</Badge>
+              </div>
+              <div className="space-y-2 ml-5">
+                {byDay[day].map(post => (
+                  <PostCard key={post.id} post={post} platform={platform} clientId={clientId} onEdit={setEditPost} onDelete={(id) => del.mutate(id)} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-border pt-6">
+        {showReport ? (
+          <AIReportGenerator posts={fullMonthPosts} platform={platform as any} />
+        ) : (
+          <button onClick={() => setShowReport(true)} data-testid="button-show-ai-report" className="w-full flex items-center justify-center gap-2 p-4 border border-dashed border-primary/30 rounded-2xl text-sm text-muted-foreground hover:text-primary hover:border-primary/60 hover:bg-primary/5 transition-all">
+            <Sparkles className="w-4 h-4" /> Generate AI Report for {monthName}
+          </button>
+        )}
+      </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Log {isYt ? "YouTube Video" : "Instagram Post"}</DialogTitle></DialogHeader>
+          <PostForm clientId={clientId} platform={platform} onClose={() => setAddOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {editPost && (
+        <Dialog open={!!editPost} onOpenChange={() => setEditPost(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Edit Post</DialogTitle></DialogHeader>
+            <PostForm clientId={clientId} platform={platform} post={editPost} onClose={() => setEditPost(null)} />
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
+  const { user } = useAuth();
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const isYt = platform === "youtube";
+
+  const { data: allPosts = [], isLoading } = useQuery<any[]>({
+    queryKey: [`/api/content/${user?.id}`],
+    enabled: !!user?.id,
+  });
+
+  const posts = allPosts.filter(p => p.platform === platform);
+
+  const monthMap: Record<string, any[]> = {};
+  posts.forEach(p => {
+    const key = format(new Date(p.postDate), "yyyy-MM");
+    if (!monthMap[key]) monthMap[key] = [];
+    monthMap[key].push(p);
+  });
+
+  const now = new Date();
+  const currentKey = format(now, "yyyy-MM");
+  if (!monthMap[currentKey]) monthMap[currentKey] = [];
+
+  const sortedMonths = Object.keys(monthMap).sort().reverse();
+
+  const totalViews = posts.reduce((s, p) => s + p.views, 0);
+  const totalFollowers = posts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
+  const totalPosts = posts.length;
+
+  const backHref = "/tracking/content";
+
+  if (selectedMonth) {
+    return (
+      <ClientLayout>
+        <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+          <MonthView
+            posts={monthMap[selectedMonth] || []}
+            platform={platform}
+            monthKey={selectedMonth}
+            onBack={() => setSelectedMonth(null)}
+            clientId={user?.id || ""}
+          />
+        </div>
+      </ClientLayout>
+    );
+  }
+
+  return (
+    <ClientLayout>
+      <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <Link href={backHref}>
+            <button data-testid="button-back-content" className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 ${isYt ? "bg-red-500/10" : "bg-pink-500/10"} rounded-xl flex items-center justify-center`}>
+              {isYt ? <Youtube className="w-5 h-5 text-red-400" /> : <Instagram className="w-5 h-5 text-pink-400" />}
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">{isYt ? "YouTube" : "Instagram"} Tracking</h1>
+              <p className="text-xs text-muted-foreground">Month-by-month performance overview</p>
+            </div>
+          </div>
+          <div className="ml-auto">
+            <Button size="sm" onClick={() => setAddOpen(true)} data-testid={`button-log-${platform}`}>
+              <Plus className="w-4 h-4 mr-1.5" /> Log {isYt ? "Video" : "Post"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: "Total Posts", value: totalPosts, icon: isYt ? Youtube : Instagram, color: isYt ? "text-red-400" : "text-pink-400" },
+            { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
+            { label: isYt ? "Subscribers Gained" : "Followers Gained", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label} className="border border-card-border">
+              <CardContent className="p-4">
+                <Icon className={`w-5 h-5 ${color} mb-2`} />
+                <p className="text-2xl font-bold text-foreground">{value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Posts by Month</p>
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {sortedMonths.map(key => {
+                const [yr, mo] = key.split("-").map(Number);
+                const mPosts = monthMap[key];
+                const mViews = mPosts.reduce((s, p) => s + p.views, 0);
+                const mAvgEr = mPosts.length > 0
+                  ? mPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / mPosts.length
+                  : 0;
+                const isCurrentMonth = key === currentKey;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedMonth(key)}
+                    data-testid={`month-card-${key}`}
+                    className={`relative p-5 rounded-2xl border text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-lg group ${
+                      isCurrentMonth
+                        ? "border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10"
+                        : "border-card-border bg-card hover:border-primary/30 hover:bg-accent"
+                    }`}
+                  >
+                    {isCurrentMonth && (
+                      <div className="absolute top-2.5 right-2.5">
+                        <div className="w-2 h-2 bg-primary rounded-full" />
+                      </div>
+                    )}
+                    <p className="text-base font-bold text-foreground">{MONTHS[mo - 1]}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{yr}</p>
+                    <p className="text-2xl font-bold text-foreground mt-3">{mPosts.length}</p>
+                    <p className="text-xs text-muted-foreground">{mPosts.length === 1 ? "post" : "posts"}</p>
+                    {mPosts.length > 0 && (
+                      <div className="mt-2 space-y-0.5">
+                        <p className="text-[10px] text-muted-foreground">{mViews.toLocaleString()} views</p>
+                        {!isYt && <p className="text-[10px] text-primary">{mAvgEr.toFixed(1)}% avg ER</p>}
+                      </div>
+                    )}
+                    {mPosts.length === 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-2 opacity-60">No posts yet</p>
+                    )}
+                    <ChevronRight className="absolute bottom-3 right-3 w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Log {isYt ? "YouTube Video" : "Instagram Post"}</DialogTitle></DialogHeader>
+            <PostForm clientId={user?.id || ""} platform={platform} onClose={() => setAddOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
     </ClientLayout>
   );
 }
 
 export function InstagramTracking() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [addOpen, setAddOpen] = useState(false);
-  const [editPost, setEditPost] = useState<any>(null);
+  return <PlatformTracking platform="instagram" />;
+}
 
-  const { data: allPosts = [], isLoading } = useQuery<any[]>({
-    queryKey: [`/api/content/${user?.id}`],
-    enabled: !!user?.id,
-  });
+export function YouTubeTracking() {
+  return <PlatformTracking platform="youtube" />;
+}
 
-  const posts = allPosts.filter(p => p.platform === "instagram");
-
-  const del = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/content/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
-      toast({ title: "Post deleted" });
-    },
-  });
-
-  const totalViews = posts.reduce((s, p) => s + p.views, 0);
-  const totalFollowers = posts.reduce((s, p) => s + p.followersGained, 0);
-  const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
-  const totalEngagement = posts.reduce((s, p) => s + p.likes + p.comments + p.saves, 0);
-
+export function ContentTrackingIndex() {
   return (
     <ClientLayout>
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href="/tracking/content">
-            <button className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back-tracking">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center">
-              <Instagram className="w-5 h-5 text-pink-400" />
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8">
+        <div className="max-w-3xl w-full space-y-8">
+          <div className="text-center">
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <BarChart2 className="w-7 h-7 text-primary" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">Instagram Tracking</h1>
-              <p className="text-xs text-muted-foreground">Log and track your Instagram content performance</p>
-            </div>
+            <h1 className="text-3xl font-bold text-foreground">Content Metrics</h1>
+            <p className="text-muted-foreground mt-2">Choose a platform to view your content performance</p>
           </div>
-          <div className="ml-auto">
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" data-testid="button-log-instagram-post">
-                  <Plus className="w-4 h-4 mr-1.5" /> Log Post
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>Log Instagram Post</DialogTitle></DialogHeader>
-                <PostForm clientId={user?.id!} platform="instagram" onClose={() => setAddOpen(false)} />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Total Posts", value: posts.length, icon: Instagram, color: "text-pink-400" },
-            { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
-            { label: "Total Engagement", value: totalEngagement.toLocaleString(), icon: Heart, color: "text-red-400" },
-            { label: "Followers Gained", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <Card key={label} className="border border-card-border">
-              <CardContent className="p-4">
-                <Icon className={`w-5 h-5 ${color} mb-2`} />
-                <p className="text-xl font-bold text-foreground">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <Link href="/tracking/content/instagram">
+              <div data-testid="card-instagram" className="group cursor-pointer p-7 rounded-2xl border border-card-border bg-card hover:border-pink-500/40 hover:bg-pink-500/5 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-pink-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-pink-500/20 transition-colors">
+                  <Instagram className="w-7 h-7 text-pink-400" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">Instagram</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">Reels, carousels, posts & stories</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground group-hover:text-pink-400 transition-colors">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </Link>
 
-        {isLoading ? (
-          <div className="space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-border rounded-2xl">
-            <Instagram className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-            <p className="text-sm text-muted-foreground font-medium">No Instagram posts logged yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Click "Log Post" to start tracking your content</p>
-            <Button size="sm" className="mt-4" onClick={() => setAddOpen(true)}>
-              <Plus className="w-4 h-4 mr-1.5" /> Log Your First Post
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {posts.map((post: any) => (
-              <Card key={post.id} data-testid={`ig-post-${post.id}`} className="border border-card-border hover:border-primary/30 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className="text-sm font-semibold text-foreground truncate">{post.title || "Untitled"}</span>
-                        <Badge variant="outline" className={`text-[10px] px-2 py-0.5 border ${TYPE_COLORS[post.contentType] || ""}`}>{CONTENT_TYPE_LABELS[post.contentType]}</Badge>
-                        {post.funnelStage && <Badge variant="outline" className={`text-[10px] px-2 py-0.5 border ${FUNNEL_COLORS[post.funnelStage] || ""}`}>{FUNNEL_LABELS[post.funnelStage]}</Badge>}
-                      </div>
-                      <p className="text-xs text-muted-foreground mb-2">{format(new Date(post.postDate), "MMMM d, yyyy")}</p>
-                      {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline block mb-2 truncate">{post.postUrl}</a>}
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{post.views.toLocaleString()}</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{post.likes.toLocaleString()}</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{post.comments.toLocaleString()}</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Bookmark className="w-3 h-3" />{post.saves.toLocaleString()}</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{post.followersGained}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <button onClick={() => setEditPost(post)} data-testid={`edit-ig-${post.id}`} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                        </DialogTrigger>
-                        {editPost?.id === post.id && (
-                          <DialogContent className="max-w-lg">
-                            <DialogHeader><DialogTitle>Edit Post</DialogTitle></DialogHeader>
-                            <PostForm clientId={user?.id!} platform="instagram" post={editPost} onClose={() => setEditPost(null)} />
-                          </DialogContent>
-                        )}
-                      </Dialog>
-                      <button onClick={() => del.mutate(post.id)} data-testid={`delete-ig-${post.id}`} className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-accent">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+            <Link href="/tracking/content/youtube">
+              <div data-testid="card-youtube" className="group cursor-pointer p-7 rounded-2xl border border-card-border bg-card hover:border-red-500/40 hover:bg-red-500/5 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-red-500/20 transition-colors">
+                  <Youtube className="w-7 h-7 text-red-400" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">YouTube</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">Video views & subscriber growth</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground group-hover:text-red-400 transition-colors">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </Link>
 
-        <div className="border-t border-border pt-6">
-          <ReportGenerator posts={posts} platform="instagram" />
-        </div>
-
-        <div className="bg-card/50 border border-dashed border-primary/20 rounded-xl p-4 flex items-start gap-3">
-          <Bell className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-foreground">Metric Reminders</p>
-            <p className="text-xs text-muted-foreground mt-0.5">After logging a post, you'll receive a reminder notification in 48–72 hours to update your metrics with the latest numbers.</p>
+            <Link href="/tracking/content/calendar">
+              <div data-testid="card-calendar" className="group cursor-pointer p-7 rounded-2xl border border-card-border bg-card hover:border-primary/40 hover:bg-primary/5 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
+                  <CalendarDays className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">Calendar</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">Visual content posting schedule</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
       </div>
@@ -494,142 +1041,54 @@ export function InstagramTracking() {
   );
 }
 
-export function YouTubeTracking() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [addOpen, setAddOpen] = useState(false);
-  const [editPost, setEditPost] = useState<any>(null);
-
-  const { data: allPosts = [], isLoading } = useQuery<any[]>({
-    queryKey: [`/api/content/${user?.id}`],
-    enabled: !!user?.id,
-  });
-
-  const posts = allPosts.filter(p => p.platform === "youtube");
-
-  const del = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/content/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
-      toast({ title: "Video deleted" });
-    },
-  });
-
-  const totalViews = posts.reduce((s, p) => s + p.views, 0);
-  const totalSubs = posts.reduce((s, p) => s + p.subscribersGained, 0);
-
+export function TrackingHome() {
   return (
     <ClientLayout>
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Link href="/tracking/content">
-            <button className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-back-tracking-yt">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-red-500/10 rounded-xl flex items-center justify-center">
-              <Youtube className="w-5 h-5 text-red-400" />
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8">
+        <div className="max-w-3xl w-full space-y-8">
+          <div className="text-center">
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <TrendingUp className="w-7 h-7 text-primary" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">YouTube Tracking</h1>
-              <p className="text-xs text-muted-foreground">Log and track your YouTube video performance</p>
+            <h1 className="text-3xl font-bold text-foreground">Tracking</h1>
+            <p className="text-muted-foreground mt-2">Select a metrics dashboard to get started</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <Link href="/tracking/content">
+              <div data-testid="card-tracking-content" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
+                  <BarChart2 className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">Content Metrics</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">Instagram, YouTube & calendar</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </Link>
+
+            <div data-testid="card-tracking-sales" className="p-7 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
+              <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <DollarSign className="w-7 h-7 text-muted-foreground" />
+              </div>
+              <h3 className="font-semibold text-foreground text-base">Sales Metrics</h3>
+              <p className="text-xs text-muted-foreground mt-1.5">Deals, pipelines & revenue</p>
+              <div className="mt-3">
+                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+              </div>
             </div>
-          </div>
-          <div className="ml-auto">
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" data-testid="button-log-youtube-video">
-                  <Plus className="w-4 h-4 mr-1.5" /> Log Video
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>Log YouTube Video</DialogTitle></DialogHeader>
-                <PostForm clientId={user?.id!} platform="youtube" onClose={() => setAddOpen(false)} />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Videos Posted", value: posts.length, icon: Youtube, color: "text-red-400" },
-            { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
-            { label: "Subscribers Gained", value: `+${totalSubs}`, icon: Users, color: "text-green-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <Card key={label} className="border border-card-border">
-              <CardContent className="p-4">
-                <Icon className={`w-5 h-5 ${color} mb-2`} />
-                <p className="text-xl font-bold text-foreground">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-border rounded-2xl">
-            <Youtube className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-            <p className="text-sm text-muted-foreground font-medium">No YouTube videos logged yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Click "Log Video" to start tracking your content</p>
-            <Button size="sm" className="mt-4" onClick={() => setAddOpen(true)}>
-              <Plus className="w-4 h-4 mr-1.5" /> Log Your First Video
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {posts.map((post: any) => (
-              <Card key={post.id} data-testid={`yt-post-${post.id}`} className="border border-card-border hover:border-primary/30 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Youtube className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{post.title || "Untitled Video"}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(post.postDate), "MMMM d, yyyy")}</p>
-                      {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline mt-1 block truncate">{post.postUrl}</a>}
-                      <div className="flex items-center gap-4 mt-2">
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{post.views.toLocaleString()} views</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{post.subscribersGained} subs</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <button onClick={() => setEditPost(post)} data-testid={`edit-yt-${post.id}`} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                        </DialogTrigger>
-                        {editPost?.id === post.id && (
-                          <DialogContent className="max-w-lg">
-                            <DialogHeader><DialogTitle>Edit Video</DialogTitle></DialogHeader>
-                            <PostForm clientId={user?.id!} platform="youtube" post={editPost} onClose={() => setEditPost(null)} />
-                          </DialogContent>
-                        )}
-                      </Dialog>
-                      <button onClick={() => del.mutate(post.id)} data-testid={`delete-yt-${post.id}`} className="text-muted-foreground hover:text-destructive transition-colors p-1.5 rounded-lg hover:bg-accent">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        <div className="border-t border-border pt-6">
-          <ReportGenerator posts={posts} platform="youtube" />
-        </div>
-
-        <div className="bg-card/50 border border-dashed border-primary/20 rounded-xl p-4 flex items-start gap-3">
-          <Bell className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-foreground">Metric Reminders</p>
-            <p className="text-xs text-muted-foreground mt-0.5">After logging a video, you'll receive a reminder notification in 48–72 hours to update your metrics with the latest numbers.</p>
+            <div data-testid="card-tracking-ads" className="p-7 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
+              <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Activity className="w-7 h-7 text-muted-foreground" />
+              </div>
+              <h3 className="font-semibold text-foreground text-base">Ad Metrics</h3>
+              <p className="text-xs text-muted-foreground mt-1.5">Paid ad performance & ROI</p>
+              <div className="mt-3">
+                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+              </div>
+            </div>
           </div>
         </div>
       </div>

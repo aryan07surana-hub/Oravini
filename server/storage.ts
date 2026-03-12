@@ -3,12 +3,13 @@ import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
-  contentPosts, incomeGoals,
+  contentPosts, incomeGoals, callBookings,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
   type Notification, type InsertNotification,
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
+  type CallBooking, type InsertCallBooking,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -75,6 +76,13 @@ export interface IStorage {
   // Income Goals
   getIncomeGoal(clientId: string): Promise<IncomeGoal | undefined>;
   upsertIncomeGoal(data: InsertIncomeGoal): Promise<IncomeGoal>;
+
+  // Call Bookings (Calendly)
+  getAllCallBookings(): Promise<(CallBooking & { client: User | null })[]>;
+  getCallBookingsByClient(clientId: string): Promise<CallBooking[]>;
+  getCallBookingByCalendlyUri(uri: string): Promise<CallBooking | undefined>;
+  createCallBooking(data: InsertCallBooking): Promise<CallBooking>;
+  updateCallBooking(id: string, data: Partial<InsertCallBooking>): Promise<CallBooking>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -325,6 +333,34 @@ class DatabaseStorage implements IStorage {
       const [created] = await db.insert(incomeGoals).values(data).returning();
       return created;
     }
+  }
+
+  async getAllCallBookings() {
+    const allBookings = await db.select().from(callBookings).orderBy(desc(callBookings.startTime));
+    const allUsers = await db.select().from(users);
+    return allBookings.map(b => ({
+      ...b,
+      client: allUsers.find(u => u.id === b.clientId) || null,
+    }));
+  }
+
+  async getCallBookingsByClient(clientId: string) {
+    return db.select().from(callBookings).where(eq(callBookings.clientId, clientId)).orderBy(desc(callBookings.startTime));
+  }
+
+  async getCallBookingByCalendlyUri(uri: string) {
+    const [booking] = await db.select().from(callBookings).where(eq(callBookings.calendlyEventUri, uri));
+    return booking;
+  }
+
+  async createCallBooking(data: InsertCallBooking) {
+    const [created] = await db.insert(callBookings).values(data).returning();
+    return created;
+  }
+
+  async updateCallBooking(id: string, data: Partial<InsertCallBooking>) {
+    const [updated] = await db.update(callBookings).set(data).where(eq(callBookings.id, id)).returning();
+    return updated;
   }
 }
 

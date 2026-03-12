@@ -616,6 +616,153 @@ Only return the JSON array, no other text.`;
     }
   });
 
+  // AI Content Report
+  app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
+      const { posts, platform } = req.body;
+      if (!posts || posts.length === 0) return res.status(400).json({ message: "No posts to analyze" });
+
+      const isYt = platform === "youtube";
+      const totalViews = posts.reduce((s: number, p: any) => s + p.views, 0);
+      const avgViews = Math.round(totalViews / posts.length);
+      const erValues = posts.map((p: any) => p.views > 0 ? ((p.likes + p.comments + p.saves) / p.views * 100) : 0).filter((v: number) => v > 0);
+      const avgEr = erValues.length > 0 ? (erValues.reduce((s: number, v: number) => s + v, 0) / erValues.length).toFixed(2) : "0.00";
+      const bestPost = [...posts].sort((a, b) => b.views - a.views)[0];
+
+      const prompt = `You are a professional social media analyst. Analyze this ${isYt ? "YouTube" : "Instagram"} content performance data and provide strategic insights.
+
+Data Summary:
+- Total posts: ${posts.length}
+- Total views: ${totalViews.toLocaleString()}
+- Average views per post: ${avgViews.toLocaleString()}
+${!isYt ? `- Average engagement rate: ${avgEr}%` : ""}
+- Best performing post: "${bestPost?.title || "Untitled"}" with ${bestPost?.views?.toLocaleString()} views
+- Content types used: ${[...new Set(posts.map((p: any) => p.contentType))].join(", ")}
+- Posts date range: ${posts.length > 0 ? `${new Date(posts[posts.length - 1].postDate).toLocaleDateString()} to ${new Date(posts[0].postDate).toLocaleDateString()}` : "N/A"}
+
+Return a JSON object ONLY (no markdown, no explanation outside JSON) in this exact format:
+{
+  "summary": "2-3 sentence executive summary of overall performance",
+  "insights": ["insight 1", "insight 2", "insight 3"],
+  "topPost": { "title": "post title", "reason": "why it performed best" },
+  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+  "avgEngagement": "${avgEr}",
+  "avgViews": ${avgViews},
+  "growthTrend": "↑ Growing | → Stable | ↓ Declining"
+}`;
+
+      const models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"];
+      let text: string | null = null;
+      let lastError = "";
+      let isQuotaError = false;
+
+      for (const model of models) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          });
+          const data = await r.json();
+          if (data?.error) {
+            lastError = data.error.message;
+            if (data.error.status === "RESOURCE_EXHAUSTED") { isQuotaError = true; continue; }
+            continue;
+          }
+          text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+          if (text) break;
+        } catch (e: any) { lastError = e.message; }
+      }
+
+      if (!text) return res.status(isQuotaError ? 429 : 500).json({ message: isQuotaError ? "Rate limit hit, try again in a moment." : lastError });
+
+      const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
+      res.json(JSON.parse(jsonMatch[0]));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "AI report failed" });
+    }
+  });
+
+  // Call Bookings (Calendly integration)
+  app.get("/api/call-bookings", requireAdmin, async (_req, res) => {
+    const bookings = await storage.getAllCallBookings();
+    res.json(bookings);
+  });
+
+  app.get("/api/call-bookings/my", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const bookings = await storage.getCallBookingsByClient(user.id);
+    res.json(bookings);
+  });
+
+  app.post("/api/webhooks/calendly", async (req: Request, res: Response) => {
+    try {
+      const event = req.body;
+      const eventType = event?.event;
+      const payload = event?.payload;
+
+      if (!payload) return res.status(400).json({ message: "Invalid payload" });
+
+      const inviteeName = payload?.invitee?.name || "Unknown";
+      const inviteeEmail = payload?.invitee?.email || "";
+      const startTime = payload?.event?.start_time || payload?.scheduled_event?.start_time;
+      const endTime = payload?.event?.end_time || payload?.scheduled_event?.end_time;
+      const eventName = payload?.event_type?.name || "30 Min Call";
+      const calendlyEventUri = payload?.event?.uri || payload?.uri || "";
+      const status = eventType === "invitee.canceled" ? "canceled" : "scheduled";
+
+      if (!startTime || !endTime) return res.status(400).json({ message: "Missing time data" });
+
+      const client = inviteeEmail ? await storage.getUserByEmail(inviteeEmail) : null;
+
+      const existing = calendlyEventUri ? await storage.getCallBookingByCalendlyUri(calendlyEventUri) : null;
+
+      if (existing) {
+        await storage.updateCallBooking(existing.id, { status });
+      } else {
+        const booking = await storage.createCallBooking({
+          clientId: client?.id || null,
+          inviteeName,
+          inviteeEmail,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          eventName,
+          status,
+          calendlyEventUri,
+        });
+
+        if (client) {
+          await storage.createNotification({
+            clientId: client.id,
+            message: `Your call has been booked for ${new Date(startTime).toLocaleDateString()} at ${new Date(startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+            type: "booking",
+          });
+        }
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Calendly webhook error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // All call feedback (admin)
+  app.get("/api/call-feedback/all", requireAdmin, async (_req, res) => {
+    const allClients = await storage.getAllClients();
+    const allFeedback: any[] = [];
+    for (const client of allClients) {
+      const fb = await storage.getCallFeedbackByClient(client.id);
+      allFeedback.push(...fb);
+    }
+    allFeedback.sort((a, b) => new Date(b.callDate).getTime() - new Date(a.callDate).getTime());
+    res.json(allFeedback);
+  });
+
   // Background scheduler — check every 60s for due metric reminders and alert online clients
   const notifiedIds = new Set<string>();
   setInterval(async () => {

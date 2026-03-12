@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
-  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote
+  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -540,6 +540,40 @@ export default function ClientDashboard() {
             )}
           </CardContent>
         </Card>
+
+        <Card className="border border-card-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary" /> Course Modules
+            </CardTitle>
+            <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { title: "Brand Foundation", desc: "Define your brand identity and positioning", icon: "🎯" },
+              { title: "Content Mastery", desc: "Create high-converting content consistently", icon: "📱" },
+              { title: "Audience Growth", desc: "Proven strategies to grow your audience", icon: "📈" },
+            ].map(({ title, desc, icon }) => (
+              <div key={title} className="relative p-4 rounded-xl border border-dashed border-border bg-card/50 overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-start gap-3">
+                  <span className="text-xl flex-shrink-0">{icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                  </div>
+                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-4 pb-1">Course content will be available soon. Stay tuned!</p>
+        </CardContent>
+      </Card>
+
       </div>
     </ClientLayout>
   );
