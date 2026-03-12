@@ -490,6 +490,81 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ message: "Deleted" });
   });
 
+  // ── Instagram / Apify Sync ────────────────────────────────────────────────
+  async function apifyInstagram(payload: object): Promise<any[]> {
+    const token = process.env.APIFY_TOKEN;
+    if (!token) throw new Error("APIFY_TOKEN not configured");
+    const url = `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Apify error ${resp.status}: ${text.slice(0, 200)}`);
+    }
+    return resp.json() as Promise<any[]>;
+  }
+
+  // Sync a single post's stats from its Instagram URL
+  app.post("/api/instagram/sync-post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postUrl } = req.body;
+      if (!postUrl) return res.status(400).json({ message: "postUrl required" });
+      const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
+      const item = items?.[0];
+      if (!item) return res.status(404).json({ message: "No data returned for this URL" });
+      return res.json({
+        views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+        likes: item.likesCount ?? 0,
+        comments: item.commentsCount ?? 0,
+        title: item.caption ? item.caption.slice(0, 120) : undefined,
+        postDate: item.timestamp ? new Date(item.timestamp).toISOString() : undefined,
+        contentType: item.type === "Video" || item.type === "Reel" ? "reel"
+          : item.type === "Sidecar" ? "carousel" : "post",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Bulk import a profile's recent posts
+  app.post("/api/instagram/sync-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl, clientId, platform } = req.body;
+      if (!profileUrl || !clientId) return res.status(400).json({ message: "profileUrl and clientId required" });
+      const resultsType = platform === "youtube" ? "posts" : "posts";
+      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType, resultsLimit: 20 });
+      if (!items?.length) return res.status(404).json({ message: "No posts found for this profile" });
+      const created: any[] = [];
+      for (const item of items) {
+        try {
+          const post = await storage.createContentPost({
+            clientId,
+            platform: platform ?? "instagram",
+            title: item.caption ? item.caption.slice(0, 120) : "Untitled",
+            postUrl: item.url ?? item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null,
+            postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+            contentType: item.type === "Video" || item.type === "Reel" ? "reel"
+              : item.type === "Sidecar" ? "carousel" : "post",
+            funnelStage: "top",
+            views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+            likes: item.likesCount ?? 0,
+            comments: item.commentsCount ?? 0,
+            saves: 0,
+            followersGained: 0,
+            subscribersGained: 0,
+          });
+          created.push(post);
+        } catch (_) { /* skip duplicates/errors */ }
+      }
+      return res.json({ imported: created.length, posts: created });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Income Goals
   app.get("/api/income-goal/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;

@@ -64,6 +64,7 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
   const { toast } = useToast();
   const isEdit = !!post;
   const isYt = platform === "youtube";
+  const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState({
     title: post?.title || "",
     postUrl: post?.postUrl || "",
@@ -78,6 +79,28 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
     subscribersGained: post?.subscribersGained ?? 0,
   });
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSyncStats = async () => {
+    if (!form.postUrl) return;
+    setSyncing(true);
+    try {
+      const data = await apiRequest("POST", "/api/instagram/sync-post", { postUrl: form.postUrl });
+      setForm(f => ({
+        ...f,
+        views: data.views ?? f.views,
+        likes: data.likes ?? f.likes,
+        comments: data.comments ?? f.comments,
+        ...(data.title && !f.title ? { title: data.title } : {}),
+        ...(data.contentType ? { contentType: data.contentType } : {}),
+        ...(data.postDate ? { postDate: format(new Date(data.postDate), "yyyy-MM-dd") } : {}),
+      }));
+      toast({ title: "Stats synced!", description: `Fetched real-time data from Instagram.` });
+    } catch (err: any) {
+      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const liveEr = engRate(+form.views, +form.likes, +form.comments, +form.saves);
 
@@ -112,7 +135,18 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
         </div>
         <div className="col-span-2">
           <Label>{isYt ? "Video Link (optional)" : "Post Link (optional)"}</Label>
-          <Input value={form.postUrl} onChange={e => set("postUrl", e.target.value)} placeholder={isYt ? "https://youtube.com/watch?v=..." : "https://instagram.com/p/..."} className="mt-1" />
+          <div className="flex gap-2 mt-1">
+            <Input value={form.postUrl} onChange={e => set("postUrl", e.target.value)} placeholder={isYt ? "https://youtube.com/watch?v=..." : "https://instagram.com/p/..."} className="flex-1" />
+            {!isYt && form.postUrl && (
+              <Button type="button" variant="outline" size="sm" onClick={handleSyncStats} disabled={syncing} className="flex-shrink-0 border-primary/30 text-primary hover:bg-primary/10 gap-1.5" data-testid="button-sync-stats">
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {syncing ? "Syncing…" : "Sync Stats"}
+              </Button>
+            )}
+          </div>
+          {!isYt && form.postUrl && (
+            <p className="text-[11px] text-muted-foreground mt-1">Paste the Instagram post link then click Sync Stats to auto-fill views, likes & comments in real time.</p>
+          )}
         </div>
         <div>
           <Label>{isYt ? "Upload Date" : "Date Posted"}</Label>
@@ -954,7 +988,31 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const { toast } = useToast();
   const isYt = platform === "youtube";
+
+  const handleImportProfile = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    try {
+      const data = await apiRequest("POST", "/api/instagram/sync-profile", {
+        profileUrl: importUrl.trim(),
+        clientId: user?.id,
+        platform,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
+      toast({ title: `${data.imported} posts imported!`, description: "Real stats pulled directly from Instagram." });
+      setImportOpen(false);
+      setImportUrl("");
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const { data: allPosts = [], isLoading } = useQuery<any[]>({
     queryKey: [`/api/content/${user?.id}`],
@@ -1016,12 +1074,48 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
               <p className="text-xs text-muted-foreground">Month-by-month performance overview</p>
             </div>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {!isYt && (
+              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10 gap-1.5" data-testid="button-import-instagram">
+                <RefreshCw className="w-3.5 h-3.5" /> Import from Instagram
+              </Button>
+            )}
             <Button size="sm" onClick={() => setAddOpen(true)} data-testid={`button-log-${platform}`}>
               <Plus className="w-4 h-4 mr-1.5" /> Log {isYt ? "Video" : "Post"}
             </Button>
           </div>
         </div>
+
+        {/* Import Profile Dialog */}
+        <Dialog open={importOpen} onOpenChange={setImportOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Instagram className="w-4 h-4 text-pink-400" /> Import Posts from Instagram
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-1">
+              <p className="text-sm text-muted-foreground">Paste your Instagram profile link and we'll automatically pull your last 20 posts with real views, likes, and comments.</p>
+              <div>
+                <Label>Instagram Profile URL</Label>
+                <Input
+                  className="mt-1"
+                  placeholder="https://instagram.com/yourhandle"
+                  value={importUrl}
+                  onChange={e => setImportUrl(e.target.value)}
+                  data-testid="input-import-url"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setImportOpen(false)}>Cancel</Button>
+                <Button className="flex-1 gap-2" onClick={handleImportProfile} disabled={importing || !importUrl.trim()} data-testid="button-confirm-import">
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {importing ? "Importing…" : "Import Posts"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="grid grid-cols-3 gap-4">
           {[
