@@ -526,195 +526,211 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // AI Content Ideas
+  // ── Groq helper (fast – used for content ideas) ──────────────────────────
+  async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.9,
+            max_tokens: maxTokens,
+          }),
+        });
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message; console.warn(`Groq ${model} error: ${lastError}`); continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`Groq generation failed: ${lastError}`);
+  }
+
+  // ── OpenRouter helper (smart – used for reports) ──────────────────────────
+  async function callOpenRouter(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
+
+    const models = ["deepseek/deepseek-chat", "anthropic/claude-3-haiku", "openai/gpt-4o-mini"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://brandverse.app",
+            "X-Title": "Brandverse Portal",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.7,
+            max_tokens: maxTokens,
+          }),
+        });
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message || JSON.stringify(data.error); console.warn(`OpenRouter ${model} error: ${lastError}`); continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`OpenRouter generation failed: ${lastError}`);
+  }
+
+  // ── AI Content Ideas (Groq — fast) ───────────────────────────────────────
   app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
     try {
-      const apiKey = process.env.GOOGLE_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
-
       const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts } = req.body;
       if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
 
       const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
-      const contentTypeLabel = contentType || (platform === "instagram" ? "Reels, Carousels, and Posts" : "Videos and Shorts");
       const goalLabel = goal || "growth and engagement";
       const audienceLabel = audience || "general audience";
 
       let profileSection = "";
-      if (profileHandle) {
-        profileSection = `\nCreator's ${platformLabel} handle: ${profileHandle}`;
-      }
+      if (profileHandle) profileSection = `Creator handle: ${profileHandle}\n`;
 
       let existingContentSection = "";
       if (existingPosts && Array.isArray(existingPosts) && existingPosts.length > 0) {
         const posts = existingPosts as any[];
-        const totalPosts = posts.length;
         const typeCounts: Record<string, number> = {};
         posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
         const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
-        const avgViews = posts.length > 0 ? Math.round(posts.reduce((s: number, p: any) => s + (p.views || 0), 0) / posts.length) : 0;
+        const avgViews = Math.round(posts.reduce((s: number, p: any) => s + (p.views || 0), 0) / posts.length);
         const topPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
         const recentTitles = posts.slice(0, 8).map((p: any) => p.title).filter(Boolean);
-
-        existingContentSection = `
-Existing content data for this creator (use this to AVOID repetition and fill content GAPS):
-- Total ${platformLabel} posts logged: ${totalPosts}
-- Most used content type: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
-- Average views per post: ${avgViews.toLocaleString()}
-- Top performing post: "${topPost?.title || "unknown"}" with ${(topPost?.views || 0).toLocaleString()} views
-- Recent post titles (DO NOT repeat these topics): ${recentTitles.length > 0 ? recentTitles.map(t => `"${t}"`).join(", ") : "none yet"}
-
-IMPORTANT: Generate ideas that are DIFFERENT from their recent posts listed above. Fill gaps in their content mix, suggest underutilised content types, and build on what's already working for them.`;
+        existingContentSection = `\nExisting content analysis (avoid repetition, fill gaps):
+- Posts logged: ${posts.length} | Avg views: ${avgViews.toLocaleString()}
+- Top type: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
+- Best post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views
+- Recent titles (DO NOT repeat): ${recentTitles.map(t => `"${t}"`).join(", ")}
+Generate ideas that are FRESH, fill gaps in their content mix, and build on what works.\n`;
       }
 
-      const prompt = `You are a social media content strategist specializing in ${platformLabel} growth.${profileSection}
+      const ytFormatSection = platform === "youtube" ? `
+YouTube format options (match the selected content type):
+- Short Form: YouTube Shorts, quick tips, viral hooks, micro lessons
+- Long Form: Deep educational videos, tutorials, case studies, step-by-step guides
+- Value Based: Educational breakdowns, framework explanations, strategy videos
+- VSL Style: Problem–solution videos, authority videos, offer explanation, story-based persuasion
+` : "";
 
-Generate 6 unique, highly specific content ideas for a ${platformLabel} creator in the **${niche}** niche.
+      const systemPrompt = `You are an elite social media content strategist who generates scroll-stopping, viral-worthy content ideas. You deeply understand platform algorithms, human psychology, and what makes content convert. You NEVER give generic ideas. Every idea is specific, strategic, and tailored to the creator's exact niche and audience.`;
 
-Creator details:
-- Content type focus: ${contentTypeLabel}
-- Goal: ${goalLabel}
-- Target audience: ${audienceLabel}
-${additionalContext ? `- Additional context: ${additionalContext}` : ""}
-${existingContentSection}
+      const userPrompt = `${profileSection}Generate 6 powerful content ideas for a ${platformLabel} creator.
 
-For each idea, provide:
-1. A catchy, scroll-stopping **title/hook** (max 12 words)
-2. A brief **concept description** (2-3 sentences explaining what the content covers)
-3. A **caption starter** or script opening line they can use directly
-4. One **quick tip** to maximize performance for this specific piece
+Niche: ${niche}
+Content type: ${contentType || (platform === "instagram" ? "Mix of Reels, Carousels, Posts" : "Mix of formats")}
+Goal: ${goalLabel}
+Target audience: ${audienceLabel}
+${additionalContext ? `Extra context: ${additionalContext}` : ""}
+${existingContentSection}${ytFormatSection}
+For each idea provide ALL of these fields:
+1. title — A specific, scroll-stopping hook (max 12 words). NOT generic. Example of BAD: "Marketing tips video". Example of GOOD: "3 Instagram mistakes keeping coaches stuck under 10k followers"
+2. concept — 2-3 sentences explaining exactly what the content covers and why it's compelling
+3. formatType — The exact format (e.g. "Instagram Reel", "Carousel", "YouTube Short", "Long-form Tutorial", "VSL", "Educational Breakdown", "Story-based Video")
+4. whyItWorks — 1-2 sentences on viral potential, why this resonates with the audience, and conversion power
+5. cta — A specific, compelling call-to-action for this piece of content
+6. captionStarter — An attention-grabbing opening line for the caption or script they can use directly
 
-Format your response as a JSON array with this exact structure:
-[
-  {
-    "title": "Hook or title here",
-    "concept": "What the content covers...",
-    "captionStarter": "Opening line for caption or script...",
-    "tip": "Performance tip..."
+Also add a contentMix suggestion at the end as a separate JSON object (not inside ideas array).
+
+Return ONLY valid JSON in this exact format (no markdown, no extra text):
+{
+  "ideas": [
+    {
+      "title": "...",
+      "concept": "...",
+      "formatType": "...",
+      "whyItWorks": "...",
+      "cta": "...",
+      "captionStarter": "..."
+    }
+  ],
+  "contentMix": {
+    "growth": 40,
+    "value": 40,
+    "conversion": 20,
+    "suggestion": "One sentence on ideal posting mix for this niche and goal"
   }
-]
+}`;
 
-Only return the JSON array, no other text.`;
+      const text = await callGroq(systemPrompt, userPrompt, 3500);
 
-      const MODELS_TO_TRY = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
-
-      let text: string | null = null;
-      let lastError: string = "";
-      let isQuotaError = false;
-
-      for (const modelName of MODELS_TO_TRY) {
-        try {
-          const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
-          const response = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.9, maxOutputTokens: 2048 },
-            }),
-          });
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            lastError = (errData as any)?.error?.message || `HTTP ${response.status}`;
-            if (response.status === 429 || lastError.toLowerCase().includes("quota")) {
-              isQuotaError = true;
-            }
-            console.warn(`Model ${modelName} failed: ${lastError}`);
-            continue;
-          }
-          const data: any = await response.json();
-          text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-          if (text) break;
-        } catch (e: any) {
-          lastError = e.message;
-          console.warn(`Model ${modelName} threw: ${e.message}`);
-        }
-      }
-
-      if (!text) {
-        const msg = isQuotaError
-          ? "Google AI free-tier quota exceeded. The daily limit has been reached — please try again tomorrow, or enable billing on your Google AI account."
-          : `Generation failed. ${lastError}`;
-        return res.status(isQuotaError ? 429 : 500).json({ message: msg });
-      }
-
-      const jsonMatch = text.trim().match(/\[[\s\S]*\]/);
+      const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
       if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
 
-      const ideas = JSON.parse(jsonMatch[0]);
-      res.json({ ideas });
+      const parsed = JSON.parse(jsonMatch[0]);
+      res.json(parsed);
     } catch (err: any) {
-      console.error("AI error:", err);
+      console.error("AI ideas error:", err);
       res.status(500).json({ message: err.message || "AI generation failed" });
     }
   });
 
-  // AI Content Report
+  // ── AI Content Report (OpenRouter — smart reasoning) ─────────────────────
   app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
     try {
-      const apiKey = process.env.GOOGLE_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
       const { posts, platform } = req.body;
       if (!posts || posts.length === 0) return res.status(400).json({ message: "No posts to analyze" });
 
       const isYt = platform === "youtube";
-      const totalViews = posts.reduce((s: number, p: any) => s + p.views, 0);
+      const totalViews = posts.reduce((s: number, p: any) => s + (p.views || 0), 0);
       const avgViews = Math.round(totalViews / posts.length);
       const erValues = posts.map((p: any) => p.views > 0 ? ((p.likes + p.comments + p.saves) / p.views * 100) : 0).filter((v: number) => v > 0);
       const avgEr = erValues.length > 0 ? (erValues.reduce((s: number, v: number) => s + v, 0) / erValues.length).toFixed(2) : "0.00";
-      const bestPost = [...posts].sort((a, b) => b.views - a.views)[0];
+      const bestPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
+      const worstPost = [...posts].sort((a: any, b: any) => (a.views || 0) - (b.views || 0))[0];
+      const typeCounts: Record<string, number> = {};
+      posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
+      const allTypes = Object.entries(typeCounts).map(([type, count]) => `${type}: ${count}`).join(", ");
 
-      const prompt = `You are a professional social media analyst. Analyze this ${isYt ? "YouTube" : "Instagram"} content performance data and provide strategic insights.
+      const systemPrompt = `You are a world-class social media analyst and growth strategist. You provide deep, actionable insights based on real data. Your analysis is specific, not generic. You understand platform algorithms, content strategy, and audience psychology deeply.`;
 
-Data Summary:
-- Total posts: ${posts.length}
+      const userPrompt = `Analyze this ${isYt ? "YouTube" : "Instagram"} content performance data and generate a comprehensive strategic report.
+
+PERFORMANCE DATA:
+- Total posts analyzed: ${posts.length}
 - Total views: ${totalViews.toLocaleString()}
 - Average views per post: ${avgViews.toLocaleString()}
 ${!isYt ? `- Average engagement rate: ${avgEr}%` : ""}
-- Best performing post: "${bestPost?.title || "Untitled"}" with ${bestPost?.views?.toLocaleString()} views
-- Content types used: ${[...new Set(posts.map((p: any) => p.contentType))].join(", ")}
-- Posts date range: ${posts.length > 0 ? `${new Date(posts[posts.length - 1].postDate).toLocaleDateString()} to ${new Date(posts[0].postDate).toLocaleDateString()}` : "N/A"}
+- Best post: "${bestPost?.title || "Untitled"}" — ${(bestPost?.views || 0).toLocaleString()} views
+- Worst post: "${worstPost?.title || "Untitled"}" — ${(worstPost?.views || 0).toLocaleString()} views
+- Content type breakdown: ${allTypes}
+- Date range: ${posts.length > 0 ? `${new Date(posts[posts.length - 1].postDate).toLocaleDateString()} to ${new Date(posts[0].postDate).toLocaleDateString()}` : "N/A"}
 
-Return a JSON object ONLY (no markdown, no explanation outside JSON) in this exact format:
+Individual post data:
+${posts.slice(0, 15).map((p: any) => `- "${p.title || 'Untitled'}" | ${p.contentType} | ${(p.views || 0).toLocaleString()} views${!isYt ? ` | ${(p.likes || 0)} likes | ${(p.comments || 0)} comments | ${(p.saves || 0)} saves` : ""}`).join("\n")}
+
+Return ONLY a JSON object (no markdown, no text outside JSON):
 {
-  "summary": "2-3 sentence executive summary of overall performance",
-  "insights": ["insight 1", "insight 2", "insight 3"],
-  "topPost": { "title": "post title", "reason": "why it performed best" },
-  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+  "summary": "2-3 sentence executive summary with specific numbers and honest assessment",
+  "insights": ["specific data-driven insight 1", "insight 2", "insight 3", "insight 4"],
+  "topPost": { "title": "exact post title", "reason": "specific reason why it outperformed" },
+  "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"],
   "avgEngagement": "${avgEr}",
   "avgViews": ${avgViews},
-  "growthTrend": "↑ Growing | → Stable | ↓ Declining"
+  "growthTrend": "↑ Growing | → Stable | ↓ Declining",
+  "contentMixAnalysis": "One sentence on their current content mix and whether it's balanced"
 }`;
 
-      const models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"];
-      let text: string | null = null;
-      let lastError = "";
-      let isQuotaError = false;
-
-      for (const model of models) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
-          const r = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-          });
-          const data = await r.json();
-          if (data?.error) {
-            lastError = data.error.message;
-            if (data.error.status === "RESOURCE_EXHAUSTED") { isQuotaError = true; continue; }
-            continue;
-          }
-          text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
-          if (text) break;
-        } catch (e: any) { lastError = e.message; }
-      }
-
-      if (!text) return res.status(isQuotaError ? 429 : 500).json({ message: isQuotaError ? "Google AI free-tier quota exceeded. The daily limit has been reached — please try again tomorrow, or enable billing on your Google AI account to unlock unlimited access." : lastError });
+      const text = await callOpenRouter(systemPrompt, userPrompt, 2500);
 
       const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
       if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
       res.json(JSON.parse(jsonMatch[0]));
     } catch (err: any) {
+      console.error("AI report error:", err);
       res.status(500).json({ message: err.message || "AI report failed" });
     }
   });

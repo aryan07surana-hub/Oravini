@@ -13,14 +13,24 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
-  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, User
+  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, User, TrendingUp, PieChart
 } from "lucide-react";
 
 interface ContentIdea {
   title: string;
   concept: string;
   captionStarter: string;
-  tip: string;
+  tip?: string;
+  formatType?: string;
+  whyItWorks?: string;
+  cta?: string;
+}
+
+interface ContentMix {
+  growth: number;
+  value: number;
+  conversion: number;
+  suggestion: string;
 }
 
 const IG_CONTENT_TYPES = [
@@ -32,11 +42,11 @@ const IG_CONTENT_TYPES = [
 ];
 
 const YT_CONTENT_TYPES = [
-  { value: "long-form videos", label: "Long-form Videos" },
-  { value: "shorts", label: "YouTube Shorts" },
-  { value: "tutorials", label: "Tutorials" },
-  { value: "vlogs", label: "Vlogs" },
-  { value: "mix", label: "Mix of all types" },
+  { value: "Short Form (Shorts, quick tips, viral hooks, micro lessons)", label: "Short Form — Shorts & Quick Tips" },
+  { value: "Long Form (deep educational videos, tutorials, case studies, step-by-step guides)", label: "Long Form — Tutorials & Deep Dives" },
+  { value: "Value Based (educational breakdowns, framework explanations, strategy videos)", label: "Value Based — Education & Frameworks" },
+  { value: "VSL Style (problem-solution videos, authority videos, story-based persuasion)", label: "VSL Style — Sales & Authority" },
+  { value: "mix of all YouTube formats", label: "Mix of all formats" },
 ];
 
 const GOALS = [
@@ -86,7 +96,14 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
+                {idea.formatType && (
+                  <Badge variant="outline" className="mt-1.5 text-[10px] border-primary/30 text-primary h-5">
+                    {idea.formatType}
+                  </Badge>
+                )}
+              </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => setSaved(s => !s)}
@@ -113,29 +130,53 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
                   <p className="text-xs text-muted-foreground leading-relaxed">{idea.concept}</p>
                 </div>
 
+                {idea.whyItWorks && (
+                  <div className="flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Why It Will Perform</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.whyItWorks}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-card border border-card-border rounded-xl p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
                       <MessageSquare className="w-3 h-3 text-primary" />
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Caption / Script Opener</span>
                     </div>
-                    <button
-                      onClick={() => copyToClipboard(idea.captionStarter, "Caption")}
-                      className="text-muted-foreground hover:text-primary transition-colors"
-                    >
+                    <button onClick={() => copyToClipboard(idea.captionStarter, "Caption")} className="text-muted-foreground hover:text-primary transition-colors">
                       <Copy className="w-3 h-3" />
                     </button>
                   </div>
                   <p className="text-xs text-foreground italic leading-relaxed">"{idea.captionStarter}"</p>
                 </div>
 
-                <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-xl p-3">
-                  <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Pro Tip</span>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.tip}</p>
+                {idea.cta && (
+                  <div className="flex items-center justify-between gap-2 bg-primary/5 border border-primary/15 rounded-xl p-3">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Target className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-semibold text-primary uppercase tracking-wider block">Suggested CTA</span>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.cta}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => copyToClipboard(idea.cta!, "CTA")} className="text-muted-foreground hover:text-primary transition-colors flex-shrink-0">
+                      <Copy className="w-3 h-3" />
+                    </button>
                   </div>
-                </div>
+                )}
+
+                {idea.tip && !idea.whyItWorks && (
+                  <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-xl p-3">
+                    <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Pro Tip</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.tip}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -156,6 +197,7 @@ export default function AdminAIIdeas() {
   const [audience, setAudience] = useState("");
   const [additionalContext, setAdditionalContext] = useState("");
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
+  const [contentMix, setContentMix] = useState<ContentMix | null>(null);
   const [loading, setLoading] = useState(false);
 
   const { data: clients = [] } = useQuery<any[]>({ queryKey: ["/api/clients"] });
@@ -178,6 +220,7 @@ export default function AdminAIIdeas() {
     }
     setLoading(true);
     setIdeas([]);
+    setContentMix(null);
     try {
       const data = await apiRequest("POST", "/api/ai/content-ideas", {
         platform, niche, contentType, goal, audience, additionalContext,
@@ -185,14 +228,10 @@ export default function AdminAIIdeas() {
         existingPosts: platformPosts.slice(0, 20),
       });
       setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
+      if (data?.contentMix) setContentMix(data.contentMix);
     } catch (err: any) {
       const msg: string = err.message || "Failed to generate ideas";
-      const isQuota = msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("free-tier");
-      toast({
-        title: isQuota ? "AI Quota Exceeded" : "Generation failed",
-        description: isQuota ? "The daily Google AI free-tier limit has been reached. Please try again tomorrow." : msg,
-        variant: "destructive",
-      });
+      toast({ title: "Generation failed", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -459,6 +498,31 @@ export default function AdminAIIdeas() {
                 <IdeaCard key={i} idea={idea} index={i} />
               ))}
             </div>
+
+            {contentMix && (
+              <Card className="border border-primary/20 bg-primary/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <PieChart className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Recommended Content Mix</p>
+                    {selectedClient && <span className="text-xs text-muted-foreground">— for {selectedClient.name}</span>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {[
+                      { label: "Growth", value: contentMix.growth, color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
+                      { label: "Value", value: contentMix.value, color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
+                      { label: "Conversion", value: contentMix.conversion, color: "bg-primary/20 text-primary border-primary/30" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className={`rounded-xl border p-2.5 text-center ${color}`}>
+                        <p className="text-lg font-bold">{value}%</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5 opacity-80">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{contentMix.suggestion}</p>
+                </CardContent>
+              </Card>
+            )}
 
             <p className="text-center text-xs text-muted-foreground pt-2">
               Click <Heart className="w-3 h-3 inline text-red-400" /> to save favourites · <Copy className="w-3 h-3 inline" /> to copy caption
