@@ -531,7 +531,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const apiKey = process.env.GOOGLE_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "AI not configured" });
 
-      const { platform, niche, contentType, goal, audience, additionalContext } = req.body;
+      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts } = req.body;
       if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
 
       const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
@@ -539,15 +539,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const goalLabel = goal || "growth and engagement";
       const audienceLabel = audience || "general audience";
 
-      const prompt = `You are a social media content strategist specializing in ${platformLabel} growth.
+      let profileSection = "";
+      if (profileHandle) {
+        profileSection = `\nCreator's ${platformLabel} handle: ${profileHandle}`;
+      }
+
+      let existingContentSection = "";
+      if (existingPosts && Array.isArray(existingPosts) && existingPosts.length > 0) {
+        const posts = existingPosts as any[];
+        const totalPosts = posts.length;
+        const typeCounts: Record<string, number> = {};
+        posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
+        const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
+        const avgViews = posts.length > 0 ? Math.round(posts.reduce((s: number, p: any) => s + (p.views || 0), 0) / posts.length) : 0;
+        const topPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
+        const recentTitles = posts.slice(0, 8).map((p: any) => p.title).filter(Boolean);
+
+        existingContentSection = `
+Existing content data for this creator (use this to AVOID repetition and fill content GAPS):
+- Total ${platformLabel} posts logged: ${totalPosts}
+- Most used content type: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
+- Average views per post: ${avgViews.toLocaleString()}
+- Top performing post: "${topPost?.title || "unknown"}" with ${(topPost?.views || 0).toLocaleString()} views
+- Recent post titles (DO NOT repeat these topics): ${recentTitles.length > 0 ? recentTitles.map(t => `"${t}"`).join(", ") : "none yet"}
+
+IMPORTANT: Generate ideas that are DIFFERENT from their recent posts listed above. Fill gaps in their content mix, suggest underutilised content types, and build on what's already working for them.`;
+      }
+
+      const prompt = `You are a social media content strategist specializing in ${platformLabel} growth.${profileSection}
 
 Generate 6 unique, highly specific content ideas for a ${platformLabel} creator in the **${niche}** niche.
 
-Details:
-- Content type: ${contentTypeLabel}
+Creator details:
+- Content type focus: ${contentTypeLabel}
 - Goal: ${goalLabel}
 - Target audience: ${audienceLabel}
 ${additionalContext ? `- Additional context: ${additionalContext}` : ""}
+${existingContentSection}
 
 For each idea, provide:
 1. A catchy, scroll-stopping **title/hook** (max 12 words)

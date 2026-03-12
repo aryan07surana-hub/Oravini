@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
-  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare
+  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2
 } from "lucide-react";
 
 interface ContentIdea {
@@ -46,6 +47,25 @@ const GOALS = [
   { value: "go viral and reach new audiences", label: "Go Viral" },
   { value: "educate my audience", label: "Educate My Audience" },
 ];
+
+function extractHandle(url: string, platform: "instagram" | "youtube"): string | null {
+  if (!url.trim()) return null;
+  try {
+    const raw = url.trim().replace(/\/+$/, "");
+    if (platform === "instagram") {
+      const urlMatch = raw.match(/instagram\.com\/([A-Za-z0-9_.]+)/);
+      if (urlMatch) return "@" + urlMatch[1];
+      const handleMatch = raw.match(/^@?([A-Za-z0-9_.]+)$/);
+      if (handleMatch) return "@" + handleMatch[1];
+    } else {
+      const urlMatch = raw.match(/youtube\.com\/(?:@|c\/|channel\/|user\/)([A-Za-z0-9_.-]+)/);
+      if (urlMatch) return "@" + urlMatch[1];
+      const atMatch = raw.match(/^@?([A-Za-z0-9_.-]+)$/);
+      if (atMatch) return "@" + atMatch[1];
+    }
+  } catch {}
+  return null;
+}
 
 function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
   const [expanded, setExpanded] = useState(true);
@@ -132,6 +152,7 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
 export default function AIIdeas() {
   const { toast } = useToast();
   const [platform, setPlatform] = useState<"instagram" | "youtube">("instagram");
+  const [profileUrl, setProfileUrl] = useState("");
   const [niche, setNiche] = useState("");
   const [contentType, setContentType] = useState("");
   const [goal, setGoal] = useState("");
@@ -141,6 +162,19 @@ export default function AIIdeas() {
   const [loading, setLoading] = useState(false);
 
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
+
+  const detectedHandle = useMemo(() => extractHandle(profileUrl, platform), [profileUrl, platform]);
+
+  const { data: me } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const { data: allPosts } = useQuery<any[]>({
+    queryKey: [`/api/content/${me?.id}`],
+    enabled: !!me?.id,
+  });
+
+  const platformPosts = useMemo(() => {
+    if (!allPosts) return [];
+    return allPosts.filter((p: any) => p.platform === platform);
+  }, [allPosts, platform]);
 
   const handleGenerate = async () => {
     if (!niche.trim()) {
@@ -152,6 +186,8 @@ export default function AIIdeas() {
     try {
       const data = await apiRequest("POST", "/api/ai/content-ideas", {
         platform, niche, contentType, goal, audience, additionalContext,
+        profileHandle: detectedHandle || undefined,
+        existingPosts: platformPosts.slice(0, 20),
       });
       setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
     } catch (err: any) {
@@ -167,6 +203,8 @@ export default function AIIdeas() {
     }
   };
 
+  const isProfileLinked = !!detectedHandle;
+
   return (
     <ClientLayout>
       <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
@@ -176,7 +214,7 @@ export default function AIIdeas() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">AI Content Ideas</h1>
-            <p className="text-xs text-muted-foreground">Get tailored content ideas powered by Gemini AI</p>
+            <p className="text-xs text-muted-foreground">Personalized ideas powered by Gemini AI — the more context you give, the smarter the ideas</p>
           </div>
         </div>
 
@@ -186,7 +224,7 @@ export default function AIIdeas() {
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => { setPlatform("instagram"); setContentType(""); }}
+                  onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); }}
                   data-testid="platform-instagram"
                   className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
                     platform === "instagram"
@@ -198,7 +236,7 @@ export default function AIIdeas() {
                   Instagram
                 </button>
                 <button
-                  onClick={() => { setPlatform("youtube"); setContentType(""); }}
+                  onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); }}
                   data-testid="platform-youtube"
                   className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
                     platform === "youtube"
@@ -210,6 +248,50 @@ export default function AIIdeas() {
                   YouTube
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Link className="w-3 h-3" />
+                {platform === "instagram" ? "Instagram Profile Link" : "YouTube Channel Link"}
+                <span className="text-muted-foreground font-normal normal-case">(optional — helps personalise ideas)</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="profileUrl"
+                  value={profileUrl}
+                  onChange={e => setProfileUrl(e.target.value)}
+                  placeholder={platform === "instagram"
+                    ? "https://instagram.com/yourhandle  or  @yourhandle"
+                    : "https://youtube.com/@yourchannel  or  @yourchannel"}
+                  data-testid="input-profile-url"
+                  className={`bg-card border-card-border pr-10 transition-colors ${isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""}`}
+                />
+                {isProfileLinked && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  </div>
+                )}
+              </div>
+              {isProfileLinked && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30 border">
+                    {platform === "instagram" ? <Instagram className="w-2.5 h-2.5 mr-1" /> : <Youtube className="w-2.5 h-2.5 mr-1" />}
+                    {detectedHandle} detected
+                  </Badge>
+                  {platformPosts.length > 0 && (
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                      <Sparkles className="w-2.5 h-2.5 mr-1" />
+                      {platformPosts.length} logged posts will be used as context
+                    </Badge>
+                  )}
+                </div>
+              )}
+              {!isProfileLinked && platformPosts.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to generate smarter, personalised ideas.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -303,10 +385,16 @@ export default function AIIdeas() {
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Generate Content Ideas
+                  {isProfileLinked ? `Generate Ideas for ${detectedHandle}` : "Generate Content Ideas"}
                 </>
               )}
             </Button>
+
+            {isProfileLinked && platformPosts.length > 0 && (
+              <p className="text-center text-[11px] text-muted-foreground -mt-2">
+                AI will analyse your {platformPosts.length} logged posts to avoid repetition and fill content gaps
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -328,13 +416,18 @@ export default function AIIdeas() {
         {ideas.length > 0 && !loading && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="border-primary/30 text-primary text-xs">
                   {ideas.length} ideas generated
                 </Badge>
                 <Badge variant="outline" className={`text-xs ${platform === "instagram" ? "border-pink-500/30 text-pink-400" : "border-red-500/30 text-red-400"}`}>
                   {platform === "instagram" ? <><Instagram className="w-3 h-3 mr-1" />Instagram</> : <><Youtube className="w-3 h-3 mr-1" />YouTube</>}
                 </Badge>
+                {isProfileLinked && (
+                  <Badge className="text-xs bg-green-500/10 text-green-400 border border-green-500/30">
+                    Personalised for {detectedHandle}
+                  </Badge>
+                )}
               </div>
               <Button variant="outline" size="sm" onClick={handleGenerate} data-testid="button-regenerate" className="text-xs h-8">
                 <RefreshCw className="w-3 h-3 mr-1.5" />
