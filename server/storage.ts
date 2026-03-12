@@ -64,6 +64,7 @@ export interface IStorage {
   createNotification(notif: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(clientId: string): Promise<void>;
+  deleteNotification(id: string): Promise<void>;
   getDueScheduledNotifications(): Promise<Notification[]>;
 
   // Content Posts
@@ -286,6 +287,10 @@ class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(clientId: string) {
     await db.update(notifications).set({ read: true }).where(eq(notifications.clientId, clientId));
+  }
+
+  async deleteNotification(id: string) {
+    await db.delete(notifications).where(eq(notifications.id, id));
   }
 
   async getDueScheduledNotifications() {

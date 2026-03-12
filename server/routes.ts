@@ -414,6 +414,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ message: "All marked read" });
   });
 
+  app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+    await storage.deleteNotification(req.params.id);
+    res.json({ message: "Notification deleted" });
+  });
+
   // Client submits their own call feedback
   app.patch("/api/calls/:id/client-feedback", requireAuth, async (req, res) => {
     const user = req.user as any;

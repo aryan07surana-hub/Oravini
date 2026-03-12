@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
-  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart
+  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2
 } from "lucide-react";
+
+function likedKey(platform: string) { return `liked_ideas_${platform}`; }
+function loadLiked(platform: string): ContentIdea[] {
+  try { return JSON.parse(localStorage.getItem(likedKey(platform)) || "[]"); } catch { return []; }
+}
+function saveLikedStorage(platform: string, ideas: ContentIdea[]) {
+  localStorage.setItem(likedKey(platform), JSON.stringify(ideas));
+}
 
 interface ContentIdea {
   title: string;
@@ -78,9 +87,8 @@ function extractHandle(url: string, platform: "instagram" | "youtube"): string |
   return null;
 }
 
-function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
+function IdeaCard({ idea, index, isLiked, onToggleLike }: { idea: ContentIdea; index: number; isLiked?: boolean; onToggleLike?: (idea: ContentIdea) => void }) {
   const [expanded, setExpanded] = useState(true);
-  const [saved, setSaved] = useState(false);
   const { toast } = useToast();
 
   const copyToClipboard = (text: string, label: string) => {
@@ -107,12 +115,12 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
-                  onClick={() => setSaved(s => !s)}
+                  onClick={() => onToggleLike?.(idea)}
                   data-testid={`save-idea-${index}`}
-                  className={`p-1.5 rounded-lg transition-colors ${saved ? "text-red-400 bg-red-500/10" : "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"}`}
-                  title="Save idea"
+                  className={`p-1.5 rounded-lg transition-colors ${isLiked ? "text-red-400 bg-red-500/10" : "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"}`}
+                  title={isLiked ? "Unlike idea" : "Like idea"}
                 >
-                  <Heart className={`w-3.5 h-3.5 ${saved ? "fill-current" : ""}`} />
+                  <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
                 </button>
                 <button
                   onClick={() => setExpanded(e => !e)}
@@ -223,6 +231,28 @@ export default function AIIdeas() {
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [contentMix, setContentMix] = useState<ContentMix | null>(null);
   const [loading, setLoading] = useState(false);
+  const [likedIdeas, setLikedIdeas] = useState<ContentIdea[]>(() => loadLiked(platform));
+
+  useEffect(() => {
+    setLikedIdeas(loadLiked(platform));
+  }, [platform]);
+
+  const toggleLike = (idea: ContentIdea) => {
+    setLikedIdeas(prev => {
+      const exists = prev.some(i => i.title === idea.title);
+      const next = exists ? prev.filter(i => i.title !== idea.title) : [idea, ...prev];
+      saveLikedStorage(platform, next);
+      return next;
+    });
+  };
+
+  const removeLiked = (title: string) => {
+    setLikedIdeas(prev => {
+      const next = prev.filter(i => i.title !== title);
+      saveLikedStorage(platform, next);
+      return next;
+    });
+  };
 
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
 
@@ -288,42 +318,124 @@ export default function AIIdeas() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">AI Content Ideas</h1>
-            <p className="text-xs text-muted-foreground">Personalized ideas powered by Gemini AI — the more context you give, the smarter the ideas</p>
+            <p className="text-xs text-muted-foreground">Personalized ideas powered by AI — the more context you give, the smarter the ideas</p>
           </div>
         </div>
 
+        <div>
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-instagram"
+              className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
+                platform === "instagram"
+                  ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
+                  : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
+              }`}
+            >
+              <Instagram className="w-4 h-4" />
+              Instagram
+              {loadLiked("instagram").length > 0 && (
+                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("instagram").length}</Badge>
+              )}
+            </button>
+            <button
+              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-youtube"
+              className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
+                platform === "youtube"
+                  ? "bg-red-500/10 border-red-500/40 text-red-400"
+                  : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
+              }`}
+            >
+              <Youtube className="w-4 h-4" />
+              YouTube
+              {loadLiked("youtube").length > 0 && (
+                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <Tabs defaultValue="generate" className="space-y-6">
+          <TabsList className="bg-card border border-card-border">
+            <TabsTrigger value="generate" className="gap-1.5" data-testid="tab-generate-ideas">
+              <Sparkles className="w-3.5 h-3.5" /> Generate Ideas
+            </TabsTrigger>
+            <TabsTrigger value="liked" className="gap-1.5" data-testid="tab-liked-ideas">
+              <Heart className="w-3.5 h-3.5" /> Liked Ideas
+              {likedIdeas.length > 0 && (
+                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{likedIdeas.length}</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="liked" className="space-y-3 mt-0">
+            {likedIdeas.length === 0 ? (
+              <Card className="border border-card-border">
+                <CardContent className="p-10 text-center">
+                  <Heart className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-medium text-foreground mb-1">No liked ideas yet</p>
+                  <p className="text-xs text-muted-foreground">Click the <Heart className="w-3 h-3 inline text-red-400" /> on any idea to save it here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {likedIdeas.map((idea, i) => (
+                  <Card key={idea.title + i} className="border border-card-border hover:border-primary/30 transition-all" data-testid={`liked-idea-${i}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Heart className="w-3.5 h-3.5 text-red-400 fill-current" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => navigator.clipboard.writeText(`${idea.title}\n\n${idea.concept}\n\nCaption: ${idea.captionStarter}`)}
+                                data-testid={`copy-liked-${i}`}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                title="Copy idea"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => removeLiked(idea.title)}
+                                data-testid={`remove-liked-${i}`}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                title="Remove from liked"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          {idea.formatType && (
+                            <Badge variant="outline" className="mb-2 text-[10px] border-primary/30 text-primary h-5">{idea.formatType}</Badge>
+                          )}
+                          <p className="text-xs text-muted-foreground leading-relaxed">{idea.concept}</p>
+                          {idea.captionStarter && (
+                            <div className="mt-2 bg-card border border-card-border rounded-lg p-2.5">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <MessageSquare className="w-3 h-3 text-primary" />
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Caption Starter</span>
+                              </div>
+                              <p className="text-xs text-foreground italic">"{idea.captionStarter}"</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="generate" className="space-y-6 mt-0">
         <Card className="border border-card-border">
           <CardContent className="p-6 space-y-5">
-            <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); }}
-                  data-testid="platform-instagram"
-                  className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    platform === "instagram"
-                      ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
-                      : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
-                  }`}
-                >
-                  <Instagram className="w-4 h-4" />
-                  Instagram
-                </button>
-                <button
-                  onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); }}
-                  data-testid="platform-youtube"
-                  className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    platform === "youtube"
-                      ? "bg-red-500/10 border-red-500/40 text-red-400"
-                      : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
-                  }`}
-                >
-                  <Youtube className="w-4 h-4" />
-                  YouTube
-                </button>
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Link className="w-3 h-3" />
@@ -511,7 +623,7 @@ export default function AIIdeas() {
 
             <div className="space-y-3">
               {ideas.map((idea, i) => (
-                <IdeaCard key={i} idea={idea} index={i} />
+                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} />
               ))}
             </div>
 
@@ -540,10 +652,13 @@ export default function AIIdeas() {
             )}
 
             <p className="text-center text-xs text-muted-foreground pt-2">
-              Click <Heart className="w-3 h-3 inline text-red-400" /> to save your favourites · <Copy className="w-3 h-3 inline" /> to copy the caption
+              Click <Heart className="w-3 h-3 inline text-red-400" /> to like an idea and save it · <Copy className="w-3 h-3 inline" /> to copy the caption
             </p>
           </div>
         )}
+
+          </TabsContent>
+        </Tabs>
       </div>
     </ClientLayout>
   );

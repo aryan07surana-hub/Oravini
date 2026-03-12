@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
-  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock
+  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -270,6 +270,16 @@ export default function ClientDashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
   });
 
+  const markOneRead = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/notifications/${id}/read`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
+  const deleteNotif = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/notifications/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/notifications"] }),
+  });
+
   const toggleTask = useMutation({
     mutationFn: ({ id, completed }: any) => apiRequest("PATCH", `/api/tasks/${id}`, { completed }),
     onSuccess: () => {
@@ -443,7 +453,7 @@ export default function ClientDashboard() {
                   <p className="text-sm text-muted-foreground">No notifications</p>
                 </div>
               ) : (
-                (notifications || []).slice(0, 5).map((n: any) => (
+                (notifications || []).slice(0, 8).map((n: any) => (
                   <div
                     key={n.id}
                     data-testid={`notification-${n.id}`}
@@ -454,7 +464,27 @@ export default function ClientDashboard() {
                       <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
                       <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(n.createdAt), "MMM d, h:mm a")}</p>
                     </div>
-                    {!n.read && <div className="w-1.5 h-1.5 bg-primary rounded-full mt-1 flex-shrink-0" />}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {!n.read && (
+                        <button
+                          onClick={() => markOneRead.mutate(n.id)}
+                          data-testid={`mark-read-${n.id}`}
+                          className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                          title="Mark as read"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteNotif.mutate(n.id)}
+                        data-testid={`delete-notif-${n.id}`}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      {!n.read && <div className="w-1.5 h-1.5 bg-primary rounded-full ml-0.5 flex-shrink-0" />}
+                    </div>
                   </div>
                 ))
               )}

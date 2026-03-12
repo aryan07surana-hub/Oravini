@@ -23,6 +23,7 @@ import AdminSettings from "@/pages/admin/Settings";
 import AdminTracking from "@/pages/admin/Tracking";
 import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
+import AdminCourseModules from "@/pages/admin/CourseModules";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -123,6 +124,9 @@ function Router() {
       </Route>
       <Route path="/admin/ai-ideas">
         {() => <ProtectedRoute component={AdminAIIdeas} adminOnly />}
+      </Route>
+      <Route path="/admin/course-modules">
+        {() => <ProtectedRoute component={AdminCourseModules} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>
