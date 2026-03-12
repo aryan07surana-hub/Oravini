@@ -534,6 +534,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Sync a single post's metrics for a specific checkpoint (initial / 2w / 4w)
+  app.post("/api/instagram/sync-checkpoint", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postId, postUrl, checkpoint } = req.body;
+      if (!postUrl || !postId || !checkpoint) return res.status(400).json({ message: "postId, postUrl, and checkpoint required" });
+      const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
+      const item = items?.[0];
+      if (!item) return res.status(404).json({ message: "No data returned for this Instagram URL" });
+
+      const v = item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0;
+      const l = item.likesCount ?? 0;
+      const c = item.commentsCount ?? 0;
+      const s = item.savesCount ?? 0;
+      const now = new Date();
+
+      let updateData: any = {};
+      if (checkpoint === "initial") {
+        updateData = { views: v, likes: l, comments: c, saves: s, initialSyncedAt: now };
+      } else if (checkpoint === "2w") {
+        updateData = { views2w: v, likes2w: l, comments2w: c, saves2w: s, twoWeekSyncedAt: now };
+      } else if (checkpoint === "4w") {
+        updateData = { views4w: v, likes4w: l, comments4w: c, saves4w: s, fourWeekSyncedAt: now };
+      } else {
+        return res.status(400).json({ message: "Invalid checkpoint" });
+      }
+      const updated = await storage.updateContentPost(postId, updateData);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Bulk import a profile's recent posts
   app.post("/api/instagram/sync-profile", requireAuth, async (req: Request, res: Response) => {
     try {

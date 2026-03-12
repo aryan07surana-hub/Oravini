@@ -120,6 +120,9 @@ export const contentPosts = pgTable("content_posts", {
   followersGained4w: integer("followers_gained_4w"),
   subscribersGained4w: integer("subscribers_gained_4w"),
   metricsReminded: boolean("metrics_reminded").notNull().default(false),
+  initialSyncedAt: timestamp("initial_synced_at"),
+  twoWeekSyncedAt: timestamp("two_week_synced_at"),
+  fourWeekSyncedAt: timestamp("four_week_synced_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

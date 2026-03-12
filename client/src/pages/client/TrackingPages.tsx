@@ -470,7 +470,8 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   const [report, setReport] = useState<any>(null);
   const [loadingText, setLoadingText] = useState("Initializing AI...");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [period, setPeriod] = useState<"initial" | "2w" | "4w">("initial");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const { toast } = useToast();
 
   const loadingSteps = [
@@ -481,26 +482,30 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     "Generating growth insights...",
   ];
 
+  const applyQuickRange = (days: number) => {
+    if (posts.length === 0) return;
+    const sorted = [...posts].sort((a, b) => new Date(a.postDate).getTime() - new Date(b.postDate).getTime());
+    const end = new Date(sorted[sorted.length - 1].postDate);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (days - 1));
+    setStartDate(format(start, "yyyy-MM-dd"));
+    setEndDate(format(end, "yyyy-MM-dd"));
+  };
+
   const getPostsForPeriod = () => {
-    if (period === "initial") return posts;
-    const suffix = period === "2w" ? "2w" : "4w";
-    return posts
-      .filter(p => p[`views${suffix}`] != null)
-      .map(p => ({
-        ...p,
-        views: p[`views${suffix}`] ?? p.views,
-        likes: p[`likes${suffix}`] ?? p.likes,
-        comments: p[`comments${suffix}`] ?? p.comments,
-        saves: p[`saves${suffix}`] ?? p.saves,
-        followersGained: p[`followersGained${suffix}`] ?? p.followersGained,
-        subscribersGained: p[`subscribersGained${suffix}`] ?? p.subscribersGained,
-      }));
+    if (!startDate && !endDate) return posts;
+    return posts.filter(p => {
+      const d = new Date(p.postDate);
+      if (startDate && d < new Date(startDate)) return false;
+      if (endDate && d > new Date(endDate + "T23:59:59")) return false;
+      return true;
+    });
   };
 
   const generate = async () => {
     const filteredPosts = getPostsForPeriod();
     if (filteredPosts.length === 0) {
-      toast({ title: "No data available", description: `No posts have ${period === "2w" ? "2-week" : "4-week"} metrics yet. Log some metrics first.`, variant: "destructive" });
+      toast({ title: "No posts in range", description: "No posts found in the selected date range. Adjust your dates.", variant: "destructive" });
       return;
     }
     setStage("loading");
@@ -535,8 +540,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     }
   };
 
-  const has2w = posts.some(p => p.views2w != null);
-  const has4w = posts.some(p => p.views4w != null);
+  const filteredForReport = getPostsForPeriod();
 
   if (stage === "idle") {
     return (
@@ -555,36 +559,80 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
         </div>
         <div>
           <h3 className="font-semibold text-foreground">AI Report Generator</h3>
-          <p className="text-xs text-muted-foreground mt-1">Choose a data period then generate AI-powered insights and growth recommendations</p>
+          <p className="text-xs text-muted-foreground mt-1">Select a date range and generate AI-powered insights and growth recommendations</p>
         </div>
-        <div className="w-full max-w-xs">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Report Period</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { key: "initial", label: "Initial", sub: "Day 1 metrics" },
-              { key: "2w", label: "2-Week", sub: has2w ? `${posts.filter(p => p.views2w != null).length} posts` : "No data" },
-              { key: "4w", label: "4-Week", sub: has4w ? `${posts.filter(p => p.views4w != null).length} posts` : "No data" },
-            ].map(({ key, label, sub }) => (
-              <button
-                key={key}
-                onClick={() => setPeriod(key as any)}
-                disabled={key !== "initial" && !((key === "2w" && has2w) || (key === "4w" && has4w))}
-                className={`p-2.5 rounded-xl border text-center transition-all ${
-                  period === key
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed"
-                }`}
-              >
-                <p className="text-xs font-semibold">{label}</p>
-                <p className="text-[10px] mt-0.5 opacity-70">{sub}</p>
-              </button>
-            ))}
+
+        <div className="w-full max-w-sm space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Quick Range</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "1 Week", days: 7 },
+                { label: "2 Weeks", days: 14 },
+                { label: "4 Weeks", days: 28 },
+              ].map(({ label, days }) => (
+                <button
+                  key={days}
+                  onClick={() => applyQuickRange(days)}
+                  disabled={posts.length === 0}
+                  className="p-2 rounded-xl border border-border text-center text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  data-testid={`quick-range-${days}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Custom Range</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-left">
+                <Label className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  disabled={posts.length === 0}
+                  className="mt-1 h-8 text-xs"
+                  data-testid="input-report-start"
+                />
+              </div>
+              <div className="text-left">
+                <Label className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  disabled={posts.length === 0}
+                  className="mt-1 h-8 text-xs"
+                  data-testid="input-report-end"
+                />
+              </div>
+            </div>
+          </div>
+
+          {(startDate || endDate) && (
+            <p className="text-xs text-muted-foreground text-left">
+              {filteredForReport.length} post{filteredForReport.length !== 1 ? "s" : ""} in selected range
+            </p>
+          )}
         </div>
-        <Button onClick={generate} disabled={posts.length === 0} data-testid="button-generate-ai-report" className="gap-2">
-          <Sparkles className="w-4 h-4" /> Generate {period === "initial" ? "Initial" : period === "2w" ? "2-Week" : "4-Week"} Report
+
+        <Button
+          onClick={generate}
+          disabled={posts.length === 0 || filteredForReport.length === 0}
+          data-testid="button-generate-ai-report"
+          className="gap-2"
+        >
+          <Sparkles className="w-4 h-4" /> Generate AI Report
         </Button>
-        {posts.length === 0 && <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>}
+        {posts.length === 0
+          ? <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>
+          : filteredForReport.length === 0 && (startDate || endDate)
+          ? <p className="text-xs text-muted-foreground">No posts found in this date range.</p>
+          : null
+        }
       </div>
     );
   }
@@ -616,7 +664,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
           <Sparkles className="w-5 h-5 text-primary" />
           <div>
             <p className="font-semibold text-sm text-foreground">AI Content Report</p>
-            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {getPostsForPeriod().length} posts · {period === "initial" ? "Initial metrics" : period === "2w" ? "2-week data" : "4-week data"}</p>
+            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {filteredForReport.length} posts{startDate || endDate ? ` · ${startDate || "…"} → ${endDate || "…"}` : ""}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setStage("idle")} className="text-xs h-7">
@@ -778,6 +826,9 @@ function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: s
 
 function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; platform: string; clientId: string; onEdit: (p: any) => void; onDelete: (id: string) => void }) {
   const [metricsOpen, setMetricsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const { toast } = useToast();
   const isYt = platform === "youtube";
   const er0 = engRate(post.views, post.likes, post.comments, post.saves);
   const er2 = engRate(post.views2w, post.likes2w, post.comments2w, post.saves2w);
@@ -785,6 +836,53 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
 
   const has2w = post.views2w !== null && post.views2w !== undefined;
   const has4w = post.views4w !== null && post.views4w !== undefined;
+
+  const syncCheckpoint = async (checkpoint: "initial" | "2w" | "4w") => {
+    if (!post.postUrl) {
+      toast({ title: "No URL", description: "This post needs a URL to sync from Instagram.", variant: "destructive" });
+      return;
+    }
+    setSyncing(checkpoint);
+    try {
+      await apiRequest("POST", "/api/instagram/sync-checkpoint", { postId: post.id, postUrl: post.postUrl, checkpoint });
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] });
+      toast({ title: "Synced!", description: `${checkpoint === "initial" ? "Initial" : checkpoint === "2w" ? "2-Week" : "4-Week"} metrics updated from Instagram.` });
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const checkpoints = [
+    {
+      key: "initial" as const,
+      label: "Initial",
+      syncedAt: post.initialSyncedAt,
+      views: post.views,
+      hasData: post.views !== null && post.views !== undefined,
+      color: "text-primary",
+      bg: "bg-primary/5 border-primary/20",
+    },
+    {
+      key: "2w" as const,
+      label: "2-Week",
+      syncedAt: post.twoWeekSyncedAt,
+      views: post.views2w,
+      hasData: has2w,
+      color: "text-blue-400",
+      bg: "bg-blue-500/5 border-blue-500/20",
+    },
+    {
+      key: "4w" as const,
+      label: "4-Week",
+      syncedAt: post.fourWeekSyncedAt,
+      views: post.views4w,
+      hasData: has4w,
+      color: "text-purple-400",
+      bg: "bg-purple-500/5 border-purple-500/20",
+    },
+  ];
 
   return (
     <>
@@ -837,7 +935,15 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
               )}
             </div>
             <div className="flex flex-col gap-1.5 flex-shrink-0">
-              <button onClick={() => setMetricsOpen(true)} data-testid={`update-metrics-${post.id}`} title="Update 2w/4w metrics" className="text-muted-foreground hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-primary/10">
+              <button
+                onClick={() => setSyncOpen(o => !o)}
+                data-testid={`regenerate-${post.id}`}
+                title="Sync metrics from Instagram"
+                className={`transition-colors p-1.5 rounded-lg hover:bg-primary/10 ${syncOpen ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary"}`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setMetricsOpen(true)} data-testid={`update-metrics-${post.id}`} title="Manually update metrics" className="text-muted-foreground hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-primary/10">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
               <button onClick={() => onEdit(post)} data-testid={`edit-post-${post.id}`} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
@@ -848,6 +954,50 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
               </button>
             </div>
           </div>
+
+          {syncOpen && (
+            <div className="mt-3 pt-3 border-t border-border space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-3.5 h-3.5 text-primary" />
+                <p className="text-xs font-semibold text-foreground">Sync from Instagram</p>
+                {!post.postUrl && <span className="text-[10px] text-destructive ml-auto">Requires a post URL</span>}
+              </div>
+              {checkpoints.map(cp => (
+                <div key={cp.key} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${cp.bg}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold ${cp.color}`}>{cp.label}</p>
+                    {cp.hasData && (
+                      <p className="text-[10px] text-muted-foreground">{cp.views?.toLocaleString()} views</p>
+                    )}
+                    {cp.syncedAt && (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" />
+                        Last synced {format(new Date(cp.syncedAt), "MMM d, h:mm a")}
+                      </p>
+                    )}
+                    {!cp.syncedAt && !cp.hasData && (
+                      <p className="text-[10px] text-muted-foreground">Not synced yet</p>
+                    )}
+                    {!cp.syncedAt && cp.hasData && (
+                      <p className="text-[10px] text-muted-foreground">Manually entered</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => syncCheckpoint(cp.key)}
+                    disabled={syncing !== null || !post.postUrl || isYt}
+                    className="ml-2 h-7 text-xs gap-1 flex-shrink-0"
+                    data-testid={`sync-${cp.key}-${post.id}`}
+                  >
+                    {syncing === cp.key ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Sync
+                  </Button>
+                </div>
+              ))}
+              {isYt && <p className="text-[10px] text-muted-foreground text-center">Auto-sync is only available for Instagram posts.</p>}
+            </div>
+          )}
         </CardContent>
       </Card>
       <MetricsUpdateDialog post={post} clientId={clientId} platform={platform} open={metricsOpen} onClose={() => setMetricsOpen(false)} />
@@ -966,7 +1116,7 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
           <AIReportGenerator posts={fullMonthPosts} platform={platform as any} />
         ) : (
           <button onClick={() => setShowReport(true)} data-testid="button-show-ai-report" className="w-full flex items-center justify-center gap-2 p-4 border border-dashed border-primary/30 rounded-2xl text-sm text-muted-foreground hover:text-primary hover:border-primary/60 hover:bg-primary/5 transition-all">
-            <Sparkles className="w-4 h-4" /> Generate AI Report for {monthName}
+            <Sparkles className="w-4 h-4" /> Generate AI Report
           </button>
         )}
       </div>

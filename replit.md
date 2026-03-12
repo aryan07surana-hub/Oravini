@@ -18,8 +18,9 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 - YouTube Tracking: same month-by-month structure as Instagram
 - Per-post engagement rate auto-calculated: (likes+comments+saves)/views*100, color-coded badge
 - Per-post metric update stages: Initial, 2-Week, 4-Week (via MetricsUpdateDialog with tabs)
+- Per-post Instagram auto-sync: Zap/Regenerate button expands inline panel with Initial/2W/4W checkpoints, each with Sync button that fetches live metrics from Instagram via Apify; sync timestamps tracked per checkpoint (initialSyncedAt, twoWeekSyncedAt, fourWeekSyncedAt)
 - Visual analytics charts: bar chart (monthly views), pie chart (content type breakdown), line chart (engagement trend)
-- AI Report Generator: 5-second animated loading, then Gemini-powered report with summary, insights, recommendations
+- AI Report Generator: date range picker (Quick Range: 1W/2W/4W + Custom From/To) instead of static period selector; posts filtered by date range; animated loading then OpenRouter-powered report with summary, insights, recommendations
 - Content Calendar: /tracking/content/calendar shows posts visually on a calendar
 - AI Content Ideas: /ai-ideas with Gemini, copy/heart-save per idea
 - Admin Calendar: /admin/calendar with full monthly calendar, Calendly bookings, call feedback events
