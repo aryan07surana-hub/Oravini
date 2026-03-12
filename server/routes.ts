@@ -9,6 +9,7 @@ import { storage } from "./storage";
 import { hashPassword } from "./auth";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -501,6 +502,101 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     });
     sendToUser(receiverId, { type: "message", message: msg });
     res.json(msg);
+  });
+
+  // AI Content Ideas
+  app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
+
+      const { platform, niche, contentType, goal, audience, additionalContext } = req.body;
+      if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
+
+      const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
+      const contentTypeLabel = contentType || (platform === "instagram" ? "Reels, Carousels, and Posts" : "Videos and Shorts");
+      const goalLabel = goal || "growth and engagement";
+      const audienceLabel = audience || "general audience";
+
+      const prompt = `You are a social media content strategist specializing in ${platformLabel} growth.
+
+Generate 6 unique, highly specific content ideas for a ${platformLabel} creator in the **${niche}** niche.
+
+Details:
+- Content type: ${contentTypeLabel}
+- Goal: ${goalLabel}
+- Target audience: ${audienceLabel}
+${additionalContext ? `- Additional context: ${additionalContext}` : ""}
+
+For each idea, provide:
+1. A catchy, scroll-stopping **title/hook** (max 12 words)
+2. A brief **concept description** (2-3 sentences explaining what the content covers)
+3. A **caption starter** or script opening line they can use directly
+4. One **quick tip** to maximize performance for this specific piece
+
+Format your response as a JSON array with this exact structure:
+[
+  {
+    "title": "Hook or title here",
+    "concept": "What the content covers...",
+    "captionStarter": "Opening line for caption or script...",
+    "tip": "Performance tip..."
+  }
+]
+
+Only return the JSON array, no other text.`;
+
+      const MODELS_TO_TRY = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
+
+      let text: string | null = null;
+      let lastError: string = "";
+      let isQuotaError = false;
+
+      for (const modelName of MODELS_TO_TRY) {
+        try {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+          const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.9, maxOutputTokens: 2048 },
+            }),
+          });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            lastError = (errData as any)?.error?.message || `HTTP ${response.status}`;
+            if (response.status === 429 || lastError.toLowerCase().includes("quota")) {
+              isQuotaError = true;
+            }
+            console.warn(`Model ${modelName} failed: ${lastError}`);
+            continue;
+          }
+          const data: any = await response.json();
+          text = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+          if (text) break;
+        } catch (e: any) {
+          lastError = e.message;
+          console.warn(`Model ${modelName} threw: ${e.message}`);
+        }
+      }
+
+      if (!text) {
+        const msg = isQuotaError
+          ? "You've hit the free-tier rate limit. Please wait a minute and try again."
+          : `Generation failed. ${lastError}`;
+        return res.status(isQuotaError ? 429 : 500).json({ message: msg });
+      }
+
+      const jsonMatch = text.trim().match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
+
+      const ideas = JSON.parse(jsonMatch[0]);
+      res.json({ ideas });
+    } catch (err: any) {
+      console.error("AI error:", err);
+      res.status(500).json({ message: err.message || "AI generation failed" });
+    }
   });
 
   return httpServer;

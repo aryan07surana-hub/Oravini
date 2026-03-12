@@ -13,7 +13,7 @@ import {
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
   LogOut, ChevronRight, ChevronDown, Menu, X, CalendarPlus, BarChart2,
-  Instagram, Youtube, Clock, CalendarDays
+  Instagram, Youtube, Clock, CalendarDays, Sparkles
 } from "lucide-react";
 import { useState } from "react";
 
@@ -23,6 +23,7 @@ const mainNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/calls", label: "Call Feedback", icon: Phone },
+  { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {

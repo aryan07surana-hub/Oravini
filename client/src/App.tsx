@@ -13,6 +13,7 @@ import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
 import { ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
 import ContentCalendar from "@/pages/client/ContentCalendar";
+import AIIdeas from "@/pages/client/AIIdeas";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
@@ -73,6 +74,9 @@ function Router() {
       </Route>
       <Route path="/calls">
         {() => <ProtectedRoute component={ClientCalls} />}
+      </Route>
+      <Route path="/ai-ideas">
+        {() => <ProtectedRoute component={AIIdeas} />}
       </Route>
       <Route path="/tracking/content/instagram">
         {() => <ProtectedRoute component={InstagramTracking} />}
