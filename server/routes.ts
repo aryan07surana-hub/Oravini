@@ -473,7 +473,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const post = await storage.getContentPost(req.params.id);
     if (!post) return res.status(404).json({ message: "Not found" });
     if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
-    const updated = await storage.updateContentPost(req.params.id, req.body);
+    const body = { ...req.body };
+    if (body.postDate && typeof body.postDate === "string") {
+      body.postDate = new Date(body.postDate);
+    }
+    const updated = await storage.updateContentPost(req.params.id, body);
     res.json(updated);
   });
 
@@ -600,7 +604,7 @@ Only return the JSON array, no other text.`;
 
       if (!text) {
         const msg = isQuotaError
-          ? "You've hit the free-tier rate limit. Please wait a minute and try again."
+          ? "Google AI free-tier quota exceeded. The daily limit has been reached — please try again tomorrow, or enable billing on your Google AI account."
           : `Generation failed. ${lastError}`;
         return res.status(isQuotaError ? 429 : 500).json({ message: msg });
       }
@@ -677,7 +681,7 @@ Return a JSON object ONLY (no markdown, no explanation outside JSON) in this exa
         } catch (e: any) { lastError = e.message; }
       }
 
-      if (!text) return res.status(isQuotaError ? 429 : 500).json({ message: isQuotaError ? "Rate limit hit, try again in a moment." : lastError });
+      if (!text) return res.status(isQuotaError ? 429 : 500).json({ message: isQuotaError ? "Google AI free-tier quota exceeded. The daily limit has been reached — please try again tomorrow, or enable billing on your Google AI account to unlock unlimited access." : lastError });
 
       const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
       if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });

@@ -371,6 +371,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<any>(null);
   const [loadingText, setLoadingText] = useState("Initializing AI...");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadingSteps = [
@@ -384,6 +385,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   const generate = async () => {
     setStage("loading");
     setProgress(0);
+    setErrorMsg(null);
 
     let step = 0;
     const interval = setInterval(() => {
@@ -393,10 +395,9 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     }, 900);
 
     try {
-      const res = await apiRequest("POST", "/api/ai/content-report", { posts, platform });
+      const data = await apiRequest("POST", "/api/ai/content-report", { posts, platform });
       clearInterval(interval);
       setProgress(100);
-      const data = await res.json();
       setTimeout(() => {
         setReport(data);
         setStage("done");
@@ -404,13 +405,28 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     } catch (e: any) {
       clearInterval(interval);
       setStage("idle");
-      toast({ title: "Report failed", description: e.message, variant: "destructive" });
+      const msg: string = e.message || "Report generation failed";
+      const isQuota = msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("free-tier");
+      if (isQuota) {
+        setErrorMsg(msg);
+      } else {
+        toast({ title: "Report failed", description: msg, variant: "destructive" });
+      }
     }
   };
 
   if (stage === "idle") {
     return (
       <div className="border border-primary/20 rounded-2xl p-6 bg-primary/5 flex flex-col items-center gap-4 text-center">
+        {errorMsg && (
+          <div className="w-full bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-left flex gap-2">
+            <span className="text-destructive mt-0.5 flex-shrink-0">⚠️</span>
+            <div>
+              <p className="text-xs font-semibold text-destructive">AI Quota Exceeded</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{errorMsg}</p>
+            </div>
+          </div>
+        )}
         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
           <Sparkles className="w-7 h-7 text-primary" />
         </div>

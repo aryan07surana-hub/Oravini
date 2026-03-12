@@ -150,14 +150,18 @@ export default function AIIdeas() {
     setLoading(true);
     setIdeas([]);
     try {
-      const res = await apiRequest("POST", "/api/ai/content-ideas", {
+      const data = await apiRequest("POST", "/api/ai/content-ideas", {
         platform, niche, contentType, goal, audience, additionalContext,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to generate ideas");
-      setIdeas(data.ideas);
+      setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
     } catch (err: any) {
-      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      const msg: string = err.message || "Failed to generate ideas";
+      const isQuota = msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("free-tier");
+      toast({
+        title: isQuota ? "AI Quota Exceeded" : "Generation failed",
+        description: isQuota ? "The daily Google AI free-tier limit has been reached. Please try again tomorrow." : msg,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
