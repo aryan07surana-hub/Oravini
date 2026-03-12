@@ -9,9 +9,56 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import {
   Users, FileText, MessageSquare, TrendingUp, Calendar,
-  ArrowRight, ChevronRight, Phone
+  ArrowRight, ChevronRight, Phone, Globe, Quote
 } from "lucide-react";
 import { format } from "date-fns";
+import { useState, useEffect } from "react";
+
+const QUOTES = [
+  "Success is not the key to happiness. Happiness is the key to success.",
+  "The secret of getting ahead is getting started.",
+  "Don't watch the clock; do what it does. Keep going.",
+  "The harder you work for something, the greater you'll feel when you achieve it.",
+  "Success usually comes to those who are too busy to be looking for it.",
+  "Dreams don't work unless you do.",
+  "The only way to do great work is to love what you do.",
+  "It always seems impossible until it's done.",
+  "Push yourself, because no one else is going to do it for you.",
+  "Great things never come from comfort zones.",
+  "Leadership is not about being in charge. It's about taking care of those in your charge.",
+  "The key to success is to focus on goals, not obstacles.",
+  "Believe you can and you're halfway there.",
+  "Act as if what you do makes a difference. It does.",
+  "You don't have to be great to start, but you have to start to be great.",
+  "Don't stop when you're tired. Stop when you're done.",
+  "Opportunities don't happen, you create them.",
+  "The road to success and the road to failure are almost exactly the same.",
+];
+
+function getDailyQuote() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return QUOTES[dayOfYear % QUOTES.length];
+}
+
+function WorldClock({ city, timezone }: { city: string; timezone: string }) {
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      setTime(new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: timezone }).format(new Date()));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [timezone]);
+  const date = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: timezone }).format(new Date());
+  return (
+    <div className="flex-1 min-w-0 text-center">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{city}</p>
+      <p className="text-xl font-bold text-foreground font-mono tabular-nums mt-0.5">{time}</p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{date}</p>
+    </div>
+  );
+}
 
 function StatCard({ label, value, sub, icon: Icon, color }: any) {
   return (
@@ -44,13 +91,41 @@ export default function AdminDashboard() {
   const activeClients = (clients || []).length;
   const totalDocs = (docs || []).length;
 
+  const dailyQuote = getDailyQuote();
+
   return (
     <AdminLayout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold text-foreground">Admin Overview</h1>
           <p className="text-muted-foreground mt-1">Manage your clients and portal content</p>
+        </div>
+
+        {/* World Clocks + Daily Quote */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+          <Card className="border border-card-border lg:col-span-2" data-testid="admin-world-clocks">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">World Time</p>
+              </div>
+              <div className="flex items-start gap-4">
+                <WorldClock city="Dubai" timezone="Asia/Dubai" />
+                <div className="w-px h-12 bg-border self-center" />
+                <WorldClock city="London" timezone="Europe/London" />
+                <div className="w-px h-12 bg-border self-center" />
+                <WorldClock city="New York" timezone="America/New_York" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-primary/20 bg-primary/5" data-testid="admin-daily-quote">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[100px]">
+              <Quote className="w-4 h-4 text-primary/60 mb-2" />
+              <p className="text-sm font-medium text-foreground leading-relaxed italic">"{dailyQuote}"</p>
+              <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-wider">Daily Motivation</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Stats */}

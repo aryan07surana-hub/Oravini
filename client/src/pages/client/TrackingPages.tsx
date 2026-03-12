@@ -202,6 +202,86 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
   );
 }
 
+function InitialMetricsEdit({ post, clientId, platform, onSuccess }: { post: any; clientId: string; platform: string; onSuccess: () => void }) {
+  const { toast } = useToast();
+  const isYt = platform === "youtube";
+  const [form, setForm] = useState({
+    views: post?.views ?? 0,
+    likes: post?.likes ?? 0,
+    comments: post?.comments ?? 0,
+    saves: post?.saves ?? 0,
+    followersGained: post?.followersGained ?? 0,
+    subscribersGained: post?.subscribersGained ?? 0,
+  });
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const liveEr = engRate(+form.views, +form.likes, +form.comments, +form.saves);
+
+  const mutation = useMutation({
+    mutationFn: (data: any) => apiRequest("PATCH", `/api/content/${post.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] });
+      toast({ title: "Metrics updated!", description: "Initial metrics saved." });
+      onSuccess();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-3">
+      {!isYt && liveEr !== null && (
+        <div className="flex justify-end">
+          <Badge variant="outline" className={`text-[10px] border ${liveEr >= 3 ? "bg-green-500/10 text-green-400 border-green-500/30" : liveEr >= 1 ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}>
+            {liveEr.toFixed(2)}% Live ER
+          </Badge>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label className="text-xs">Views</Label>
+          <Input type="number" min="0" value={form.views} onChange={e => set("views", e.target.value)} className="mt-1 h-9" />
+        </div>
+        {!isYt && (
+          <>
+            <div>
+              <Label className="text-xs">Likes</Label>
+              <Input type="number" min="0" value={form.likes} onChange={e => set("likes", e.target.value)} className="mt-1 h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">Comments</Label>
+              <Input type="number" min="0" value={form.comments} onChange={e => set("comments", e.target.value)} className="mt-1 h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">Saves</Label>
+              <Input type="number" min="0" value={form.saves} onChange={e => set("saves", e.target.value)} className="mt-1 h-9" />
+            </div>
+          </>
+        )}
+        {isYt && (
+          <div>
+            <Label className="text-xs">Likes</Label>
+            <Input type="number" min="0" value={form.likes} onChange={e => set("likes", e.target.value)} className="mt-1 h-9" />
+          </div>
+        )}
+        <div>
+          <Label className="text-xs">{isYt ? "Subscribers Gained" : "Followers Gained"}</Label>
+          <Input type="number" min="0" value={isYt ? form.subscribersGained : form.followersGained} onChange={e => set(isYt ? "subscribersGained" : "followersGained", e.target.value)} className="mt-1 h-9" />
+        </div>
+      </div>
+      <Button
+        onClick={() => mutation.mutate({
+          views: +form.views, likes: +form.likes, comments: +form.comments,
+          saves: +form.saves, followersGained: +form.followersGained, subscribersGained: +form.subscribersGained,
+        })}
+        disabled={mutation.isPending}
+        className="w-full"
+        data-testid="button-save-initial"
+      >
+        {mutation.isPending ? "Saving..." : "Save Initial Metrics"}
+      </Button>
+    </div>
+  );
+}
+
 function MetricsUpdateDialog({ post, clientId, platform, open, onClose }: { post: any; clientId: string; platform: string; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const isYt = platform === "youtube";
@@ -270,23 +350,7 @@ function MetricsUpdateDialog({ post, clientId, platform, open, onClose }: { post
               <p className="text-xs text-muted-foreground">Posted {format(new Date(post.postDate), "MMMM d, yyyy")}</p>
               <EngagementBadge rate={er0} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { label: "Views", value: post.views },
-                ...(isYt ? [] : [
-                  { label: "Likes", value: post.likes },
-                  { label: "Comments", value: post.comments },
-                  { label: "Saves", value: post.saves },
-                ]),
-                { label: isYt ? "Subscribers" : "Followers", value: isYt ? post.subscribersGained : post.followersGained },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-card border border-card-border rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-lg font-bold text-foreground">{(value || 0).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground text-center">Initial metrics are read-only. Edit via the pencil icon.</p>
+            <InitialMetricsEdit post={post} clientId={clientId} platform={platform} onSuccess={onClose} />
           </TabsContent>
 
           <TabsContent value="2w" className="space-y-4 pt-3">
@@ -372,6 +436,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   const [report, setReport] = useState<any>(null);
   const [loadingText, setLoadingText] = useState("Initializing AI...");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [period, setPeriod] = useState<"initial" | "2w" | "4w">("initial");
   const { toast } = useToast();
 
   const loadingSteps = [
@@ -382,7 +447,28 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     "Generating growth insights...",
   ];
 
+  const getPostsForPeriod = () => {
+    if (period === "initial") return posts;
+    const suffix = period === "2w" ? "2w" : "4w";
+    return posts
+      .filter(p => p[`views${suffix}`] != null)
+      .map(p => ({
+        ...p,
+        views: p[`views${suffix}`] ?? p.views,
+        likes: p[`likes${suffix}`] ?? p.likes,
+        comments: p[`comments${suffix}`] ?? p.comments,
+        saves: p[`saves${suffix}`] ?? p.saves,
+        followersGained: p[`followersGained${suffix}`] ?? p.followersGained,
+        subscribersGained: p[`subscribersGained${suffix}`] ?? p.subscribersGained,
+      }));
+  };
+
   const generate = async () => {
+    const filteredPosts = getPostsForPeriod();
+    if (filteredPosts.length === 0) {
+      toast({ title: "No data available", description: `No posts have ${period === "2w" ? "2-week" : "4-week"} metrics yet. Log some metrics first.`, variant: "destructive" });
+      return;
+    }
     setStage("loading");
     setProgress(0);
     setErrorMsg(null);
@@ -395,7 +481,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     }, 900);
 
     try {
-      const data = await apiRequest("POST", "/api/ai/content-report", { posts, platform });
+      const data = await apiRequest("POST", "/api/ai/content-report", { posts: filteredPosts, platform });
       clearInterval(interval);
       setProgress(100);
       setTimeout(() => {
@@ -415,6 +501,9 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
     }
   };
 
+  const has2w = posts.some(p => p.views2w != null);
+  const has4w = posts.some(p => p.views4w != null);
+
   if (stage === "idle") {
     return (
       <div className="border border-primary/20 rounded-2xl p-6 bg-primary/5 flex flex-col items-center gap-4 text-center">
@@ -432,10 +521,34 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
         </div>
         <div>
           <h3 className="font-semibold text-foreground">AI Report Generator</h3>
-          <p className="text-xs text-muted-foreground mt-1">Get AI-powered insights, engagement analysis, and growth recommendations</p>
+          <p className="text-xs text-muted-foreground mt-1">Choose a data period then generate AI-powered insights and growth recommendations</p>
+        </div>
+        <div className="w-full max-w-xs">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Report Period</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "initial", label: "Initial", sub: "Day 1 metrics" },
+              { key: "2w", label: "2-Week", sub: has2w ? `${posts.filter(p => p.views2w != null).length} posts` : "No data" },
+              { key: "4w", label: "4-Week", sub: has4w ? `${posts.filter(p => p.views4w != null).length} posts` : "No data" },
+            ].map(({ key, label, sub }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key as any)}
+                disabled={key !== "initial" && !((key === "2w" && has2w) || (key === "4w" && has4w))}
+                className={`p-2.5 rounded-xl border text-center transition-all ${
+                  period === key
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                }`}
+              >
+                <p className="text-xs font-semibold">{label}</p>
+                <p className="text-[10px] mt-0.5 opacity-70">{sub}</p>
+              </button>
+            ))}
+          </div>
         </div>
         <Button onClick={generate} disabled={posts.length === 0} data-testid="button-generate-ai-report" className="gap-2">
-          <Sparkles className="w-4 h-4" /> Generate AI Report
+          <Sparkles className="w-4 h-4" /> Generate {period === "initial" ? "Initial" : period === "2w" ? "2-Week" : "4-Week"} Report
         </Button>
         {posts.length === 0 && <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>}
       </div>
@@ -469,7 +582,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
           <Sparkles className="w-5 h-5 text-primary" />
           <div>
             <p className="font-semibold text-sm text-foreground">AI Content Report</p>
-            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {posts.length} posts analyzed</p>
+            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {getPostsForPeriod().length} posts · {period === "initial" ? "Initial metrics" : period === "2w" ? "2-week data" : "4-week data"}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setStage("idle")} className="text-xs h-7">

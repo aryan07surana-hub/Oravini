@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, ChevronLeft, ChevronRight, Phone, Clock, User, Video, Instagram, Youtube, CalendarPlus, ExternalLink } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Phone, Clock, User, Video, Instagram, Youtube, CalendarPlus } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, isSameMonth, isToday } from "date-fns";
 
 type CalEvent = {
@@ -95,17 +95,6 @@ export default function AdminCalendar() {
             <h1 className="text-2xl font-bold text-foreground">Calendar</h1>
             <p className="text-muted-foreground text-sm mt-1">Scheduled calls, client bookings, and content activity</p>
           </div>
-          <a
-            href="https://calendly.com/brandversee/30min"
-            target="_blank"
-            rel="noreferrer"
-            data-testid="link-calendly-admin"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/30 text-sm text-primary hover:bg-primary/10 transition-colors"
-          >
-            <CalendarPlus className="w-4 h-4" />
-            Calendly Dashboard
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

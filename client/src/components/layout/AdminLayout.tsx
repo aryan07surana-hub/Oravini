@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, CalendarDays
+  LogOut, ChevronRight, Menu, X, CalendarDays, Sparkles
 } from "lucide-react";
 import { useState } from "react";
 
@@ -21,6 +21,7 @@ const mainNavItems = [
   { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
   { href: "/admin/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/admin/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
