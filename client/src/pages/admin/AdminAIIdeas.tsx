@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { format } from "date-fns";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, User, TrendingUp, PieChart
@@ -24,6 +26,7 @@ interface ContentIdea {
   formatType?: string;
   whyItWorks?: string;
   cta?: string;
+  keyPoints?: string[];
 }
 
 interface ContentMix {
@@ -168,6 +171,23 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
                   </div>
                 )}
 
+                {idea.keyPoints && idea.keyPoints.length > 0 && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Full Breakdown — {idea.keyPoints.length} Points</span>
+                    </div>
+                    <ol className="space-y-1.5">
+                      {idea.keyPoints.map((point, i) => (
+                        <li key={i} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                          <span className="text-primary font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
+                          <span>{point.replace(/^\d+\.\s*/, "")}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
                 {idea.tip && !idea.whyItWorks && (
                   <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-xl p-3">
                     <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
@@ -213,6 +233,8 @@ export default function AdminAIIdeas() {
   const detectedHandle = useMemo(() => extractHandle(profileUrl, platform), [profileUrl, platform]);
   const isProfileLinked = !!detectedHandle;
 
+  const { data: ideaLogs = [] } = useQuery<any[]>({ queryKey: ["/api/ai/idea-logs"] });
+
   const handleGenerate = async () => {
     if (!niche.trim()) {
       toast({ title: "Niche required", description: "Please enter the client's content niche.", variant: "destructive" });
@@ -222,10 +244,19 @@ export default function AdminAIIdeas() {
     setIdeas([]);
     setContentMix(null);
     try {
+      let scrapedPosts: any[] = [];
+      if (platform === "instagram" && profileUrl.trim()) {
+        try {
+          toast({ title: "Scanning Instagram profile…", description: "Fetching real posts for smarter ideas." });
+          const scraped = await apiRequest("POST", "/api/instagram/scrape-profile", { profileUrl: profileUrl.trim() });
+          scrapedPosts = scraped?.posts ?? [];
+        } catch (_) {}
+      }
       const data = await apiRequest("POST", "/api/ai/content-ideas", {
         platform, niche, contentType, goal, audience, additionalContext,
         profileHandle: detectedHandle || undefined,
         existingPosts: platformPosts.slice(0, 20),
+        scrapedPosts: scrapedPosts.length > 0 ? scrapedPosts : undefined,
       });
       setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
       if (data?.contentMix) setContentMix(data.contentMix);
@@ -240,15 +271,65 @@ export default function AdminAIIdeas() {
   return (
     <AdminLayout>
       <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-primary" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">AI Content Ideas</h1>
+              <p className="text-xs text-muted-foreground">Generate ideas for clients — see what they're creating below</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">AI Content Ideas</h1>
-            <p className="text-xs text-muted-foreground">Generate personalised content ideas for any client using Gemini AI</p>
-          </div>
+          {ideaLogs.length > 0 && (
+            <Badge variant="outline" className="border-primary/30 text-primary text-xs">{ideaLogs.length} generations tracked</Badge>
+          )}
         </div>
+
+        <Tabs defaultValue="generate" className="space-y-6">
+          <TabsList className="bg-card border border-card-border">
+            <TabsTrigger value="generate" className="gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Generate Ideas</TabsTrigger>
+            <TabsTrigger value="activity" className="gap-1.5"><Users className="w-3.5 h-3.5" /> Client Activity {ideaLogs.length > 0 && <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-primary/20 text-primary border-0">{ideaLogs.length}</Badge>}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="activity" className="space-y-3 mt-0">
+            {ideaLogs.length === 0 ? (
+              <Card className="border border-card-border">
+                <CardContent className="p-8 text-center">
+                  <Sparkles className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-sm text-muted-foreground">No activity yet. When clients generate ideas, they'll appear here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {ideaLogs.map((log: any) => (
+                  <Card key={log.id} className="border border-card-border" data-testid={`activity-log-${log.id}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${log.platform === "instagram" ? "bg-pink-500/10" : "bg-red-500/10"}`}>
+                          {log.platform === "instagram" ? <Instagram className="w-4 h-4 text-pink-400" /> : <Youtube className="w-4 h-4 text-red-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground">{log.client?.name || log.clientId}</span>
+                            <Badge variant="outline" className="text-[10px] capitalize border-card-border">{log.platform}</Badge>
+                            {log.contentType && <Badge variant="outline" className="text-[10px] border-card-border">{log.contentType}</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">Niche: <span className="text-foreground">{log.niche}</span>{log.goal ? ` · Goal: ${log.goal}` : ""}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-medium text-primary">{log.ideasCount} ideas</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{log.createdAt ? format(new Date(log.createdAt), "MMM d, h:mm a") : ""}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="generate" className="space-y-6 mt-0">
 
         <Card className="border border-card-border">
           <CardContent className="p-5">
@@ -529,6 +610,9 @@ export default function AdminAIIdeas() {
             </p>
           </div>
         )}
+
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );

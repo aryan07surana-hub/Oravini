@@ -24,6 +24,7 @@ interface ContentIdea {
   formatType?: string;
   whyItWorks?: string;
   cta?: string;
+  keyPoints?: string[];
 }
 
 interface ContentMix {
@@ -175,6 +176,23 @@ function IdeaCard({ idea, index }: { idea: ContentIdea; index: number }) {
                   </div>
                 )}
 
+                {idea.keyPoints && idea.keyPoints.length > 0 && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <CheckCircle2 className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Full Breakdown — {idea.keyPoints.length} Points</span>
+                    </div>
+                    <ol className="space-y-1.5">
+                      {idea.keyPoints.map((point, i) => (
+                        <li key={i} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                          <span className="text-primary font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
+                          <span>{point.replace(/^\d+\.\s*/, "")}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
                 {(idea.tip && !idea.whyItWorks) && (
                   <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-xl p-3">
                     <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
@@ -230,13 +248,27 @@ export default function AIIdeas() {
     setIdeas([]);
     setContentMix(null);
     try {
+      // If an Instagram profile URL is set, scrape real posts first for richer AI context
+      let scrapedPosts: any[] = [];
+      if (platform === "instagram" && profileUrl.trim()) {
+        try {
+          toast({ title: "Scanning your Instagram…", description: "Analysing your real posts for personalised ideas." });
+          const scraped = await apiRequest("POST", "/api/instagram/scrape-profile", { profileUrl: profileUrl.trim() });
+          scrapedPosts = scraped?.posts ?? [];
+        } catch (_) { /* non-critical — continue without scraped data */ }
+      }
+
       const data = await apiRequest("POST", "/api/ai/content-ideas", {
         platform, niche, contentType, goal, audience, additionalContext,
         profileHandle: detectedHandle || undefined,
         existingPosts: platformPosts.slice(0, 20),
+        scrapedPosts: scrapedPosts.length > 0 ? scrapedPosts : undefined,
       });
       setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
       if (data?.contentMix) setContentMix(data.contentMix);
+      if (scrapedPosts.length > 0) {
+        toast({ title: `Ideas based on ${scrapedPosts.length} real posts`, description: "Your actual Instagram content was analysed to make these ideas personal." });
+      }
     } catch (err: any) {
       const msg: string = err.message || "Failed to generate ideas";
       toast({ title: "Generation failed", description: msg, variant: "destructive" });

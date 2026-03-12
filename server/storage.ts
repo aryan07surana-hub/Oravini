@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
-  contentPosts, incomeGoals, callBookings,
+  contentPosts, incomeGoals, callBookings, aiIdeaLogs,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -79,6 +79,8 @@ export interface IStorage {
 
   // Call Bookings (Calendly)
   getAllCallBookings(): Promise<(CallBooking & { client: User | null })[]>;
+  createAiIdeaLog(data: { clientId: string; platform: string; niche: string; contentType?: string; goal?: string; ideasCount?: number }): Promise<void>;
+  getAiIdeaLogs(): Promise<any[]>;
   getCallBookingsByClient(clientId: string): Promise<CallBooking[]>;
   getCallBookingByCalendlyUri(uri: string): Promise<CallBooking | undefined>;
   createCallBooking(data: InsertCallBooking): Promise<CallBooking>;
@@ -333,6 +335,23 @@ class DatabaseStorage implements IStorage {
       const [created] = await db.insert(incomeGoals).values(data).returning();
       return created;
     }
+  }
+
+  async createAiIdeaLog(data: { clientId: string; platform: string; niche: string; contentType?: string; goal?: string; ideasCount?: number }) {
+    await db.insert(aiIdeaLogs).values({
+      clientId: data.clientId,
+      platform: data.platform,
+      niche: data.niche,
+      contentType: data.contentType,
+      goal: data.goal,
+      ideasCount: data.ideasCount ?? 6,
+    });
+  }
+
+  async getAiIdeaLogs() {
+    const logs = await db.select().from(aiIdeaLogs).orderBy(desc(aiIdeaLogs.createdAt)).limit(100);
+    const allUsers = await db.select({ id: users.id, name: users.name, email: users.email }).from(users);
+    return logs.map(l => ({ ...l, client: allUsers.find(u => u.id === l.clientId) || null }));
   }
 
   async getAllCallBookings() {

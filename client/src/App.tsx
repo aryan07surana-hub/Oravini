@@ -40,7 +40,6 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
 
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
-  if (!adminOnly && user.role === "admin") return <Redirect to="/admin" />;
 
   return <Component {...props} />;
 }

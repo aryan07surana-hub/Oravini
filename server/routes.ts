@@ -662,10 +662,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`OpenRouter generation failed: ${lastError}`);
   }
 
+  // ── Scrape Instagram profile without saving (for AI context) ─────────────
+  app.post("/api/instagram/scrape-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
+      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 20 });
+      if (!items?.length) return res.json({ posts: [] });
+      const posts = items.map((item: any) => ({
+        title: item.caption ? item.caption.slice(0, 120) : "Untitled",
+        contentType: item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post",
+        views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+        likes: item.likesCount ?? 0,
+        comments: item.commentsCount ?? 0,
+        postDate: item.timestamp,
+        url: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null),
+      }));
+      return res.json({ posts });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Admin: get all AI idea generation logs
+  app.get("/api/ai/idea-logs", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const logs = await storage.getAiIdeaLogs();
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── AI Content Ideas (Groq — fast) ───────────────────────────────────────
   app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts } = req.body;
+      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts, scrapedPosts } = req.body;
       if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
 
       const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
@@ -675,21 +707,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let profileSection = "";
       if (profileHandle) profileSection = `Creator handle: ${profileHandle}\n`;
 
+      // Merge logged posts + real scraped posts for richer context
+      const allContextPosts: any[] = [
+        ...(Array.isArray(existingPosts) ? existingPosts : []),
+        ...(Array.isArray(scrapedPosts) ? scrapedPosts : []),
+      ];
+
       let existingContentSection = "";
-      if (existingPosts && Array.isArray(existingPosts) && existingPosts.length > 0) {
-        const posts = existingPosts as any[];
+      if (allContextPosts.length > 0) {
+        const posts = allContextPosts;
         const typeCounts: Record<string, number> = {};
         posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
         const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
         const avgViews = Math.round(posts.reduce((s: number, p: any) => s + (p.views || 0), 0) / posts.length);
+        const avgLikes = Math.round(posts.reduce((s: number, p: any) => s + (p.likes || 0), 0) / posts.length);
         const topPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
-        const recentTitles = posts.slice(0, 8).map((p: any) => p.title).filter(Boolean);
-        existingContentSection = `\nExisting content analysis (avoid repetition, fill gaps):
-- Posts logged: ${posts.length} | Avg views: ${avgViews.toLocaleString()}
-- Top type: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
-- Best post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views
-- Recent titles (DO NOT repeat): ${recentTitles.map(t => `"${t}"`).join(", ")}
-Generate ideas that are FRESH, fill gaps in their content mix, and build on what works.\n`;
+        const recentTitles = posts.slice(0, 10).map((p: any) => p.title).filter(Boolean);
+        const isRealData = scrapedPosts && Array.isArray(scrapedPosts) && scrapedPosts.length > 0;
+        existingContentSection = `\n${isRealData ? "REAL Instagram profile analysis" : "Existing content analysis"} (use this to craft ideas that fill gaps and beat their best performers):
+- Total posts analysed: ${posts.length}${isRealData ? " (real scraped data)" : ""}
+- Avg views: ${avgViews.toLocaleString()} | Avg likes: ${avgLikes.toLocaleString()}
+- Most-used format: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
+- Best performing post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views / ${(topPost?.likes || 0).toLocaleString()} likes
+- Recent post titles (DO NOT repeat these topics verbatim): ${recentTitles.map((t: string) => `"${t}"`).join(", ")}
+Generate ideas that are FRESH, fill clear content gaps, and strategically build on what's already working.\n`;
       }
 
       const ytFormatSection = platform === "youtube" ? `
@@ -700,23 +741,26 @@ YouTube format options (match the selected content type):
 - VSL Style: Problem–solution videos, authority videos, offer explanation, story-based persuasion
 ` : "";
 
-      const systemPrompt = `You are an elite social media content strategist who generates scroll-stopping, viral-worthy content ideas. You deeply understand platform algorithms, human psychology, and what makes content convert. You NEVER give generic ideas. Every idea is specific, strategic, and tailored to the creator's exact niche and audience.`;
+      const isYouTube = platform === "youtube";
+
+      const systemPrompt = `You are an elite social media content strategist and YouTube/Instagram expert. You generate scroll-stopping, viral-worthy content ideas that are deeply specific, strategic, and actionable. You NEVER give generic ideas. Every idea is tailored to the exact niche, audience, and platform algorithm. For YouTube content, when you create list-style videos (e.g. "5 Ways to...", "7 Mistakes...", "3 Secrets..."), you MUST provide the actual numbered points in full detail — not placeholders.`;
 
       const userPrompt = `${profileSection}Generate 6 powerful content ideas for a ${platformLabel} creator.
 
 Niche: ${niche}
-Content type: ${contentType || (platform === "instagram" ? "Mix of Reels, Carousels, Posts" : "Mix of formats")}
+Content type: ${contentType || (platform === "instagram" ? "Mix of Reels, Carousels, Posts" : "Mix of Long Form, Value-Based, and Short Form videos")}
 Goal: ${goalLabel}
 Target audience: ${audienceLabel}
 ${additionalContext ? `Extra context: ${additionalContext}` : ""}
 ${existingContentSection}${ytFormatSection}
 For each idea provide ALL of these fields:
-1. title — A specific, scroll-stopping hook (max 12 words). NOT generic. Example of BAD: "Marketing tips video". Example of GOOD: "3 Instagram mistakes keeping coaches stuck under 10k followers"
-2. concept — 2-3 sentences explaining exactly what the content covers and why it's compelling
-3. formatType — The exact format (e.g. "Instagram Reel", "Carousel", "YouTube Short", "Long-form Tutorial", "VSL", "Educational Breakdown", "Story-based Video")
-4. whyItWorks — 1-2 sentences on viral potential, why this resonates with the audience, and conversion power
-5. cta — A specific, compelling call-to-action for this piece of content
-6. captionStarter — An attention-grabbing opening line for the caption or script they can use directly
+1. title — A specific, scroll-stopping hook (max 12 words). NOT generic. ${isYouTube ? 'Use formats like "5 Ways to...", "Why Most [audience] Fail At...", "The Truth About...", "How I [result] in [timeframe]"' : 'Example: "3 Instagram mistakes keeping coaches stuck under 10k followers"'}
+2. concept — 2-3 sentences explaining exactly what the content covers and why it will perform
+3. formatType — The exact format${isYouTube ? ' (e.g. "Long-form Tutorial", "YouTube Short", "VSL", "Educational Breakdown", "Value Video", "Story-based Video")' : ' (e.g. "Instagram Reel", "Carousel", "Static Post")'}
+4. whyItWorks — 1-2 sentences on the viral potential, algorithm advantage, and conversion power of this idea
+5. cta — A specific, compelling call-to-action tailored to this piece of content
+6. captionStarter — An attention-grabbing opening line for the caption or script hook they can copy directly${isYouTube ? `
+7. keyPoints — REQUIRED for YouTube: If the title includes a number (e.g. "5 Ways to..."), list every single numbered point in detail as an array of strings. Each point must be a complete, actionable sentence (not a vague placeholder). Example: ["1. Optimise your thumbnail with high-contrast text and a clear emotion — viewers decide in 0.4 seconds", "2. ..."]` : ""}
 
 Also add a contentMix suggestion at the end as a separate JSON object (not inside ideas array).
 
@@ -729,7 +773,8 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
       "formatType": "...",
       "whyItWorks": "...",
       "cta": "...",
-      "captionStarter": "..."
+      "captionStarter": "..."${isYouTube ? `,
+      "keyPoints": ["1. detailed point...", "2. detailed point...", "3. ..."]` : ""}
     }
   ],
   "contentMix": {
@@ -746,6 +791,20 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
       if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
 
       const parsed = JSON.parse(jsonMatch[0]);
+
+      // Log this generation for admin visibility
+      try {
+        const user = req.user as any;
+        await storage.createAiIdeaLog({
+          clientId: user.id,
+          platform,
+          niche,
+          contentType: contentType || undefined,
+          goal: goal || undefined,
+          ideasCount: parsed.ideas?.length ?? 6,
+        });
+      } catch (_) { /* non-critical, don't fail the request */ }
+
       res.json(parsed);
     } catch (err: any) {
       console.error("AI ideas error:", err);

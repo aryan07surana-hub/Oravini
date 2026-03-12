@@ -153,8 +153,20 @@ export const insertCallFeedbackSchema = createInsertSchema(callFeedback).omit({ 
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, read: true });
 export const insertContentPostSchema = createInsertSchema(contentPosts).omit({ id: true, createdAt: true });
+export const aiIdeaLogs = pgTable("ai_idea_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(),
+  platform: text("platform").notNull(),
+  niche: text("niche").notNull(),
+  contentType: text("content_type"),
+  goal: text("goal"),
+  ideasCount: integer("ideas_count").default(6),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertIncomeGoalSchema = createInsertSchema(incomeGoals).omit({ id: true, createdAt: true });
 export const insertCallBookingSchema = createInsertSchema(callBookings).omit({ id: true, createdAt: true });
+export const insertAiIdeaLogSchema = createInsertSchema(aiIdeaLogs).omit({ id: true, createdAt: true });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -176,3 +188,5 @@ export type IncomeGoal = typeof incomeGoals.$inferSelect;
 export type InsertIncomeGoal = z.infer<typeof insertIncomeGoalSchema>;
 export type CallBooking = typeof callBookings.$inferSelect;
 export type InsertCallBooking = z.infer<typeof insertCallBookingSchema>;
+export type AiIdeaLog = typeof aiIdeaLogs.$inferSelect;
+export type InsertAiIdeaLog = z.infer<typeof insertAiIdeaLogSchema>;

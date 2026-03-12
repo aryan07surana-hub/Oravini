@@ -21,7 +21,7 @@ import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
   Star, FileText, Clock, ChevronRight, ArrowLeft, Plus, Trash2, Pencil,
   BarChart2, Bell, Sparkles, Loader2, DollarSign, CalendarDays, Activity,
-  Calendar, TrendingDown, RefreshCw, Zap
+  Calendar, TrendingDown, RefreshCw, Zap, ExternalLink
 } from "lucide-react";
 import { format, getMonth, getYear, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -799,7 +799,13 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
                 {!isYt && <EngagementBadge rate={er0} />}
               </div>
               <p className="text-xs text-muted-foreground mb-2">{format(new Date(post.postDate), "MMMM d, yyyy")}</p>
-              {post.postUrl && <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline block mb-2 truncate">{post.postUrl}</a>}
+              {post.postUrl && (
+                <a href={post.postUrl} target="_blank" rel="noreferrer" data-testid={`link-view-post-${post.id}`}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-lg px-2.5 py-1 mb-2 transition-colors font-medium">
+                  <ExternalLink className="w-3 h-3" />
+                  {post.platform === "youtube" ? "Watch on YouTube" : post.contentType === "reel" ? "Watch Reel" : "View on Instagram"}
+                </a>
+              )}
 
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{post.views.toLocaleString()}</span>
