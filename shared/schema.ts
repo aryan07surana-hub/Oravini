@@ -88,6 +88,7 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   type: text("type").notNull().default("reminder"),
   read: boolean("read").notNull().default(false),
+  scheduledFor: timestamp("scheduled_for"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

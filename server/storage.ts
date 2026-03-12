@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, desc, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals,
@@ -63,6 +63,7 @@ export interface IStorage {
   createNotification(notif: InsertNotification): Promise<Notification>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(clientId: string): Promise<void>;
+  getDueScheduledNotifications(): Promise<Notification[]>;
 
   // Content Posts
   getContentPostsByClient(clientId: string): Promise<ContentPost[]>;
@@ -255,7 +256,13 @@ class DatabaseStorage implements IStorage {
   }
 
   async getNotificationsByClient(clientId: string) {
-    return db.select().from(notifications).where(eq(notifications.clientId, clientId)).orderBy(desc(notifications.createdAt));
+    const now = new Date();
+    return db.select().from(notifications).where(
+      and(
+        eq(notifications.clientId, clientId),
+        or(isNull(notifications.scheduledFor), lte(notifications.scheduledFor, now))
+      )
+    ).orderBy(desc(notifications.createdAt));
   }
 
   async createNotification(notif: InsertNotification) {
@@ -269,6 +276,16 @@ class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(clientId: string) {
     await db.update(notifications).set({ read: true }).where(eq(notifications.clientId, clientId));
+  }
+
+  async getDueScheduledNotifications() {
+    const now = new Date();
+    return db.select().from(notifications).where(
+      and(
+        eq(notifications.read, false),
+        lte(notifications.scheduledFor, now)
+      )
+    );
   }
 
   async getContentPostsByClient(clientId: string) {

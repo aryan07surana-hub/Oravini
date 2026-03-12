@@ -443,11 +443,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const parsed = insertContentPostSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const post = await storage.createContentPost(parsed.data);
-    await storage.createNotification({
-      clientId: post.clientId,
-      message: `Reminder: Update metrics for your ${post.platform} ${post.contentType} posted on ${new Date(post.postDate).toLocaleDateString()}`,
-      type: "metric_reminder",
-    });
+
+    const platformLabel = post.platform === "instagram" ? "Instagram" : "YouTube";
+    const typeLabel = post.contentType.charAt(0).toUpperCase() + post.contentType.slice(1);
+    const postDateLabel = new Date(post.postDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const now = new Date();
+
+    const reminders = [
+      { hours: 24, label: "24 hours" },
+      { hours: 48, label: "48 hours" },
+      { hours: 96, label: "96 hours" },
+    ];
+
+    for (const { hours, label } of reminders) {
+      const scheduledFor = new Date(now.getTime() + hours * 60 * 60 * 1000);
+      await storage.createNotification({
+        clientId: post.clientId,
+        message: `📊 ${label} check-in: Update the metrics for your ${platformLabel} ${typeLabel} posted on ${postDateLabel}. Track views, likes, and engagement now.`,
+        type: "metric_reminder",
+        scheduledFor,
+      });
+    }
+
     res.json(post);
   });
 
@@ -598,6 +615,26 @@ Only return the JSON array, no other text.`;
       res.status(500).json({ message: err.message || "AI generation failed" });
     }
   });
+
+  // Background scheduler — check every 60s for due metric reminders and alert online clients
+  const notifiedIds = new Set<string>();
+  setInterval(async () => {
+    try {
+      const due = await storage.getDueScheduledNotifications();
+      const clientsToNotify = new Set<string>();
+      for (const notif of due) {
+        if (!notifiedIds.has(notif.id)) {
+          clientsToNotify.add(notif.clientId);
+          notifiedIds.add(notif.id);
+        }
+      }
+      for (const clientId of clientsToNotify) {
+        sendToUser(clientId, { type: "notifications_refresh" });
+      }
+    } catch (e) {
+      console.error("Notification scheduler error:", e);
+    }
+  }, 60 * 1000);
 
   return httpServer;
 }
