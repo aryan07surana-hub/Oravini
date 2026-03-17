@@ -17,8 +17,38 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
-  FileText, Wand2
+  FileText, Wand2, Hash, Plus, X, Clock
 } from "lucide-react";
+
+// ─── Hashtag suggestion helper ─────────────────────────────────────────────────
+function getHashtagSuggestions(niche: string): string[] {
+  const n = niche.toLowerCase();
+  const map: Record<string, string[]> = {
+    calisthenics: ["#calisthenics", "#bodyweightfitness", "#streetworkout", "#calisthenicslife", "#pullups", "#barsworkout", "#fitness", "#workout"],
+    fitness: ["#fitness", "#workout", "#gym", "#fitnessmotivation", "#health", "#fitlife", "#gymmotivation", "#bodybuilding"],
+    yoga: ["#yoga", "#yogalife", "#yogadaily", "#mindfulness", "#wellness", "#flexibility", "#meditation", "#yogainspiration"],
+    food: ["#food", "#foodie", "#recipe", "#cooking", "#foodphotography", "#healthyfood", "#mealprep", "#foodblogger"],
+    business: ["#business", "#entrepreneur", "#entrepreneurship", "#marketing", "#success", "#startup", "#businesstips", "#mindset"],
+    finance: ["#finance", "#money", "#investing", "#financialfreedom", "#personalfinance", "#wealth", "#sidehustle", "#passiveincome"],
+    realestate: ["#realestate", "#realestateagent", "#property", "#homeforsale", "#investment", "#realtor", "#housing", "#realestatelife"],
+    travel: ["#travel", "#travelphotography", "#wanderlust", "#adventure", "#travelgram", "#explore", "#traveling", "#vacation"],
+    fashion: ["#fashion", "#style", "#ootd", "#fashionista", "#outfit", "#fashionblogger", "#streetstyle", "#model"],
+    beauty: ["#beauty", "#makeup", "#skincare", "#beautytips", "#glowup", "#selfcare", "#beautyblogger", "#cosmetics"],
+    motivation: ["#motivation", "#mindset", "#success", "#inspiration", "#hustle", "#discipline", "#positivity", "#grind"],
+    smma: ["#smma", "#socialmediamarketing", "#digitalmarketing", "#agencylife", "#marketingagency", "#leadgeneration", "#clientacquisition", "#entrepreneur"],
+    marketing: ["#digitalmarketing", "#marketing", "#socialmedia", "#contentmarketing", "#seo", "#branding", "#growthhacking", "#emailmarketing"],
+    crypto: ["#crypto", "#cryptocurrency", "#bitcoin", "#blockchain", "#nft", "#defi", "#web3", "#altcoin"],
+    dropshipping: ["#dropshipping", "#ecommerce", "#shopify", "#onlinebusiness", "#entrepreneur", "#passiveincome", "#sidehustle", "#businesstips"],
+    faceless: ["#facelesscontent", "#facelessmarketing", "#anonymouscreator", "#aitools", "#contentcreation", "#digitalproducts", "#passiveincome", "#makemoneyonline"],
+  };
+  for (const [key, tags] of Object.entries(map)) {
+    if (n.includes(key)) return tags;
+  }
+  if (n.includes("fit") || n.includes("gym") || n.includes("muscle")) return map.fitness;
+  if (n.includes("market") || n.includes("brand")) return map.marketing;
+  if (n.includes("money") || n.includes("invest") || n.includes("rich")) return map.finance;
+  return ["#content", "#viral", "#trending", "#growth", "#fyp", "#explore", "#creator", "#contentcreator"];
+}
 
 function likedKey(platform: string) { return `liked_ideas_${platform}`; }
 function loadLiked(platform: string): ContentIdea[] {
@@ -90,15 +120,18 @@ function extractHandle(url: string, platform: "instagram" | "youtube"): string |
   return null;
 }
 
-function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript }: {
+function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }: {
   idea: ContentIdea;
   index: number;
   isLiked?: boolean;
   onToggleLike?: (idea: ContentIdea) => void;
-  onGetScript?: (idea: ContentIdea) => void;
+  onGetScript?: (idea: ContentIdea, duration?: string) => void;
+  platform?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [ytDuration, setYtDuration] = useState("5");
   const { toast } = useToast();
+  const isYoutube = platform === "youtube";
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -221,15 +254,37 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript }: {
                 )}
 
                 {onGetScript && (
-                  <button
-                    onClick={() => onGetScript(idea)}
-                    data-testid={`get-script-${index}`}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 transition-all duration-200 group"
-                  >
-                    <Wand2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-semibold text-primary">Get Full Script</span>
-                    <FileText className="w-3 h-3 text-primary/60" />
-                  </button>
+                  <div className="space-y-2">
+                    {isYoutube && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-[10px] text-muted-foreground font-medium">Script length:</span>
+                        <div className="flex gap-1.5">
+                          {[["5", "5 min"], ["10", "10 min"], ["15", "15 min"]].map(([val, label]) => (
+                            <button
+                              key={val}
+                              onClick={() => setYtDuration(val)}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${ytDuration === val ? "bg-primary text-black" : "bg-muted/40 text-muted-foreground hover:bg-muted/70"}`}
+                              data-testid={`duration-${val}-${index}`}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => onGetScript(idea, isYoutube ? ytDuration : undefined)}
+                      data-testid={`get-script-${index}`}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 transition-all duration-200 group"
+                    >
+                      <Wand2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-semibold text-primary">
+                        Get Full Script{isYoutube ? ` — ${ytDuration} min` : ""}
+                      </span>
+                      <FileText className="w-3 h-3 text-primary/60" />
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -256,6 +311,9 @@ export default function AIIdeas() {
   const [scriptIdea, setScriptIdea] = useState<ContentIdea | null>(null);
   const [scriptContent, setScriptContent] = useState("");
   const [scriptLoading, setScriptLoading] = useState(false);
+  const [scriptDuration, setScriptDuration] = useState<string>("5");
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [hashtagInput, setHashtagInput] = useState("");
 
   useEffect(() => {
     setLikedIdeas(loadLiked(platform));
@@ -278,10 +336,11 @@ export default function AIIdeas() {
     });
   };
 
-  const handleGetScript = async (idea: ContentIdea) => {
+  const handleGetScript = async (idea: ContentIdea, duration?: string) => {
     setScriptIdea(idea);
     setScriptContent("");
     setScriptLoading(true);
+    if (duration) setScriptDuration(duration);
     try {
       const data = await apiRequest("POST", "/api/ai/full-script", {
         title: idea.title,
@@ -289,9 +348,11 @@ export default function AIIdeas() {
         captionStarter: idea.captionStarter,
         keyPoints: idea.keyPoints,
         cta: idea.cta,
+        formatType: idea.formatType,
         platform,
         niche,
         goal,
+        duration: duration || scriptDuration,
       });
       setScriptContent(data.script || "");
     } catch (err: any) {
@@ -301,6 +362,18 @@ export default function AIIdeas() {
       setScriptLoading(false);
     }
   };
+
+  const addHashtag = (tag: string) => {
+    const cleaned = tag.trim().startsWith("#") ? tag.trim() : `#${tag.trim()}`;
+    if (cleaned.length > 1 && !hashtags.includes(cleaned)) {
+      setHashtags(prev => [...prev, cleaned]);
+    }
+    setHashtagInput("");
+  };
+
+  const removeHashtag = (tag: string) => setHashtags(prev => prev.filter(h => h !== tag));
+
+  const suggestedHashtags = useMemo(() => niche.trim().length >= 2 ? getHashtagSuggestions(niche) : [], [niche]);
 
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
 
@@ -341,6 +414,7 @@ export default function AIIdeas() {
         profileHandle: detectedHandle || undefined,
         existingPosts: platformPosts.slice(0, 20),
         scrapedPosts: scrapedPosts.length > 0 ? scrapedPosts : undefined,
+        hashtags: hashtags.length > 0 ? hashtags : undefined,
       });
       setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
       if (data?.contentMix) setContentMix(data.contentMix);
@@ -590,6 +664,73 @@ export default function AIIdeas() {
               </div>
             </div>
 
+            {/* Hashtags — Instagram only */}
+            {platform === "instagram" && (
+              <div className="space-y-3">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Hash className="w-3 h-3" /> Popular Hashtags
+                  <span className="text-muted-foreground font-normal normal-case">(optional — helps AI generate more targeted ideas)</span>
+                </Label>
+
+                {/* Suggested hashtags from niche */}
+                {suggestedHashtags.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-2">Suggested for <span className="text-primary font-medium">{niche}</span> — click to add:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suggestedHashtags.map(tag => {
+                        const isSelected = hashtags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => isSelected ? removeHashtag(tag) : addHashtag(tag)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-muted/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
+                            data-testid={`suggested-hashtag-${tag}`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual hashtag input */}
+                <div className="flex gap-2">
+                  <Input
+                    value={hashtagInput}
+                    onChange={e => setHashtagInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && hashtagInput.trim()) { e.preventDefault(); addHashtag(hashtagInput); } }}
+                    placeholder="Type a hashtag and press Enter..."
+                    className="bg-card border-card-border h-8 text-xs flex-1"
+                    data-testid="input-hashtag"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => hashtagInput.trim() && addHashtag(hashtagInput)}
+                    className="h-8 px-3 text-xs"
+                    data-testid="button-add-hashtag"
+                  >
+                    <Plus className="w-3 h-3 mr-1" />Add
+                  </Button>
+                </div>
+
+                {/* Selected hashtags */}
+                {hashtags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {hashtags.map(tag => (
+                      <span key={tag} className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary rounded-full px-2.5 py-1 text-[11px] font-medium">
+                        {tag}
+                        <button onClick={() => removeHashtag(tag)} className="hover:text-destructive transition-colors ml-0.5">
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="context" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Additional Context <span className="text-muted-foreground font-normal normal-case">(optional)</span>
@@ -671,7 +812,7 @@ export default function AIIdeas() {
 
             <div className="space-y-3">
               {ideas.map((idea, i) => (
-                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} />
+                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} platform={platform} />
               ))}
             </div>
 
@@ -711,7 +852,7 @@ export default function AIIdeas() {
 
       {/* Full Script Dialog */}
       <Dialog open={!!scriptIdea} onOpenChange={(o) => { if (!o) { setScriptIdea(null); setScriptContent(""); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -735,7 +876,11 @@ export default function AIIdeas() {
             <div className="flex flex-col gap-3 min-h-0">
               <div className="flex items-center justify-between">
                 <Badge variant="outline" className={`text-xs ${platform === "instagram" ? "border-pink-500/30 text-pink-400" : "border-red-500/30 text-red-400"}`}>
-                  {platform === "instagram" ? "Instagram Reel Script" : "YouTube Script"}
+                  {platform === "instagram"
+                    ? scriptIdea?.formatType === "carousel" ? "Instagram Carousel Script"
+                      : scriptIdea?.formatType === "stories" ? "Instagram Stories Script"
+                      : "Instagram Reel Script"
+                    : `YouTube Script${scriptDuration ? ` — ${scriptDuration} min` : ""}`}
                 </Badge>
                 <Button
                   size="sm"

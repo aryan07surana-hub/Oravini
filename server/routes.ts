@@ -874,6 +874,11 @@ YouTube format options (match the selected content type):
 
       const systemPrompt = `You are an elite social media content strategist and YouTube/Instagram expert. You generate scroll-stopping, viral-worthy content ideas that are deeply specific, strategic, and actionable. You NEVER give generic ideas. Every idea is tailored to the exact niche, audience, and platform algorithm. For YouTube content, when you create list-style videos (e.g. "5 Ways to...", "7 Mistakes...", "3 Secrets..."), you MUST provide the actual numbered points in full detail — not placeholders.`;
 
+      const { hashtags } = req.body;
+      const hashtagSection = (Array.isArray(hashtags) && hashtags.length > 0)
+        ? `\nPopular hashtags in this niche (use these to shape the ideas — topics that perform under these tags): ${hashtags.join(" ")}\n`
+        : "";
+
       const userPrompt = `${profileSection}Generate 6 powerful content ideas for a ${platformLabel} creator.
 
 Niche: ${niche}
@@ -881,7 +886,7 @@ Content type: ${contentType || (platform === "instagram" ? "Mix of Reels, Carous
 Goal: ${goalLabel}
 Target audience: ${audienceLabel}
 ${additionalContext ? `Extra context: ${additionalContext}` : ""}
-${existingContentSection}${ytFormatSection}
+${hashtagSection}${existingContentSection}${ytFormatSection}
 For each idea provide ALL of these fields:
 1. title — A specific, scroll-stopping hook (max 12 words). NOT generic. ${isYouTube ? 'Use formats like "5 Ways to...", "Why Most [audience] Fail At...", "The Truth About...", "How I [result] in [timeframe]"' : 'Example: "3 Instagram mistakes keeping coaches stuck under 10k followers"'}
 2. concept — 2-3 sentences explaining exactly what the content covers and why it will perform
@@ -944,12 +949,28 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
   // ── AI Full Script Generator ───────────────────────────────────────────────
   app.post("/api/ai/full-script", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { title, concept, captionStarter, keyPoints, cta, platform, niche, goal } = req.body;
+      const { title, concept, captionStarter, keyPoints, cta, platform, niche, goal, duration, formatType } = req.body;
       if (!title) return res.status(400).json({ message: "Title is required" });
 
       const isYt = platform === "youtube";
-      const prompt = isYt
-        ? `You are a world-class YouTube scriptwriter. Generate a complete, production-ready YouTube video script for the following idea.
+      const fmt = (formatType || "").toLowerCase();
+      const isCarousel = fmt.includes("carousel");
+      const isStory = fmt.includes("stor");
+
+      // YouTube duration config
+      const ytDuration = parseInt(duration) || 5;
+      const ytWordRange = ytDuration <= 5 ? "700–900 words" : ytDuration <= 10 ? "1,500–2,000 words" : "2,500–3,000 words";
+      const ytSections = ytDuration <= 5 ? "3" : ytDuration <= 10 ? "5–6" : "7–8";
+      const ytTimeHint = ytDuration <= 5
+        ? "(0:00-0:15 hook, 0:15-0:40 intro, then 3 main sections, ending with CTA)"
+        : ytDuration <= 10
+        ? "(0:00-0:20 hook, 0:20-0:50 intro, then 5-6 detailed sections, mid-video engagement prompt, ending with CTA)"
+        : "(0:00-0:20 hook, 0:20-1:00 intro, then 7-8 deep sections with sub-points, multiple engagement prompts, storytelling segments, ending with CTA)";
+
+      let prompt: string;
+
+      if (isYt) {
+        prompt = `You are a world-class YouTube scriptwriter. Generate a complete, production-ready ${ytDuration}-minute YouTube video script.
 
 VIDEO IDEA: ${title}
 CONCEPT: ${concept || ""}
@@ -958,38 +979,104 @@ GOAL: ${goal || "grow audience"}
 OPENING HOOK DIRECTION: ${captionStarter || ""}
 KEY POINTS TO COVER: ${(keyPoints || []).join(", ")}
 CTA: ${cta || ""}
+TARGET LENGTH: ${ytDuration} minutes ${ytTimeHint}
 
-Write a FULL YouTube script in this exact format:
+Write a FULL YouTube script with EXACTLY ${ytSections} body sections. Total word count: ${ytWordRange}. Structure:
 
-## HOOK (0:00 - 0:20)
-[Write 3-4 attention-grabbing opening sentences. Pattern interrupt. Make them STOP scrolling.]
+## HOOK (0:00 - 0:${ytDuration <= 5 ? "15" : "20"})
+[Write 3-5 attention-grabbing opening sentences. Pattern interrupt. Make them stop scrolling. Quote the exact words to say.]
 
-## INTRO (0:20 - 0:45)
-[Quick intro, establish credibility, promise of the video, what they will learn]
+## INTRO (0:${ytDuration <= 5 ? "15" : "20"} - 0:${ytDuration <= 5 ? "40" : "50"})
+[Quick credibility, promise of the video, what they will learn, why it matters NOW]
 
-## BODY - MAIN CONTENT
-[Write each section with a heading. Include exact words to say, not just bullet points. Be conversational. 800-1200 words for the body. Use storytelling. Include B-roll suggestions in [brackets].]
+## BODY — MAIN CONTENT
+${ytDuration >= 10 ? "[Each section must have detailed sub-points, specific examples, data, stories, and exact dialogue. No vague placeholders.]" : "[Write exact words to say. Conversational. Punchy. Include B-roll suggestions in [brackets].]"}
 
-### Section 1: [Topic]
-[Script...]
+${Array.from({ length: parseInt(ytSections[0]) }, (_, i) => `### Section ${i + 1}: [Topic]
+[Full script with exact words, transitions, energy cues, and visual direction in brackets...]`).join("\n\n")}
 
-### Section 2: [Topic]
-[Script...]
+${ytDuration >= 10 ? `## ENGAGEMENT PROMPT (mid-video)
+[Ask viewers to comment with something specific — makes the algorithm push the video]
 
-### Section 3: [Topic]
-[Script...]
+` : ""}## CONCLUSION & CTA
+[Key takeaway recap. Strong CTA. What to watch next or do right now.]
 
-## ENGAGEMENT PROMPT (mid-video)
-[Ask viewers to comment with something specific]
+## END SCREEN (Final 20 seconds)
+[Exact words while end screen plays. Plug another video. Ask to subscribe.]
 
-## CONCLUSION & CTA
-[Wrap up with key takeaway. Strong CTA. What to watch next.]
+Every word must sound natural when spoken aloud. Include delivery cues like (pause), (lean in), (slow down). Total: ${ytWordRange}.`;
 
-## END SCREEN
-[What to say while end screen plays]
+      } else if (isCarousel) {
+        prompt = `You are an expert Instagram carousel copywriter. Generate a complete, slide-by-slide carousel script.
 
-Make the script feel natural and conversational. Include exact dialogue, transitions, and energy cues. Total script should be 800-1500 words.`
-        : `You are a world-class Instagram Reels / short-form video scriptwriter. Generate a complete, production-ready script for the following idea.
+CAROUSEL IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow followers"}
+HOOK LINE: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write the EXACT TEXT for every slide. This is a carousel — each slide has limited space so text must be punchy and visual. Write 8-10 slides.
+
+## SLIDE 1 — HOOK / COVER
+Headline text (large, bold): [The hook line that makes them swipe]
+Subheading (small text, optional): [Supporting line]
+
+## SLIDE 2 — [Topic]
+Main text: [Exactly what goes on this slide — short, punchy]
+Supporting line: [Optional second line]
+
+## SLIDE 3 — [Topic]
+Main text: [...]
+Supporting line: [...]
+
+[Continue for slides 4-9 following the same format]
+
+## LAST SLIDE — CTA
+Main text: [Strong call-to-action — save, follow, DM, share]
+Sub text: [Handle or offer or next step]
+
+## CAPTION (for the post)
+[Full Instagram caption: hook line + 3-4 lines of value + CTA + 15-20 hashtags]
+
+Keep each slide text to maximum 15-20 words. The carousel should tell a complete story from hook to payoff.`;
+
+      } else if (isStory) {
+        prompt = `You are an Instagram Stories copywriter. Generate a complete story sequence with exact text for each frame.
+
+STORY IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "drive engagement"}
+HOOK: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write the EXACT TEXT for 6-8 story frames. Each frame is a single slide in Stories.
+
+## STORY FRAME 1 — HOOK
+Text on screen: [Bold hook text — max 10 words]
+Visual suggestion: [Background, color, style suggestion]
+Interactive element: [Poll / Question sticker / Swipe-up if relevant]
+
+## STORY FRAME 2 — [Topic/Problem]
+Text on screen: [Exact text]
+Visual suggestion: [...]
+Interactive element: [...]
+
+[Continue for frames 3-7]
+
+## STORY FRAME FINAL — CTA
+Text on screen: [Clear action — reply, DM, link, swipe]
+Visual suggestion: [...]
+Interactive element: [Link sticker / DM button / Poll]
+
+Each frame text must be short (max 10-15 words) and punchy. Stories disappear in seconds — every frame must earn the next tap.`;
+
+      } else {
+        // Default: Instagram Reel
+        prompt = `You are a world-class Instagram Reels / short-form video scriptwriter. Generate a complete, production-ready script.
 
 REEL IDEA: ${title}
 CONCEPT: ${concept || ""}
@@ -1008,10 +1095,8 @@ Write a FULL Instagram Reel script in this exact format:
 [Establish the pain point or situation. Viewers must nod and say "that's me"]
 
 ## CONTENT BODY (10-40 seconds)
-[The main value delivery. Write it as exact spoken words. Short punchy sentences. Include visual direction in [brackets]. Use pattern interrupts every 5-7 seconds.]
-
 Spoken words:
-[Exact script...]
+[Exact script — short punchy sentences. Include visual direction in [brackets]. Use pattern interrupts every 5-7 seconds.]
 
 Visual notes:
 [Camera angles, text overlays, cuts, transitions]
@@ -1023,12 +1108,13 @@ Visual notes:
 [Exact CTA line. One clear action — comment, follow, save, share, or DM.]
 
 ## CAPTION
-[Write a complete caption with hook, body (3-5 lines), hashtags (15-20 relevant tags), and CTA]
+[Complete caption: hook + 3-5 lines of value + CTA + 15-20 relevant hashtags]
 
 ## AUDIO SUGGESTION
-[Type of music or trending sound that fits]
+[Type of music or trending sound that fits this reel]
 
 Keep the entire reel script to 45-60 seconds when read aloud. Every single word must earn its place.`;
+      }
 
       const GROQ_API_KEY = process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
@@ -1044,7 +1130,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
             body: JSON.stringify({
               model,
               messages: [{ role: "user", content: prompt }],
-              max_tokens: 2500,
+              max_tokens: isYt ? (ytDuration >= 15 ? 6000 : ytDuration >= 10 ? 4000 : 2500) : 2500,
               temperature: 0.8,
             }),
           });
