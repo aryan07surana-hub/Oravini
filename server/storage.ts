@@ -3,11 +3,12 @@ import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
-  contentPosts, incomeGoals, callBookings, aiIdeaLogs,
+  contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
   type Notification, type InsertNotification,
+  type CompetitorAnalysis, type InsertCompetitorAnalysis,
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
   type CallBooking, type InsertCallBooking,
 } from "@shared/schema";
@@ -86,6 +87,10 @@ export interface IStorage {
   getCallBookingByCalendlyUri(uri: string): Promise<CallBooking | undefined>;
   createCallBooking(data: InsertCallBooking): Promise<CallBooking>;
   updateCallBooking(id: string, data: Partial<InsertCallBooking>): Promise<CallBooking>;
+  createCompetitorAnalysis(data: InsertCompetitorAnalysis): Promise<CompetitorAnalysis>;
+  getCompetitorAnalyses(clientId: string): Promise<CompetitorAnalysis[]>;
+  deleteCompetitorAnalysis(id: string): Promise<void>;
+  getAllInstagramPostsWithUrls(): Promise<any[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -385,6 +390,29 @@ class DatabaseStorage implements IStorage {
   async updateCallBooking(id: string, data: Partial<InsertCallBooking>) {
     const [updated] = await db.update(callBookings).set(data).where(eq(callBookings.id, id)).returning();
     return updated;
+  }
+
+  async createCompetitorAnalysis(data: InsertCompetitorAnalysis) {
+    const [created] = await db.insert(competitorAnalyses).values(data).returning();
+    return created;
+  }
+
+  async getCompetitorAnalyses(clientId: string) {
+    return db.select().from(competitorAnalyses)
+      .where(eq(competitorAnalyses.clientId, clientId))
+      .orderBy(desc(competitorAnalyses.createdAt));
+  }
+
+  async deleteCompetitorAnalysis(id: string) {
+    await db.delete(competitorAnalyses).where(eq(competitorAnalyses.id, id));
+  }
+
+  async getAllInstagramPostsWithUrls() {
+    return db.select().from(contentPosts)
+      .where(and(
+        eq(contentPosts.platform, "instagram"),
+        sqlExpr`${contentPosts.postUrl} IS NOT NULL AND ${contentPosts.postUrl} != ''`
+      ));
   }
 }
 

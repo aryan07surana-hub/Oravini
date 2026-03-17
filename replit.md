@@ -12,7 +12,7 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 - Call feedback system (two-way: admin and client submit feedback)
 - Real-time chat via WebSockets with image/file upload support
 - Notification/reminder system
-- Tracking hub: /tracking shows 3 big cards (Content Metrics, Sales [soon], Ad [soon])
+- Tracking hub: /tracking shows 4 cards in grid (Content Metrics, Competitor Study, Sales [soon], Ad [soon])
 - Content Metrics: /tracking/content shows 3 big cards (Instagram, YouTube, Calendar)
 - Instagram Tracking: month-by-month grid, click month → full month dashboard with daily post grouping
 - YouTube Tracking: same month-by-month structure as Instagram
@@ -26,7 +26,9 @@ Brandverse Client Portal is a SaaS-style dashboard web application built for coa
 - Admin Calendar: /admin/calendar with full monthly calendar, Calendly bookings, call feedback events
 - Calendly integration: webhook at /api/webhooks/calendly auto-stores bookings, matches to client accounts
 - Course Modules section on dashboard with "Coming Soon" placeholder cards
-- Sidebar: single "Tracking" link (no expandable), "AI Content Ideas" link
+- Competitor Study: /tracking/competitor — AI-powered Instagram profile comparison; enter your URL + competitor URL, scrapes both via Apify, generates side-by-side metrics + OpenRouter AI analysis (strengths, weaknesses, competitor edge, action plan, content gaps); saves analyses to DB; delete individual reports
+- Auto-sync cron: node-cron job in server/cron.ts, runs daily at 3AM UTC, syncs Instagram post stats via Apify by age bracket (initial <14d, 2w 14-28d, 4w 28-35d); also accessible via POST /api/admin/auto-sync
+- Sidebar: "Tracking" link + separate "Competitor Study" link, "AI Content Ideas" link
 - Admin sidebar: Calendar link added
 - Auto metric-reminder notification created on each content post log (48-72 hour prompt)
 - Income goal tracking: set goal on first join via auto-open dialog; displays on dashboard

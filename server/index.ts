@@ -9,6 +9,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { comparePassword } from "./auth";
+import { startCronJobs } from "./cron";
 
 const app = express();
 const httpServer = createServer(app);
@@ -126,5 +127,6 @@ app.use((req, res, next) => {
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     log(`Brandverse portal serving on port ${port}`);
+    startCronJobs();
   });
 })();

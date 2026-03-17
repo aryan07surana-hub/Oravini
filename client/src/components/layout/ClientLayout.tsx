@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users
 } from "lucide-react";
 import { useState } from "react";
 
@@ -23,6 +23,7 @@ const mainNavItems = [
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/calls", label: "Call Feedback", icon: Phone },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
+  { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
 ];
 
@@ -67,7 +68,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {mainNavItems.map(({ href, label, icon: Icon }) => {
             const active = href === "/tracking"
-              ? location.startsWith("/tracking")
+              ? (location === "/tracking" || location.startsWith("/tracking/content"))
+              : href === "/tracking/competitor"
+              ? location.startsWith("/tracking/competitor")
               : location === href;
             const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
             return (

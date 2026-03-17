@@ -1433,7 +1433,7 @@ export function TrackingHome() {
             <p className="text-muted-foreground mt-2">Select a metrics dashboard to get started</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <Link href="/tracking/content">
               <div data-testid="card-tracking-content" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
                 <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
@@ -1441,6 +1441,19 @@ export function TrackingHome() {
                 </div>
                 <h3 className="font-semibold text-foreground text-base">Content Metrics</h3>
                 <p className="text-xs text-muted-foreground mt-1.5">Instagram, YouTube & calendar</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/tracking/competitor">
+              <div data-testid="card-tracking-competitor" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
+                  <Users className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">Competitor Study</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">AI Instagram competitor analysis</p>
                 <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
                   <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
                 </div>

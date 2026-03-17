@@ -984,6 +984,159 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   // Background scheduler — check every 60s for due metric reminders and alert online clients
   const notifiedIds = new Set<string>();
+  // ── Competitor Analysis ────────────────────────────────────────────────────
+  function extractHandle(url: string): string {
+    const m = url.match(/instagram\.com\/([^/?#]+)/);
+    return m ? `@${m[1]}` : url;
+  }
+
+  function processProfileMetrics(items: any[], handle: string) {
+    if (!items?.length) return null;
+    const posts = items.slice(0, 20);
+    const totalViews = posts.reduce((s: number, p: any) => s + (p.videoViewCount ?? p.videoPlayCount ?? p.playsCount ?? 0), 0);
+    const totalLikes = posts.reduce((s: number, p: any) => s + (p.likesCount ?? 0), 0);
+    const totalComments = posts.reduce((s: number, p: any) => s + (p.commentsCount ?? 0), 0);
+    const totalSaves = posts.reduce((s: number, p: any) => s + (p.savesCount ?? 0), 0);
+    const avgViews = Math.round(totalViews / posts.length);
+    const avgLikes = Math.round(totalLikes / posts.length);
+    const avgComments = Math.round(totalComments / posts.length);
+    const avgER = avgViews > 0 ? +(((avgLikes + totalComments + totalSaves) / totalViews) * 100).toFixed(2) : 0;
+
+    const typeCount: Record<string, number> = {};
+    for (const p of posts) {
+      const t = p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post";
+      typeCount[t] = (typeCount[t] || 0) + 1;
+    }
+
+    const dates = posts.map((p: any) => new Date(p.timestamp)).filter((d: Date) => !isNaN(d.getTime())).sort((a: Date, b: Date) => a.getTime() - b.getTime());
+    let postsPerWeek = 0;
+    if (dates.length > 1) {
+      const weeks = (dates[dates.length - 1].getTime() - dates[0].getTime()) / (7 * 24 * 60 * 60 * 1000);
+      postsPerWeek = weeks > 0 ? +(posts.length / weeks).toFixed(1) : posts.length;
+    }
+
+    const topPost = posts.reduce((best: any, p: any) => {
+      const v = p.videoViewCount ?? p.videoPlayCount ?? p.playsCount ?? 0;
+      return v > (best.videoViewCount ?? best.videoPlayCount ?? best.playsCount ?? 0) ? p : best;
+    }, posts[0]);
+
+    return {
+      handle,
+      totalPosts: posts.length,
+      avgViews,
+      avgLikes,
+      avgComments,
+      avgEngagementRate: avgER,
+      postsPerWeek,
+      contentTypes: typeCount,
+      topPost: {
+        caption: topPost?.caption ? topPost.caption.slice(0, 150) : "No caption",
+        views: topPost?.videoViewCount ?? topPost?.videoPlayCount ?? topPost?.playsCount ?? 0,
+      },
+    };
+  }
+
+  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { clientUrl, competitorUrl, clientId } = req.body;
+      if (!clientUrl || !competitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+
+      const [clientItems, competitorItems] = await Promise.all([
+        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 20 }),
+        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 20 }),
+      ]);
+
+      const clientHandle = extractHandle(clientUrl);
+      const competitorHandle = extractHandle(competitorUrl);
+
+      const clientData = processProfileMetrics(clientItems, clientHandle);
+      const competitorData = processProfileMetrics(competitorItems, competitorHandle);
+
+      if (!clientData && !competitorData) return res.status(404).json({ message: "Could not scrape either profile. Make sure they are public Instagram accounts." });
+
+      const systemPrompt = `You are an elite social media strategist and competitive analyst. Analyze Instagram profiles and generate actionable insights. Always respond with valid JSON only, no markdown.`;
+      const userPrompt = `Compare these two Instagram profiles and generate a detailed competitor analysis report.
+
+CLIENT PROFILE (${clientHandle}):
+${JSON.stringify(clientData, null, 2)}
+
+COMPETITOR PROFILE (${competitorHandle}):
+${JSON.stringify(competitorData, null, 2)}
+
+Return ONLY a JSON object with these exact fields:
+{
+  "summary": "2-3 sentence executive summary of where the client stands vs competitor",
+  "overallAssessment": "winning" | "competitive" | "losing",
+  "clientStrengths": ["strength 1", "strength 2", "strength 3"],
+  "clientWeaknesses": ["weakness 1", "weakness 2", "weakness 3"],
+  "competitorEdge": ["what competitor does better 1", "what competitor does better 2"],
+  "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"],
+  "winningStrategies": ["strategy from competitor to adopt 1", "strategy 2", "strategy 3"],
+  "contentGaps": ["content topic/format gap 1", "gap 2"],
+  "keyMetrics": {
+    "viewsComparison": "short comparison sentence",
+    "engagementComparison": "short comparison sentence",
+    "frequencyComparison": "short comparison sentence"
+  }
+}`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 2000);
+      let report: any = {};
+      try {
+        const cleaned = raw.replace(/```json|```/g, "").trim();
+        report = JSON.parse(cleaned);
+      } catch {
+        report = { summary: raw, recommendations: [], clientStrengths: [], clientWeaknesses: [] };
+      }
+
+      report.clientMetrics = clientData;
+      report.competitorMetrics = competitorData;
+
+      const saved = await storage.createCompetitorAnalysis({
+        clientId,
+        clientUrl,
+        competitorUrl,
+        clientHandle,
+        competitorHandle,
+        report,
+      });
+
+      return res.json(saved);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/competitor/analyses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const analyses = await storage.getCompetitorAnalyses(user.id);
+      return res.json(analyses);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/competitor/analyses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteCompetitorAnalysis(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
+  app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { runAutoSync } = await import("./cron");
+      runAutoSync();
+      return res.json({ message: "Auto-sync started in background" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   setInterval(async () => {
     try {
       const due = await storage.getDueScheduledNotifications();

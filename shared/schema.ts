@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -193,3 +193,18 @@ export type CallBooking = typeof callBookings.$inferSelect;
 export type InsertCallBooking = z.infer<typeof insertCallBookingSchema>;
 export type AiIdeaLog = typeof aiIdeaLogs.$inferSelect;
 export type InsertAiIdeaLog = z.infer<typeof insertAiIdeaLogSchema>;
+
+export const competitorAnalyses = pgTable("competitor_analyses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  clientUrl: text("client_url").notNull(),
+  competitorUrl: text("competitor_url").notNull(),
+  clientHandle: varchar("client_handle"),
+  competitorHandle: varchar("competitor_handle"),
+  report: jsonb("report"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCompetitorAnalysisSchema = createInsertSchema(competitorAnalyses).omit({ id: true, createdAt: true });
+export type InsertCompetitorAnalysis = z.infer<typeof insertCompetitorAnalysisSchema>;
+export type CompetitorAnalysis = typeof competitorAnalyses.$inferSelect;

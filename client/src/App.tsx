@@ -24,6 +24,7 @@ import AdminTracking from "@/pages/admin/Tracking";
 import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
+import CompetitorStudy from "@/pages/client/CompetitorStudy";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -91,6 +92,9 @@ function Router() {
       </Route>
       <Route path="/tracking/content">
         {() => <ProtectedRoute component={ContentTrackingIndex} />}
+      </Route>
+      <Route path="/tracking/competitor">
+        {() => <ProtectedRoute component={CompetitorStudy} />}
       </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
