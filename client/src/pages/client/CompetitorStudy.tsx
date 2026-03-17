@@ -279,7 +279,7 @@ const SCORE_COLORS: Record<string, string> = {
   retention: "text-yellow-400", hashtags: "text-pink-400",
 };
 
-function ScoreBar({ label, myVal, compVal }: { label: string; myVal: number; compVal: number }) {
+function ReelScoreBar({ label, myVal, compVal }: { label: string; myVal: number; compVal: number }) {
   const max = 10;
   return (
     <div className="space-y-1">
@@ -487,7 +487,7 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
                   </div>
                 </div>
                 {SCORE_LABELS.map(lbl => (
-                  <ScoreBar key={lbl} label={lbl} myVal={ai.scores.mine[lbl] ?? 0} compVal={ai.scores.competitor[lbl] ?? 0} />
+                  <ReelScoreBar key={lbl} label={lbl} myVal={ai.scores.mine[lbl] ?? 0} compVal={ai.scores.competitor[lbl] ?? 0} />
                 ))}
               </div>
             )}
