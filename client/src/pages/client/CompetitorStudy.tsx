@@ -1695,18 +1695,13 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Competitor Analysis Sub-Section ──────────────────────────────────────────
 
-export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
-  const { user } = useAuth();
+function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
   const { toast } = useToast();
   const [clientUrl, setClientUrl] = useState("");
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedClient, setSelectedClient] = useState<string>("");
-
-  const Layout = useAdmin ? AdminLayout : ClientLayout;
-  const activeClientId = useAdmin ? selectedClient : (user?.id ?? "");
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -1738,8 +1733,865 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
     },
   });
 
-  const selected = (analyses as any[]).find((a: any) => a.id === selectedId);
   const canAnalyze = clientUrl.trim() && competitorUrl.trim() && (!useAdmin || activeClientId);
+
+  return (
+    <div className="space-y-6">
+      {/* Input form */}
+      <Card className="border border-card-border">
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <p className="text-sm font-bold text-foreground mb-0.5">New Competitor Analysis</p>
+            <p className="text-xs text-muted-foreground">Enter your Instagram + a competitor's — get a 9-section deep-dive report</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
+              <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
+              <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
+            </div>
+          </div>
+          <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
+            {analyze.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing… (~60s)</>
+              : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
+          </Button>
+          {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse">Scraping both profiles (30 posts each) + running full AI analysis — please wait…</p>}
+        </CardContent>
+      </Card>
+
+      {/* Past analyses */}
+      {isLoading ? (
+        <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+      ) : (analyses as any[]).length === 0 ? (
+        <div className="text-center py-12">
+          <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-sm text-muted-foreground">No analyses yet — enter two Instagram URLs above to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Past analyses — click to expand the full report</p>
+          {(analyses as any[]).map((a: any) => {
+            const isActive = selectedId === a.id;
+            return (
+              <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
+                <button
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
+                  onClick={() => setSelectedId(isActive ? null : a.id)}
+                  data-testid={`analysis-${a.id}`}
+                >
+                  <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Instagram className="w-4 h-4 text-pink-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(a.createdAt), "MMM d, yyyy")}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {a.report?.overview?.assessment && (
+                      <Badge variant="outline" className={`text-[10px] ${a.report.overview.assessment === "winning" ? "text-green-400 border-green-500/30" : a.report.overview.assessment === "losing" ? "text-red-400 border-red-500/30" : "text-yellow-400 border-yellow-500/30"}`}>
+                        {a.report.overview.assessment === "losing" ? "Needs Work" : a.report.overview.assessment}
+                      </Badge>
+                    )}
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
+                  </div>
+                </button>
+                {isActive && (
+                  <div className="p-4 pt-0 border-t border-border mt-1">
+                    <FullReport analysis={a} onDelete={() => deleteAnalysis.mutate(a.id)} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Niche Intelligence Engine ────────────────────────────────────────────────
+
+const NICHE_SECTIONS = [
+  { id: "nicheTrends", label: "Niche Trends", icon: TrendingUp, color: "from-blue-500/20 to-blue-500/5", border: "border-blue-500/30", text: "text-blue-400", desc: "What's working right now" },
+  { id: "topicClusters", label: "Topic Clusters", icon: Layers, color: "from-purple-500/20 to-purple-500/5", border: "border-purple-500/30", text: "text-purple-400", desc: "Viral themes & performance" },
+  { id: "saturationAnalysis", label: "Saturation Map", icon: BarChart2, color: "from-red-500/20 to-red-500/5", border: "border-red-500/30", text: "text-red-400", desc: "Saturated vs underserved" },
+  { id: "hookTrends", label: "Hook Trends", icon: Zap, color: "from-yellow-500/20 to-yellow-500/5", border: "border-yellow-500/30", text: "text-yellow-400", desc: "Best hooks in this niche" },
+  { id: "contentGaps", label: "Content Gaps", icon: Search, color: "from-green-500/20 to-green-500/5", border: "border-green-500/30", text: "text-green-400", desc: "What nobody is doing" },
+  { id: "audienceDesires", label: "Audience Desires", icon: Heart, color: "from-pink-500/20 to-pink-500/5", border: "border-pink-500/30", text: "text-pink-400", desc: "What they really want" },
+  { id: "formatBreakdown", label: "Format Breakdown", icon: Play, color: "from-cyan-500/20 to-cyan-500/5", border: "border-cyan-500/30", text: "text-cyan-400", desc: "Reels vs carousels vs static" },
+  { id: "competitorPositioning", label: "Positioning Map", icon: Crosshair, color: "from-orange-500/20 to-orange-500/5", border: "border-orange-500/30", text: "text-orange-400", desc: "Where YOU should position" },
+  { id: "contentAngles", label: "20 Content Angles", icon: Lightbulb, color: "from-primary/20 to-primary/5", border: "border-primary/30", text: "text-primary", desc: "Angles no one is using" },
+];
+
+function NicheReportSection({ sectionId, report, niche }: { sectionId: string; report: any; niche: string }) {
+  if (!report) return <EmptyState message="No data available." />;
+
+  switch (sectionId) {
+    case "nicheTrends": {
+      const nt = report.nicheTrends || {};
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={TrendingUp} title="Niche Content Trends" desc={`What is actually working in ${niche} right now`} color="from-blue-500/20 to-blue-500/5" />
+          <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+            <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Bottom Line</p>
+            <p className="text-sm text-foreground leading-relaxed">{nt.summary}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-2"><Layers className="w-3.5 h-3.5 text-blue-400" />Dominant Formats</p>
+              <ul className="space-y-2">{(nt.dominantFormats || []).map((f: string, i: number) => (
+                <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" /><p className="text-xs text-foreground">{f}</p></li>
+              ))}</ul>
+            </div>
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-2"><Hash className="w-3.5 h-3.5 text-purple-400" />Trending Topics</p>
+              <ul className="space-y-2">{(nt.trendingTopics || []).map((t: string, i: number) => (
+                <li key={i} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0" /><p className="text-xs text-foreground">{t}</p></li>
+              ))}</ul>
+            </div>
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-2"><Flame className="w-3.5 h-3.5 text-orange-400" />Viral Patterns</p>
+              <ul className="space-y-2">{(nt.viralPatterns || []).map((p: string, i: number) => (
+                <li key={i} className="flex items-start gap-2"><span className="text-orange-400 mt-0.5 flex-shrink-0">🔥</span><p className="text-xs text-foreground">{p}</p></li>
+              ))}</ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "topicClusters": {
+      const clusters = report.topicClusters || [];
+      const chartData = clusters.map((c: any) => ({ theme: c.theme, views: c.avgViews || 0, engagement: c.avgEngagement || 0 }));
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Layers} title="Viral Topic Clusters" desc="Which themes drive the most performance" color="from-purple-500/20 to-purple-500/5" />
+          {chartData.length > 0 && (
+            <div className="bg-card border border-card-border rounded-2xl p-5">
+              <p className="text-sm font-semibold text-foreground mb-4">Topic Performance Comparison</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={chartData}>
+                  <XAxis dataKey="theme" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="views" name="Avg Views" fill={GOLD} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="space-y-3">
+            {clusters.map((c: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/30 border text-xs capitalize">{c.theme}</Badge>
+                    <span className="text-[10px] text-muted-foreground">{c.frequency}</span>
+                  </div>
+                  <p className="text-xs text-foreground leading-relaxed">{c.description}</p>
+                  {(c.topPerformers || []).length > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-2">Best in: {c.topPerformers.join(", ")}</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  {c.avgViews > 0 && <div className="bg-blue-500/10 rounded-xl p-2 text-center"><p className="text-sm font-bold text-blue-400">{(c.avgViews).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Avg Views</p></div>}
+                  {c.avgEngagement > 0 && <div className="bg-green-500/10 rounded-xl p-2 text-center"><p className="text-sm font-bold text-green-400">{c.avgEngagement}%</p><p className="text-[10px] text-muted-foreground">Engagement</p></div>}
+                </div>
+              </div>
+            ))}
+            {!clusters.length && <EmptyState message="No topic cluster data." />}
+          </div>
+        </div>
+      );
+    }
+
+    case "saturationAnalysis": {
+      const sa = report.saturationAnalysis || {};
+      const oversat = sa.oversaturated || [];
+      const underserved = sa.underserved || [];
+      const pieData = [
+        { name: "Oversaturated", value: oversat.length, fill: "#ef4444" },
+        { name: "Underserved", value: underserved.length, fill: "#22c55e" },
+      ].filter(d => d.value > 0);
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={BarChart2} title="Saturation Analysis" desc="What's overcrowded vs what's an open opportunity" color="from-red-500/20 to-red-500/5" />
+          {sa.summary && (
+            <div className="p-5 rounded-2xl bg-card border border-card-border">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Overview</p>
+              <p className="text-sm text-foreground leading-relaxed">{sa.summary}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-4">
+            {pieData.length > 0 && (
+              <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center justify-center">
+                <PieChart width={110} height={110}>
+                  <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={28} outerRadius={48}>
+                    {pieData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+                <div className="flex flex-col gap-1 mt-2 text-center">
+                  <span className="text-[10px]"><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />Saturated: {oversat.length}</span>
+                  <span className="text-[10px]"><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />Opportunity: {underserved.length}</span>
+                </div>
+              </div>
+            )}
+            <div className="col-span-2 space-y-3">
+              <p className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" />Oversaturated — Avoid</p>
+              {oversat.slice(0, 3).map((o: any, i: number) => (
+                <div key={i} className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1"><p className="text-xs font-bold text-foreground">{o.topic}</p><span className="text-[10px] text-red-400">{o.howManyUseIt}</span></div>
+                  <p className="text-[10px] text-muted-foreground">{o.whySaturated}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-green-400 uppercase tracking-wider flex items-center gap-2 mb-3"><CheckCircle className="w-3.5 h-3.5" />Underserved Opportunities — Strike Now</p>
+            <div className="grid grid-cols-2 gap-3">
+              {underserved.map((u: any, i: number) => (
+                <div key={i} className="bg-green-500/8 border border-green-500/20 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-bold text-foreground">{u.topic}</p>
+                    <Badge className={`text-[10px] border ${u.estimatedGrowthPotential === "High" ? "bg-green-500/20 text-green-300 border-green-500/30" : u.estimatedGrowthPotential === "Medium" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" : "bg-muted text-muted-foreground border-border"}`}>{u.estimatedGrowthPotential}</Badge>
+                  </div>
+                  <p className="text-xs text-foreground">{u.whyOpportunity}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "hookTrends": {
+      const ht = report.hookTrends || {};
+      const mostUsed = ht.mostUsedHooks || [];
+      const mostEffective = ht.mostEffectiveHooks || [];
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Zap} title="Hook Trend Analysis" desc="What hooks dominate this niche" color="from-yellow-500/20 to-yellow-500/5" />
+          {ht.hookInsight && (
+            <div className="p-5 rounded-2xl bg-yellow-500/10 border border-yellow-500/20">
+              <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">Key Insight</p>
+              <p className="text-sm text-foreground leading-relaxed">{ht.hookInsight}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Hash className="w-4 h-4 text-yellow-400" />Most Used Hooks</p>
+              <div className="space-y-3">
+                {mostUsed.map((h: any, i: number) => (
+                  <div key={i} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-foreground capitalize">{h.hookType}</span>
+                      <span className="text-[10px] text-muted-foreground">{h.frequency}</span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-yellow-400 rounded-full" style={{ width: typeof h.frequency === "string" && h.frequency.includes("%") ? h.frequency : "50%" }} />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{h.avgPerformance}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Flame className="w-4 h-4 text-orange-400" />Most Effective Hooks</p>
+              <div className="space-y-3">
+                {mostEffective.map((h: any, i: number) => (
+                  <div key={i} className="bg-orange-500/8 border border-orange-500/15 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-orange-300 capitalize">{h.hookType}</span>
+                      {h.avgViews > 0 && <span className="text-[10px] text-muted-foreground">{(h.avgViews).toLocaleString()} avg views</span>}
+                    </div>
+                    {h.example && <p className="text-xs text-foreground italic mb-1">"{h.example}"</p>}
+                    <p className="text-[10px] text-muted-foreground">{h.whyItWorks}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "contentGaps": {
+      const gaps = report.contentGaps || [];
+      const highGaps = gaps.filter((g: any) => g.estimatedImpact === "High");
+      const otherGaps = gaps.filter((g: any) => g.estimatedImpact !== "High");
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Search} title="Content Gap Finder" desc="What NO competitor is doing — your biggest opportunities" color="from-green-500/20 to-green-500/5" />
+          {highGaps.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Star className="w-3.5 h-3.5" />High Impact Gaps — Do These First</p>
+              <div className="grid grid-cols-1 gap-3">
+                {highGaps.map((g: any, i: number) => (
+                  <div key={i} className="bg-green-500/8 border-2 border-green-500/30 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-bold text-foreground">{g.gap}</p>
+                      <Badge className="bg-green-500/20 text-green-300 border-green-500/30 border text-[10px]">High Impact</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">{g.description}</p>
+                    <div className="bg-green-500/10 rounded-xl p-3 flex items-start gap-2">
+                      <ArrowRight className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-foreground">{g.howToCapitalize}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {otherGaps.map((g: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-foreground">{g.gap}</p>
+                  <Badge variant="outline" className="text-[10px]">{g.estimatedImpact}</Badge>
+                </div>
+                <p className="text-[10px] text-muted-foreground mb-2">{g.description}</p>
+                <p className="text-[10px] text-primary">{g.howToCapitalize}</p>
+              </div>
+            ))}
+          </div>
+          {!gaps.length && <EmptyState message="No gap data available." />}
+        </div>
+      );
+    }
+
+    case "audienceDesires": {
+      const ad = report.audienceDesires || {};
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Heart} title="Audience Desire Mapping" desc="What this niche's audience really wants" color="from-pink-500/20 to-pink-500/5" />
+          {ad.summary && (
+            <div className="p-5 rounded-2xl bg-pink-500/10 border border-pink-500/20">
+              <p className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Audience Profile</p>
+              <p className="text-sm text-foreground leading-relaxed">{ad.summary}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-green-500/8 border border-green-500/20 rounded-2xl p-4">
+              <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" />They Want</p>
+              <ul className="space-y-2">{(ad.wants || []).map((w: string, i: number) => <li key={i} className="flex items-start gap-2"><span className="text-green-400 mt-0.5 text-xs flex-shrink-0">✓</span><p className="text-xs text-foreground">{w}</p></li>)}</ul>
+            </div>
+            <div className="bg-red-500/8 border border-red-500/20 rounded-2xl p-4">
+              <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5" />They Hate</p>
+              <ul className="space-y-2">{(ad.complaints || []).map((c: string, i: number) => <li key={i} className="flex items-start gap-2"><span className="text-red-400 mt-0.5 text-xs flex-shrink-0">✗</span><p className="text-xs text-foreground">{c}</p></li>)}</ul>
+            </div>
+            <div className="bg-yellow-500/8 border border-yellow-500/20 rounded-2xl p-4">
+              <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Engagement Triggers</p>
+              <ul className="space-y-2">{(ad.engagementTriggers || []).map((t: string, i: number) => <li key={i} className="flex items-start gap-2"><span className="text-yellow-400 mt-0.5 text-xs flex-shrink-0">⚡</span><p className="text-xs text-foreground">{t}</p></li>)}</ul>
+            </div>
+            <div className="bg-primary/8 border border-primary/20 rounded-2xl p-4">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3 flex items-center gap-1.5"><Target className="w-3.5 h-3.5" />Buying Triggers</p>
+              <ul className="space-y-2">{(ad.buyingTriggers || []).map((t: string, i: number) => <li key={i} className="flex items-start gap-2"><span className="text-primary mt-0.5 text-xs flex-shrink-0">→</span><p className="text-xs text-foreground">{t}</p></li>)}</ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "formatBreakdown": {
+      const fb = report.formatBreakdown || {};
+      const formats = [
+        { key: "reels", label: "Reels", color: "#e879a0", icon: "🎬" },
+        { key: "carousels", label: "Carousels", color: GOLD, icon: "📊" },
+        { key: "static", label: "Static", color: "#60a5fa", icon: "🖼" },
+      ];
+      const chartData = formats.map(f => ({
+        format: f.label,
+        engagement: fb[f.key]?.avgEngagement || 0,
+        views: fb[f.key]?.avgViews || 0,
+        percent: fb[f.key]?.percentOfContent || 0,
+      }));
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Play} title="Format Breakdown" desc="Reels vs Carousels vs Static — what wins in this niche" color="from-cyan-500/20 to-cyan-500/5" />
+          {fb.winner && (
+            <div className="p-5 rounded-2xl bg-primary/10 border border-primary/25 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Trophy className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Winner Format in {niche}</p>
+                <p className="text-lg font-black text-foreground capitalize">{fb.winner}</p>
+                <p className="text-xs text-muted-foreground">{fb.insight}</p>
+              </div>
+            </div>
+          )}
+          <div className="bg-card border border-card-border rounded-2xl p-5">
+            <p className="text-sm font-semibold text-foreground mb-4">Performance by Format</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={chartData}>
+                <XAxis dataKey="format" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="engagement" name="Avg Engagement %" fill={GOLD} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="percent" name="% of Content" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {formats.map(f => {
+              const data = fb[f.key] || {};
+              return (
+                <div key={f.key} className={`bg-card border rounded-2xl p-4 ${fb.winner === f.key ? "border-primary/40 bg-primary/5" : "border-card-border"}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">{f.icon}</span>
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{f.label}</p>
+                      {fb.winner === f.key && <Badge className="bg-primary/20 text-primary border-primary/30 border text-[9px]">Winner</Badge>}
+                    </div>
+                  </div>
+                  {data.avgViews > 0 && <p className="text-sm font-bold text-blue-400">{(data.avgViews).toLocaleString()} <span className="text-[10px] text-muted-foreground font-normal">avg views</span></p>}
+                  {data.avgEngagement > 0 && <p className="text-sm font-bold text-green-400">{data.avgEngagement}% <span className="text-[10px] text-muted-foreground font-normal">engagement</span></p>}
+                  {data.percentOfContent > 0 && <p className="text-sm font-bold text-foreground">{data.percentOfContent}% <span className="text-[10px] text-muted-foreground font-normal">of content</span></p>}
+                  <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">{data.verdict}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    case "competitorPositioning": {
+      const cp = report.competitorPositioning || {};
+      const posMap = cp.map || [];
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Crosshair} title="Competitor Positioning Map" desc="Where each competitor sits — and where YOU should go" color="from-orange-500/20 to-orange-500/5" />
+          {cp.recommendedPosition && (
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">🎯 Your Recommended Position</p>
+              <p className="text-base font-bold text-foreground mb-1">{cp.recommendedPosition}</p>
+              <p className="text-sm text-muted-foreground">{cp.positioningRationale}</p>
+            </div>
+          )}
+          {cp.uniqueAngle && (
+            <div className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+              <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-1">Your Unique Angle</p>
+              <p className="text-sm text-foreground">{cp.uniqueAngle}</p>
+            </div>
+          )}
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Competitor Positions</p>
+            {posMap.map((c: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-foreground">{c.handle}</p>
+                  <p className="text-[10px] text-muted-foreground">Primary</p>
+                </div>
+                <div>
+                  <Badge className="bg-orange-500/15 text-orange-300 border-orange-500/30 border text-xs capitalize">{c.primaryPosition}</Badge>
+                  {c.secondaryPosition && <p className="text-[10px] text-muted-foreground mt-1">{c.secondaryPosition}</p>}
+                </div>
+                <div>
+                  <p className="text-[10px] text-primary font-medium">Your gap: {c.gapToTarget}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "contentAngles": {
+      const angles = report.contentAngles || [];
+      const reelAngles = angles.filter((a: any) => a.format === "reel");
+      const carouselAngles = angles.filter((a: any) => a.format === "carousel");
+      const staticAngles = angles.filter((a: any) => a.format === "static");
+      const otherAngles = angles.filter((a: any) => !["reel", "carousel", "static"].includes(a.format));
+
+      return (
+        <div className="space-y-5">
+          <SectionHeader icon={Lightbulb} title="20 Unique Content Angles" desc="Angles no competitor in this niche is using" color="from-primary/20 to-primary/5" />
+          <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20">
+            <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Why These Work</p>
+            <p className="text-sm text-muted-foreground">These angles are underutilized in the {niche} niche — using them now puts you ahead before everyone else catches on.</p>
+          </div>
+          {[
+            { label: "Reel Angles", items: reelAngles, color: "text-pink-400" },
+            { label: "Carousel Angles", items: carouselAngles, color: "text-blue-400" },
+            { label: "Static Angles", items: staticAngles, color: "text-green-400" },
+            { label: "Other", items: otherAngles, color: "text-muted-foreground" },
+          ].filter(g => g.items.length > 0).map(group => (
+            <div key={group.label}>
+              <p className={`text-xs font-bold ${group.color} uppercase tracking-wider mb-3`}>{group.label}</p>
+              <div className="grid grid-cols-1 gap-2">
+                {group.items.map((a: any, i: number) => (
+                  <div key={i} className="bg-card border border-card-border rounded-xl p-4 flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[9px] font-bold text-primary">{i + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground mb-1">{a.angle}</p>
+                      <p className="text-[10px] text-muted-foreground mb-2">{a.whyUnique}</p>
+                      {a.hookExample && (
+                        <div className="bg-primary/8 border border-primary/15 rounded-lg p-2 flex items-center justify-between gap-2">
+                          <p className="text-xs text-foreground italic">"{a.hookExample}"</p>
+                          <CopyButton text={a.hookExample} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!angles.length && <EmptyState message="No content angles available." />}
+        </div>
+      );
+    }
+
+    default:
+      return <EmptyState message="Section not found." />;
+  }
+}
+
+function NicheGrowthPlaybook({ report, niche }: { report: any; niche: string }) {
+  const gp = report.growthPlaybook || {};
+  const cl = report.contentLifecycle || {};
+  const ni = report.nicheInsight || {};
+  const vs = report.viralityScores || [];
+
+  return (
+    <div className="space-y-6">
+      {ni.answer && (
+        <div className="p-6 rounded-2xl bg-gradient-to-r from-primary/15 via-primary/8 to-transparent border border-primary/25">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <p className="text-sm font-bold text-primary uppercase tracking-wider">AI Niche Brain — What Should I Post?</p>
+          </div>
+          <p className="text-sm text-foreground leading-relaxed mb-4">{ni.answer}</p>
+          {(ni.topRecommendations || []).length > 0 && (
+            <div className="grid grid-cols-1 gap-2 mb-3">
+              {ni.topRecommendations.map((r: string, i: number) => (
+                <div key={i} className="flex items-start gap-2 bg-card border border-card-border rounded-xl p-3">
+                  <span className="text-primary font-bold text-xs flex-shrink-0 mt-0.5">{i + 1}.</span>
+                  <p className="text-xs text-foreground">{r}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {(ni.avoidThese || []).length > 0 && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-3">
+              <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Avoid These Mistakes</p>
+              {ni.avoidThese.map((m: string, i: number) => <p key={i} className="text-xs text-foreground flex items-start gap-2"><span className="text-red-400 flex-shrink-0">✗</span>{m}</p>)}
+            </div>
+          )}
+          {ni.secretWeapon && (
+            <div className="bg-primary/10 border border-primary/25 rounded-xl p-3">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">🔑 Secret Weapon</p>
+              <p className="text-xs text-foreground">{ni.secretWeapon}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {gp.summary && (
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><Target className="w-4 h-4 text-green-400" />30-Day Growth Playbook for {niche}</p>
+          <p className="text-sm text-muted-foreground mb-4">{gp.summary}</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[gp.phase1, gp.phase2, gp.phase3].filter(Boolean).map((phase: any, i: number) => (
+              <div key={i} className="bg-muted/20 border border-border rounded-2xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 bg-primary/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-primary">{i + 1}</span>
+                  </div>
+                  <p className="text-xs font-bold text-foreground">{phase.name}</p>
+                </div>
+                <p className="text-[10px] text-primary font-medium mb-2">{phase.focus}</p>
+                <ul className="space-y-1 mb-2">
+                  {(phase.actions || []).map((a: string, j: number) => <li key={j} className="text-[10px] text-foreground flex items-start gap-1.5"><span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>{a}</li>)}
+                </ul>
+                <p className="text-[10px] text-muted-foreground italic">{phase.contentMix}</p>
+              </div>
+            ))}
+          </div>
+          {(gp.keyPrinciples || []).length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {gp.keyPrinciples.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-xs text-primary border-primary/30">{p}</Badge>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {cl.insight && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-card border border-card-border rounded-2xl p-4">
+            <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Flame className="w-3.5 h-3.5" />Goes Viral First</p>
+            <p className="text-sm font-bold text-foreground mb-1">{cl.viralFirst?.contentType}</p>
+            <p className="text-xs text-muted-foreground mb-2">{cl.viralFirst?.whyItVirals}</p>
+            {(cl.viralFirst?.examples || []).map((e: string, i: number) => <p key={i} className="text-[10px] text-foreground">• {e}</p>)}
+          </div>
+          <div className="bg-card border border-card-border rounded-2xl p-4">
+            <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ArrowUpRight className="w-3.5 h-3.5" />Converts Later</p>
+            <p className="text-sm font-bold text-foreground mb-1">{cl.convertsLater?.contentType}</p>
+            <p className="text-xs text-muted-foreground mb-2">{cl.convertsLater?.whyItConverts}</p>
+            {(cl.convertsLater?.examples || []).map((e: string, i: number) => <p key={i} className="text-[10px] text-foreground">• {e}</p>)}
+          </div>
+        </div>
+      )}
+
+      {vs.length > 0 && (
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><Award className="w-4 h-4 text-primary" />Virality Scores by Content Type</p>
+          <div className="space-y-3">
+            {vs.map((v: any, i: number) => (
+              <div key={i} className="bg-muted/20 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-foreground">{v.contentType}</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-black text-primary">{v.overallScore}</span>
+                    <span className="text-[10px] text-muted-foreground">/10</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {[["Hook", v.hookScore, "text-yellow-400"], ["Retention", v.retentionScore, "text-blue-400"], ["Engagement", v.engagementScore, "text-green-400"]].map(([label, score, color]) => (
+                    <div key={label} className="text-center">
+                      <p className={`text-sm font-bold ${color}`}>{score}/10</p>
+                      <p className="text-[9px] text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${(v.overallScore / 10) * 100}%` }} />
+                </div>
+                {v.verdict && <p className="text-[10px] text-muted-foreground mt-1.5">{v.verdict}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
+  const { toast } = useToast();
+  const [niche, setNiche] = useState("");
+  const [competitorUrls, setCompetitorUrls] = useState(["", "", ""]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeNicheSection, setActiveNicheSection] = useState<string | null>(null);
+  const [showGrowthPlaybook, setShowGrowthPlaybook] = useState(false);
+
+  const { data: analyses = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/niche/analyses", activeClientId],
+    queryFn: () => fetch(`/api/niche/analyses${useAdmin && activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    enabled: !useAdmin || !!activeClientId,
+  });
+
+  const analyze = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/niche/analyze", {
+      niche, competitorUrls: competitorUrls.filter(u => u.trim()),
+      clientId: activeClientId || user?.id,
+    }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/niche/analyses", activeClientId] });
+      setSelectedId(data.id);
+      setNiche("");
+      setCompetitorUrls(["", "", ""]);
+      toast({ title: "Niche Analysis Ready!", description: "Your complete niche intelligence report is ready." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteAnalysis = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/niche/analyses/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/niche/analyses", activeClientId] });
+      setSelectedId(null);
+    },
+  });
+
+  const addUrl = () => {
+    if (competitorUrls.length < 5) setCompetitorUrls([...competitorUrls, ""]);
+  };
+  const removeUrl = (i: number) => {
+    if (competitorUrls.length > 1) setCompetitorUrls(competitorUrls.filter((_, idx) => idx !== i));
+  };
+  const updateUrl = (i: number, val: string) => {
+    const next = [...competitorUrls];
+    next[i] = val;
+    setCompetitorUrls(next);
+  };
+
+  const canAnalyze = niche.trim() && competitorUrls.some(u => u.trim()) && (!useAdmin || activeClientId);
+
+  return (
+    <div className="space-y-6">
+      {/* Input form */}
+      <Card className="border border-card-border">
+        <CardContent className="p-5 space-y-5">
+          <div>
+            <p className="text-sm font-bold text-foreground mb-0.5">Niche Intelligence Engine</p>
+            <p className="text-xs text-muted-foreground">Enter your niche + up to 5 competitor URLs — get a complete intelligence report on what's working</p>
+          </div>
+
+          <div>
+            <Label className="text-xs mb-1.5 block">Your Niche</Label>
+            <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. fitness, real estate, SMMA, faceless content..." className="h-9 text-sm" data-testid="input-niche-name" />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs">Competitor Instagram URLs (3–5 for best results)</Label>
+              {competitorUrls.length < 5 && (
+                <button onClick={addUrl} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">+ Add URL</button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {competitorUrls.map((url, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
+                  </div>
+                  <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`instagram.com/competitor${i + 1}`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
+                  {competitorUrls.length > 1 && (
+                    <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
+            {analyze.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report… (~90s)</>
+              : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
+          </Button>
+          {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse text-center">Scraping up to {competitorUrls.filter(u => u.trim()).length} profiles and running full niche AI analysis — please wait…</p>}
+        </CardContent>
+      </Card>
+
+      {/* Past analyses */}
+      {isLoading ? (
+        <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+      ) : (analyses as any[]).length === 0 ? (
+        <div className="text-center py-12">
+          <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-sm text-muted-foreground">No niche analyses yet — enter your niche above to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(analyses as any[]).map((a: any) => {
+            const isActive = selectedId === a.id;
+            return (
+              <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
+                <button
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
+                  onClick={() => { setSelectedId(isActive ? null : a.id); setActiveNicheSection(null); setShowGrowthPlaybook(false); }}
+                  data-testid={`niche-analysis-${a.id}`}
+                >
+                  <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Search className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground capitalize">{a.niche}</p>
+                    <p className="text-xs text-muted-foreground">{(a.competitorHandles || []).map((h: string) => `@${h}`).join(", ")} · {format(new Date(a.createdAt), "MMM d, yyyy")}</p>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
+                </button>
+
+                {isActive && a.report && (
+                  <div className="p-4 border-t border-border space-y-5">
+                    {/* Section grid */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {NICHE_SECTIONS.map((sec) => {
+                        const Icon = sec.icon;
+                        const isSecActive = activeNicheSection === sec.id;
+                        return (
+                          <button
+                            key={sec.id}
+                            onClick={() => { setActiveNicheSection(isSecActive ? null : sec.id); setShowGrowthPlaybook(false); }}
+                            data-testid={`niche-section-${sec.id}`}
+                            className={`flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${
+                              isSecActive
+                                ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
+                                : "bg-card border-border hover:bg-muted/20"
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSecActive ? "bg-white/10" : "bg-muted/40"}`}>
+                              <Icon className={`w-4 h-4 ${isSecActive ? sec.text : "text-muted-foreground"}`} />
+                            </div>
+                            <div>
+                              <p className={`text-xs font-bold ${isSecActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Growth Playbook special button */}
+                    <button
+                      onClick={() => { setShowGrowthPlaybook(!showGrowthPlaybook); setActiveNicheSection(null); }}
+                      className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all ${
+                        showGrowthPlaybook
+                          ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
+                          : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                          <Sparkles className="w-6 h-6 text-primary" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-black text-primary">🧠 AI Niche Brain + Growth Playbook</p>
+                            <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase">Most Valuable</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">What to post · 30-day playbook · Content lifecycle · Virality scores</p>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showGrowthPlaybook ? "rotate-180" : ""}`} />
+                      </div>
+                    </button>
+
+                    {/* Section content */}
+                    {(activeNicheSection || showGrowthPlaybook) && (
+                      <div className="bg-card border border-card-border rounded-2xl p-5">
+                        {showGrowthPlaybook
+                          ? <NicheGrowthPlaybook report={a.report} niche={a.niche} />
+                          : <NicheReportSection sectionId={activeNicheSection!} report={a.report} niche={a.niche} />
+                        }
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <button onClick={() => deleteAnalysis.mutate(a.id)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors p-2">
+                        <Trash2 className="w-3.5 h-3.5" />Delete Analysis
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<"competitor" | "niche">("competitor");
+  const [selectedClient, setSelectedClient] = useState<string>("");
+
+  const Layout = useAdmin ? AdminLayout : ClientLayout;
+  const activeClientId = useAdmin ? selectedClient : (user?.id ?? "");
 
   return (
     <Layout>
@@ -1751,79 +2603,66 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Competitor Study</h1>
-            <p className="text-xs text-muted-foreground">Deep-dive AI analysis · 9 intelligence sections · Steal their exact strategy</p>
+            <p className="text-xs text-muted-foreground">Deep-dive AI intelligence · Competitor analysis + Niche insights</p>
           </div>
         </div>
 
-        {/* Input form */}
-        <Card className="border border-card-border">
-          <CardContent className="p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">New Analysis</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
-                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
+        {/* Top-level section switcher */}
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setActiveTab("competitor")}
+            data-testid="tab-competitor-analysis"
+            className={`relative overflow-hidden rounded-2xl border-2 p-5 transition-all text-left group ${
+              activeTab === "competitor"
+                ? "border-pink-500/50 bg-gradient-to-br from-pink-500/15 via-pink-500/8 to-transparent"
+                : "border-border bg-card hover:border-border/70 hover:bg-muted/20"
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${activeTab === "competitor" ? "bg-pink-500/20 border border-pink-500/30" : "bg-muted/40"}`}>
+                <Instagram className={`w-6 h-6 ${activeTab === "competitor" ? "text-pink-400" : "text-muted-foreground"}`} />
               </div>
               <div>
-                <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
-                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
+                <p className={`text-sm font-black ${activeTab === "competitor" ? "text-pink-300" : "text-foreground"}`}>Competitor Analysis</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Your account vs one competitor · 9-section deep-dive · Steal their strategy</p>
               </div>
             </div>
-            <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
-              {analyze.isPending
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing… (~60s)</>
-                : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
-            </Button>
-            {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse">Scraping both profiles (30 posts each) + running full AI analysis — please wait…</p>}
-          </CardContent>
-        </Card>
+            {activeTab === "competitor" && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-pink-400" />}
+          </button>
 
-        {/* Past analyses */}
-        {isLoading ? (
-          <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-        ) : (analyses as any[]).length === 0 ? (
-          <div className="text-center py-12">
-            <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-            <p className="text-sm text-muted-foreground">No analyses yet — enter two Instagram URLs above to get started</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {!selected && <p className="text-xs text-muted-foreground">Select an analysis to view the full report</p>}
-            {(analyses as any[]).map((a: any) => {
-              const isActive = selectedId === a.id;
-              return (
-                <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
-                  <button
-                    className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
-                    onClick={() => setSelectedId(isActive ? null : a.id)}
-                    data-testid={`analysis-${a.id}`}
-                  >
-                    <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Instagram className="w-4 h-4 text-pink-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(a.createdAt), "MMM d, yyyy")}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {a.report?.overview?.assessment && (
-                        <Badge variant="outline" className={`text-[10px] ${a.report.overview.assessment === "winning" ? "text-green-400 border-green-500/30" : a.report.overview.assessment === "losing" ? "text-red-400 border-red-500/30" : "text-yellow-400 border-yellow-500/30"}`}>
-                          {a.report.overview.assessment === "losing" ? "Needs Work" : a.report.overview.assessment}
-                        </Badge>
-                      )}
-                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
-                    </div>
-                  </button>
-                  {isActive && (
-                    <div className="p-4 pt-0 border-t border-border mt-1">
-                      <FullReport analysis={a} onDelete={() => deleteAnalysis.mutate(a.id)} />
-                    </div>
-                  )}
+          <button
+            onClick={() => setActiveTab("niche")}
+            data-testid="tab-niche-intelligence"
+            className={`relative overflow-hidden rounded-2xl border-2 p-5 transition-all text-left group ${
+              activeTab === "niche"
+                ? "border-primary/50 bg-gradient-to-br from-primary/15 via-primary/8 to-transparent"
+                : "border-border bg-card hover:border-border/70 hover:bg-muted/20"
+            }`}
+          >
+            <div className="absolute inset-0 pointer-events-none">
+              {activeTab === "niche" && <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />}
+            </div>
+            <div className="relative flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${activeTab === "niche" ? "bg-primary/20 border border-primary/30 shadow-[0_0_20px_rgba(212,180,97,0.15)]" : "bg-muted/40"}`}>
+                <Search className={`w-6 h-6 ${activeTab === "niche" ? "text-primary" : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm font-black ${activeTab === "niche" ? "text-primary" : "text-foreground"}`}>What's Working in My Niche</p>
+                  <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-primary uppercase">NEW</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <p className="text-xs text-muted-foreground mt-0.5">Niche Intelligence Engine · 3–5 competitors · Full niche map</p>
+              </div>
+            </div>
+            {activeTab === "niche" && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary" />}
+          </button>
+        </div>
+
+        {/* Section content */}
+        {activeTab === "competitor"
+          ? <CompetitorAnalysisSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+          : <NicheIntelligenceSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        }
       </div>
     </Layout>
   );

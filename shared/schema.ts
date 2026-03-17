@@ -238,6 +238,20 @@ export const insertInstagramProfileReportSchema = createInsertSchema(instagramPr
 export type InsertInstagramProfileReport = z.infer<typeof insertInstagramProfileReportSchema>;
 export type InstagramProfileReport = typeof instagramProfileReports.$inferSelect;
 
+export const nicheAnalyses = pgTable("niche_analyses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  niche: varchar("niche").notNull(),
+  competitorUrls: text("competitor_urls").array().notNull(),
+  competitorHandles: text("competitor_handles").array(),
+  report: jsonb("report"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNicheAnalysisSchema = createInsertSchema(nicheAnalyses).omit({ id: true, createdAt: true });
+export type InsertNicheAnalysis = z.infer<typeof insertNicheAnalysisSchema>;
+export type NicheAnalysis = typeof nicheAnalyses.$inferSelect;
+
 export const competitorAnalyses = pgTable("competitor_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clientId: varchar("client_id").notNull().references(() => users.id),

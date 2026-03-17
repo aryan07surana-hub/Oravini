@@ -1,0 +1,159 @@
+NEW FEATURE: “Niche Intelligence Engine”
+
+Inside Competitor Study, add a new tab:
+
+👉 Niche Analysis
+
+Input:
+
+Niche (e.g. fitness, real estate, SMMA, faceless content, etc.)
+
+3–5 Competitor URLs
+
+🚀 WHAT THIS FEATURE SHOULD DO
+
+Instead of just comparing accounts…
+
+👉 It answers:
+“What is ACTUALLY working in this niche right now?”
+
+🔥 CORE THINGS TO ADD (HIGH VALUE)
+1️⃣ Niche Content Trends
+
+Analyze all competitors and detect:
+
+• Most common content types
+• Trending formats
+• Viral patterns
+
+Output:
+
+👉 “In this niche, short-form storytelling reels dominate”
+👉 “Educational carousels are underperforming”
+
+2️⃣ Viral Topic Clustering
+
+Cluster content into themes:
+
+• mindset
+• tutorials
+• case studies
+• storytelling
+• controversy
+
+Then show:
+
+👉 “Top 3 performing topics in your niche”
+
+3️⃣ Saturation Analysis (THIS IS BIG)
+
+Show:
+
+• Overused topics
+• Underserved topics
+
+Output:
+
+👉 “Everyone is posting X → saturated”
+👉 “Nobody is posting Y → opportunity”
+
+4️⃣ Hook Trend Analysis
+
+Across competitors:
+
+• Most used hooks
+• Most effective hooks
+
+Output:
+
+👉 “Curiosity hooks outperform authority hooks by 40%”
+
+5️⃣ Content Gap Finder (NEXT LEVEL)
+
+Compare all competitors and find:
+
+👉 what NO ONE is doing
+
+Output:
+
+👉 “No competitor is using storytelling + CTA combo”
+👉 “No one is posting behind-the-scenes content”
+
+6️⃣ Audience Desire Mapping
+
+From comments + engagement:
+
+Extract:
+
+• what audience wants
+• what they complain about
+• what triggers engagement
+
+Output:
+
+👉 “Audience wants step-by-step guides”
+👉 “They hate generic advice”
+
+7️⃣ Best Performing Format Breakdown
+
+Show:
+
+• reels vs carousels vs static
+• avg performance per format
+
+Output:
+
+👉 “Reels = 80% engagement driver”
+
+8️⃣ Niche Growth Playbook
+
+Combine EVERYTHING into:
+
+👉 “How to grow in this niche”
+
+💣 ADVANCED IDEAS (THIS IS WHERE YOU WIN)
+🧬 1. Content Lifecycle Mapping
+
+Show:
+
+👉 what kind of content goes viral FIRST
+👉 what kind converts later
+
+Example:
+
+• viral = controversial reels
+• conversion = educational posts
+
+⚔️ 2. Competitor Positioning Map
+
+Plot competitors:
+
+• authority
+• entertainment
+• education
+
+Output:
+
+👉 “You should position here (gap zone)”
+
+📈 3. Virality Score System
+
+Score content based on:
+
+• hook
+• retention
+• engagement
+
+🎯 4. Content Angle Generator
+
+Give:
+
+👉 20 unique angles competitors are NOT using
+
+🧠 5. AI Niche Brain (VERY POWERFUL)
+
+User asks:
+
+👉 “What should I post in this niche?”
+
+AI answers based on ALL competitor data

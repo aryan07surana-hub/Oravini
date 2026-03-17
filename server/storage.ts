@@ -3,13 +3,14 @@ import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
-  contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses,
+  contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
   type Notification, type InsertNotification,
   type CompetitorAnalysis, type InsertCompetitorAnalysis,
+  type NicheAnalysis, type InsertNicheAnalysis,
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
   type CallBooking, type InsertCallBooking,
   type DmLead, type InsertDmLead, type DmQuickReply, type InsertDmQuickReply,
@@ -419,6 +420,21 @@ class DatabaseStorage implements IStorage {
 
   async deleteCompetitorAnalysis(id: string) {
     await db.delete(competitorAnalyses).where(eq(competitorAnalyses.id, id));
+  }
+
+  async createNicheAnalysis(data: InsertNicheAnalysis) {
+    const [created] = await db.insert(nicheAnalyses).values(data).returning();
+    return created;
+  }
+
+  async getNicheAnalyses(clientId: string) {
+    return db.select().from(nicheAnalyses)
+      .where(eq(nicheAnalyses.clientId, clientId))
+      .orderBy(desc(nicheAnalyses.createdAt));
+  }
+
+  async deleteNicheAnalysis(id: string) {
+    await db.delete(nicheAnalyses).where(eq(nicheAnalyses.id, id));
   }
 
   async getDmLeads(clientId: string) {

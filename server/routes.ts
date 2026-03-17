@@ -1556,6 +1556,160 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
     }
   });
 
+  // ── Niche Intelligence Engine ──────────────────────────────────────────────
+
+  app.post("/api/niche/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, competitorUrls, clientId } = req.body;
+      if (!niche || !competitorUrls || !Array.isArray(competitorUrls) || competitorUrls.length === 0) {
+        return res.status(400).json({ message: "niche and at least one competitorUrl are required" });
+      }
+      const urls = competitorUrls.slice(0, 5).filter(Boolean);
+
+      // Scrape all competitor profiles in parallel
+      const scrapedArrays = await Promise.all(
+        urls.map(url => apifyInstagram({ directUrls: [url], resultsType: "posts", resultsLimit: 25 }).catch(() => []))
+      );
+
+      const competitors = urls.map((url, i) => {
+        const handle = extractHandle(url);
+        const items = scrapedArrays[i] || [];
+        const metrics = processProfileMetrics(items, handle);
+        const posts = buildPostList(items);
+        return { handle, metrics, posts };
+      }).filter(c => c.metrics || c.posts.length > 0);
+
+      const competitorHandles = competitors.map(c => c.handle);
+
+      const systemPrompt = `You are a world-class social media niche intelligence expert and data analyst. You analyze multiple competitor accounts within a niche and produce extremely detailed, actionable intelligence reports. You ONLY return valid JSON.`;
+
+      const userPrompt = `Analyze these ${competitors.length} Instagram competitor accounts in the "${niche}" niche and produce a comprehensive niche intelligence report. Return ONLY a valid JSON object.
+
+NICHE: ${niche}
+
+${competitors.map((c, i) => `
+--- COMPETITOR ${i + 1}: @${c.handle} ---
+Metrics: ${JSON.stringify(c.metrics)}
+Recent Posts (sample): ${JSON.stringify(c.posts.slice(0, 10))}
+`).join("\n")}
+
+Return this EXACT JSON structure:
+{
+  "nicheTrends": {
+    "dominantFormats": ["format1", "format2"],
+    "trendingTopics": ["topic1", "topic2", "topic3"],
+    "viralPatterns": ["pattern1", "pattern2"],
+    "summary": "2-3 sentence overview of what is actually working in this niche right now"
+  },
+  "topicClusters": [
+    { "theme": "mindset|tutorials|case studies|storytelling|controversy|education|entertainment", "avgViews": 0, "avgEngagement": 0, "topPerformers": ["competitor"], "description": "Why this topic cluster performs", "frequency": "how often used across all competitors" }
+  ],
+  "saturationAnalysis": {
+    "oversaturated": [{ "topic": "topic name", "whySaturated": "explanation", "howManyUseIt": "X/Y competitors" }],
+    "underserved": [{ "topic": "opportunity topic", "whyOpportunity": "explanation", "estimatedGrowthPotential": "High|Medium|Low" }],
+    "summary": "Overall saturation landscape of this niche"
+  },
+  "hookTrends": {
+    "mostUsedHooks": [{ "hookType": "curiosity|authority|storytelling|etc", "frequency": "% of posts", "avgPerformance": "how it performs" }],
+    "mostEffectiveHooks": [{ "hookType": "type", "avgViews": 0, "whyItWorks": "explanation", "example": "exact example hook line" }],
+    "hookInsight": "Key insight about hooks in this niche e.g. curiosity hooks outperform authority hooks by 40%"
+  },
+  "contentGaps": [
+    { "gap": "specific untapped opportunity", "description": "what NO competitor is doing", "howToCapitalize": "exact action to take", "estimatedImpact": "High|Medium|Low" }
+  ],
+  "audienceDesires": {
+    "wants": ["specific thing 1", "specific thing 2", "specific thing 3"],
+    "complaints": ["what they hate 1", "what they hate 2"],
+    "engagementTriggers": ["what drives comments and shares 1", "thing 2"],
+    "buyingTriggers": ["what makes them buy or follow 1", "thing 2"],
+    "summary": "Deep profile of what this niche audience actually cares about"
+  },
+  "formatBreakdown": {
+    "reels": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how reels perform in this niche" },
+    "carousels": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how carousels perform" },
+    "static": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how static posts perform" },
+    "winner": "reels|carousels|static",
+    "insight": "Key insight about format strategy in this niche"
+  },
+  "growthPlaybook": {
+    "phase1": { "name": "Foundation (Days 1-10)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "phase2": { "name": "Growth (Days 11-20)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "phase3": { "name": "Scale (Days 21-30)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "keyPrinciples": ["principle 1", "principle 2", "principle 3"],
+    "summary": "How to grow in this niche in 30 days"
+  },
+  "contentLifecycle": {
+    "viralFirst": { "contentType": "what goes viral first", "whyItVirals": "explanation", "examples": ["example1", "example2"] },
+    "convertsLater": { "contentType": "what converts later", "whyItConverts": "explanation", "examples": ["example1", "example2"] },
+    "insight": "How content evolves from awareness to conversion in this niche"
+  },
+  "competitorPositioning": {
+    "map": [
+      { "handle": "@handle", "primaryPosition": "authority|entertainment|education|inspiration|motivation", "secondaryPosition": "string", "gapToTarget": "where you could position to stand out" }
+    ],
+    "recommendedPosition": "Where YOU should position yourself",
+    "positioningRationale": "Why this positioning wins in this niche",
+    "uniqueAngle": "The specific angle that would differentiate you"
+  },
+  "viralityScores": [
+    { "contentType": "type of content", "hookScore": 8, "retentionScore": 7, "engagementScore": 9, "overallScore": 8, "verdict": "why this scores high" }
+  ],
+  "contentAngles": [
+    { "angle": "specific unique angle", "whyUnique": "why no competitor is using it", "hookExample": "exact hook using this angle", "format": "reel|carousel|static" }
+  ],
+  "nicheInsight": {
+    "answer": "Comprehensive answer to: what should I post in this niche to grow fast?",
+    "topRecommendations": ["recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4", "recommendation 5"],
+    "avoidThese": ["mistake 1", "mistake 2", "mistake 3"],
+    "secretWeapon": "The one thing that would immediately differentiate this account"
+  }
+}
+
+Make contentAngles have exactly 20 items. Make everything extremely specific to the ${niche} niche. No generic advice.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 8000);
+      let report: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid response. Please try again." });
+      }
+
+      const analysis = await storage.createNicheAnalysis({
+        clientId: clientId || (req.user as any).id,
+        niche,
+        competitorUrls: urls,
+        competitorHandles,
+        report,
+      });
+
+      return res.json(analysis);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche/analyses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = (req.query.clientId as string) || user.id;
+      const analyses = await storage.getNicheAnalyses(clientId);
+      return res.json(analyses);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/niche/analyses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteNicheAnalysis(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {
