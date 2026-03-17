@@ -2587,7 +2587,7 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
 
 export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"competitor" | "niche">("competitor");
+  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
@@ -2596,73 +2596,94 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
   return (
     <Layout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+
         {/* Page header */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+          {activeSection && (
+            <button
+              onClick={() => setActiveSection(null)}
+              className="w-8 h-8 rounded-xl bg-muted/40 hover:bg-muted/70 flex items-center justify-center transition-colors flex-shrink-0"
+              data-testid="button-back"
+            >
+              <ChevronRight className="w-4 h-4 text-muted-foreground rotate-180" />
+            </button>
+          )}
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
             <Target className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Competitor Study</h1>
-            <p className="text-xs text-muted-foreground">Deep-dive AI intelligence · Competitor analysis + Niche insights</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-foreground">
+                {activeSection === "competitor"
+                  ? "Competitor Analysis"
+                  : activeSection === "niche"
+                  ? "What's Working in My Niche"
+                  : "Competitor Study"}
+              </h1>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {activeSection === "competitor"
+                ? "Your account vs one competitor · 9-section deep-dive · Steal their strategy"
+                : activeSection === "niche"
+                ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
+                : "Choose a study mode below"}
+            </p>
           </div>
         </div>
 
-        {/* Top-level section switcher */}
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setActiveTab("competitor")}
-            data-testid="tab-competitor-analysis"
-            className={`relative overflow-hidden rounded-2xl border-2 p-5 transition-all text-left group ${
-              activeTab === "competitor"
-                ? "border-pink-500/50 bg-gradient-to-br from-pink-500/15 via-pink-500/8 to-transparent"
-                : "border-border bg-card hover:border-border/70 hover:bg-muted/20"
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${activeTab === "competitor" ? "bg-pink-500/20 border border-pink-500/30" : "bg-muted/40"}`}>
-                <Instagram className={`w-6 h-6 ${activeTab === "competitor" ? "text-pink-400" : "text-muted-foreground"}`} />
+        {/* Landing — two option cards */}
+        {!activeSection && (
+          <div className="grid grid-cols-2 gap-4">
+            {/* Competitor Analysis card */}
+            <button
+              onClick={() => setActiveSection("competitor")}
+              data-testid="tab-competitor-analysis"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-pink-500/40 hover:bg-pink-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-pink-500/15 border border-pink-500/25 flex items-center justify-center group-hover:bg-pink-500/20 transition-colors">
+                <Instagram className="w-6 h-6 text-pink-400" />
               </div>
-              <div>
-                <p className={`text-sm font-black ${activeTab === "competitor" ? "text-pink-300" : "text-foreground"}`}>Competitor Analysis</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Your account vs one competitor · 9-section deep-dive · Steal their strategy</p>
+              <div className="flex-1">
+                <p className="text-base font-black text-foreground mb-1.5">Competitor Analysis</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Your account vs one competitor. Get a 9-section deep-dive — reels, hooks, audience, gaps, and a full strategy to steal their approach.</p>
               </div>
-            </div>
-            {activeTab === "competitor" && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-pink-400" />}
-          </button>
+              <div className="flex items-center gap-1.5 text-xs text-pink-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("niche")}
-            data-testid="tab-niche-intelligence"
-            className={`relative overflow-hidden rounded-2xl border-2 p-5 transition-all text-left group ${
-              activeTab === "niche"
-                ? "border-primary/50 bg-gradient-to-br from-primary/15 via-primary/8 to-transparent"
-                : "border-border bg-card hover:border-border/70 hover:bg-muted/20"
-            }`}
-          >
-            <div className="absolute inset-0 pointer-events-none">
-              {activeTab === "niche" && <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl" />}
-            </div>
-            <div className="relative flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${activeTab === "niche" ? "bg-primary/20 border border-primary/30 shadow-[0_0_20px_rgba(212,180,97,0.15)]" : "bg-muted/40"}`}>
-                <Search className={`w-6 h-6 ${activeTab === "niche" ? "text-primary" : "text-muted-foreground"}`} />
+            {/* Niche Intelligence card */}
+            <button
+              onClick={() => setActiveSection("niche")}
+              data-testid="tab-niche-intelligence"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-primary/40 hover:bg-primary/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute top-0 right-0 w-28 h-28 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center group-hover:bg-primary/20 group-hover:shadow-[0_0_20px_rgba(212,180,97,0.15)] transition-all">
+                <Search className="w-6 h-6 text-primary" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className={`text-sm font-black ${activeTab === "niche" ? "text-primary" : "text-foreground"}`}>What's Working in My Niche</p>
-                  <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-primary uppercase">NEW</span>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">What's Working in My Niche</p>
+                  <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-primary uppercase tracking-wider">NEW</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">Niche Intelligence Engine · 3–5 competitors · Full niche map</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Add 3–5 competitor URLs and your niche. Get the full intelligence map — trends, gaps, hooks, audience desires, 20 content angles, and a 30-day growth playbook.</p>
               </div>
-            </div>
-            {activeTab === "niche" && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary" />}
-          </button>
-        </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-primary font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+          </div>
+        )}
 
         {/* Section content */}
-        {activeTab === "competitor"
-          ? <CompetitorAnalysisSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
-          : <NicheIntelligenceSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
-        }
+        {activeSection === "competitor" && (
+          <CompetitorAnalysisSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        )}
+        {activeSection === "niche" && (
+          <NicheIntelligenceSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        )}
+
       </div>
     </Layout>
   );
