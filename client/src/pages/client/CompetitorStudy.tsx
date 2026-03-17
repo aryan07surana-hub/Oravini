@@ -688,7 +688,7 @@ function ReelByReelSection({ report, analysis }: { report: any; analysis: any })
           })}
         </div>
         <p className="text-[10px] text-muted-foreground mt-2">{selectedIdxs.size} of {comparisons.length} reels selected</p>
-      </div>
+      </div>}
 
       {/* Comparisons */}
       {visible.map((pair: any, idx: number) => {
