@@ -1927,6 +1927,37 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
     }
   });
 
+  app.post("/api/methodology/scrape-reel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { reelUrl } = req.body;
+      if (!reelUrl) return res.status(400).json({ message: "reelUrl is required" });
+
+      const shortcode = reelUrl.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+      if (!shortcode) return res.status(400).json({ message: "Invalid Instagram reel URL" });
+
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
+
+      const runRes = await fetch("https://api.apify.com/v2/acts/apify~instagram-post-scraper/run-sync-get-dataset-items?token=" + apifyToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directUrls: [reelUrl], resultsLimit: 1 }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!runRes.ok) return res.status(500).json({ message: "Apify scrape failed" });
+      const items = await runRes.json();
+      const post = Array.isArray(items) ? items[0] : null;
+      if (!post) return res.json({ caption: null });
+
+      const caption = post.caption ?? post.alt ?? post.description ?? post.accessibility_caption ?? null;
+      return res.json({ caption, shortcode, timestamp: post.timestamp });
+    } catch (err: any) {
+      console.error("scrape-reel error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   app.post("/api/methodology/improve", requireAuth, async (req: Request, res: Response) => {
     try {
       const { content, dna, tool } = req.body;

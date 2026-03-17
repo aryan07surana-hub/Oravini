@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -117,16 +116,95 @@ function extractHandle(url: string, platform: "instagram" | "youtube"): string |
   return null;
 }
 
+// ─── AI Loading Animation ──────────────────────────────────────────────────────
+const IG_LOADING_STEPS = [
+  { icon: "🔍", text: "Scanning your niche for viral content patterns…" },
+  { icon: "📊", text: "Analysing top-performing reels and posts in your space…" },
+  { icon: "🎯", text: "Identifying content gaps and untapped opportunities…" },
+  { icon: "✍️", text: "Crafting personalised content angles just for you…" },
+  { icon: "🚀", text: "Writing your scroll-stopping ideas…" },
+  { icon: "✨", text: "Finalising your personalised content strategy…" },
+];
+
+const YT_LOADING_STEPS = [
+  { icon: "🔍", text: "Scanning your niche for high-performing YouTube videos…" },
+  { icon: "📈", text: "Analysing what top creators in your space are doing…" },
+  { icon: "🎯", text: "Identifying untapped video topics and content gaps…" },
+  { icon: "💡", text: "Crafting your video ideas and titles…" },
+  { icon: "✍️", text: "Writing hooks, concepts and key points…" },
+  { icon: "🚀", text: "Finalising your YouTube content calendar…" },
+];
+
+function AILoadingState({ platform }: { platform: string }) {
+  const steps = platform === "youtube" ? YT_LOADING_STEPS : IG_LOADING_STEPS;
+  const [stepIdx, setStepIdx] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const stepInterval = setInterval(() => {
+      setStepIdx(i => (i < steps.length - 1 ? i + 1 : i));
+    }, 3500);
+    const progressInterval = setInterval(() => {
+      setProgress(p => Math.min(p + 1.2, 96));
+    }, 260);
+    return () => { clearInterval(stepInterval); clearInterval(progressInterval); };
+  }, [steps.length]);
+
+  const step = steps[stepIdx];
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-8 text-center space-y-6">
+      {/* Pulsing icon */}
+      <div className="relative mx-auto w-20 h-20">
+        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping opacity-50" />
+        <div className="absolute inset-2 rounded-full bg-primary/15 animate-pulse" />
+        <div className="absolute inset-4 rounded-full bg-primary/10 flex items-center justify-center">
+          <Sparkles className="w-6 h-6 text-primary" />
+        </div>
+      </div>
+
+      {/* Step text */}
+      <div className="space-y-1.5 min-h-[48px]">
+        <p className="text-2xl">{step.icon}</p>
+        <p className="text-sm font-semibold text-foreground transition-all duration-500">{step.text}</p>
+        <p className="text-[11px] text-muted-foreground">
+          Step {stepIdx + 1} of {steps.length}
+        </p>
+      </div>
+
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">{Math.round(progress)}% complete — AI is working hard for you</p>
+      </div>
+
+      {/* Step dots */}
+      <div className="flex items-center justify-center gap-2">
+        {steps.map((_, i) => (
+          <div
+            key={i}
+            className={`rounded-full transition-all duration-500 ${i === stepIdx ? "w-5 h-2 bg-primary" : i < stepIdx ? "w-2 h-2 bg-primary/50" : "w-2 h-2 bg-muted/40"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }: {
   idea: ContentIdea;
   index: number;
   isLiked?: boolean;
   onToggleLike?: (idea: ContentIdea) => void;
-  onGetScript?: (idea: ContentIdea, duration?: string) => void;
+  onGetScript?: (idea: ContentIdea) => void;
   platform?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const [ytDuration, setYtDuration] = useState("5");
   const { toast } = useToast();
   const isYoutube = platform === "youtube";
 
@@ -251,37 +329,15 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
                 )}
 
                 {onGetScript && (
-                  <div className="space-y-2">
-                    {isYoutube && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-[10px] text-muted-foreground font-medium">Script length:</span>
-                        <div className="flex gap-1.5">
-                          {[["5", "5 min"], ["10", "10 min"], ["15", "15 min"]].map(([val, label]) => (
-                            <button
-                              key={val}
-                              onClick={() => setYtDuration(val)}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${ytDuration === val ? "bg-primary text-black" : "bg-muted/40 text-muted-foreground hover:bg-muted/70"}`}
-                              data-testid={`duration-${val}-${index}`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <button
-                      onClick={() => onGetScript(idea, isYoutube ? ytDuration : undefined)}
-                      data-testid={`get-script-${index}`}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 transition-all duration-200 group"
-                    >
-                      <Wand2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
-                      <span className="text-xs font-semibold text-primary">
-                        Get Full Script{isYoutube ? ` — ${ytDuration} min` : ""}
-                      </span>
-                      <FileText className="w-3 h-3 text-primary/60" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => onGetScript(idea)}
+                    data-testid={`get-script-${index}`}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 transition-all duration-200 group"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-semibold text-primary">Get Full Script</span>
+                    <FileText className="w-3 h-3 text-primary/60" />
+                  </button>
                 )}
               </div>
             )}
@@ -308,7 +364,8 @@ export default function AIIdeas() {
   const [scriptIdea, setScriptIdea] = useState<ContentIdea | null>(null);
   const [scriptContent, setScriptContent] = useState("");
   const [scriptLoading, setScriptLoading] = useState(false);
-  const [scriptDuration, setScriptDuration] = useState<string>("5");
+  const [scriptDuration, setScriptDuration] = useState<string>("");
+  const [ytVideoDuration, setYtVideoDuration] = useState<string>("");
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
 
@@ -333,11 +390,12 @@ export default function AIIdeas() {
     });
   };
 
-  const handleGetScript = async (idea: ContentIdea, duration?: string) => {
+  const handleGetScript = async (idea: ContentIdea) => {
     setScriptIdea(idea);
     setScriptContent("");
     setScriptLoading(true);
-    if (duration) setScriptDuration(duration);
+    const dur = platform === "youtube" ? (ytVideoDuration.trim() || "10") : undefined;
+    if (dur) setScriptDuration(dur);
     try {
       const data = await apiRequest("POST", "/api/ai/full-script", {
         title: idea.title,
@@ -349,7 +407,7 @@ export default function AIIdeas() {
         platform,
         niche,
         goal,
-        duration: duration || scriptDuration,
+        duration: dur,
       });
       setScriptContent(data.script || "");
     } catch (err: any) {
@@ -659,6 +717,26 @@ export default function AIIdeas() {
                   className="bg-card border-card-border"
                 />
               </div>
+
+              {platform === "youtube" && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="yt-duration" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" /> Video Length (minutes)
+                    <span className="text-muted-foreground font-normal normal-case">— used when generating scripts</span>
+                  </Label>
+                  <Input
+                    id="yt-duration"
+                    value={ytVideoDuration}
+                    onChange={e => setYtVideoDuration(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="e.g. 10, 20, 35"
+                    data-testid="input-yt-duration"
+                    className="bg-card border-card-border"
+                    type="number"
+                    min="1"
+                    max="120"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Hashtags — Instagram only */}
@@ -781,20 +859,7 @@ export default function AIIdeas() {
           </CardContent>
         </Card>
 
-        {loading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="border border-card-border">
-                <CardContent className="p-5 space-y-3">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-5/6" />
-                  <Skeleton className="h-16 w-full rounded-xl" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {loading && <AILoadingState platform={platform} />}
 
         {ideas.length > 0 && !loading && (
           <div className="space-y-4">
@@ -822,6 +887,12 @@ export default function AIIdeas() {
               {ideas.map((idea, i) => (
                 <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} platform={platform} />
               ))}
+              {platform === "youtube" && (
+                <p className="text-center text-[11px] text-muted-foreground pt-1">
+                  <Clock className="w-3 h-3 inline mr-1" />
+                  Script length: <span className="text-primary font-semibold">{ytVideoDuration ? `${ytVideoDuration} min` : "10 min (default)"}</span> — change it in the form above
+                </p>
+              )}
             </div>
 
             {contentMix && (
@@ -889,7 +960,7 @@ export default function AIIdeas() {
                     ? scriptIdea?.formatType === "carousel" ? "Instagram Carousel Script"
                       : scriptIdea?.formatType === "stories" ? "Instagram Stories Script"
                       : "Instagram Reel Script"
-                    : `YouTube Script${scriptDuration ? ` — ${scriptDuration} min` : ""}`}
+                    : `YouTube Script${scriptDuration ? ` — ${scriptDuration} min` : " — 10 min"}`}
                 </Badge>
                 <Button
                   size="sm"

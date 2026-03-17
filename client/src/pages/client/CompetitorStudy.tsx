@@ -2958,10 +2958,32 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
   const [analyzing, setAnalyzing] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [toolInputMode, setToolInputMode] = useState<"paste" | "url">("paste");
   const [toolContent, setToolContent] = useState("");
+  const [reelUrl, setReelUrl] = useState("");
+  const [reelFetching, setReelFetching] = useState(false);
   const [toolResult, setToolResult] = useState<any>(null);
   const [toolLoading, setToolLoading] = useState(false);
   const { toast } = useToast();
+
+  const handleFetchReel = async () => {
+    if (!reelUrl.trim()) return toast({ title: "Enter a reel URL", variant: "destructive" });
+    setReelFetching(true);
+    try {
+      const data = await apiRequest("POST", "/api/methodology/scrape-reel", { reelUrl: reelUrl.trim() });
+      if (data.caption) {
+        setToolContent(data.caption);
+        setToolInputMode("paste");
+        toast({ title: "Caption fetched!", description: "The reel caption has been loaded. Now run the tool." });
+      } else {
+        toast({ title: "No caption found", description: "The reel may be private or have no caption.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Failed to fetch reel", description: err.message, variant: "destructive" });
+    } finally {
+      setReelFetching(false);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!profileUrl.trim()) return toast({ title: "Enter your Instagram URL", variant: "destructive" });
@@ -3058,7 +3080,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
               return (
                 <button
                   key={tool.id}
-                  onClick={() => { setActiveTool(isActive ? null : tool.id); setToolResult(null); setToolContent(""); }}
+                  onClick={() => { setActiveTool(isActive ? null : tool.id); setToolResult(null); setToolContent(""); setToolInputMode("paste"); setReelUrl(""); }}
                   data-testid={`tool-${tool.id}`}
                   className={`group relative overflow-hidden rounded-2xl border text-left p-4 flex flex-col gap-3 transition-all ${isActive ? `${tool.border} bg-gradient-to-br ${tool.color}` : "border-border bg-card hover:border-primary/30 hover:bg-primary/5"}`}
                 >
@@ -3078,17 +3100,72 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
           {/* Active tool interface */}
           {activeTool && currentTool && (
             <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <currentTool.icon className={`w-4 h-4 ${currentTool.text}`} />
-                <p className="text-sm font-bold text-foreground">{currentTool.label}</p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <currentTool.icon className={`w-4 h-4 ${currentTool.text}`} />
+                  <p className="text-sm font-bold text-foreground">{currentTool.label}</p>
+                </div>
+                {/* Toggle: Paste or URL */}
+                <div className="flex items-center gap-1 bg-muted/30 border border-card-border rounded-xl p-1">
+                  <button
+                    onClick={() => setToolInputMode("paste")}
+                    data-testid="toggle-paste-mode"
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${toolInputMode === "paste" ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    Paste Content
+                  </button>
+                  <button
+                    onClick={() => setToolInputMode("url")}
+                    data-testid="toggle-url-mode"
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${toolInputMode === "url" ? "bg-pink-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <Instagram className="w-3 h-3" />
+                    Reel URL
+                  </button>
+                </div>
               </div>
-              <textarea
-                value={toolContent}
-                onChange={e => setToolContent(e.target.value)}
-                placeholder={currentTool.placeholder}
-                className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
-                data-testid="textarea-tool-content"
-              />
+
+              {toolInputMode === "paste" ? (
+                <textarea
+                  value={toolContent}
+                  onChange={e => setToolContent(e.target.value)}
+                  placeholder={currentTool.placeholder}
+                  className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
+                  data-testid="textarea-tool-content"
+                />
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-muted-foreground">Enter an Instagram Reel URL — AI will fetch the caption and load it for analysis</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={reelUrl}
+                      onChange={e => setReelUrl(e.target.value)}
+                      placeholder="https://www.instagram.com/reel/..."
+                      className="flex-1 h-9 text-sm"
+                      data-testid="input-reel-url"
+                      onKeyDown={e => e.key === "Enter" && handleFetchReel()}
+                    />
+                    <Button
+                      onClick={handleFetchReel}
+                      disabled={reelFetching || !reelUrl.trim()}
+                      size="sm"
+                      variant="outline"
+                      className="h-9 px-3 gap-1.5 border-pink-500/40 text-pink-400 hover:bg-pink-500/10"
+                      data-testid="button-fetch-reel"
+                    >
+                      {reelFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Instagram className="w-3.5 h-3.5" />}
+                      {reelFetching ? "Fetching…" : "Fetch Caption"}
+                    </Button>
+                  </div>
+                  {toolContent && (
+                    <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3">
+                      <p className="text-[10px] text-green-400 font-semibold mb-1">Caption loaded — ready to run</p>
+                      <p className="text-xs text-muted-foreground line-clamp-3">{toolContent}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Button
                 onClick={handleRunTool}
                 disabled={toolLoading || !toolContent.trim()}
