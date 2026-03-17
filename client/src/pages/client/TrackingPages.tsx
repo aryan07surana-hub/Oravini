@@ -21,7 +21,7 @@ import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
   Star, FileText, Clock, ChevronRight, ArrowLeft, Plus, Trash2, Pencil,
   BarChart2, Bell, Sparkles, Loader2, DollarSign, CalendarDays, Activity,
-  Calendar, TrendingDown, RefreshCw, Zap, ExternalLink
+  Calendar, TrendingDown, RefreshCw, Zap, ExternalLink, Inbox
 } from "lucide-react";
 import { format, getMonth, getYear, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1447,16 +1447,18 @@ export function TrackingHome() {
               </div>
             </Link>
 
-            <div data-testid="card-tracking-sales" className="p-7 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
-              <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <DollarSign className="w-7 h-7 text-muted-foreground" />
+            <Link href="/dm-tracker">
+              <div data-testid="card-tracking-sales" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
+                  <Inbox className="w-7 h-7 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-base">Sales Metrics</h3>
+                <p className="text-xs text-muted-foreground mt-1.5">DM leads, pipeline & conversions</p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
+                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <h3 className="font-semibold text-foreground text-base">Sales Metrics</h3>
-              <p className="text-xs text-muted-foreground mt-1.5">Deals, pipelines & revenue</p>
-              <div className="mt-3">
-                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
-              </div>
-            </div>
+            </Link>
 
             <div data-testid="card-tracking-ads" className="p-7 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
               <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
