@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,34 +20,31 @@ import {
   FileText, Wand2, Hash, Plus, X, Clock
 } from "lucide-react";
 
-// ─── Hashtag suggestion helper ─────────────────────────────────────────────────
-function getHashtagSuggestions(niche: string): string[] {
-  const n = niche.toLowerCase();
-  const map: Record<string, string[]> = {
-    calisthenics: ["#calisthenics", "#bodyweightfitness", "#streetworkout", "#calisthenicslife", "#pullups", "#barsworkout", "#fitness", "#workout"],
-    fitness: ["#fitness", "#workout", "#gym", "#fitnessmotivation", "#health", "#fitlife", "#gymmotivation", "#bodybuilding"],
-    yoga: ["#yoga", "#yogalife", "#yogadaily", "#mindfulness", "#wellness", "#flexibility", "#meditation", "#yogainspiration"],
-    food: ["#food", "#foodie", "#recipe", "#cooking", "#foodphotography", "#healthyfood", "#mealprep", "#foodblogger"],
-    business: ["#business", "#entrepreneur", "#entrepreneurship", "#marketing", "#success", "#startup", "#businesstips", "#mindset"],
-    finance: ["#finance", "#money", "#investing", "#financialfreedom", "#personalfinance", "#wealth", "#sidehustle", "#passiveincome"],
-    realestate: ["#realestate", "#realestateagent", "#property", "#homeforsale", "#investment", "#realtor", "#housing", "#realestatelife"],
-    travel: ["#travel", "#travelphotography", "#wanderlust", "#adventure", "#travelgram", "#explore", "#traveling", "#vacation"],
-    fashion: ["#fashion", "#style", "#ootd", "#fashionista", "#outfit", "#fashionblogger", "#streetstyle", "#model"],
-    beauty: ["#beauty", "#makeup", "#skincare", "#beautytips", "#glowup", "#selfcare", "#beautyblogger", "#cosmetics"],
-    motivation: ["#motivation", "#mindset", "#success", "#inspiration", "#hustle", "#discipline", "#positivity", "#grind"],
-    smma: ["#smma", "#socialmediamarketing", "#digitalmarketing", "#agencylife", "#marketingagency", "#leadgeneration", "#clientacquisition", "#entrepreneur"],
-    marketing: ["#digitalmarketing", "#marketing", "#socialmedia", "#contentmarketing", "#seo", "#branding", "#growthhacking", "#emailmarketing"],
-    crypto: ["#crypto", "#cryptocurrency", "#bitcoin", "#blockchain", "#nft", "#defi", "#web3", "#altcoin"],
-    dropshipping: ["#dropshipping", "#ecommerce", "#shopify", "#onlinebusiness", "#entrepreneur", "#passiveincome", "#sidehustle", "#businesstips"],
-    faceless: ["#facelesscontent", "#facelessmarketing", "#anonymouscreator", "#aitools", "#contentcreation", "#digitalproducts", "#passiveincome", "#makemoneyonline"],
-  };
-  for (const [key, tags] of Object.entries(map)) {
-    if (n.includes(key)) return tags;
-  }
-  if (n.includes("fit") || n.includes("gym") || n.includes("muscle")) return map.fitness;
-  if (n.includes("market") || n.includes("brand")) return map.marketing;
-  if (n.includes("money") || n.includes("invest") || n.includes("rich")) return map.finance;
-  return ["#content", "#viral", "#trending", "#growth", "#fyp", "#explore", "#creator", "#contentcreator"];
+// ─── AI hashtag suggestions hook ───────────────────────────────────────────────
+function useHashtagSuggestions(niche: string) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastNicheRef = useRef("");
+
+  useEffect(() => {
+    const trimmed = niche.trim();
+    if (trimmed.length < 3) { setSuggestions([]); return; }
+    if (trimmed === lastNicheRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      lastNicheRef.current = trimmed;
+      setLoading(true);
+      try {
+        const data = await apiRequest("POST", "/api/ai/hashtag-suggestions", { niche: trimmed });
+        setSuggestions(Array.isArray(data?.hashtags) ? data.hashtags : []);
+      } catch { setSuggestions([]); }
+      finally { setLoading(false); }
+    }, 800);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [niche]);
+
+  return { suggestions, loading };
 }
 
 function likedKey(platform: string) { return `liked_ideas_${platform}`; }
@@ -373,7 +370,7 @@ export default function AIIdeas() {
 
   const removeHashtag = (tag: string) => setHashtags(prev => prev.filter(h => h !== tag));
 
-  const suggestedHashtags = useMemo(() => niche.trim().length >= 2 ? getHashtagSuggestions(niche) : [], [niche]);
+  const { suggestions: suggestedHashtags, loading: hashtagsLoading } = useHashtagSuggestions(niche);
 
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
 
@@ -672,25 +669,36 @@ export default function AIIdeas() {
                   <span className="text-muted-foreground font-normal normal-case">(optional — helps AI generate more targeted ideas)</span>
                 </Label>
 
-                {/* Suggested hashtags from niche */}
-                {suggestedHashtags.length > 0 && (
+                {/* AI-powered hashtag suggestions */}
+                {niche.trim().length >= 3 && (
                   <div>
-                    <p className="text-[10px] text-muted-foreground mb-2">Suggested for <span className="text-primary font-medium">{niche}</span> — click to add:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {suggestedHashtags.map(tag => {
-                        const isSelected = hashtags.includes(tag);
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => isSelected ? removeHashtag(tag) : addHashtag(tag)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-muted/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
-                            data-testid={`suggested-hashtag-${tag}`}
-                          >
-                            {tag}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {hashtagsLoading ? (
+                      <div className="flex items-center gap-2 py-1">
+                        <RefreshCw className="w-3 h-3 animate-spin text-primary" />
+                        <span className="text-[10px] text-muted-foreground">Finding best hashtags for <span className="text-primary font-medium">{niche}</span>…</span>
+                      </div>
+                    ) : suggestedHashtags.length > 0 ? (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground mb-2">
+                          AI-recommended for <span className="text-primary font-medium">{niche}</span> — click to add:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {suggestedHashtags.map(tag => {
+                            const isSelected = hashtags.includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                onClick={() => isSelected ? removeHashtag(tag) : addHashtag(tag)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-muted/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
+                                data-testid={`suggested-hashtag-${tag}`}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -852,8 +860,8 @@ export default function AIIdeas() {
 
       {/* Full Script Dialog */}
       <Dialog open={!!scriptIdea} onOpenChange={(o) => { if (!o) { setScriptIdea(null); setScriptContent(""); } }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl w-full flex flex-col" style={{ maxHeight: "88vh", overflow: "hidden" }}>
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-base">
               <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
                 {platform === "instagram" ? <Instagram className="w-3.5 h-3.5 text-pink-400" /> : <Youtube className="w-3.5 h-3.5 text-red-400" />}
@@ -863,7 +871,7 @@ export default function AIIdeas() {
           </DialogHeader>
 
           {scriptLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="flex flex-col items-center justify-center py-16 gap-4 flex-shrink-0">
               <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
                 <Wand2 className="w-6 h-6 text-primary animate-pulse" />
               </div>
@@ -873,8 +881,9 @@ export default function AIIdeas() {
               </div>
             </div>
           ) : scriptContent ? (
-            <div className="flex flex-col gap-3 min-h-0">
-              <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 min-h-0 flex-1 overflow-hidden">
+              {/* Sticky header row */}
+              <div className="flex items-center justify-between flex-shrink-0">
                 <Badge variant="outline" className={`text-xs ${platform === "instagram" ? "border-pink-500/30 text-pink-400" : "border-red-500/30 text-red-400"}`}>
                   {platform === "instagram"
                     ? scriptIdea?.formatType === "carousel" ? "Instagram Carousel Script"
@@ -895,8 +904,10 @@ export default function AIIdeas() {
                   <Copy className="w-3 h-3" /> Copy Script
                 </Button>
               </div>
-              <ScrollArea className="flex-1 max-h-[55vh]">
-                <div className="space-y-3 pr-3">
+
+              {/* Scrollable script body */}
+              <div className="overflow-y-auto flex-1 pr-1" style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border)) transparent" }}>
+                <div className="space-y-3 pb-2">
                   {scriptContent.split(/\n(?=##)/).map((section, i) => {
                     const lines = section.trim().split("\n");
                     const heading = lines[0].replace(/^#+\s*/, "");
@@ -904,12 +915,12 @@ export default function AIIdeas() {
                     return (
                       <div key={i} className="bg-card border border-card-border rounded-xl p-4">
                         <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">{heading}</p>
-                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{body}</p>
+                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{body || heading}</p>
                       </div>
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           ) : null}
         </DialogContent>

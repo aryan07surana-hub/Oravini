@@ -946,6 +946,49 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
     }
   });
 
+  // ── AI Hashtag Suggestions ────────────────────────────────────────────────
+  app.post("/api/ai/hashtag-suggestions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche } = req.body;
+      if (!niche || niche.trim().length < 2) return res.json({ hashtags: [] });
+
+      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      let lastErr: any;
+      for (const model of GROQ_MODELS) {
+        try {
+          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: JSON.stringify({
+              model,
+              max_tokens: 300,
+              temperature: 0.5,
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.",
+                },
+                {
+                  role: "user",
+                  content: `Give me 12 highly relevant Instagram hashtags for a creator in the "${niche}" niche. Mix of sizes: 4 large (1M+ posts), 4 medium (100k-1M posts), 4 small/niche (<100k posts). These must be actually used hashtags that perform well for this niche. Return JSON: { "hashtags": ["#tag1", "#tag2", ...] }`,
+                },
+              ],
+            }),
+          });
+          const json = await resp.json() as any;
+          const raw = json.choices?.[0]?.message?.content?.trim() || "";
+          const cleaned = raw.replace(/```json|```/g, "").trim();
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed.hashtags)) return res.json({ hashtags: parsed.hashtags.slice(0, 12) });
+          break;
+        } catch (e) { lastErr = e; }
+      }
+      res.json({ hashtags: [] });
+    } catch (err: any) {
+      res.json({ hashtags: [] });
+    }
+  });
+
   // ── AI Full Script Generator ───────────────────────────────────────────────
   app.post("/api/ai/full-script", requireAuth, async (req: Request, res: Response) => {
     try {
