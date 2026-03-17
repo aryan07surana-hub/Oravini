@@ -4,25 +4,32 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
+  Legend,
+} from "recharts";
 import {
   Instagram, Eye, Heart, MessageCircle, TrendingUp, TrendingDown,
   Sparkles, Loader2, Trash2, ChevronRight, Target, Zap, AlertTriangle,
   BarChart2, Clock, Star, CheckCircle, XCircle, ArrowRight, Users, RefreshCw,
   Lightbulb, BookOpen, Calendar, Flame, Shield, Trophy, Copy, Check,
-  AlertCircle, Award, ArrowUpRight, ExternalLink
+  AlertCircle, Award, ArrowUpRight, ExternalLink, Play, ChevronDown, ChevronUp,
+  TrendingUp as Trending, Sword, Crosshair, Layers, Search, Hash,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const GOLD = "#d4b461";
+const PIE_COLORS = ["#d4b461", "#e879a0", "#60a5fa", "#34d399", "#a78bfa", "#fb923c"];
 
 const HOOK_COLORS: Record<string, string> = {
   curiosity: "bg-purple-500/15 text-purple-300 border-purple-500/30",
@@ -46,30 +53,25 @@ const RETENTION_COLORS: Record<string, string> = {
   Low: "text-red-400",
 };
 
+// ─── Section definitions ──────────────────────────────────────────────────────
+
+const SECTIONS = [
+  { id: "overview", label: "Overview", icon: BarChart2, color: "from-blue-500/20 to-blue-500/5", border: "border-blue-500/30", text: "text-blue-400", desc: "Full profile comparison" },
+  { id: "reels", label: "Reel by Reel", icon: Play, color: "from-pink-500/20 to-pink-500/5", border: "border-pink-500/30", text: "text-pink-400", desc: "Choose & compare reels" },
+  { id: "performance", label: "Performance", icon: TrendingUp, color: "from-green-500/20 to-green-500/5", border: "border-green-500/30", text: "text-green-400", desc: "Charts & metrics" },
+  { id: "patterns", label: "AI Patterns", icon: Sparkles, color: "from-yellow-500/20 to-yellow-500/5", border: "border-yellow-500/30", text: "text-yellow-400", desc: "Viral formulas decoded" },
+  { id: "gaps", label: "Gap Analysis", icon: Search, color: "from-red-500/20 to-red-500/5", border: "border-red-500/30", text: "text-red-400", desc: "Where you're losing" },
+  { id: "hooks", label: "Hook Library", icon: Zap, color: "from-purple-500/20 to-purple-500/5", border: "border-purple-500/30", text: "text-purple-400", desc: "Me vs Competitor" },
+  { id: "strategy", label: "Posting Strategy", icon: Calendar, color: "from-cyan-500/20 to-cyan-500/5", border: "border-cyan-500/30", text: "text-cyan-400", desc: "Schedule deep-dive" },
+  { id: "audience", label: "Audience Intel", icon: Users, color: "from-orange-500/20 to-orange-500/5", border: "border-orange-500/30", text: "text-orange-400", desc: "Detailed audience report" },
+  { id: "scorecard", label: "Scorecard", icon: Trophy, color: "from-primary/20 to-primary/5", border: "border-primary/30", text: "text-primary", desc: "Who's winning?" },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function Pill({ text, map = HOOK_COLORS }: { text: string; map?: Record<string, string> }) {
   const cls = map[text?.toLowerCase()] ?? "bg-muted text-muted-foreground border-border";
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls} capitalize`}>{text}</span>;
-}
-
-function StatBox({ label, val, sub, accent }: { label: string; val: any; sub?: string; accent?: string }) {
-  return (
-    <div className="bg-card border border-card-border rounded-xl p-4 text-center">
-      <p className={`text-2xl font-bold ${accent ?? "text-foreground"}`}>{typeof val === "number" ? val.toLocaleString() : val ?? "—"}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-      {sub && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function VsRow({ label, user, competitor, better }: { label: string; user: any; competitor: any; better?: "user" | "competitor" | "tie" }) {
-  return (
-    <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-      <span className="text-xs text-muted-foreground w-32 flex-shrink-0">{label}</span>
-      <span className={`text-sm font-semibold flex-1 ${better === "user" ? "text-green-400" : "text-foreground"}`}>{typeof user === "number" ? user.toLocaleString() : user ?? "—"}</span>
-      <span className="text-xs text-muted-foreground">vs</span>
-      <span className={`text-sm font-semibold flex-1 text-right ${better === "competitor" ? "text-red-400" : "text-foreground"}`}>{typeof competitor === "number" ? competitor.toLocaleString() : competitor ?? "—"}</span>
-    </div>
-  );
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -82,246 +84,532 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ─── Tab: Overview ──────────────────────────────────────────────────────────
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="text-center py-12">
+      <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-40" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
 
-function OverviewTab({ report, analysis }: { report: any; analysis: any }) {
-  const cm = report.clientMetrics;
-  const comp = report.competitorMetrics;
-  const ov = report.overview;
+function SectionHeader({ icon: Icon, title, desc, color }: { icon: any; title: string; desc: string; color: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0`}>
+        <Icon className="w-5 h-5 text-foreground" />
+      </div>
+      <div>
+        <h3 className="text-base font-bold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-card border border-card-border rounded-xl px-3 py-2 shadow-xl">
+      {label && <p className="text-[10px] text-muted-foreground mb-1">{label}</p>}
+      {payload.map((p: any) => (
+        <p key={p.name} className="text-xs font-bold" style={{ color: p.color }}>{p.name}: {typeof p.value === "number" ? p.value.toLocaleString() : p.value}</p>
+      ))}
+    </div>
+  );
+};
+
+// ─── Section: Overview ────────────────────────────────────────────────────────
+
+function OverviewSection({ report, analysis }: { report: any; analysis: any }) {
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+  const ov = report.overview || {};
   const assessment = ov?.assessment ?? "competitive";
-  const assessStyle = assessment === "winning" ? "text-green-400 bg-green-500/10 border-green-500/30"
-    : assessment === "losing" ? "text-red-400 bg-red-500/10 border-red-500/30"
+  const assessStyle = assessment === "winning"
+    ? "text-green-400 bg-green-500/10 border-green-500/30"
+    : assessment === "losing"
+    ? "text-red-400 bg-red-500/10 border-red-500/30"
     : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
-  const AssessIcon = assessment === "winning" ? TrendingUp : assessment === "losing" ? TrendingDown : BarChart2;
 
-  return (
-    <div className="space-y-5">
-      {/* Assessment banner */}
-      <div className={`flex items-center gap-4 p-5 rounded-2xl border ${assessStyle}`}>
-        <div className="w-12 h-12 rounded-xl bg-current/10 flex items-center justify-center flex-shrink-0">
-          <AssessIcon className="w-6 h-6" />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="font-bold text-base capitalize">{assessment === "losing" ? "Needs Work" : assessment}</p>
-            {(ov?.outperformingIn || []).map((area: string) => (
-              <Badge key={area} variant="outline" className="text-[10px] border-current/30">{area}</Badge>
-            ))}
-          </div>
-          <p className="text-sm opacity-80 leading-relaxed">{ov?.summary}</p>
-        </div>
-      </div>
+  const barData = [
+    { metric: "Avg Views", you: cm.avgViews ?? 0, them: comp.avgViews ?? 0 },
+    { metric: "Avg Likes", you: cm.avgLikes ?? 0, them: comp.avgLikes ?? 0 },
+    { metric: "Avg Comments", you: cm.avgComments ?? 0, them: comp.avgComments ?? 0 },
+    { metric: "Posts/Wk", you: cm.postsPerWeek ?? 0, them: comp.postsPerWeek ?? 0 },
+  ];
 
-      {/* Metrics grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">You — {analysis.clientHandle}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Total Posts" val={cm?.totalPosts} />
-            <StatBox label="Avg Views" val={cm?.avgViews} accent="text-blue-400" />
-            <StatBox label="Avg Likes" val={cm?.avgLikes} accent="text-pink-400" />
-            <StatBox label="Avg Comments" val={cm?.avgComments} />
-            <StatBox label="Engagement %" val={`${cm?.avgEngagementRate ?? 0}%`} accent="text-green-400" />
-            <StatBox label="Posts/Week" val={cm?.postsPerWeek} />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Competitor — {analysis.competitorHandle}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <StatBox label="Total Posts" val={comp?.totalPosts} />
-            <StatBox label="Avg Views" val={comp?.avgViews} accent="text-blue-400" />
-            <StatBox label="Avg Likes" val={comp?.avgLikes} accent="text-pink-400" />
-            <StatBox label="Avg Comments" val={comp?.avgComments} />
-            <StatBox label="Engagement %" val={`${comp?.avgEngagementRate ?? 0}%`} accent="text-green-400" />
-            <StatBox label="Posts/Week" val={comp?.postsPerWeek} />
-          </div>
-        </div>
-      </div>
+  const engData = [
+    { name: "You", value: cm.avgEngagementRate ?? 0 },
+    { name: "Competitor", value: comp.avgEngagementRate ?? 0 },
+  ];
 
-      {/* Content type breakdown */}
-      {(cm?.contentTypes || comp?.contentTypes) && (
-        <div className="grid grid-cols-2 gap-3">
-          {[{ label: `You — ${analysis.clientHandle}`, types: cm?.contentTypes }, { label: `Competitor — ${analysis.competitorHandle}`, types: comp?.contentTypes }].map(({ label, types }) => (
-            <div key={label} className="bg-card border border-card-border rounded-xl p-4">
-              <p className="text-xs text-muted-foreground mb-3">{label}</p>
-              {Object.entries(types || {}).map(([type, count]: any) => (
-                <div key={type} className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs text-foreground w-16">{type}</span>
-                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (count / (cm?.totalPosts || 1)) * 100)}%` }} />
-                  </div>
-                  <span className="text-xs text-muted-foreground w-4">{count}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tab: Reel-by-Reel ──────────────────────────────────────────────────────
-
-function ReelByReelTab({ report, analysis }: { report: any; analysis: any }) {
-  const comparisons = report.reelComparison || [];
-  if (!comparisons.length) return <EmptyState message="No reel comparison data available. Run a new analysis." />;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">Deep dive into each reel — hooks, structure, emotion, and why it performed the way it did.</p>
-      {comparisons.map((pair: any, i: number) => {
-        const ur = pair.userReel;
-        const cr = pair.competitorReel;
-        const userWins = (ur?.views ?? 0) >= (cr?.views ?? 0);
-        return (
-          <div key={i} className="border border-border rounded-2xl overflow-hidden">
-            <div className="bg-muted/20 px-4 py-2 flex items-center justify-between border-b border-border">
-              <span className="text-xs font-semibold text-muted-foreground">Comparison #{i + 1}</span>
-              {userWins ? (
-                <Badge className="bg-green-500/15 text-green-300 border-green-500/30 text-[10px] border">You Win</Badge>
-              ) : (
-                <Badge className="bg-red-500/15 text-red-300 border-red-500/30 text-[10px] border">Competitor Wins</Badge>
-              )}
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-border">
-              {/* User reel */}
-              <div className="p-4 space-y-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-primary">{analysis.clientHandle}</span>
-                </div>
-                <div className="flex gap-4">
-                  <div className="text-center"><p className="text-sm font-bold text-blue-400">{(ur?.views ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Views</p></div>
-                  <div className="text-center"><p className="text-sm font-bold text-pink-400">{(ur?.likes ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Likes</p></div>
-                  <div className="text-center"><p className="text-sm font-bold text-foreground">{(ur?.comments ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Comments</p></div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
-                  <p className="text-xs text-foreground italic leading-relaxed">"{ur?.hook}"</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Pill text={ur?.hookType} />
-                    <Pill text={ur?.emotion ?? "—"} map={{}} />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
-                  <p className="text-xs text-foreground leading-relaxed">{ur?.structure}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">Retention:</span>
-                  <span className={`text-[10px] font-bold ${RETENTION_COLORS[ur?.retentionPotential] ?? "text-muted-foreground"}`}>{ur?.retentionPotential}</span>
-                </div>
-                {ur?.caption && <p className="text-[10px] text-muted-foreground line-clamp-2 italic">"{ur.caption}"</p>}
-              </div>
-
-              {/* Competitor reel */}
-              <div className="p-4 space-y-3 bg-red-500/3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-red-400">{analysis.competitorHandle}</span>
-                </div>
-                <div className="flex gap-4">
-                  <div className="text-center"><p className="text-sm font-bold text-blue-400">{(cr?.views ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Views</p></div>
-                  <div className="text-center"><p className="text-sm font-bold text-pink-400">{(cr?.likes ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Likes</p></div>
-                  <div className="text-center"><p className="text-sm font-bold text-foreground">{(cr?.comments ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Comments</p></div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
-                  <p className="text-xs text-foreground italic leading-relaxed">"{cr?.hook}"</p>
-                  <div className="flex items-center gap-2 mt-1.5">
-                    <Pill text={cr?.hookType} />
-                    <Pill text={cr?.emotion ?? "—"} map={{}} />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
-                  <p className="text-xs text-foreground leading-relaxed">{cr?.structure}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">Retention:</span>
-                  <span className={`text-[10px] font-bold ${RETENTION_COLORS[cr?.retentionPotential] ?? "text-muted-foreground"}`}>{cr?.retentionPotential}</span>
-                </div>
-                {cr?.caption && <p className="text-[10px] text-muted-foreground line-clamp-2 italic">"{cr.caption}"</p>}
-              </div>
-            </div>
-
-            {/* Verdict */}
-            <div className="px-4 py-3 bg-primary/5 border-t border-border">
-              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">AI Verdict</p>
-              <p className="text-xs text-foreground leading-relaxed">{pair.verdict}</p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Tab: Content Performance ────────────────────────────────────────────────
-
-function ContentPerformanceTab({ report, analysis }: { report: any; analysis: any }) {
-  const cp = report.contentPerformance;
-  const cm = report.clientMetrics;
-  const comp = report.competitorMetrics;
-
-  return (
-    <div className="space-y-5">
-      {cp?.competitorWinsIn?.length > 0 && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-          <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">Competitor Wins In</p>
-          <div className="flex flex-wrap gap-2">{(cp.competitorWinsIn || []).map((w: string) => <Badge key={w} className="bg-red-500/15 text-red-300 border border-red-500/30 text-xs">{w}</Badge>)}</div>
-        </div>
-      )}
-      {cp?.clientWinsIn?.length > 0 && (
-        <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-          <p className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-2">You Win In</p>
-          <div className="flex flex-wrap gap-2">{(cp.clientWinsIn || []).map((w: string) => <Badge key={w} className="bg-green-500/15 text-green-300 border border-green-500/30 text-xs">{w}</Badge>)}</div>
-        </div>
-      )}
-      {cp?.insights && (
-        <div className="p-4 rounded-xl bg-card border border-card-border">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">AI Insights</p>
-          <p className="text-sm text-foreground leading-relaxed">{cp.insights}</p>
-        </div>
-      )}
-
-      <div className="bg-card border border-card-border rounded-xl p-4">
-        <p className="text-xs font-semibold text-foreground mb-3">Head-to-Head Metrics</p>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-primary">{analysis.clientHandle}</span>
-          <span className="text-xs font-bold text-red-400">{analysis.competitorHandle}</span>
-        </div>
-        <VsRow label="Avg Views" user={cm?.avgViews} competitor={comp?.avgViews} better={cm?.avgViews >= comp?.avgViews ? "user" : "competitor"} />
-        <VsRow label="Avg Likes" user={cm?.avgLikes} competitor={comp?.avgLikes} better={cm?.avgLikes >= comp?.avgLikes ? "user" : "competitor"} />
-        <VsRow label="Avg Comments" user={cm?.avgComments} competitor={comp?.avgComments} better={cm?.avgComments >= comp?.avgComments ? "user" : "competitor"} />
-        <VsRow label="Engagement %" user={`${cm?.avgEngagementRate}%`} competitor={`${comp?.avgEngagementRate}%`} better={cm?.avgEngagementRate >= comp?.avgEngagementRate ? "user" : "competitor"} />
-        <VsRow label="Posts/Week" user={cm?.postsPerWeek} competitor={comp?.postsPerWeek} better={cm?.postsPerWeek >= comp?.postsPerWeek ? "user" : "competitor"} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab: AI Patterns ────────────────────────────────────────────────────────
-
-function AIPatternsTab({ report }: { report: any }) {
-  const patterns = report.contentPatterns || [];
-  const viralDNA = report.viralDNA || [];
+  const userTypes = Object.entries(cm.contentTypes || {}).map(([name, value]: any) => ({ name, value }));
+  const compTypes = Object.entries(comp.contentTypes || {}).map(([name, value]: any) => ({ name, value }));
 
   return (
     <div className="space-y-6">
-      {/* Content Patterns */}
+      <SectionHeader icon={BarChart2} title="Profile Overview" desc="Full head-to-head comparison" color="from-blue-500/20 to-blue-500/5" />
+
+      {/* Assessment banner */}
+      <div className={`flex items-center gap-4 p-5 rounded-2xl border ${assessStyle}`}>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <p className="font-bold text-base capitalize">{assessment === "losing" ? "Needs Work" : assessment}</p>
+            {(ov.outperformingIn || []).map((area: string) => (
+              <Badge key={area} variant="outline" className="text-[10px] border-current/30">{area}</Badge>
+            ))}
+          </div>
+          <p className="text-sm opacity-80 leading-relaxed">{ov.summary}</p>
+        </div>
+      </div>
+
+      {/* Bar chart comparison */}
+      <div className="bg-card border border-card-border rounded-2xl p-5">
+        <p className="text-sm font-semibold text-foreground mb-4">Metrics Comparison</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={barData} barGap={4}>
+            <XAxis dataKey="metric" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="you" name={`You (${analysis.clientHandle})`} fill={GOLD} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="them" name={`Competitor (${analysis.competitorHandle})`} fill="#e879a0" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Side-by-side stat grids */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">You — {analysis.clientHandle}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Total Posts", val: cm.totalPosts },
+              { label: "Avg Views", val: (cm.avgViews ?? 0).toLocaleString(), accent: "text-blue-400" },
+              { label: "Avg Likes", val: (cm.avgLikes ?? 0).toLocaleString(), accent: "text-pink-400" },
+              { label: "Avg Comments", val: (cm.avgComments ?? 0).toLocaleString() },
+              { label: "Engagement %", val: `${cm.avgEngagementRate ?? 0}%`, accent: "text-green-400" },
+              { label: "Posts/Week", val: cm.postsPerWeek },
+            ].map(({ label, val, accent }) => (
+              <div key={label} className="bg-muted/20 border border-border rounded-xl p-3 text-center">
+                <p className={`text-lg font-bold ${accent ?? "text-foreground"}`}>{val ?? "—"}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">Competitor — {analysis.competitorHandle}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Total Posts", val: comp.totalPosts },
+              { label: "Avg Views", val: (comp.avgViews ?? 0).toLocaleString(), accent: "text-blue-400" },
+              { label: "Avg Likes", val: (comp.avgLikes ?? 0).toLocaleString(), accent: "text-pink-400" },
+              { label: "Avg Comments", val: (comp.avgComments ?? 0).toLocaleString() },
+              { label: "Engagement %", val: `${comp.avgEngagementRate ?? 0}%`, accent: "text-green-400" },
+              { label: "Posts/Week", val: comp.postsPerWeek },
+            ].map(({ label, val, accent }) => (
+              <div key={label} className="bg-red-500/5 border border-red-500/15 rounded-xl p-3 text-center">
+                <p className={`text-lg font-bold ${accent ?? "text-foreground"}`}>{val ?? "—"}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Engagement pie + content types */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center justify-center">
+          <p className="text-xs font-semibold text-foreground mb-3">Engagement Rate</p>
+          <PieChart width={120} height={120}>
+            <Pie data={engData} dataKey="value" cx="50%" cy="50%" innerRadius={30} outerRadius={50} paddingAngle={4}>
+              <Cell fill={GOLD} />
+              <Cell fill="#e879a0" />
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+          <div className="flex gap-3 mt-2">
+            <span className="flex items-center gap-1 text-[10px]"><span className="w-2 h-2 rounded-full bg-primary inline-block" />You</span>
+            <span className="flex items-center gap-1 text-[10px]"><span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />Them</span>
+          </div>
+        </div>
+
+        {userTypes.length > 0 && (
+          <div className="bg-card border border-card-border rounded-2xl p-4">
+            <p className="text-xs font-semibold text-primary mb-3">Your Content Mix</p>
+            {userTypes.slice(0, 5).map(({ name, value }, i) => (
+              <div key={name} className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] text-muted-foreground w-16 truncate">{name}</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (value / (cm.totalPosts || 1)) * 100)}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                </div>
+                <span className="text-[10px] text-muted-foreground w-4">{value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {compTypes.length > 0 && (
+          <div className="bg-red-500/5 border border-red-500/15 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-red-400 mb-3">Competitor Mix</p>
+            {compTypes.slice(0, 5).map(({ name, value }, i) => (
+              <div key={name} className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] text-muted-foreground w-16 truncate">{name}</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (value / (comp.totalPosts || 1)) * 100)}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                </div>
+                <span className="text-[10px] text-muted-foreground w-4">{value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Section: Reel by Reel ────────────────────────────────────────────────────
+
+function ReelByReelSection({ report, analysis }: { report: any; analysis: any }) {
+  const comparisons = report.reelComparison || [];
+  const [selectedIdxs, setSelectedIdxs] = useState<Set<number>>(new Set(comparisons.map((_: any, i: number) => i)));
+  const [expanded, setExpanded] = useState<number | null>(0);
+
+  const toggleSelect = (i: number) => {
+    setSelectedIdxs(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  if (!comparisons.length) return <EmptyState message="No reel comparison data. Run a new analysis." />;
+
+  const visible = comparisons.filter((_: any, i: number) => selectedIdxs.has(i));
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader icon={Play} title="Reel by Reel" desc="Select reels to deep-dive and compare side by side" color="from-pink-500/20 to-pink-500/5" />
+
+      {/* Reel selector */}
+      <div className="bg-card border border-card-border rounded-2xl p-4">
+        <p className="text-xs font-semibold text-foreground mb-3">Choose which reels to compare:</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedIdxs(new Set(comparisons.map((_: any, i: number) => i)))}
+            className="px-3 py-1 rounded-full text-xs bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors font-medium"
+          >Select All</button>
+          <button
+            onClick={() => setSelectedIdxs(new Set())}
+            className="px-3 py-1 rounded-full text-xs bg-muted text-muted-foreground border border-border hover:bg-muted/70 transition-colors"
+          >Clear</button>
+          {comparisons.map((pair: any, i: number) => {
+            const ur = pair.userReel;
+            const cr = pair.competitorReel;
+            const userWins = (ur?.views ?? 0) >= (cr?.views ?? 0);
+            const isSelected = selectedIdxs.has(i);
+            return (
+              <button
+                key={i}
+                onClick={() => toggleSelect(i)}
+                className={`px-3 py-1 rounded-full text-xs border font-medium transition-all ${isSelected ? (userWins ? "bg-green-500/20 text-green-300 border-green-500/40" : "bg-red-500/20 text-red-300 border-red-500/40") : "bg-muted/30 text-muted-foreground border-border opacity-50"}`}
+              >
+                Reel #{i + 1} {userWins ? "✓" : "✗"}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-2">{selectedIdxs.size} of {comparisons.length} reels selected</p>
+      </div>
+
+      {/* Comparisons */}
+      {visible.map((pair: any, idx: number) => {
+        const realIdx = comparisons.indexOf(pair);
+        const ur = pair.userReel || {};
+        const cr = pair.competitorReel || {};
+        const userWins = (ur?.views ?? 0) >= (cr?.views ?? 0);
+        const isOpen = expanded === realIdx;
+
+        return (
+          <div key={realIdx} className={`border rounded-2xl overflow-hidden transition-all ${userWins ? "border-green-500/25" : "border-red-500/25"}`}>
+            {/* Header */}
+            <button
+              className="w-full flex items-center gap-4 px-4 py-3 bg-muted/10 hover:bg-muted/20 transition-colors"
+              onClick={() => setExpanded(isOpen ? null : realIdx)}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${userWins ? "bg-green-500/15" : "bg-red-500/15"}`}>
+                <span className="text-xs font-bold">{realIdx + 1}</span>
+              </div>
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-foreground">Comparison #{realIdx + 1}</span>
+                  {userWins
+                    ? <Badge className="bg-green-500/15 text-green-300 border-green-500/30 text-[10px] border">You Win 🏆</Badge>
+                    : <Badge className="bg-red-500/15 text-red-300 border-red-500/30 text-[10px] border">Competitor Wins</Badge>
+                  }
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Your views: {(ur.views ?? 0).toLocaleString()} vs Theirs: {(cr.views ?? 0).toLocaleString()}
+                </p>
+              </div>
+              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+
+            {isOpen && (
+              <>
+                {/* Mini bar chart */}
+                <div className="px-4 pt-3 pb-1 bg-muted/5">
+                  <ResponsiveContainer width="100%" height={70}>
+                    <BarChart data={[
+                      { metric: "Views", you: ur.views ?? 0, them: cr.views ?? 0 },
+                      { metric: "Likes", you: ur.likes ?? 0, them: cr.likes ?? 0 },
+                      { metric: "Comments", you: ur.comments ?? 0, them: cr.comments ?? 0 },
+                    ]} barGap={3}>
+                      <XAxis dataKey="metric" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="you" name="You" fill={GOLD} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="them" name="Competitor" fill="#e879a0" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="grid grid-cols-2 divide-x divide-border border-t border-border">
+                  {/* User reel */}
+                  <div className="p-4 space-y-3">
+                    <p className="text-xs font-bold text-primary">{analysis.clientHandle}</p>
+                    <div className="flex gap-4">
+                      <div className="text-center"><p className="text-sm font-bold text-blue-400">{(ur.views ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Views</p></div>
+                      <div className="text-center"><p className="text-sm font-bold text-pink-400">{(ur.likes ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Likes</p></div>
+                      <div className="text-center"><p className="text-sm font-bold">{(ur.comments ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Comments</p></div>
+                    </div>
+                    {ur.hook && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
+                        <p className="text-xs italic leading-relaxed">"{ur.hook}"</p>
+                        <div className="flex gap-2 mt-1.5"><Pill text={ur.hookType} /><Pill text={ur.emotion ?? "—"} map={{}} /></div>
+                      </div>
+                    )}
+                    {ur.structure && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
+                        <p className="text-xs leading-relaxed">{ur.structure}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">Retention:</span>
+                      <span className={`text-[10px] font-bold ${RETENTION_COLORS[ur.retentionPotential] ?? "text-muted-foreground"}`}>{ur.retentionPotential}</span>
+                    </div>
+                  </div>
+
+                  {/* Competitor reel */}
+                  <div className="p-4 space-y-3 bg-red-500/3">
+                    <p className="text-xs font-bold text-red-400">{analysis.competitorHandle}</p>
+                    <div className="flex gap-4">
+                      <div className="text-center"><p className="text-sm font-bold text-blue-400">{(cr.views ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Views</p></div>
+                      <div className="text-center"><p className="text-sm font-bold text-pink-400">{(cr.likes ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Likes</p></div>
+                      <div className="text-center"><p className="text-sm font-bold">{(cr.comments ?? 0).toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Comments</p></div>
+                    </div>
+                    {cr.hook && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
+                        <p className="text-xs italic leading-relaxed">"{cr.hook}"</p>
+                        <div className="flex gap-2 mt-1.5"><Pill text={cr.hookType} /><Pill text={cr.emotion ?? "—"} map={{}} /></div>
+                      </div>
+                    )}
+                    {cr.structure && (
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
+                        <p className="text-xs leading-relaxed">{cr.structure}</p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">Retention:</span>
+                      <span className={`text-[10px] font-bold ${RETENTION_COLORS[cr.retentionPotential] ?? "text-muted-foreground"}`}>{cr.retentionPotential}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Verdict */}
+                <div className="px-4 py-3 bg-primary/5 border-t border-border">
+                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">AI Verdict</p>
+                  <p className="text-xs text-foreground leading-relaxed">{pair.verdict}</p>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {visible.length === 0 && (
+        <div className="text-center py-10 text-muted-foreground text-sm">Select at least one reel above to compare</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Section: Performance ─────────────────────────────────────────────────────
+
+function PerformanceSection({ report, analysis }: { report: any; analysis: any }) {
+  const cp = report.contentPerformance || {};
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+
+  const barData = [
+    { metric: "Views", you: cm.avgViews ?? 0, them: comp.avgViews ?? 0 },
+    { metric: "Likes", you: cm.avgLikes ?? 0, them: comp.avgLikes ?? 0 },
+    { metric: "Comments", you: cm.avgComments ?? 0, them: comp.avgComments ?? 0 },
+    { metric: "Saves", you: cm.avgSaves ?? 0, them: comp.avgSaves ?? 0 },
+  ];
+
+  const freqData = [
+    { name: `You (${cm.postsPerWeek ?? 0}/wk)`, value: cm.postsPerWeek ?? 0 },
+    { name: `Them (${comp.postsPerWeek ?? 0}/wk)`, value: comp.postsPerWeek ?? 0 },
+  ];
+
+  const engData = [
+    { name: analysis.clientHandle, value: cm.avgEngagementRate ?? 0 },
+    { name: analysis.competitorHandle, value: comp.avgEngagementRate ?? 0 },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={TrendingUp} title="Content Performance" desc="Visual charts — who's winning each metric" color="from-green-500/20 to-green-500/5" />
+
+      {/* Win/Loss banners */}
+      <div className="grid grid-cols-2 gap-4">
+        {cp.clientWinsIn?.length > 0 && (
+          <div className="p-4 rounded-2xl bg-green-500/10 border border-green-500/20">
+            <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Trophy className="w-3.5 h-3.5" />You Win In</p>
+            <div className="flex flex-wrap gap-2">{cp.clientWinsIn.map((w: string) => <Badge key={w} className="bg-green-500/20 text-green-300 border border-green-500/30 text-xs">{w}</Badge>)}</div>
+          </div>
+        )}
+        {cp.competitorWinsIn?.length > 0 && (
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
+            <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" />They Win In</p>
+            <div className="flex flex-wrap gap-2">{cp.competitorWinsIn.map((w: string) => <Badge key={w} className="bg-red-500/20 text-red-300 border border-red-500/30 text-xs">{w}</Badge>)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Main bar chart */}
+      <div className="bg-card border border-card-border rounded-2xl p-5">
+        <p className="text-sm font-semibold text-foreground mb-4">Average Performance Comparison</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={barData} barGap={6}>
+            <XAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="you" name={`You (${analysis.clientHandle})`} fill={GOLD} radius={[5, 5, 0, 0]} />
+            <Bar dataKey="them" name={`Competitor (${analysis.competitorHandle})`} fill="#e879a0" radius={[5, 5, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Engagement + Frequency pie charts */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-3">Engagement Rate %</p>
+          <div className="flex items-center justify-center">
+            <PieChart width={180} height={160}>
+              <Pie data={engData} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={5} label={({ name, value }) => `${value}%`} labelLine={false}>
+                <Cell fill={GOLD} />
+                <Cell fill="#e879a0" />
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+            </PieChart>
+          </div>
+          <div className="flex justify-center gap-4 mt-2">
+            <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-primary inline-block" />You: {cm.avgEngagementRate ?? 0}%</span>
+            <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-pink-400 inline-block" />Them: {comp.avgEngagementRate ?? 0}%</span>
+          </div>
+        </div>
+
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-3">Posting Frequency</p>
+          <div className="flex items-center justify-center">
+            <PieChart width={180} height={160}>
+              <Pie data={freqData} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={5}>
+                <Cell fill={GOLD} />
+                <Cell fill="#e879a0" />
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+            </PieChart>
+          </div>
+          <div className="flex justify-center gap-4 mt-2">
+            <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-primary inline-block" />You: {cm.postsPerWeek ?? 0}/wk</span>
+            <span className="flex items-center gap-1.5 text-xs"><span className="w-3 h-3 rounded-full bg-pink-400 inline-block" />Them: {comp.postsPerWeek ?? 0}/wk</span>
+          </div>
+        </div>
+      </div>
+
+      {/* AI insight */}
+      {cp.insights && (
+        <div className="p-5 rounded-2xl bg-primary/8 border border-primary/20">
+          <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2">AI Performance Insight</p>
+          <p className="text-sm text-foreground leading-relaxed">{cp.insights}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Section: AI Patterns ─────────────────────────────────────────────────────
+
+function AIPatternsSection({ report, analysis }: { report: any; analysis: any }) {
+  const patterns = report.contentPatterns || [];
+  const viralDNA = report.viralDNA || [];
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+
+  const radarData = [
+    { metric: "Views", you: Math.min(10, Math.round((cm.avgViews ?? 0) / Math.max(1, (comp.avgViews ?? 1)) * 5)), them: 5 },
+    { metric: "Engagement", you: Math.min(10, (cm.avgEngagementRate ?? 0)), them: Math.min(10, (comp.avgEngagementRate ?? 0)) },
+    { metric: "Frequency", you: Math.min(10, (cm.postsPerWeek ?? 0) * 2), them: Math.min(10, (comp.postsPerWeek ?? 0) * 2) },
+    { metric: "Comments", you: Math.min(10, Math.round((cm.avgComments ?? 0) / Math.max(1, (comp.avgComments ?? 1)) * 5)), them: 5 },
+    { metric: "Likes", you: Math.min(10, Math.round((cm.avgLikes ?? 0) / Math.max(1, (comp.avgLikes ?? 1)) * 5)), them: 5 },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={Sparkles} title="AI Content Patterns" desc="Decoded viral formulas — side by side" color="from-yellow-500/20 to-yellow-500/5" />
+
+      {/* Radar chart */}
+      <div className="bg-card border border-card-border rounded-2xl p-5">
+        <p className="text-sm font-semibold text-foreground mb-4">Content Profile Comparison (Score /10)</p>
+        <div className="flex items-center justify-center">
+          <ResponsiveContainer width="100%" height={260}>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="#333" />
+              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#888" }} />
+              <Radar name={`You (${analysis.clientHandle})`} dataKey="you" stroke={GOLD} fill={GOLD} fillOpacity={0.25} />
+              <Radar name={`Them (${analysis.competitorHandle})`} dataKey="them" stroke="#e879a0" fill="#e879a0" fillOpacity={0.15} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Patterns — side by side layout */}
       <div>
-        <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Lightbulb className="w-4 h-4 text-yellow-400" /> Content Patterns Detected</p>
+        <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Lightbulb className="w-4 h-4 text-yellow-400" />Competitor's Winning Patterns</p>
         <div className="grid grid-cols-1 gap-3">
           {patterns.map((p: any, i: number) => (
-            <div key={i} className="bg-card border border-card-border rounded-xl p-4">
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <p className="text-sm font-semibold text-foreground">{p.pattern}</p>
-                <span className="text-[10px] text-muted-foreground bg-muted rounded-full px-2 py-0.5 flex-shrink-0">{p.frequency}</span>
+            <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <p className="text-sm font-semibold text-foreground">{p.pattern}</p>
+                  <span className="text-[10px] text-muted-foreground bg-muted rounded-full px-2 py-0.5 flex-shrink-0">{p.frequency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{p.description}</p>
               </div>
-              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{p.description}</p>
-              <div className="bg-primary/8 border border-primary/20 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">How to Replicate</p>
-                <p className="text-xs text-foreground">{p.howToReplicate}</p>
+              <div className="bg-primary/8 border border-primary/20 rounded-xl px-3 py-3 flex flex-col justify-center">
+                <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">Steal This</p>
+                <p className="text-xs text-foreground leading-snug">{p.howToReplicate}</p>
               </div>
             </div>
           ))}
@@ -331,35 +619,35 @@ function AIPatternsTab({ report }: { report: any }) {
 
       {/* Viral DNA */}
       <div>
-        <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Flame className="w-4 h-4 text-orange-400" /> Viral Content DNA — Top Posts Breakdown</p>
+        <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Flame className="w-4 h-4 text-orange-400" />Viral Content DNA — Top Posts Breakdown</p>
         <div className="space-y-3">
           {viralDNA.map((v: any, i: number) => (
-            <div key={i} className="bg-card border border-card-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 bg-orange-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] font-bold text-orange-400">#{i + 1}</span>
+            <div key={i} className="bg-card border border-card-border rounded-2xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 bg-orange-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-orange-400">#{i + 1}</span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-foreground">{(v.views ?? 0).toLocaleString()} views</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-sm font-bold text-foreground">{(v.views ?? 0).toLocaleString()} views</span>
                   <Pill text={v.emotion ?? "—"} map={{}} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div className="bg-muted/20 rounded-xl p-3">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
-                  <p className="text-xs text-foreground italic leading-relaxed">"{v.hook}"</p>
+                  <p className="text-xs italic leading-relaxed">"{v.hook}"</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">CTA Used</p>
-                  <p className="text-xs text-foreground">{v.cta}</p>
+                <div className="bg-muted/20 rounded-xl p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
+                  <p className="text-xs leading-relaxed">{v.structure}</p>
+                </div>
+                <div className="bg-muted/20 rounded-xl p-3">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">CTA</p>
+                  <p className="text-xs">{v.cta}</p>
                 </div>
               </div>
-              <div className="mb-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Structure</p>
-                <p className="text-xs text-foreground leading-relaxed">{v.structure}</p>
-              </div>
-              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-orange-400 font-semibold uppercase tracking-wider mb-0.5">Winning Formula</p>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3">
+                <p className="text-[10px] text-orange-400 font-bold uppercase tracking-wider mb-1">Winning Formula</p>
                 <p className="text-xs text-foreground">{v.winningFormula}</p>
               </div>
             </div>
@@ -371,52 +659,133 @@ function AIPatternsTab({ report }: { report: any }) {
   );
 }
 
-// ─── Tab: Gap Analysis ───────────────────────────────────────────────────────
+// ─── Section: Gap Analysis ────────────────────────────────────────────────────
 
-function GapAnalysisTab({ report }: { report: any }) {
-  const ga = report.gapAnalysis;
-  const gaps = ga?.gaps || [];
+function GapAnalysisSection({ report }: { report: any }) {
+  const ga = report.gapAnalysis || {};
+  const gaps = ga.gaps || [];
+  const high = gaps.filter((g: any) => g.impact === "High");
+  const medium = gaps.filter((g: any) => g.impact === "Medium");
+  const low = gaps.filter((g: any) => g.impact === "Low");
+
+  const impactData = [
+    { name: "High Impact", value: high.length, fill: "#ef4444" },
+    { name: "Medium", value: medium.length, fill: "#eab308" },
+    { name: "Low", value: low.length, fill: "#22c55e" },
+  ].filter(d => d.value > 0);
 
   return (
-    <div className="space-y-4">
-      {ga?.summary && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-          <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-1.5">Bottom Line</p>
-          <p className="text-sm text-foreground leading-relaxed">{ga.summary}</p>
+    <div className="space-y-6">
+      <SectionHeader icon={Search} title="Gap Analysis" desc="Every area where the competitor beats you — and how to fix it" color="from-red-500/20 to-red-500/5" />
+
+      {/* Summary + pie */}
+      <div className="grid grid-cols-3 gap-4">
+        {ga.summary && (
+          <div className="col-span-2 p-5 rounded-2xl bg-red-500/10 border border-red-500/20 flex flex-col justify-center">
+            <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Bottom Line</p>
+            <p className="text-sm text-foreground leading-relaxed">{ga.summary}</p>
+          </div>
+        )}
+        <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center justify-center">
+          <p className="text-xs font-semibold text-foreground mb-3">Gaps by Impact</p>
+          <PieChart width={100} height={100}>
+            <Pie data={impactData} dataKey="value" cx="50%" cy="50%" innerRadius={25} outerRadius={45}>
+              {impactData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+          <div className="flex flex-col gap-1 mt-2">
+            {impactData.map(d => (
+              <span key={d.name} className="flex items-center gap-1.5 text-[10px]">
+                <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: d.fill }} />
+                {d.name}: {d.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* High impact gaps */}
+      {high.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <p className="text-sm font-bold text-red-400">High Impact Gaps — Fix These First</p>
+          </div>
+          <div className="space-y-3">
+            {high.map((g: any, i: number) => <GapCard key={i} g={g} />)}
+          </div>
         </div>
       )}
-      <div className="space-y-3">
-        {gaps.map((g: any, i: number) => (
-          <div key={i} className="bg-card border border-card-border rounded-xl p-4">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <p className="text-sm font-semibold text-foreground">{g.metric}</p>
-              <Pill text={g.impact} map={IMPACT_COLORS} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="bg-red-500/8 border border-red-500/15 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-red-400 uppercase tracking-wider mb-0.5">They Do</p>
-                <p className="text-xs text-foreground">{g.competitor}</p>
-              </div>
-              <div className="bg-muted/40 border border-border rounded-lg px-3 py-2">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">You Do</p>
-                <p className="text-xs text-foreground">{g.you}</p>
-              </div>
-            </div>
-            <div className="bg-primary/8 border border-primary/20 rounded-lg px-3 py-2">
-              <p className="text-[10px] text-primary font-semibold uppercase tracking-wider mb-0.5">How to Fix</p>
-              <p className="text-xs text-foreground">{g.fix}</p>
-            </div>
+
+      {/* Medium */}
+      {medium.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            <p className="text-sm font-bold text-yellow-400">Medium Impact Gaps</p>
           </div>
-        ))}
-        {!gaps.length && <EmptyState message="No gap data. Run a new analysis." />}
+          <div className="space-y-3">
+            {medium.map((g: any, i: number) => <GapCard key={i} g={g} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Low */}
+      {low.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <p className="text-sm font-bold text-green-400">Low Impact Gaps</p>
+          </div>
+          <div className="space-y-3">
+            {low.map((g: any, i: number) => <GapCard key={i} g={g} />)}
+          </div>
+        </div>
+      )}
+
+      {!gaps.length && <EmptyState message="No gap data. Run a new analysis." />}
+    </div>
+  );
+}
+
+function GapCard({ g }: { g: any }) {
+  return (
+    <div className="bg-card border border-card-border rounded-2xl p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-sm font-bold text-foreground">{g.metric}</p>
+        <Pill text={g.impact} map={IMPACT_COLORS} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="relative">
+          <div className="absolute top-0 left-0 bottom-0 w-0.5 bg-primary/40 rounded-full" />
+          <div className="pl-4 bg-primary/5 border border-primary/15 rounded-xl p-3">
+            <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">You</p>
+            <p className="text-xs text-foreground">{g.you}</p>
+          </div>
+        </div>
+        <div className="relative">
+          <div className="absolute top-0 left-0 bottom-0 w-0.5 bg-red-400/40 rounded-full" />
+          <div className="pl-4 bg-red-500/8 border border-red-500/15 rounded-xl p-3">
+            <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-1">Competitor</p>
+            <p className="text-xs text-foreground">{g.competitor}</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-start gap-2 bg-green-500/8 border border-green-500/15 rounded-xl p-3">
+        <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[10px] text-green-400 font-bold uppercase tracking-wider mb-0.5">Fix</p>
+          <p className="text-xs text-foreground">{g.fix}</p>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Tab: Hook Library ───────────────────────────────────────────────────────
+// ─── Section: Hook Library ────────────────────────────────────────────────────
 
-function HookLibraryTab({ report }: { report: any }) {
+function HookLibrarySection({ report, analysis }: { report: any; analysis: any }) {
   const hooks = report.hookLibrary || [];
   const grouped: Record<string, any[]> = {};
   hooks.forEach((h: any) => {
@@ -425,18 +794,99 @@ function HookLibraryTab({ report }: { report: any }) {
     grouped[key].push(h);
   });
 
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+
+  const typeData = Object.entries(grouped).map(([type, hs]) => ({ type, count: hs.length }));
+
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-muted-foreground">Extracted directly from competitor's best-performing content. Copy and adapt these for your posts.</p>
-      {Object.entries(grouped).map(([type, hs]) => (
-        <div key={type}>
-          <div className="flex items-center gap-2 mb-2">
-            <Pill text={type} />
-            <span className="text-[10px] text-muted-foreground">{hs.length} hooks</span>
+    <div className="space-y-6">
+      <SectionHeader icon={Zap} title="Hook Library" desc="Me vs Competitor — steal their best openers" color="from-purple-500/20 to-purple-500/5" />
+
+      {/* Hook type distribution */}
+      {typeData.length > 0 && (
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4">Hook Type Distribution</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={typeData} layout="vertical" barSize={16}>
+              <XAxis type="number" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="type" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} width={80} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="count" name="Hooks" fill={GOLD} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Side-by-side: me vs competitor */}
+      <div className="grid grid-cols-2 gap-4 items-start">
+        {/* Me column */}
+        <div>
+          <div className="flex items-center gap-2 mb-3 p-3 bg-primary/10 rounded-xl border border-primary/20">
+            <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-[10px] font-bold text-primary">YOU</span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-primary">{analysis.clientHandle}</p>
+              <p className="text-[10px] text-muted-foreground">Your hook performance</p>
+            </div>
           </div>
           <div className="space-y-2">
+            <div className="p-3 bg-card border border-card-border rounded-xl">
+              <p className="text-[10px] text-muted-foreground mb-1">Avg Engagement Rate</p>
+              <p className="text-lg font-bold text-primary">{cm.avgEngagementRate ?? 0}%</p>
+            </div>
+            <div className="p-3 bg-card border border-card-border rounded-xl">
+              <p className="text-[10px] text-muted-foreground mb-1">Posts Analyzed</p>
+              <p className="text-lg font-bold text-foreground">{cm.totalPosts ?? 0}</p>
+            </div>
+            <p className="text-xs font-semibold text-foreground mt-3 mb-2">What to improve in your hooks:</p>
+            <div className="p-3 bg-primary/8 border border-primary/20 rounded-xl">
+              <p className="text-xs text-foreground leading-relaxed">
+                Based on competitor analysis, focus on using more <span className="text-primary font-medium">{Object.keys(grouped)[0] ?? "curiosity"}</span> hooks which drive the highest engagement in your niche.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Competitor column */}
+        <div>
+          <div className="flex items-center gap-2 mb-3 p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+            <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-[10px] font-bold text-red-400">THEM</span>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-red-400">{analysis.competitorHandle}</p>
+              <p className="text-[10px] text-muted-foreground">Their proven hooks</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-xl">
+              <p className="text-[10px] text-muted-foreground mb-1">Avg Engagement Rate</p>
+              <p className="text-lg font-bold text-red-400">{comp.avgEngagementRate ?? 0}%</p>
+            </div>
+            <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-xl">
+              <p className="text-[10px] text-muted-foreground mb-1">Posts Analyzed</p>
+              <p className="text-lg font-bold text-foreground">{comp.totalPosts ?? 0}</p>
+            </div>
+            <p className="text-xs font-semibold text-foreground mt-3 mb-2">Their hook library — copy these:</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Hook groups */}
+      {Object.entries(grouped).map(([type, hs]) => (
+        <div key={type} className="bg-card border border-card-border rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Pill text={type} />
+            <span className="text-xs text-muted-foreground">{hs.length} hooks extracted from competitor's top content</span>
+          </div>
+          <div className="grid grid-cols-1 gap-2">
             {hs.map((h: any, i: number) => (
-              <div key={i} className="bg-card border border-card-border rounded-xl p-3 flex items-start gap-3">
+              <div key={i} className="flex items-start gap-3 p-3 bg-muted/20 rounded-xl group hover:bg-muted/30 transition-colors">
+                <div className="w-5 h-5 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-[9px] font-bold text-primary">{i + 1}</span>
+                </div>
                 <div className="flex-1">
                   <p className="text-sm text-foreground leading-relaxed">"{h.hook}"</p>
                   {h.whyItWorks && <p className="text-[10px] text-muted-foreground mt-1.5 italic">{h.whyItWorks}</p>}
@@ -452,130 +902,414 @@ function HookLibraryTab({ report }: { report: any }) {
   );
 }
 
-// ─── Tab: Posting Strategy ───────────────────────────────────────────────────
+// ─── Section: Posting Strategy ────────────────────────────────────────────────
 
-function PostingStrategyTab({ report }: { report: any }) {
-  const ps = report.postingStrategy;
-  if (!ps) return <EmptyState message="No posting strategy data. Run a new analysis." />;
+function PostingStrategySection({ report, analysis }: { report: any; analysis: any }) {
+  const ps = report.postingStrategy || {};
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+
+  if (!ps || Object.keys(ps).length === 0) return <EmptyState message="No posting strategy data. Run a new analysis." />;
+
+  const freqData = [
+    { name: analysis.clientHandle, posts: cm.postsPerWeek ?? 0 },
+    { name: analysis.competitorHandle, posts: comp.postsPerWeek ?? 0 },
+  ];
+
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5"><Clock className="w-3 h-3" />Best Times</p>
-          {(ps.bestTimes || []).map((t: string) => (
-            <p key={t} className="text-sm font-semibold text-foreground">{t}</p>
-          ))}
+    <div className="space-y-6">
+      <SectionHeader icon={Calendar} title="Posting Strategy" desc="When, how often, and what format — deep dive" color="from-cyan-500/20 to-cyan-500/5" />
+
+      {/* Posting frequency comparison */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4">Posts per Week</p>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={freqData}>
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="posts" name="Posts/Week" radius={[5, 5, 0, 0]}>
+                <Cell fill={GOLD} />
+                <Cell fill="#e879a0" />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5"><Calendar className="w-3 h-3" />Best Days</p>
-          <div className="flex flex-wrap gap-1.5">
+
+        {/* Day heatmap */}
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4">Best Days to Post</p>
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {DAYS.map(day => {
+              const isActive = (ps.bestDays || []).some((d: string) => d.toLowerCase().includes(day.toLowerCase()));
+              return (
+                <div key={day} className={`rounded-lg p-2 text-center transition-all ${isActive ? "bg-primary/25 border border-primary/40" : "bg-muted/20 border border-border"}`}>
+                  <p className={`text-[9px] font-bold ${isActive ? "text-primary" : "text-muted-foreground"}`}>{day}</p>
+                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-primary mx-auto mt-1" />}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-3">
             {(ps.bestDays || []).map((d: string) => (
-              <Badge key={d} variant="outline" className="text-xs">{d}</Badge>
+              <Badge key={d} className="bg-primary/15 text-primary border-primary/30 border text-xs">{d}</Badge>
             ))}
           </div>
         </div>
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><RefreshCw className="w-3 h-3" />Their Frequency</p>
-          <p className="text-sm font-semibold text-red-400">{ps.competitorFrequency}</p>
-          <p className="text-[10px] text-muted-foreground mt-1">Yours: <span className="text-primary">{ps.clientFrequency}</span></p>
-        </div>
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5"><BarChart2 className="w-3 h-3" />Format Mix</p>
-          <p className="text-xs text-foreground">{ps.formatMix}</p>
+      </div>
+
+      {/* Best times */}
+      <div className="bg-card border border-card-border rounded-2xl p-5">
+        <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400" />Best Times to Post</p>
+        <div className="flex flex-wrap gap-3">
+          {(ps.bestTimes || []).map((t: string) => (
+            <div key={t} className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl px-4 py-2">
+              <Clock className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-sm font-bold text-foreground">{t}</span>
+            </div>
+          ))}
         </div>
       </div>
-      <div className="p-5 rounded-2xl bg-primary/10 border border-primary/25">
-        <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Copy This Exact Schedule</p>
-        <p className="text-sm text-foreground leading-relaxed">{ps.recommendation}</p>
+
+      {/* Side-by-side: you vs competitor */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-primary/8 border border-primary/20 rounded-2xl p-5">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Your Current Strategy</p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Posting Frequency</p>
+              <p className="text-sm font-bold text-foreground">{ps.clientFrequency || `${cm.postsPerWeek ?? 0} posts/week`}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Format Mix</p>
+              <p className="text-xs text-foreground">{ps.formatMix}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-red-500/8 border border-red-500/20 rounded-2xl p-5">
+          <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">Competitor's Strategy</p>
+          <div className="space-y-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground">Posting Frequency</p>
+              <p className="text-sm font-bold text-red-300">{ps.competitorFrequency || `${comp.postsPerWeek ?? 0} posts/week`}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Why It Works</p>
+              <p className="text-xs text-foreground">Consistent cadence builds audience trust and rewards algorithm distribution</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recommendation */}
+      {ps.recommendation && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/15 via-primary/8 to-transparent border border-primary/25">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-4 h-4 text-primary" />
+            <p className="text-xs font-bold text-primary uppercase tracking-wider">Copy This Exact Schedule</p>
+          </div>
+          <p className="text-sm text-foreground leading-relaxed">{ps.recommendation}</p>
+        </div>
+      )}
+
+      {/* Additional insights */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Posting Gap", val: `You post ${Math.abs((cm.postsPerWeek ?? 0) - (comp.postsPerWeek ?? 0)).toFixed(1)}x ${(cm.postsPerWeek ?? 0) >= (comp.postsPerWeek ?? 0) ? "more" : "less"}`, icon: BarChart2, color: "text-blue-400" },
+          { label: "Peak Day Overlap", val: (ps.bestDays || []).slice(0, 2).join(", ") || "See above", icon: Calendar, color: "text-cyan-400" },
+          { label: "Format Focus", val: (ps.formatMix || "Reels + Carousels").split(",")[0], icon: Layers, color: "text-purple-400" },
+        ].map(({ label, val, icon: Icon, color }) => (
+          <div key={label} className="bg-card border border-card-border rounded-xl p-4 text-center">
+            <Icon className={`w-5 h-5 ${color} mx-auto mb-2`} />
+            <p className="text-xs font-bold text-foreground">{val}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Tab: Audience Insights ──────────────────────────────────────────────────
+// ─── Section: Audience Insights ───────────────────────────────────────────────
 
-function AudienceInsightsTab({ report }: { report: any }) {
-  const ai = report.audienceInsights;
-  if (!ai) return <EmptyState message="No audience data. Run a new analysis." />;
+function AudienceSection({ report, analysis }: { report: any; analysis: any }) {
+  const ai = report.audienceInsights || {};
+  const cm = report.clientMetrics || {};
+  const comp = report.competitorMetrics || {};
+
+  if (!ai || Object.keys(ai).length === 0) return <EmptyState message="No audience data. Run a new analysis." />;
+
+  const engCompare = [
+    { name: "You", value: cm.avgEngagementRate ?? 0, fill: GOLD },
+    { name: "Competitor", value: comp.avgEngagementRate ?? 0, fill: "#e879a0" },
+  ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <SectionHeader icon={Users} title="Audience Intelligence" desc="Who your audience is, what they want, and how to win them" color="from-orange-500/20 to-orange-500/5" />
+
+      {/* Key insight banner */}
       {ai.insight && (
-        <div className="p-4 rounded-xl bg-primary/10 border border-primary/25">
-          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1.5">Key Insight</p>
+        <div className="p-5 rounded-2xl bg-primary/10 border border-primary/25">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Key Audience Insight</p>
           <p className="text-sm text-foreground leading-relaxed">{ai.insight}</p>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Heart className="w-3 h-3" />Audience Loves</p>
-          <ul className="space-y-1.5">{(ai.audienceLoves || []).map((l: string, i: number) => <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-green-400 mt-0.5">•</span>{l}</li>)}</ul>
+
+      {/* Engagement comparison */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-1 bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center">
+          <p className="text-xs font-semibold text-foreground mb-3">Audience Engagement</p>
+          <PieChart width={110} height={110}>
+            <Pie data={engCompare} dataKey="value" cx="50%" cy="50%" innerRadius={28} outerRadius={48} paddingAngle={5}>
+              {engCompare.map((e, i) => <Cell key={i} fill={e.fill} />)}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+          <div className="flex flex-col gap-1.5 mt-2 text-center">
+            <span className="text-[10px]"><span className="inline-block w-2 h-2 rounded-full bg-primary mr-1" />You: {cm.avgEngagementRate ?? 0}%</span>
+            <span className="text-[10px]"><span className="inline-block w-2 h-2 rounded-full bg-pink-400 mr-1" />Them: {comp.avgEngagementRate ?? 0}%</span>
+          </div>
         </div>
-        <div className="bg-card border border-card-border rounded-xl p-4">
-          <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><XCircle className="w-3 h-3" />Pain Points</p>
-          <ul className="space-y-1.5">{(ai.painPoints || []).map((p: string, i: number) => <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-red-400 mt-0.5">•</span>{p}</li>)}</ul>
+
+        <div className="col-span-2 grid grid-cols-1 gap-3">
+          {/* Audience breakdown */}
+          {(ai.demographics || ai.targetAudience) && (
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-orange-400 uppercase tracking-wider mb-2">Target Audience Profile</p>
+              <p className="text-sm text-foreground leading-relaxed">{ai.demographics || ai.targetAudience}</p>
+            </div>
+          )}
+          {(ai.psychographics || ai.buyingMotivations) && (
+            <div className="bg-card border border-card-border rounded-2xl p-4">
+              <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-2">Buying Motivations</p>
+              <p className="text-sm text-foreground leading-relaxed">{ai.psychographics || ai.buyingMotivations}</p>
+            </div>
+          )}
         </div>
-        <div className="bg-card border border-card-border rounded-xl p-4 col-span-2">
-          <p className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Star className="w-3 h-3" />Audience Desires</p>
-          <ul className="grid grid-cols-2 gap-1.5">{(ai.desires || []).map((d: string, i: number) => <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-yellow-400 mt-0.5">•</span>{d}</li>)}</ul>
+      </div>
+
+      {/* Loves, Pain Points, Desires — 3 columns */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-500/8 border border-green-500/20 rounded-2xl p-4">
+          <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" />Audience Loves</p>
+          <ul className="space-y-2">
+            {(ai.audienceLoves || []).map((l: string, i: number) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-green-400 mt-0.5 text-xs flex-shrink-0">✓</span>
+                <p className="text-xs text-foreground">{l}</p>
+              </li>
+            ))}
+            {!(ai.audienceLoves || []).length && <p className="text-xs text-muted-foreground">—</p>}
+          </ul>
+        </div>
+
+        <div className="bg-red-500/8 border border-red-500/20 rounded-2xl p-4">
+          <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />Pain Points</p>
+          <ul className="space-y-2">
+            {(ai.painPoints || []).map((p: string, i: number) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-red-400 mt-0.5 text-xs flex-shrink-0">!</span>
+                <p className="text-xs text-foreground">{p}</p>
+              </li>
+            ))}
+            {!(ai.painPoints || []).length && <p className="text-xs text-muted-foreground">—</p>}
+          </ul>
+        </div>
+
+        <div className="bg-yellow-500/8 border border-yellow-500/20 rounded-2xl p-4">
+          <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Star className="w-3.5 h-3.5" />Desires</p>
+          <ul className="space-y-2">
+            {(ai.desires || []).map((d: string, i: number) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-yellow-400 mt-0.5 text-xs flex-shrink-0">★</span>
+                <p className="text-xs text-foreground">{d}</p>
+              </li>
+            ))}
+            {!(ai.desires || []).length && <p className="text-xs text-muted-foreground">—</p>}
+          </ul>
+        </div>
+      </div>
+
+      {/* How to win */}
+      {ai.howToWin && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-orange-500/15 to-orange-500/5 border border-orange-500/20">
+          <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-2"><Crosshair className="w-3.5 h-3.5" />How to Win This Audience</p>
+          <p className="text-sm text-foreground leading-relaxed">{ai.howToWin}</p>
+        </div>
+      )}
+
+      {/* Content preferences */}
+      {(ai.contentPreferences || ai.contentFormats) && (
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2"><BookOpen className="w-3.5 h-3.5" />Content Preferences</p>
+          <p className="text-sm text-foreground leading-relaxed">{ai.contentPreferences || ai.contentFormats}</p>
+        </div>
+      )}
+
+      {/* Side by side: who they follow */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-primary/8 border border-primary/20 rounded-2xl p-4">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Your Audience Behaviour</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Avg Likes per Post</span>
+              <span className="text-xs font-bold text-foreground">{(cm.avgLikes ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Avg Comments per Post</span>
+              <span className="text-xs font-bold text-foreground">{(cm.avgComments ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Engagement Rate</span>
+              <span className="text-xs font-bold text-primary">{cm.avgEngagementRate ?? 0}%</span>
+            </div>
+          </div>
+        </div>
+        <div className="bg-red-500/8 border border-red-500/20 rounded-2xl p-4">
+          <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3">Competitor's Audience Behaviour</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Avg Likes per Post</span>
+              <span className="text-xs font-bold text-foreground">{(comp.avgLikes ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Avg Comments per Post</span>
+              <span className="text-xs font-bold text-foreground">{(comp.avgComments ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Engagement Rate</span>
+              <span className="text-xs font-bold text-red-400">{comp.avgEngagementRate ?? 0}%</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Tab: Scorecard ───────────────────────────────────────────────────────────
+// ─── Section: Scorecard ───────────────────────────────────────────────────────
 
-function ScorecardTab({ report, analysis }: { report: any; analysis: any }) {
-  const sc = report.scorecard;
-  if (!sc) return <EmptyState message="No scorecard data. Run a new analysis." />;
+function ScorecardSection({ report, analysis }: { report: any; analysis: any }) {
+  const sc = report.scorecard || {};
+  if (!sc || Object.keys(sc).length === 0) return <EmptyState message="No scorecard data. Run a new analysis." />;
 
   const metrics = sc.metrics || [];
   const youWin = sc.youWin ?? 0;
   const compWin = sc.competitorWins ?? 0;
   const total = metrics.length;
+  const youPct = total > 0 ? Math.round((youWin / total) * 100) : 0;
+  const compPct = total > 0 ? Math.round((compWin / total) * 100) : 0;
+
+  const pieData = [
+    { name: analysis.clientHandle, value: youWin, fill: GOLD },
+    { name: analysis.competitorHandle, value: compWin, fill: "#e879a0" },
+    { name: "Ties", value: total - youWin - compWin, fill: "#555" },
+  ].filter(d => d.value > 0);
+
+  const barData = metrics.map((m: any) => ({
+    metric: m.metric?.split(" ").slice(0, 2).join(" "),
+    you: m.yourScore ?? 0,
+    them: m.competitorScore ?? 0,
+  }));
 
   return (
-    <div className="space-y-4">
-      {/* Summary bar */}
-      <div className="flex gap-3">
-        <div className={`flex-1 p-4 rounded-xl border text-center ${youWin > compWin ? "bg-green-500/10 border-green-500/25" : "bg-red-500/10 border-red-500/25"}`}>
-          <p className={`text-3xl font-black ${youWin > compWin ? "text-green-400" : "text-red-400"}`}>{youWin}<span className="text-lg">/{total}</span></p>
+    <div className="space-y-6">
+      <SectionHeader icon={Trophy} title="Scorecard" desc="Head-to-head score across every metric" color="from-primary/20 to-primary/5" />
+
+      {/* Hero score */}
+      <div className="grid grid-cols-3 gap-4 items-center">
+        <div className={`text-center p-6 rounded-2xl border-2 ${youWin > compWin ? "border-primary bg-primary/10" : "border-border bg-card"}`}>
+          <p className={`text-5xl font-black ${youWin > compWin ? "text-primary" : "text-foreground"}`}>{youWin}</p>
           <p className="text-xs text-muted-foreground mt-1">{analysis.clientHandle}</p>
+          {youWin > compWin && <p className="text-xs font-bold text-primary mt-2">🏆 Winning</p>}
         </div>
-        <div className="flex-shrink-0 flex items-center px-3">
-          <span className="text-lg font-bold text-muted-foreground">vs</span>
+
+        <div className="flex flex-col items-center gap-3">
+          <PieChart width={120} height={120}>
+            <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={30} outerRadius={52} paddingAngle={3}>
+              {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+          <p className="text-xs text-muted-foreground text-center">{total} metrics scored</p>
         </div>
-        <div className={`flex-1 p-4 rounded-xl border text-center ${compWin > youWin ? "bg-red-500/10 border-red-500/25" : "bg-green-500/10 border-green-500/25"}`}>
-          <p className={`text-3xl font-black ${compWin > youWin ? "text-red-400" : "text-green-400"}`}>{compWin}<span className="text-lg">/{total}</span></p>
+
+        <div className={`text-center p-6 rounded-2xl border-2 ${compWin > youWin ? "border-red-500 bg-red-500/10" : "border-border bg-card"}`}>
+          <p className={`text-5xl font-black ${compWin > youWin ? "text-red-400" : "text-foreground"}`}>{compWin}</p>
           <p className="text-xs text-muted-foreground mt-1">{analysis.competitorHandle}</p>
+          {compWin > youWin && <p className="text-xs font-bold text-red-400 mt-2">⚠ Ahead</p>}
         </div>
       </div>
+
       {sc.summary && <p className="text-sm text-muted-foreground text-center">{sc.summary}</p>}
 
-      {/* Metric rows */}
-      <div className="bg-card border border-card-border rounded-xl overflow-hidden">
-        <div className="flex items-center px-4 py-2 bg-muted/30 border-b border-border text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+      {/* Score bar chart */}
+      {barData.length > 0 && (
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4">Score Breakdown (/10 per metric)</p>
+          <ResponsiveContainer width="100%" height={Math.max(200, barData.length * 30)}>
+            <BarChart data={barData} layout="vertical" barGap={4}>
+              <XAxis type="number" domain={[0, 10]} tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="metric" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} width={90} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="you" name={`You (${analysis.clientHandle})`} fill={GOLD} radius={[0, 4, 4, 0]} barSize={10} />
+              <Bar dataKey="them" name={`Competitor (${analysis.competitorHandle})`} fill="#e879a0" radius={[0, 4, 4, 0]} barSize={10} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Win progress bars */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-primary">{analysis.clientHandle}</span>
+            <span className="text-sm font-bold text-primary">{youPct}%</span>
+          </div>
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${youPct}%` }} />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">{youWin} wins out of {total}</p>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-red-400">{analysis.competitorHandle}</span>
+            <span className="text-sm font-bold text-red-400">{compPct}%</span>
+          </div>
+          <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${compPct}%` }} />
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">{compWin} wins out of {total}</p>
+        </div>
+      </div>
+
+      {/* Metric detail rows */}
+      <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
+        <div className="flex items-center px-4 py-2 bg-muted/30 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
           <span className="flex-1">Metric</span>
           <span className="w-16 text-center text-primary">You</span>
           <span className="w-16 text-center text-red-400">Competitor</span>
-          <span className="w-12 text-center">Winner</span>
+          <span className="w-14 text-center">Winner</span>
         </div>
         {metrics.map((m: any, i: number) => (
-          <div key={i} className="flex items-center px-4 py-3 border-b border-border last:border-0">
+          <div key={i} className={`flex items-center px-4 py-3 border-b border-border last:border-0 ${m.winner === "you" ? "bg-green-500/3" : m.winner === "competitor" ? "bg-red-500/3" : ""}`}>
             <div className="flex-1">
               <p className="text-xs font-medium text-foreground">{m.metric}</p>
               {m.note && <p className="text-[10px] text-muted-foreground mt-0.5">{m.note}</p>}
             </div>
             <div className="w-16 text-center">
-              <span className={`text-sm font-bold ${m.winner === "you" ? "text-green-400" : m.winner === "tie" ? "text-yellow-400" : "text-foreground"}`}>{m.yourScore}/10</span>
+              <span className={`text-sm font-bold ${m.winner === "you" ? "text-primary" : m.winner === "tie" ? "text-yellow-400" : "text-foreground"}`}>{m.yourScore}/10</span>
             </div>
             <div className="w-16 text-center">
               <span className={`text-sm font-bold ${m.winner === "competitor" ? "text-red-400" : m.winner === "tie" ? "text-yellow-400" : "text-foreground"}`}>{m.competitorScore}/10</span>
             </div>
-            <div className="w-12 flex justify-center">
-              {m.winner === "you" ? <Trophy className="w-4 h-4 text-green-400" /> : m.winner === "tie" ? <span className="text-yellow-400 text-xs font-bold">TIE</span> : <Trophy className="w-4 h-4 text-red-400" />}
+            <div className="w-14 flex justify-center">
+              {m.winner === "you" ? <Trophy className="w-4 h-4 text-primary" /> : m.winner === "tie" ? <span className="text-yellow-400 text-[10px] font-bold">TIE</span> : <Trophy className="w-4 h-4 text-red-400" />}
             </div>
           </div>
         ))}
@@ -584,52 +1318,86 @@ function ScorecardTab({ report, analysis }: { report: any; analysis: any }) {
   );
 }
 
-// ─── Tab: Steal Strategy ─────────────────────────────────────────────────────
+// ─── Steal Strategy ───────────────────────────────────────────────────────────
 
-function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any; onGenerate: () => void; generating: boolean }) {
+function StealStrategySection({ analysis, onGenerate, generating }: { analysis: any; onGenerate: () => void; generating: boolean }) {
   const report = analysis.report as any;
   const ss = report?.stealStrategy;
 
   if (!ss) {
     return (
-      <div className="text-center py-16 px-6">
-        <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-6">
-          <Sparkles className="w-10 h-10 text-primary" />
+      <div className="relative overflow-hidden rounded-3xl border-2 border-primary/40 bg-gradient-to-br from-primary/15 via-primary/8 to-black/40 p-10 text-center">
+        {/* Glowing orb bg */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
         </div>
-        <h3 className="text-xl font-bold text-foreground mb-2">Steal Their Strategy</h3>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-8 leading-relaxed">
-          Get a complete AI-generated 30-day content plan based on {analysis.competitorHandle}'s exact strategy — hooks, schedule, reel ideas, and a step-by-step growth playbook.
-        </p>
-        <Button
-          size="lg"
-          onClick={onGenerate}
-          disabled={generating}
-          className="gap-2 px-8"
-          data-testid="button-steal-strategy"
-        >
-          {generating ? <><Loader2 className="w-5 h-5 animate-spin" />Generating your 30-day plan…</> : <><Sparkles className="w-5 h-5" />Generate 30-Day Plan</>}
-        </Button>
-        {generating && <p className="text-xs text-muted-foreground mt-4 animate-pulse">Building your personalised plan — this takes ~30 seconds</p>}
+        <div className="relative z-10">
+          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_rgba(212,180,97,0.2)]">
+            <Sword className="w-12 h-12 text-primary" />
+          </div>
+          <div className="inline-flex items-center gap-2 bg-primary/20 border border-primary/30 rounded-full px-4 py-1.5 mb-4">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-bold text-primary uppercase tracking-wider">Most Powerful Feature</span>
+          </div>
+          <h3 className="text-3xl font-black text-foreground mb-3">Steal Their Strategy</h3>
+          <p className="text-base text-muted-foreground max-w-md mx-auto mb-2 leading-relaxed">
+            Get a <span className="text-primary font-bold">complete 30-day content plan</span> built from{" "}
+            <span className="text-foreground font-semibold">{analysis.competitorHandle}'s</span> exact playbook.
+          </p>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-8">
+            Hooks · Schedule · Reel ideas · Hook system · Growth playbook · CTA strategy — all in one click.
+          </p>
+          <Button
+            size="lg"
+            onClick={onGenerate}
+            disabled={generating}
+            className="gap-3 px-10 py-6 text-base font-bold rounded-2xl bg-primary text-black hover:bg-primary/90 shadow-[0_0_30px_rgba(212,180,97,0.4)] hover:shadow-[0_0_50px_rgba(212,180,97,0.6)] transition-all duration-300"
+            data-testid="button-steal-strategy"
+          >
+            {generating
+              ? <><Loader2 className="w-5 h-5 animate-spin" />Generating Your 30-Day Plan…</>
+              : <><Sword className="w-5 h-5" />Generate 30-Day Plan</>
+            }
+          </Button>
+          {generating && (
+            <div className="mt-6">
+              <p className="text-xs text-muted-foreground animate-pulse">Building your personalised plan — this takes ~30 seconds</p>
+              <div className="h-1 bg-muted rounded-full overflow-hidden mt-3 max-w-xs mx-auto">
+                <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/30 flex items-center justify-center shadow-[0_0_20px_rgba(212,180,97,0.2)]">
+          <Sword className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-foreground">30-Day Steal Strategy</h3>
+          <p className="text-xs text-muted-foreground">Built from {analysis.competitorHandle}'s exact playbook</p>
+        </div>
+      </div>
+
       {/* CTA Strategy */}
       {ss.ctaStrategy && (
         <div className="p-5 rounded-2xl bg-primary/10 border border-primary/25">
-          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">CTA & Conversion Strategy</p>
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-4">CTA & Conversion Strategy</p>
           <div className="grid grid-cols-3 gap-3 mb-3">
             {(ss.ctaStrategy.topCTAs || []).map((cta: string, i: number) => (
-              <div key={i} className="bg-card border border-card-border rounded-lg p-3 flex items-center justify-between gap-2">
+              <div key={i} className="bg-card border border-card-border rounded-xl p-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-foreground flex-1">"{cta}"</p>
                 <CopyButton text={cta} />
               </div>
             ))}
           </div>
           {ss.ctaStrategy.conversionFlow && (
-            <div className="bg-card border border-card-border rounded-lg p-3">
+            <div className="bg-card border border-card-border rounded-xl p-3">
               <p className="text-[10px] text-muted-foreground mb-1">Conversion Flow</p>
               <p className="text-xs text-foreground">{ss.ctaStrategy.conversionFlow}</p>
             </div>
@@ -639,21 +1407,19 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
 
       {/* Posting Schedule */}
       {ss.postingSchedule && (
-        <div className="bg-card border border-card-border rounded-xl p-5">
-          <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />Your New Posting Schedule</p>
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />Your New Posting Schedule</p>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <div className="text-center p-3 bg-primary/8 rounded-xl">
-              <p className="text-sm font-bold text-primary">{ss.postingSchedule.frequency}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Frequency</p>
-            </div>
-            <div className="text-center p-3 bg-muted/30 rounded-xl">
-              <p className="text-xs font-bold text-foreground">{(ss.postingSchedule.days || []).join(", ")}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Days</p>
-            </div>
-            <div className="text-center p-3 bg-muted/30 rounded-xl">
-              <p className="text-xs font-bold text-foreground">{(ss.postingSchedule.times || []).join(", ")}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Times</p>
-            </div>
+            {[
+              { label: "Frequency", val: ss.postingSchedule.frequency },
+              { label: "Days", val: (ss.postingSchedule.days || []).join(", ") },
+              { label: "Times", val: (ss.postingSchedule.times || []).join(", ") },
+            ].map(({ label, val }) => (
+              <div key={label} className="text-center p-3 bg-primary/8 rounded-xl">
+                <p className="text-sm font-bold text-primary">{val || "—"}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+              </div>
+            ))}
           </div>
           {ss.postingSchedule.rationale && <p className="text-xs text-muted-foreground">{ss.postingSchedule.rationale}</p>}
         </div>
@@ -661,11 +1427,11 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
 
       {/* Content Style */}
       {ss.contentStyle && (
-        <div className="bg-card border border-card-border rounded-xl p-5">
-          <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-400" />Content Style to Adopt</p>
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-400" />Content Style to Adopt</p>
           <div className="grid grid-cols-2 gap-3">
             {[["Tone", ss.contentStyle.tone], ["Structure", ss.contentStyle.structure], ["Storytelling", ss.contentStyle.storytellingFormat], ["Visual Style", ss.contentStyle.visualStyle]].map(([label, val]) => val && (
-              <div key={label} className="bg-muted/20 rounded-lg p-3">
+              <div key={label} className="bg-muted/20 rounded-xl p-3">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
                 <p className="text-xs text-foreground">{val}</p>
               </div>
@@ -676,11 +1442,11 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
 
       {/* Hook System */}
       {(ss.hookSystem || []).length > 0 && (
-        <div className="bg-card border border-card-border rounded-xl p-5">
-          <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400" />Your 20-Hook System</p>
+        <div className="bg-card border border-card-border rounded-2xl p-5">
+          <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400" />Your 20-Hook System</p>
           <div className="space-y-2">
-            {(ss.hookSystem || []).map((h: any, i: number) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-muted/20 rounded-xl">
+            {ss.hookSystem.map((h: any, i: number) => (
+              <div key={i} className="flex items-start gap-3 p-3 bg-muted/20 rounded-xl hover:bg-muted/30 transition-colors">
                 <span className="text-[10px] font-bold text-muted-foreground w-5 flex-shrink-0 mt-0.5">{i + 1}.</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-foreground leading-relaxed">"{h.hook}"</p>
@@ -699,11 +1465,11 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
       {/* Reel + Carousel Ideas */}
       <div className="grid grid-cols-2 gap-4">
         {(ss.reelIdeas || []).length > 0 && (
-          <div className="bg-card border border-card-border rounded-xl p-5">
-            <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Eye className="w-4 h-4 text-pink-400" />Reel Ideas</p>
+          <div className="bg-card border border-card-border rounded-2xl p-5">
+            <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Play className="w-4 h-4 text-pink-400" />Reel Ideas</p>
             <ul className="space-y-2">
-              {(ss.reelIdeas || []).map((idea: string, i: number) => (
-                <li key={i} className="flex items-start gap-2 group">
+              {ss.reelIdeas.map((idea: string, i: number) => (
+                <li key={i} className="flex items-start gap-2">
                   <span className="text-[10px] text-muted-foreground mt-0.5 flex-shrink-0">{i + 1}.</span>
                   <p className="text-xs text-foreground flex-1">{idea}</p>
                   <CopyButton text={idea} />
@@ -713,10 +1479,10 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
           </div>
         )}
         {(ss.carouselIdeas || []).length > 0 && (
-          <div className="bg-card border border-card-border rounded-xl p-5">
-            <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-blue-400" />Carousel Ideas</p>
+          <div className="bg-card border border-card-border rounded-2xl p-5">
+            <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Layers className="w-4 h-4 text-blue-400" />Carousel Ideas</p>
             <ul className="space-y-2">
-              {(ss.carouselIdeas || []).map((idea: string, i: number) => (
+              {ss.carouselIdeas.map((idea: string, i: number) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="text-[10px] text-muted-foreground mt-0.5 flex-shrink-0">{i + 1}.</span>
                   <p className="text-xs text-foreground flex-1">{idea}</p>
@@ -730,16 +1496,16 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
 
       {/* 4-Week Growth Playbook */}
       {(ss.growthPlaybook || []).length > 0 && (
-        <div className="bg-card border border-card-border rounded-xl p-5">
+        <div className="bg-card border border-card-border rounded-2xl p-5">
           <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Target className="w-4 h-4 text-green-400" />4-Week Growth Playbook</p>
           <div className="grid grid-cols-2 gap-3">
-            {(ss.growthPlaybook || []).map((w: any) => (
-              <div key={w.week} className="bg-muted/20 border border-border rounded-xl p-4">
+            {ss.growthPlaybook.map((w: any) => (
+              <div key={w.week} className="bg-muted/20 border border-border rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 bg-primary/15 rounded-lg flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-primary">{w.week}</span>
+                  <div className="w-7 h-7 bg-primary/15 rounded-xl flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-primary">W{w.week}</span>
                   </div>
-                  <p className="text-xs font-semibold text-foreground">Week {w.week}</p>
+                  <p className="text-xs font-bold text-foreground">Week {w.week}</p>
                 </div>
                 <p className="text-[10px] text-primary font-medium mb-2">{w.focus}</p>
                 <ul className="space-y-1 mb-2">
@@ -747,7 +1513,7 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
                     <li key={i} className="text-[10px] text-foreground flex items-start gap-1.5"><span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>{t}</li>
                   ))}
                 </ul>
-                <p className="text-[10px] text-muted-foreground italic">Goal: {w.goal}</p>
+                <p className="text-[10px] text-muted-foreground italic">{w.goal}</p>
               </div>
             ))}
           </div>
@@ -756,12 +1522,12 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
 
       {/* 30-Day Content Plan */}
       {(ss.contentPlan || []).length > 0 && (
-        <div className="bg-card border border-card-border rounded-xl p-5">
+        <div className="bg-card border border-card-border rounded-2xl p-5">
           <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />30-Day Content Plan</p>
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            {(ss.contentPlan || []).map((day: any) => (
-              <div key={day.day} className="flex items-start gap-3 p-3 bg-muted/20 rounded-xl">
-                <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center flex-shrink-0">
+            {ss.contentPlan.map((day: any) => (
+              <div key={day.day} className="flex items-start gap-3 p-3 bg-muted/20 rounded-xl hover:bg-muted/30 transition-colors">
+                <div className="w-8 h-8 bg-primary/15 rounded-xl flex items-center justify-center flex-shrink-0">
                   <span className="text-[10px] font-bold text-primary">{day.day}</span>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -780,7 +1546,6 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
         </div>
       )}
 
-      {/* Final message */}
       {ss.finalMessage && (
         <div className="p-6 rounded-2xl bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/25 text-center">
           <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
@@ -791,23 +1556,14 @@ function StealStrategyTab({ analysis, onGenerate, generating }: { analysis: any;
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="text-center py-12">
-      <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-40" />
-      <p className="text-sm text-muted-foreground">{message}</p>
-    </div>
-  );
-}
-
-// ─── Full Analysis Report ─────────────────────────────────────────────────────
+// ─── Full Report with Section Grid ───────────────────────────────────────────
 
 function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => void }) {
   const { toast } = useToast();
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [stealGenerating, setStealGenerating] = useState(false);
   const [localAnalysis, setLocalAnalysis] = useState(analysis);
+  const [showSteal, setShowSteal] = useState(false);
 
   const generateSteal = async () => {
     setStealGenerating(true);
@@ -821,7 +1577,7 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to generate strategy");
       setLocalAnalysis((prev: any) => ({ ...prev, report: { ...prev.report, stealStrategy: data.stealStrategy } }));
-      toast({ title: "30-Day Plan Ready!" });
+      toast({ title: "30-Day Plan Ready!", description: "Your personalised steal strategy is ready!" });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally {
@@ -831,8 +1587,24 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
 
   const report = localAnalysis.report as any;
 
+  const renderSection = () => {
+    switch (activeSection) {
+      case "overview": return <OverviewSection report={report} analysis={localAnalysis} />;
+      case "reels": return <ReelByReelSection report={report} analysis={localAnalysis} />;
+      case "performance": return <PerformanceSection report={report} analysis={localAnalysis} />;
+      case "patterns": return <AIPatternsSection report={report} analysis={localAnalysis} />;
+      case "gaps": return <GapAnalysisSection report={report} />;
+      case "hooks": return <HookLibrarySection report={report} analysis={localAnalysis} />;
+      case "strategy": return <PostingStrategySection report={report} analysis={localAnalysis} />;
+      case "audience": return <AudienceSection report={report} analysis={localAnalysis} />;
+      case "scorecard": return <ScorecardSection report={report} analysis={localAnalysis} />;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-bold text-foreground flex items-center gap-2">
@@ -846,37 +1618,79 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
         </button>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <div className="overflow-x-auto pb-1">
-          <TabsList className="flex w-max gap-0.5 h-auto p-1 mb-1">
-            {[
-              { value: "overview", label: "Overview" },
-              { value: "reels", label: "Reel-by-Reel" },
-              { value: "performance", label: "Performance" },
-              { value: "patterns", label: "AI Patterns" },
-              { value: "gaps", label: "Gap Analysis" },
-              { value: "hooks", label: "Hook Library" },
-              { value: "strategy", label: "Posting Strategy" },
-              { value: "audience", label: "Audience" },
-              { value: "scorecard", label: "Scorecard" },
-              { value: "steal", label: "🎯 Steal Strategy" },
-            ].map(t => (
-              <TabsTrigger key={t.value} value={t.value} className="text-xs px-3 py-1.5 whitespace-nowrap flex-shrink-0">{t.label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+      {/* Section grid */}
+      <div className="grid grid-cols-3 gap-3">
+        {SECTIONS.map((sec) => {
+          const Icon = sec.icon;
+          const isActive = activeSection === sec.id;
+          return (
+            <button
+              key={sec.id}
+              onClick={() => {
+                setActiveSection(isActive ? null : sec.id);
+                setShowSteal(false);
+              }}
+              data-testid={`section-${sec.id}`}
+              className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${
+                isActive
+                  ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
+                  : "bg-card border-border hover:border-border/80 hover:bg-muted/20"
+              }`}
+            >
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isActive ? "bg-white/10" : "bg-muted/40"}`}>
+                <Icon className={`w-4 h-4 ${isActive ? sec.text : "text-muted-foreground"}`} />
+              </div>
+              <div>
+                <p className={`text-xs font-bold ${isActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
+              </div>
+              {isActive && (
+                <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${sec.text.replace("text-", "bg-")}`} />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        <TabsContent value="overview"><OverviewTab report={report} analysis={localAnalysis} /></TabsContent>
-        <TabsContent value="reels"><ReelByReelTab report={report} analysis={localAnalysis} /></TabsContent>
-        <TabsContent value="performance"><ContentPerformanceTab report={report} analysis={localAnalysis} /></TabsContent>
-        <TabsContent value="patterns"><AIPatternsTab report={report} /></TabsContent>
-        <TabsContent value="gaps"><GapAnalysisTab report={report} /></TabsContent>
-        <TabsContent value="hooks"><HookLibraryTab report={report} /></TabsContent>
-        <TabsContent value="strategy"><PostingStrategyTab report={report} /></TabsContent>
-        <TabsContent value="audience"><AudienceInsightsTab report={report} /></TabsContent>
-        <TabsContent value="scorecard"><ScorecardTab report={report} analysis={localAnalysis} /></TabsContent>
-        <TabsContent value="steal"><StealStrategyTab analysis={localAnalysis} onGenerate={generateSteal} generating={stealGenerating} /></TabsContent>
-      </Tabs>
+      {/* Steal Strategy — special separate button */}
+      <button
+        onClick={() => { setShowSteal(!showSteal); setActiveSection(null); }}
+        data-testid="section-steal"
+        className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all group ${
+          showSteal
+            ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
+            : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70 hover:from-primary/15"
+        }`}
+      >
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-0 -translate-y-1/2 w-32 h-32 bg-primary/10 rounded-full blur-2xl" />
+        </div>
+        <div className="relative flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(212,180,97,0.15)] group-hover:shadow-[0_0_30px_rgba(212,180,97,0.25)] transition-all">
+            <Sword className="w-6 h-6 text-primary" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm font-black text-primary">🎯 Steal Their Strategy</p>
+              <span className="inline-flex items-center gap-1 bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase tracking-wider">
+                <Sparkles className="w-2.5 h-2.5" />Most Powerful
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">30-day content plan · Hook system · Growth playbook · Built from competitor's exact strategy</p>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showSteal ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {/* Active section content */}
+      {(activeSection || showSteal) && (
+        <div className="bg-card border border-card-border rounded-2xl p-5 mt-1">
+          {showSteal
+            ? <StealStrategySection analysis={localAnalysis} onGenerate={generateSteal} generating={stealGenerating} />
+            : renderSection()
+          }
+        </div>
+      )}
     </div>
   );
 }
@@ -889,7 +1703,6 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
   const [clientUrl, setClientUrl] = useState("");
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
@@ -911,7 +1724,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
       setSelectedId(data.id);
       setClientUrl("");
       setCompetitorUrl("");
-      toast({ title: "Analysis complete!", description: "10-tab deep-dive report is ready." });
+      toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -931,13 +1744,14 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
   return (
     <Layout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
+        {/* Page header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
             <Target className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-foreground">Competitor Study</h1>
-            <p className="text-xs text-muted-foreground">Deep-dive AI analysis · 10 intelligence tabs · Steal their exact strategy</p>
+            <p className="text-xs text-muted-foreground">Deep-dive AI analysis · 9 intelligence sections · Steal their exact strategy</p>
           </div>
         </div>
 
@@ -948,41 +1762,23 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
-                <Input
-                  value={clientUrl}
-                  onChange={e => setClientUrl(e.target.value)}
-                  placeholder="instagram.com/yourhandle"
-                  className="h-9 text-sm"
-                  data-testid="input-client-url"
-                />
+                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
               </div>
               <div>
                 <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
-                <Input
-                  value={competitorUrl}
-                  onChange={e => setCompetitorUrl(e.target.value)}
-                  placeholder="instagram.com/competitorhandle"
-                  className="h-9 text-sm"
-                  data-testid="input-competitor-url"
-                />
+                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
               </div>
             </div>
-            <Button
-              onClick={() => analyze.mutate()}
-              disabled={!canAnalyze || analyze.isPending}
-              className="gap-2"
-              data-testid="button-run-analysis"
-            >
+            <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
               {analyze.isPending
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing… (~60s)</>
-                : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>
-              }
+                : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
             </Button>
-            {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse">Scraping both profiles (30 posts each) + running 10-tab AI analysis — please wait…</p>}
+            {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse">Scraping both profiles (30 posts each) + running full AI analysis — please wait…</p>}
           </CardContent>
         </Card>
 
-        {/* Past analyses list */}
+        {/* Past analyses */}
         {isLoading ? (
           <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
         ) : (analyses as any[]).length === 0 ? (
@@ -992,9 +1788,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
           </div>
         ) : (
           <div className="space-y-3">
-            {!selected && (
-              <p className="text-xs text-muted-foreground">Select an analysis to view the full report</p>
-            )}
+            {!selected && <p className="text-xs text-muted-foreground">Select an analysis to view the full report</p>}
             {(analyses as any[]).map((a: any) => {
               const isActive = selectedId === a.id;
               return (
