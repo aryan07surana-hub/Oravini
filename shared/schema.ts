@@ -224,6 +224,20 @@ export const insertDmQuickReplySchema = createInsertSchema(dmQuickReplies).omit(
 export type InsertDmQuickReply = z.infer<typeof insertDmQuickReplySchema>;
 export type DmQuickReply = typeof dmQuickReplies.$inferSelect;
 
+export const instagramProfileReports = pgTable("instagram_profile_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  instagramUrl: text("instagram_url").notNull(),
+  handle: varchar("handle"),
+  postCount: integer("post_count").default(0),
+  report: jsonb("report"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertInstagramProfileReportSchema = createInsertSchema(instagramProfileReports).omit({ id: true, createdAt: true });
+export type InsertInstagramProfileReport = z.infer<typeof insertInstagramProfileReportSchema>;
+export type InstagramProfileReport = typeof instagramProfileReports.$inferSelect;
+
 export const competitorAnalyses = pgTable("competitor_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clientId: varchar("client_id").notNull().references(() => users.id),

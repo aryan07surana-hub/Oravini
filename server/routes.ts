@@ -721,6 +721,119 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ── Instagram Profile Setup: get saved report ─────────────────────────────
+  app.get("/api/instagram/profile-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const clientId = (req as any).user.id;
+      const report = await storage.getInstagramProfileReport(clientId);
+      res.json(report ?? null);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Instagram Profile Setup: scrape + sync + AI analyze ──────────────────
+  app.post("/api/instagram/analyze-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const clientId = (req as any).user.id;
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
+
+      // extract handle from URL
+      const handleMatch = profileUrl.match(/instagram\.com\/([^/?#]+)/);
+      const handle = handleMatch ? handleMatch[1].replace(/^@/, "") : null;
+
+      // 1. Scrape last 30 posts via Apify
+      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
+      if (!items?.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
+
+      // 2. Sync posts to content tracking (upsert by url; skip duplicates)
+      const existingPosts = await storage.getContentPostsByClient(clientId);
+      const existingUrls = new Set(existingPosts.map((p: any) => p.postUrl).filter(Boolean));
+      let imported = 0;
+      for (const item of items) {
+        const postUrl = item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null);
+        if (!postUrl || existingUrls.has(postUrl)) continue;
+        try {
+          await storage.createContentPost({
+            clientId,
+            platform: "instagram",
+            title: item.caption ? item.caption.slice(0, 120) : "Untitled",
+            postUrl,
+            postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+            contentType: item.type === "Video" || item.type === "Reel" ? "reel"
+              : item.type === "Sidecar" ? "carousel" : "post",
+            funnelStage: "top",
+            views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+            likes: item.likesCount ?? 0,
+            comments: item.commentsCount ?? 0,
+            saves: 0,
+            followersGained: 0,
+            subscribersGained: 0,
+          });
+          imported++;
+        } catch (_) { /* skip */ }
+      }
+
+      // 3. Build data summary for AI
+      const totalLikes = items.reduce((s: number, p: any) => s + (p.likesCount ?? 0), 0);
+      const totalComments = items.reduce((s: number, p: any) => s + (p.commentsCount ?? 0), 0);
+      const totalViews = items.reduce((s: number, p: any) => s + (p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0), 0);
+      const reels = items.filter((p: any) => p.type === "Video" || p.type === "Reel").length;
+      const carousels = items.filter((p: any) => p.type === "Sidecar").length;
+      const posts = items.filter((p: any) => p.type !== "Video" && p.type !== "Reel" && p.type !== "Sidecar").length;
+      const captions = items.slice(0, 10).map((p: any) => p.caption?.slice(0, 200)).filter(Boolean);
+      const topByLikes = [...items].sort((a: any, b: any) => (b.likesCount ?? 0) - (a.likesCount ?? 0)).slice(0, 3);
+
+      const systemPrompt = `You are an elite Instagram growth strategist. Analyze Instagram profile data and return ONLY valid JSON — no markdown, no extra text.`;
+      const userPrompt = `Analyze this Instagram account and return a detailed profile report as JSON.
+
+Handle: @${handle ?? "unknown"}
+Posts analyzed: ${items.length}
+Total likes: ${totalLikes}, Total comments: ${totalComments}, Total views: ${totalViews}
+Content breakdown: ${reels} Reels, ${carousels} Carousels, ${posts} Static posts
+Sample captions: ${JSON.stringify(captions)}
+Top 3 posts by likes: ${JSON.stringify(topByLikes.map((p: any) => ({ likes: p.likesCount, comments: p.commentsCount, type: p.type, caption: p.caption?.slice(0, 100) })))}
+
+Return this exact JSON structure:
+{
+  "niche": "primary niche category (e.g. Business & Entrepreneurship, Fitness, Fashion, etc.)",
+  "subniche": "specific sub-niche (e.g. Online Coaching, Weight Loss for Moms, Streetwear, etc.)",
+  "audienceType": "description of likely audience (age range, interests, demographics)",
+  "contentStyle": "overall content style and tone",
+  "topContentType": "best performing content format based on data",
+  "avgEngagementRate": "estimated engagement rate as string (e.g. 3.2%)",
+  "postFrequency": "estimated posting frequency based on sample (e.g. ~4 posts/week)",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "gaps": ["gap 1", "gap 2", "gap 3"],
+  "recommendations": ["specific actionable tip 1", "specific actionable tip 2", "specific actionable tip 3", "tip 4"],
+  "summary": "2-3 sentence overview of the account's positioning, audience, and growth potential"
+}`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 1500);
+      let report: any;
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid JSON. Please try again." });
+      }
+
+      // 4. Save to DB
+      const saved = await storage.upsertInstagramProfileReport({
+        clientId,
+        instagramUrl: profileUrl,
+        handle,
+        postCount: items.length,
+        report,
+      });
+
+      return res.json({ ...saved, newPostsImported: imported });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Admin: get all AI idea generation logs
   app.get("/api/ai/idea-logs", requireAdmin, async (_req: Request, res: Response) => {
     try {

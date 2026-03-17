@@ -4,7 +4,7 @@ import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses,
-  dmLeads, dmQuickReplies,
+  dmLeads, dmQuickReplies, instagramProfileReports,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -13,6 +13,7 @@ import {
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
   type CallBooking, type InsertCallBooking,
   type DmLead, type InsertDmLead, type DmQuickReply, type InsertDmQuickReply,
+  type InstagramProfileReport, type InsertInstagramProfileReport,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -102,6 +103,8 @@ export interface IStorage {
   getDmQuickReplies(clientId: string): Promise<DmQuickReply[]>;
   createDmQuickReply(data: InsertDmQuickReply): Promise<DmQuickReply>;
   deleteDmQuickReply(id: string): Promise<void>;
+  getInstagramProfileReport(clientId: string): Promise<InstagramProfileReport | null>;
+  upsertInstagramProfileReport(data: InsertInstagramProfileReport): Promise<InstagramProfileReport>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -452,6 +455,27 @@ class DatabaseStorage implements IStorage {
         eq(contentPosts.platform, "instagram"),
         sqlExpr`${contentPosts.postUrl} IS NOT NULL AND ${contentPosts.postUrl} != ''`
       ));
+  }
+
+  async getInstagramProfileReport(clientId: string) {
+    const [report] = await db.select().from(instagramProfileReports)
+      .where(eq(instagramProfileReports.clientId, clientId))
+      .orderBy(desc(instagramProfileReports.createdAt))
+      .limit(1);
+    return report ?? null;
+  }
+
+  async upsertInstagramProfileReport(data: InsertInstagramProfileReport) {
+    const existing = await this.getInstagramProfileReport(data.clientId);
+    if (existing) {
+      const [updated] = await db.update(instagramProfileReports)
+        .set({ instagramUrl: data.instagramUrl, handle: data.handle, postCount: data.postCount, report: data.report, createdAt: new Date() })
+        .where(eq(instagramProfileReports.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(instagramProfileReports).values(data).returning();
+    return created;
   }
 }
 

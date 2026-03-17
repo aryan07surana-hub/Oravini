@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
-  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check
+  TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check,
+  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -238,6 +239,207 @@ function IncomeGoalCard({ userId }: { userId: string }) {
   );
 }
 
+function InstagramSetupCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [url, setUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const { data: saved, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/instagram/profile-report"],
+    enabled: !!userId,
+  });
+
+  const analyze = async () => {
+    const input = url.trim();
+    if (!input) return;
+    let profileUrl = input;
+    if (!profileUrl.startsWith("http")) {
+      const handle = profileUrl.replace(/^@/, "");
+      profileUrl = `https://www.instagram.com/${handle}/`;
+    }
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/instagram/analyze-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileUrl }),
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Analysis failed");
+      toast({ title: "Profile analysed!", description: `${data.newPostsImported} new posts synced to your tracking page.` });
+      setUrl("");
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const re = saved?.report;
+
+  if (isLoading) {
+    return (
+      <Card className="border border-card-border">
+        <CardContent className="p-6">
+          <Skeleton className="h-6 w-48 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={`border ${re ? "border-primary/30 bg-primary/5" : "border-dashed border-primary/40 bg-primary/5"}`} data-testid="instagram-setup-card">
+      <CardContent className="p-6">
+        {!re ? (
+          /* ── Setup prompt ── */
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Instagram className="w-5 h-5 text-pink-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Set Up Your Instagram</p>
+                <p className="text-xs text-muted-foreground">Get an AI analysis of your profile + auto-sync your last 30 posts to tracking</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !analyzing && analyze()}
+                placeholder="instagram.com/yourhandle or @yourhandle"
+                className="h-9 text-sm flex-1"
+                disabled={analyzing}
+                data-testid="input-instagram-url"
+              />
+              <Button
+                size="sm"
+                onClick={analyze}
+                disabled={!url.trim() || analyzing}
+                className="flex-shrink-0 gap-1.5"
+                data-testid="button-analyze-profile"
+              >
+                {analyzing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse</>}
+              </Button>
+            </div>
+            {analyzing && (
+              <p className="text-xs text-muted-foreground mt-2 animate-pulse">Scraping your posts + running AI analysis… this takes ~30 seconds</p>
+            )}
+          </div>
+        ) : (
+          /* ── Report ── */
+          <div>
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Instagram className="w-5 h-5 text-pink-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-sm">@{saved.handle ?? "your profile"}</p>
+                  <p className="text-xs text-muted-foreground">{saved.postCount} posts analysed · Updated {format(new Date(saved.createdAt), "MMM d, yyyy")}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/tracking/content">
+                  <button className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all" data-testid="link-view-tracking">
+                    View tracking <ChevronRight className="w-3 h-3" />
+                  </button>
+                </Link>
+                <button
+                  onClick={() => { setUrl(saved.instagramUrl); }}
+                  className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 border border-border rounded-md px-2 py-1 transition-colors"
+                  title="Re-analyse profile"
+                  data-testid="button-reanalyze"
+                >
+                  <RefreshCw className="w-3 h-3" /> Re-analyse
+                </button>
+              </div>
+            </div>
+
+            {/* Re-analyse input (shown when re-analyse clicked) */}
+            {url && (
+              <div className="flex gap-2 mb-4">
+                <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-8 text-sm flex-1" disabled={analyzing} data-testid="input-instagram-url-reanalyze" />
+                <Button size="sm" onClick={analyze} disabled={!url.trim() || analyzing} className="flex-shrink-0 gap-1.5 h-8 text-xs" data-testid="button-confirm-reanalyze">
+                  {analyzing ? <><RefreshCw className="w-3 h-3 animate-spin" />Running…</> : <><Sparkles className="w-3 h-3" />Run</>}
+                </Button>
+                <button onClick={() => setUrl("")} className="text-xs text-muted-foreground hover:text-foreground px-1">✕</button>
+              </div>
+            )}
+            {analyzing && <p className="text-xs text-muted-foreground mb-3 animate-pulse">Scraping posts + running AI analysis… ~30 seconds</p>}
+
+            {/* Niche + Audience row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              {[
+                { icon: Zap, label: "Niche", value: re.niche, color: "text-yellow-400" },
+                { icon: Users, label: "Audience", value: re.audienceType, color: "text-blue-400" },
+                { icon: BarChart2, label: "Avg Engagement", value: re.avgEngagementRate, color: "text-green-400" },
+                { icon: Instagram, label: "Top Format", value: re.topContentType, color: "text-pink-400" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="bg-card border border-card-border rounded-xl p-3 text-center">
+                  <Icon className={`w-4 h-4 ${color} mx-auto mb-1.5`} />
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-xs font-semibold text-foreground mt-0.5 leading-tight">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Sub-niche + Style */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-card border border-card-border rounded-xl p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Sub-Niche</p>
+                <p className="text-xs font-medium text-foreground">{re.subniche}</p>
+              </div>
+              <div className="bg-card border border-card-border rounded-xl p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Content Style</p>
+                <p className="text-xs font-medium text-foreground">{re.contentStyle}</p>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="bg-card border border-card-border rounded-xl p-4 mb-4">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">AI Summary</p>
+              <p className="text-xs text-foreground leading-relaxed">{re.summary}</p>
+            </div>
+
+            {/* Strengths + Gaps + Recommendations */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="bg-card border border-card-border rounded-xl p-4">
+                <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Strengths</p>
+                <ul className="space-y-1">
+                  {(re.strengths || []).map((s: string, i: number) => (
+                    <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-green-400 mt-0.5 flex-shrink-0">•</span>{s}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-card border border-card-border rounded-xl p-4">
+                <p className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Gaps</p>
+                <ul className="space-y-1">
+                  {(re.gaps || []).map((g: string, i: number) => (
+                    <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-yellow-400 mt-0.5 flex-shrink-0">•</span>{g}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-card border border-card-border rounded-xl p-4">
+                <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2 flex items-center gap-1"><Lightbulb className="w-3 h-3" /> Actions</p>
+                <ul className="space-y-1">
+                  {(re.recommendations || []).map((r: string, i: number) => (
+                    <li key={i} className="text-xs text-foreground flex items-start gap-1.5"><span className="text-primary mt-0.5 flex-shrink-0">•</span>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ClientDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -390,6 +592,9 @@ export default function ClientDashboard() {
             <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
           </div>
         </a>
+
+        {/* Instagram Profile Setup + AI Report */}
+        {user?.id && <InstagramSetupCard userId={user.id} />}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Progress */}
