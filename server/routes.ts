@@ -1216,8 +1216,8 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       if (!clientUrl || !competitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
 
       const [clientItems, competitorItems] = await Promise.all([
-        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 20 }),
-        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 20 }),
+        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 30 }),
+        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 30 }),
       ]);
 
       const clientHandle = extractHandle(clientUrl);
@@ -1228,43 +1228,117 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
       if (!clientData && !competitorData) return res.status(404).json({ message: "Could not scrape either profile. Make sure they are public Instagram accounts." });
 
-      const systemPrompt = `You are an elite social media strategist and competitive analyst. Analyze Instagram profiles and generate actionable insights. Always respond with valid JSON only, no markdown.`;
-      const userPrompt = `Compare these two Instagram profiles and generate a detailed competitor analysis report.
+      // Build per-post arrays for deep AI analysis
+      function buildPostList(items: any[]) {
+        return (items || []).slice(0, 20).map((p: any, i: number) => ({
+          rank: i + 1,
+          type: p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post",
+          views: p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0,
+          likes: p.likesCount ?? 0,
+          comments: p.commentsCount ?? 0,
+          saves: p.savesCount ?? 0,
+          caption: p.caption ? p.caption.slice(0, 300) : "",
+          hashtags: Array.isArray(p.hashtags) ? p.hashtags.slice(0, 10).join(" ") : "",
+          timestamp: p.timestamp ?? null,
+          url: p.url ?? (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : null),
+        }));
+      }
 
-CLIENT PROFILE (${clientHandle}):
-${JSON.stringify(clientData, null, 2)}
+      const clientPosts = buildPostList(clientItems);
+      const competitorPosts = buildPostList(competitorItems);
 
-COMPETITOR PROFILE (${competitorHandle}):
-${JSON.stringify(competitorData, null, 2)}
+      const systemPrompt = `You are an elite Instagram growth strategist, content analyst, and competitive intelligence expert. Analyze Instagram profiles in extreme depth. Always respond with valid JSON only — no markdown, no explanation outside the JSON.`;
 
-Return ONLY a JSON object with these exact fields:
+      const userPrompt = `Perform a DEEP competitor analysis between two Instagram accounts. Return ONLY a valid JSON object.
+
+YOUR CLIENT: ${clientHandle}
+Aggregate metrics: ${JSON.stringify(clientData)}
+Posts (newest first): ${JSON.stringify(clientPosts)}
+
+COMPETITOR: ${competitorHandle}
+Aggregate metrics: ${JSON.stringify(competitorData)}
+Posts (newest first): ${JSON.stringify(competitorPosts)}
+
+Return this EXACT JSON structure (all fields required):
 {
-  "summary": "2-3 sentence executive summary of where the client stands vs competitor",
-  "overallAssessment": "winning" | "competitive" | "losing",
-  "clientStrengths": ["strength 1", "strength 2", "strength 3"],
-  "clientWeaknesses": ["weakness 1", "weakness 2", "weakness 3"],
-  "competitorEdge": ["what competitor does better 1", "what competitor does better 2"],
-  "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"],
-  "winningStrategies": ["strategy from competitor to adopt 1", "strategy 2", "strategy 3"],
-  "contentGaps": ["content topic/format gap 1", "gap 2"],
-  "keyMetrics": {
-    "viewsComparison": "short comparison sentence",
-    "engagementComparison": "short comparison sentence",
-    "frequencyComparison": "short comparison sentence"
+  "overview": {
+    "assessment": "winning|competitive|losing",
+    "outperformingIn": ["area1", "area2"],
+    "summary": "2-3 sentence analysis of where client stands vs competitor"
+  },
+  "reelComparison": [
+    {
+      "userReel": { "rank": 1, "views": 0, "likes": 0, "comments": 0, "caption": "first 100 chars", "hook": "exact first line or sentence", "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "structure": "opening → middle → CTA breakdown", "retentionPotential": "Low|Medium|High|Very High", "emotion": "fear|curiosity|authority|relatability|aspiration|entertainment" },
+      "competitorReel": { "rank": 1, "views": 0, "likes": 0, "comments": 0, "caption": "first 100 chars", "hook": "exact first line or sentence", "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "structure": "opening → middle → CTA breakdown", "retentionPotential": "Low|Medium|High|Very High", "emotion": "fear|curiosity|authority|relatability|aspiration|entertainment" },
+      "verdict": "Detailed 2-3 sentence explanation of why competitor's performed better or worse and what content element drove that"
+    }
+  ],
+  "contentPerformance": {
+    "competitorWinsIn": ["metric1", "metric2"],
+    "clientWinsIn": ["metric1"],
+    "insights": "2-3 sentence insight about content performance patterns"
+  },
+  "contentPatterns": [
+    { "pattern": "Pattern name", "description": "How they use it", "frequency": "e.g. 70% of posts", "howToReplicate": "Specific actionable step to copy this" }
+  ],
+  "viralDNA": [
+    { "rank": 1, "views": 0, "hook": "exact hook text", "structure": "Opening hook → Core value → Pattern interrupt → CTA", "cta": "exact or paraphrased CTA used", "emotion": "primary emotion triggered", "winningFormula": "1-sentence repeatable formula the user can copy" }
+  ],
+  "gapAnalysis": {
+    "gaps": [
+      { "metric": "Gap name", "competitor": "what they do", "you": "what you do", "impact": "High|Medium|Low", "fix": "Specific action to close this gap" }
+    ],
+    "summary": "1-2 sentence summary of the biggest gap and its impact"
+  },
+  "hookLibrary": [
+    { "hook": "exact hook text extracted from their content", "type": "curiosity|storytelling|authority|controversy|pain-point|education", "whyItWorks": "1 sentence psychological explanation" }
+  ],
+  "postingStrategy": {
+    "competitorFrequency": "e.g. ~2 posts/day",
+    "clientFrequency": "e.g. ~3 posts/week",
+    "bestDays": ["Day1", "Day2"],
+    "bestTimes": ["Time1", "Time2"],
+    "formatMix": "description of their content format distribution",
+    "recommendation": "Specific schedule recommendation to copy their strategy"
+  },
+  "audienceInsights": {
+    "audienceLoves": ["thing1", "thing2", "thing3"],
+    "audienceHates": ["thing1"],
+    "painPoints": ["pain1", "pain2"],
+    "desires": ["desire1", "desire2"],
+    "insight": "1-2 sentence actionable insight about the audience"
+  },
+  "scorecard": {
+    "metrics": [
+      { "metric": "Engagement Rate", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Posting Consistency", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Hook Quality", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Content Variety", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "CTA Usage", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Viral Potential", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" }
+    ],
+    "youWin": 0,
+    "competitorWins": 0,
+    "ties": 0,
+    "summary": "You are [winning/losing] in X out of 6 categories"
   }
-}`;
+}
 
-      const raw = await callOpenRouter(systemPrompt, userPrompt, 2000);
+Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. Make hookLibrary have 10-15 hooks. Make contentPatterns have 4-6 patterns. Make gapAnalysis.gaps have 5-8 gaps.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 6000);
       let report: any = {};
       try {
-        const cleaned = raw.replace(/```json|```/g, "").trim();
-        report = JSON.parse(cleaned);
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
       } catch {
-        report = { summary: raw, recommendations: [], clientStrengths: [], clientWeaknesses: [] };
+        report = { overview: { assessment: "competitive", summary: raw, outperformingIn: [] } };
       }
 
       report.clientMetrics = clientData;
       report.competitorMetrics = competitorData;
+      report.clientPosts = clientPosts;
+      report.competitorPosts = competitorPosts;
 
       const saved = await storage.createCompetitorAnalysis({
         clientId,
@@ -1276,6 +1350,90 @@ Return ONLY a JSON object with these exact fields:
       });
 
       return res.json(saved);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Steal Strategy: 30-day content plan ───────────────────────────────────
+  app.post("/api/competitor/steal-strategy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { analysisId } = req.body;
+      if (!analysisId) return res.status(400).json({ message: "analysisId required" });
+
+      const analyses = await storage.getCompetitorAnalyses((req as any).user.id);
+      const analysis = analyses.find((a: any) => a.id === analysisId);
+      if (!analysis) return res.status(404).json({ message: "Analysis not found" });
+
+      const report = analysis.report as any;
+      const hooks = (report?.hookLibrary || []).slice(0, 10).map((h: any) => h.hook).join(", ");
+      const patterns = (report?.contentPatterns || []).map((p: any) => p.pattern).join(", ");
+      const gaps = (report?.gapAnalysis?.gaps || []).map((g: any) => `${g.metric}: ${g.fix}`).join("; ");
+      const strategy = report?.postingStrategy?.recommendation || "";
+
+      const systemPrompt = `You are an elite Instagram growth strategist. Generate a detailed, hyper-specific 30-day content action plan. Return ONLY valid JSON, no markdown.`;
+      const userPrompt = `Create a complete 30-day content strategy to help @${analysis.clientHandle} outperform @${analysis.competitorHandle} on Instagram.
+
+Context:
+- Competitor's top hooks: ${hooks}
+- Content patterns that work: ${patterns}
+- Key gaps to fix: ${gaps}
+- Posting strategy: ${strategy}
+- Competitor avg views: ${report?.competitorMetrics?.avgViews?.toLocaleString() ?? "N/A"}
+- Client avg views: ${report?.clientMetrics?.avgViews?.toLocaleString() ?? "N/A"}
+- Assessment: ${report?.overview?.assessment ?? "competitive"}
+
+Return this EXACT JSON:
+{
+  "contentPlan": [
+    { "day": 1, "format": "Reel|Carousel|Post", "topic": "Specific topic", "hook": "Exact hook to use", "structure": "Opening → Middle → CTA", "goal": "Views|Followers|Leads" }
+  ],
+  "hookSystem": [
+    { "hook": "exact hook text", "type": "curiosity|authority|pain-point|storytelling|controversy", "useFor": "which type of content" }
+  ],
+  "postingSchedule": {
+    "frequency": "X posts per day/week",
+    "days": ["Mon", "Wed", "Fri"],
+    "times": ["8 AM", "6 PM"],
+    "rationale": "Why this schedule works"
+  },
+  "reelIdeas": ["Specific reel idea 1", "idea 2", "idea 3", "idea 4", "idea 5", "idea 6", "idea 7", "idea 8", "idea 9", "idea 10"],
+  "carouselIdeas": ["Specific carousel idea 1", "idea 2", "idea 3", "idea 4", "idea 5"],
+  "ctaStrategy": {
+    "topCTAs": ["CTA 1", "CTA 2", "CTA 3"],
+    "whenToUse": "description of when and how to deploy CTAs",
+    "conversionFlow": "Viewer → Follower → Lead → Customer pathway"
+  },
+  "contentStyle": {
+    "tone": "description of tone to adopt",
+    "structure": "how to structure each post",
+    "storytellingFormat": "specific storytelling approach",
+    "visualStyle": "what visual/editing style to use"
+  },
+  "growthPlaybook": [
+    { "week": 1, "focus": "What to focus on this week", "tasks": ["Task 1", "Task 2", "Task 3"], "goal": "measurable goal for the week" },
+    { "week": 2, "focus": "...", "tasks": ["..."], "goal": "..." },
+    { "week": 3, "focus": "...", "tasks": ["..."], "goal": "..." },
+    { "week": 4, "focus": "...", "tasks": ["..."], "goal": "..." }
+  ],
+  "finalMessage": "Follow this plan for 30 days to outperform ${analysis.competitorHandle}"
+}
+
+Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas and carouselIdeas specific and actionable.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 6000);
+      let stealStrategy: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        stealStrategy = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid response. Please try again." });
+      }
+
+      // Save steal strategy into the analysis report
+      const updatedReport = { ...report, stealStrategy };
+      // We don't have an update method so we'll return it directly — frontend caches it
+      return res.json({ stealStrategy });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
