@@ -626,6 +626,35 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
   );
 }
 
+// ─── Collapsible Reel Compare Panel (reusable across sections) ───────────────
+
+function CollapsibleReelCompare({ clientHandle, competitorHandle }: { clientHandle?: string; competitorHandle?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-2xl border border-primary/20 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        data-testid="toggle-reel-compare"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Sword className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          <span className="text-xs font-bold text-foreground">Compare Reel by Reel</span>
+          <span className="text-[10px] text-muted-foreground">— paste any two reel URLs for a head-to-head breakdown</span>
+        </div>
+        {open
+          ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+      </button>
+      {open && (
+        <div className="border-t border-primary/15 p-4">
+          <DirectReelComparison clientHandle={clientHandle} competitorHandle={competitorHandle} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Section: Reel by Reel ────────────────────────────────────────────────────
 
 function ReelByReelSection({ report, analysis }: { report: any; analysis: any }) {
@@ -843,6 +872,7 @@ function PerformanceSection({ report, analysis }: { report: any; analysis: any }
   return (
     <div className="space-y-6">
       <SectionHeader icon={TrendingUp} title="Content Performance" desc="Visual charts — who's winning each metric" color="from-green-500/20 to-green-500/5" />
+      <CollapsibleReelCompare clientHandle={analysis.clientHandle} competitorHandle={analysis.competitorHandle} />
 
       {/* Win/Loss banners */}
       <div className="grid grid-cols-2 gap-4">
@@ -942,6 +972,7 @@ function AIPatternsSection({ report, analysis }: { report: any; analysis: any })
   return (
     <div className="space-y-6">
       <SectionHeader icon={Sparkles} title="AI Content Patterns" desc="Decoded viral formulas — side by side" color="from-yellow-500/20 to-yellow-500/5" />
+      <CollapsibleReelCompare clientHandle={analysis.clientHandle} competitorHandle={analysis.competitorHandle} />
 
       {/* Radar chart */}
       <div className="bg-card border border-card-border rounded-2xl p-5">
@@ -1043,6 +1074,7 @@ function GapAnalysisSection({ report }: { report: any }) {
   return (
     <div className="space-y-6">
       <SectionHeader icon={Search} title="Gap Analysis" desc="Every area where the competitor beats you — and how to fix it" color="from-red-500/20 to-red-500/5" />
+      <CollapsibleReelCompare />
 
       {/* Summary + pie */}
       <div className="grid grid-cols-3 gap-4">
@@ -1168,6 +1200,7 @@ function HookLibrarySection({ report, analysis }: { report: any; analysis: any }
   return (
     <div className="space-y-6">
       <SectionHeader icon={Zap} title="Hook Library" desc="Me vs Competitor — steal their best openers" color="from-purple-500/20 to-purple-500/5" />
+      <CollapsibleReelCompare clientHandle={analysis.clientHandle} competitorHandle={analysis.competitorHandle} />
 
       {/* Hook type distribution */}
       {typeData.length > 0 && (
@@ -1287,6 +1320,7 @@ function PostingStrategySection({ report, analysis }: { report: any; analysis: a
   return (
     <div className="space-y-6">
       <SectionHeader icon={Calendar} title="Posting Strategy" desc="When, how often, and what format — deep dive" color="from-cyan-500/20 to-cyan-500/5" />
+      <CollapsibleReelCompare clientHandle={analysis.clientHandle} competitorHandle={analysis.competitorHandle} />
 
       {/* Posting frequency comparison */}
       <div className="grid grid-cols-2 gap-4">
@@ -1416,6 +1450,7 @@ function AudienceSection({ report, analysis }: { report: any; analysis: any }) {
   return (
     <div className="space-y-6">
       <SectionHeader icon={Users} title="Audience Intelligence" desc="Who your audience is, what they want, and how to win them" color="from-orange-500/20 to-orange-500/5" />
+      <CollapsibleReelCompare clientHandle={analysis.clientHandle} competitorHandle={analysis.competitorHandle} />
 
       {/* Key insight banner */}
       {ai.insight && (
