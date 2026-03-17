@@ -449,27 +449,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const post = await storage.createContentPost(parsed.data);
 
-    const platformLabel = post.platform === "instagram" ? "Instagram" : "YouTube";
-    const typeLabel = post.contentType.charAt(0).toUpperCase() + post.contentType.slice(1);
-    const postDateLabel = new Date(post.postDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const now = new Date();
-
-    const reminders = [
-      { hours: 24, label: "24 hours" },
-      { hours: 48, label: "48 hours" },
-      { hours: 96, label: "96 hours" },
-    ];
-
-    for (const { hours, label } of reminders) {
-      const scheduledFor = new Date(now.getTime() + hours * 60 * 60 * 1000);
-      await storage.createNotification({
-        clientId: post.clientId,
-        message: `📊 ${label} check-in: Update the metrics for your ${platformLabel} ${typeLabel} posted on ${postDateLabel}. Track views, likes, and engagement now.`,
-        type: "metric_reminder",
-        scheduledFor,
-      });
-    }
-
     res.json(post);
   });
 
@@ -962,6 +941,127 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
     }
   });
 
+  // ── AI Full Script Generator ───────────────────────────────────────────────
+  app.post("/api/ai/full-script", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { title, concept, captionStarter, keyPoints, cta, platform, niche, goal } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+
+      const isYt = platform === "youtube";
+      const prompt = isYt
+        ? `You are a world-class YouTube scriptwriter. Generate a complete, production-ready YouTube video script for the following idea.
+
+VIDEO IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow audience"}
+OPENING HOOK DIRECTION: ${captionStarter || ""}
+KEY POINTS TO COVER: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write a FULL YouTube script in this exact format:
+
+## HOOK (0:00 - 0:20)
+[Write 3-4 attention-grabbing opening sentences. Pattern interrupt. Make them STOP scrolling.]
+
+## INTRO (0:20 - 0:45)
+[Quick intro, establish credibility, promise of the video, what they will learn]
+
+## BODY - MAIN CONTENT
+[Write each section with a heading. Include exact words to say, not just bullet points. Be conversational. 800-1200 words for the body. Use storytelling. Include B-roll suggestions in [brackets].]
+
+### Section 1: [Topic]
+[Script...]
+
+### Section 2: [Topic]
+[Script...]
+
+### Section 3: [Topic]
+[Script...]
+
+## ENGAGEMENT PROMPT (mid-video)
+[Ask viewers to comment with something specific]
+
+## CONCLUSION & CTA
+[Wrap up with key takeaway. Strong CTA. What to watch next.]
+
+## END SCREEN
+[What to say while end screen plays]
+
+Make the script feel natural and conversational. Include exact dialogue, transitions, and energy cues. Total script should be 800-1500 words.`
+        : `You are a world-class Instagram Reels / short-form video scriptwriter. Generate a complete, production-ready script for the following idea.
+
+REEL IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow followers"}
+OPENING HOOK: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write a FULL Instagram Reel script in this exact format:
+
+## HOOK (First 1-3 seconds)
+[Write the EXACT opening line — the words they say or text on screen. Must stop the scroll instantly.]
+
+## PROBLEM / RELATABILITY (3-10 seconds)
+[Establish the pain point or situation. Viewers must nod and say "that's me"]
+
+## CONTENT BODY (10-40 seconds)
+[The main value delivery. Write it as exact spoken words. Short punchy sentences. Include visual direction in [brackets]. Use pattern interrupts every 5-7 seconds.]
+
+Spoken words:
+[Exact script...]
+
+Visual notes:
+[Camera angles, text overlays, cuts, transitions]
+
+## HOOK CALLBACK / PAYOFF (40-50 seconds)
+[Reference back to the hook. Deliver the promised value or reveal.]
+
+## CTA (Last 3-5 seconds)
+[Exact CTA line. One clear action — comment, follow, save, share, or DM.]
+
+## CAPTION
+[Write a complete caption with hook, body (3-5 lines), hashtags (15-20 relevant tags), and CTA]
+
+## AUDIO SUGGESTION
+[Type of music or trending sound that fits]
+
+Keep the entire reel script to 45-60 seconds when read aloud. Every single word must earn its place.`;
+
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
+
+      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      let script = "";
+
+      for (const model of models) {
+        try {
+          const gr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: prompt }],
+              max_tokens: 2500,
+              temperature: 0.8,
+            }),
+          });
+          if (!gr.ok) continue;
+          const gd = await gr.json();
+          script = gd.choices?.[0]?.message?.content || "";
+          if (script.length > 200) break;
+        } catch { continue; }
+      }
+
+      if (!script) return res.status(500).json({ message: "Script generation failed" });
+      res.json({ script });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Script generation failed" });
+    }
+  });
+
   // ── AI Content Report (OpenRouter — smart reasoning) ─────────────────────
   app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -1095,8 +1195,6 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     res.json(allFeedback);
   });
 
-  // Background scheduler — check every 60s for due metric reminders and alert online clients
-  const notifiedIds = new Set<string>();
   // ── DM Tracker ────────────────────────────────────────────────────────────
   app.get("/api/dm/leads", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -1468,24 +1566,6 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
       return res.status(500).json({ message: err.message });
     }
   });
-
-  setInterval(async () => {
-    try {
-      const due = await storage.getDueScheduledNotifications();
-      const clientsToNotify = new Set<string>();
-      for (const notif of due) {
-        if (!notifiedIds.has(notif.id)) {
-          clientsToNotify.add(notif.clientId);
-          notifiedIds.add(notif.id);
-        }
-      }
-      for (const clientId of clientsToNotify) {
-        sendToUser(clientId, { type: "notifications_refresh" });
-      }
-    } catch (e) {
-      console.error("Notification scheduler error:", e);
-    }
-  }, 60 * 1000);
 
   return httpServer;
 }

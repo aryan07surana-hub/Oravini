@@ -20,11 +20,9 @@ const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/calls", label: "Call Feedback", icon: Phone },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
-  { href: "/dm-tracker", label: "DM Tracker", icon: Inbox },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
 ];
 

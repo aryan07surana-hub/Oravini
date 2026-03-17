@@ -9,12 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
-  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2
+  RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
+  FileText, Wand2
 } from "lucide-react";
 
 function likedKey(platform: string) { return `liked_ideas_${platform}`; }
@@ -87,7 +90,13 @@ function extractHandle(url: string, platform: "instagram" | "youtube"): string |
   return null;
 }
 
-function IdeaCard({ idea, index, isLiked, onToggleLike }: { idea: ContentIdea; index: number; isLiked?: boolean; onToggleLike?: (idea: ContentIdea) => void }) {
+function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript }: {
+  idea: ContentIdea;
+  index: number;
+  isLiked?: boolean;
+  onToggleLike?: (idea: ContentIdea) => void;
+  onGetScript?: (idea: ContentIdea) => void;
+}) {
   const [expanded, setExpanded] = useState(true);
   const { toast } = useToast();
 
@@ -97,7 +106,7 @@ function IdeaCard({ idea, index, isLiked, onToggleLike }: { idea: ContentIdea; i
   };
 
   return (
-    <Card className="border border-card-border transition-all duration-200 hover:border-primary/30" data-testid={`idea-card-${index}`}>
+    <Card className="border border-card-border transition-all duration-200 hover:border-primary/30 hover:shadow-md" data-testid={`idea-card-${index}`}>
       <CardContent className="p-5">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -210,6 +219,18 @@ function IdeaCard({ idea, index, isLiked, onToggleLike }: { idea: ContentIdea; i
                     </div>
                   </div>
                 )}
+
+                {onGetScript && (
+                  <button
+                    onClick={() => onGetScript(idea)}
+                    data-testid={`get-script-${index}`}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 hover:from-primary/20 hover:to-primary/10 hover:border-primary/40 transition-all duration-200 group"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-semibold text-primary">Get Full Script</span>
+                    <FileText className="w-3 h-3 text-primary/60" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -232,6 +253,9 @@ export default function AIIdeas() {
   const [contentMix, setContentMix] = useState<ContentMix | null>(null);
   const [loading, setLoading] = useState(false);
   const [likedIdeas, setLikedIdeas] = useState<ContentIdea[]>(() => loadLiked(platform));
+  const [scriptIdea, setScriptIdea] = useState<ContentIdea | null>(null);
+  const [scriptContent, setScriptContent] = useState("");
+  const [scriptLoading, setScriptLoading] = useState(false);
 
   useEffect(() => {
     setLikedIdeas(loadLiked(platform));
@@ -252,6 +276,30 @@ export default function AIIdeas() {
       saveLikedStorage(platform, next);
       return next;
     });
+  };
+
+  const handleGetScript = async (idea: ContentIdea) => {
+    setScriptIdea(idea);
+    setScriptContent("");
+    setScriptLoading(true);
+    try {
+      const data = await apiRequest("POST", "/api/ai/full-script", {
+        title: idea.title,
+        concept: idea.concept,
+        captionStarter: idea.captionStarter,
+        keyPoints: idea.keyPoints,
+        cta: idea.cta,
+        platform,
+        niche,
+        goal,
+      });
+      setScriptContent(data.script || "");
+    } catch (err: any) {
+      toast({ title: "Script generation failed", description: err.message, variant: "destructive" });
+      setScriptIdea(null);
+    } finally {
+      setScriptLoading(false);
+    }
   };
 
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
@@ -623,7 +671,7 @@ export default function AIIdeas() {
 
             <div className="space-y-3">
               {ideas.map((idea, i) => (
-                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} />
+                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} />
               ))}
             </div>
 
@@ -660,6 +708,67 @@ export default function AIIdeas() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Full Script Dialog */}
+      <Dialog open={!!scriptIdea} onOpenChange={(o) => { if (!o) { setScriptIdea(null); setScriptContent(""); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                {platform === "instagram" ? <Instagram className="w-3.5 h-3.5 text-pink-400" /> : <Youtube className="w-3.5 h-3.5 text-red-400" />}
+              </div>
+              <span className="line-clamp-1">{scriptIdea?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {scriptLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
+                <Wand2 className="w-6 h-6 text-primary animate-pulse" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-foreground">Generating your full script…</p>
+                <p className="text-xs text-muted-foreground mt-1">AI is writing every word, hook, and CTA for you</p>
+              </div>
+            </div>
+          ) : scriptContent ? (
+            <div className="flex flex-col gap-3 min-h-0">
+              <div className="flex items-center justify-between">
+                <Badge variant="outline" className={`text-xs ${platform === "instagram" ? "border-pink-500/30 text-pink-400" : "border-red-500/30 text-red-400"}`}>
+                  {platform === "instagram" ? "Instagram Reel Script" : "YouTube Script"}
+                </Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-7 text-xs"
+                  onClick={() => {
+                    navigator.clipboard.writeText(scriptContent);
+                    toast({ title: "Script copied!", description: "Full script copied to clipboard." });
+                  }}
+                  data-testid="button-copy-script"
+                >
+                  <Copy className="w-3 h-3" /> Copy Script
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 max-h-[55vh]">
+                <div className="space-y-3 pr-3">
+                  {scriptContent.split(/\n(?=##)/).map((section, i) => {
+                    const lines = section.trim().split("\n");
+                    const heading = lines[0].replace(/^#+\s*/, "");
+                    const body = lines.slice(1).join("\n").trim();
+                    return (
+                      <div key={i} className="bg-card border border-card-border rounded-xl p-4">
+                        <p className="text-xs font-bold text-primary uppercase tracking-wider mb-2">{heading}</p>
+                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{body}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </ClientLayout>
   );
 }

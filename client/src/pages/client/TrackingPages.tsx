@@ -21,7 +21,8 @@ import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
   Star, FileText, Clock, ChevronRight, ArrowLeft, Plus, Trash2, Pencil,
   BarChart2, Bell, Sparkles, Loader2, DollarSign, CalendarDays, Activity,
-  Calendar, TrendingDown, RefreshCw, Zap, ExternalLink, Inbox
+  Calendar, TrendingDown, RefreshCw, Zap, ExternalLink, Inbox, ChevronDown,
+  CheckCircle2, AlertCircle, Lightbulb
 } from "lucide-react";
 import { format, getMonth, getYear, startOfMonth, endOfMonth } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1140,6 +1141,169 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
   );
 }
 
+function InstagramSetupCard({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [url, setUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const { data: saved, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/instagram/profile-report"],
+    enabled: !!userId,
+  });
+
+  const analyze = async () => {
+    const input = url.trim();
+    if (!input) return;
+    let profileUrl = input;
+    if (!profileUrl.startsWith("http")) {
+      const handle = profileUrl.replace(/^@/, "");
+      profileUrl = `https://www.instagram.com/${handle}/`;
+    }
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/instagram/analyze-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileUrl }),
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Analysis failed");
+      toast({ title: "Profile analysed!", description: `${data.newPostsImported} new posts synced.` });
+      setUrl("");
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const re = saved?.report;
+
+  if (isLoading) {
+    return (
+      <Card className="border border-card-border">
+        <CardContent className="p-5">
+          <Skeleton className="h-5 w-40 mb-3" />
+          <Skeleton className="h-3 w-full mb-2" />
+          <Skeleton className="h-3 w-3/4" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={`border ${re ? "border-primary/30 bg-primary/5" : "border-dashed border-primary/40 bg-primary/5"}`} data-testid="instagram-setup-card">
+      <CardContent className="p-5">
+        {!re ? (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Instagram className="w-4 h-4 text-pink-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Set Up Your Instagram Profile</p>
+                <p className="text-xs text-muted-foreground">AI analysis + auto-sync last 30 posts to tracking</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !analyzing && analyze()}
+                placeholder="instagram.com/yourhandle or @yourhandle"
+                className="h-9 text-sm flex-1"
+                disabled={analyzing}
+                data-testid="input-instagram-url"
+              />
+              <Button size="sm" onClick={analyze} disabled={!url.trim() || analyzing} className="flex-shrink-0 gap-1.5" data-testid="button-analyze-profile">
+                {analyzing ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse</>}
+              </Button>
+            </div>
+            {analyzing && <p className="text-xs text-muted-foreground mt-2 animate-pulse">Scraping posts + running AI analysis… ~30 seconds</p>}
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Instagram className="w-4 h-4 text-pink-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-sm">@{saved.handle ?? "your profile"}</p>
+                  <p className="text-xs text-muted-foreground">{saved.postCount} posts analysed</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setUrl(saved.instagramUrl); }}
+                className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 border border-border rounded-md px-2 py-1 transition-colors"
+                data-testid="button-reanalyze"
+              >
+                <RefreshCw className="w-3 h-3" /> Re-sync
+              </button>
+            </div>
+            {url && (
+              <div className="flex gap-2 mb-3">
+                <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-8 text-sm flex-1" disabled={analyzing} />
+                <Button size="sm" onClick={analyze} disabled={!url.trim() || analyzing} className="flex-shrink-0 gap-1.5 h-8 text-xs">
+                  {analyzing ? <><RefreshCw className="w-3 h-3 animate-spin" />Running…</> : <><Sparkles className="w-3 h-3" />Run</>}
+                </Button>
+                <button onClick={() => setUrl("")} className="text-xs text-muted-foreground hover:text-foreground px-1">✕</button>
+              </div>
+            )}
+            {analyzing && <p className="text-xs text-muted-foreground mb-3 animate-pulse">Scraping posts + running AI analysis… ~30 seconds</p>}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+              {[
+                { icon: Zap, label: "Niche", value: re.niche, color: "text-yellow-400" },
+                { icon: Users, label: "Audience", value: re.audienceType, color: "text-blue-400" },
+                { icon: BarChart2, label: "Avg ER", value: re.avgEngagementRate, color: "text-green-400" },
+                { icon: Instagram, label: "Top Format", value: re.topContentType, color: "text-pink-400" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="bg-card border border-card-border rounded-xl p-2.5 text-center">
+                  <Icon className={`w-3.5 h-3.5 ${color} mx-auto mb-1`} />
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-0.5 leading-tight">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-3 mb-3">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">AI Summary</p>
+              <p className="text-xs text-foreground leading-relaxed">{re.summary}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="bg-card border border-card-border rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Strengths</p>
+                <ul className="space-y-1">
+                  {(re.strengths || []).map((s: string, i: number) => (
+                    <li key={i} className="text-[11px] text-foreground flex items-start gap-1.5"><span className="text-green-400 flex-shrink-0">•</span>{s}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-card border border-card-border rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider mb-1.5 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Gaps</p>
+                <ul className="space-y-1">
+                  {(re.gaps || []).map((g: string, i: number) => (
+                    <li key={i} className="text-[11px] text-foreground flex items-start gap-1.5"><span className="text-yellow-400 flex-shrink-0">•</span>{g}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-card border border-card-border rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1.5 flex items-center gap-1"><Lightbulb className="w-3 h-3" /> Actions</p>
+                <ul className="space-y-1">
+                  {(re.recommendations || []).map((r: string, i: number) => (
+                    <li key={i} className="text-[11px] text-foreground flex items-start gap-1.5"><span className="text-primary flex-shrink-0">•</span>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -1273,24 +1437,27 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-3 gap-4">
+        {/* Instagram Profile Setup — shown first on Instagram only */}
+        {!isYt && user?.id && <InstagramSetupCard userId={user.id} />}
+
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Total Posts", value: totalPosts, icon: isYt ? Youtube : Instagram, color: isYt ? "text-red-400" : "text-pink-400" },
             { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
             { label: isYt ? "Subscribers Gained" : "Followers Gained", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
           ].map(({ label, value, icon: Icon, color }) => (
             <Card key={label} className="border border-card-border">
-              <CardContent className="p-4">
-                <Icon className={`w-5 h-5 ${color} mb-2`} />
-                <p className="text-2xl font-bold text-foreground">{value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+              <CardContent className="p-3">
+                <Icon className={`w-4 h-4 ${color} mb-1.5`} />
+                <p className="text-xl font-bold text-foreground">{value}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Posts by Month</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Posts by Month</p>
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
@@ -1310,29 +1477,29 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
                     key={key}
                     onClick={() => setSelectedMonth(key)}
                     data-testid={`month-card-${key}`}
-                    className={`relative p-5 rounded-2xl border text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-lg group ${
+                    className={`relative p-3.5 rounded-xl border text-left transition-all duration-200 hover:scale-[1.01] hover:shadow-md group ${
                       isCurrentMonth
                         ? "border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10"
                         : "border-card-border bg-card hover:border-primary/30 hover:bg-accent"
                     }`}
                   >
                     {isCurrentMonth && (
-                      <div className="absolute top-2.5 right-2.5">
-                        <div className="w-2 h-2 bg-primary rounded-full" />
+                      <div className="absolute top-2 right-2">
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full" />
                       </div>
                     )}
-                    <p className="text-base font-bold text-foreground">{MONTHS[mo - 1]}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{yr}</p>
-                    <p className="text-2xl font-bold text-foreground mt-3">{mPosts.length}</p>
-                    <p className="text-xs text-muted-foreground">{mPosts.length === 1 ? "post" : "posts"}</p>
+                    <p className="text-sm font-bold text-foreground">{MONTHS[mo - 1]}</p>
+                    <p className="text-[10px] text-muted-foreground">{yr}</p>
+                    <p className="text-xl font-bold text-foreground mt-2">{mPosts.length}</p>
+                    <p className="text-[10px] text-muted-foreground">{mPosts.length === 1 ? "post" : "posts"}</p>
                     {mPosts.length > 0 && (
-                      <div className="mt-2 space-y-0.5">
+                      <div className="mt-1.5 space-y-0.5">
                         <p className="text-[10px] text-muted-foreground">{mViews.toLocaleString()} views</p>
-                        {!isYt && <p className="text-[10px] text-primary">{mAvgEr.toFixed(1)}% avg ER</p>}
+                        {!isYt && <p className="text-[10px] text-primary">{mAvgEr.toFixed(1)}% ER</p>}
                       </div>
                     )}
                     {mPosts.length === 0 && (
-                      <p className="text-[10px] text-muted-foreground mt-2 opacity-60">No posts yet</p>
+                      <p className="text-[10px] text-muted-foreground mt-1.5 opacity-60">No posts yet</p>
                     )}
                     <ChevronRight className="absolute bottom-3 right-3 w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
@@ -1421,6 +1588,8 @@ export function ContentTrackingIndex() {
 }
 
 export function TrackingHome() {
+  const [salesExpanded, setSalesExpanded] = useState(false);
+
   return (
     <ClientLayout>
       <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-8">
@@ -1433,43 +1602,78 @@ export function TrackingHome() {
             <p className="text-muted-foreground mt-2">Select a metrics dashboard to get started</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Link href="/tracking/content">
-              <div data-testid="card-tracking-content" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
-                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
-                  <BarChart2 className="w-7 h-7 text-primary" />
+              <div data-testid="card-tracking-content" className="group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                  <BarChart2 className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground text-base">Content Metrics</h3>
-                <p className="text-xs text-muted-foreground mt-1.5">Instagram, YouTube & calendar</p>
-                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
-                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            </Link>
-
-            <Link href="/dm-tracker">
-              <div data-testid="card-tracking-sales" className="group cursor-pointer p-7 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
-                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary/20 transition-colors">
-                  <Inbox className="w-7 h-7 text-primary" />
-                </div>
-                <h3 className="font-semibold text-foreground text-base">Sales Metrics</h3>
-                <p className="text-xs text-muted-foreground mt-1.5">DM leads, pipeline & conversions</p>
-                <div className="mt-3 flex items-center justify-center gap-1 text-xs text-primary">
-                  <span>Open</span><ChevronRight className="w-3.5 h-3.5" />
+                <h3 className="font-semibold text-foreground text-sm">Content</h3>
+                <p className="text-[11px] text-muted-foreground mt-1">Instagram & YouTube</p>
+                <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-primary">
+                  <span>Open</span><ChevronRight className="w-3 h-3" />
                 </div>
               </div>
             </Link>
 
-            <div data-testid="card-tracking-ads" className="p-7 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
-              <div className="w-14 h-14 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Activity className="w-7 h-7 text-muted-foreground" />
+            <div className="relative">
+              <button
+                data-testid="card-tracking-sales"
+                onClick={() => setSalesExpanded(e => !e)}
+                className="w-full group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center"
+              >
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                  <DollarSign className="w-6 h-6 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-sm">Sales</h3>
+                <p className="text-[11px] text-muted-foreground mt-1">Pipeline & conversions</p>
+                <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-primary">
+                  <span>{salesExpanded ? "Close" : "Open"}</span>
+                  {salesExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                </div>
+              </button>
+              {salesExpanded && (
+                <div className="absolute top-full left-0 right-0 mt-2 z-20 bg-card border border-primary/30 rounded-2xl shadow-xl p-4 space-y-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sales Tools</p>
+                  <Link href="/dm-tracker">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20 hover:bg-primary/10 hover:border-primary/40 transition-all cursor-pointer" data-testid="link-dm-tracker">
+                      <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Inbox className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-semibold text-foreground">DM Tracker</p>
+                        <p className="text-[10px] text-muted-foreground">Hot / Warm / Cold pipeline</p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground ml-auto" />
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            <div data-testid="card-tracking-ads" className="p-6 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
+              <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Activity className="w-6 h-6 text-muted-foreground" />
               </div>
-              <h3 className="font-semibold text-foreground text-base">Ad Metrics</h3>
-              <p className="text-xs text-muted-foreground mt-1.5">Paid ad performance & ROI</p>
-              <div className="mt-3">
-                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+              <h3 className="font-semibold text-foreground text-sm">Ad Metrics</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">Paid ad performance</p>
+              <div className="mt-2.5">
+                <Badge variant="outline" className="text-[10px]">Soon</Badge>
               </div>
             </div>
+
+            <Link href="/progress">
+              <div data-testid="card-tracking-progress" className="group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                  <TrendingUp className="w-6 h-6 text-primary" />
+                </div>
+                <h3 className="font-semibold text-foreground text-sm">Progress</h3>
+                <p className="text-[11px] text-muted-foreground mt-1">Program milestones</p>
+                <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-primary">
+                  <span>Open</span><ChevronRight className="w-3 h-3" />
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
       </div>
