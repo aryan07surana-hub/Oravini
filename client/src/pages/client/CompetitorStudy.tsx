@@ -22,6 +22,7 @@ import {
   Lightbulb, BookOpen, Calendar, Flame, Shield, Trophy, Copy, Check,
   AlertCircle, Award, ArrowUpRight, ExternalLink, Play, ChevronDown, ChevronUp,
   TrendingUp as Trending, Sword, Crosshair, Layers, Search, Hash,
+  Wand2, Brain, Activity, FileText, Dna,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -2585,9 +2586,529 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── Methodology Section ──────────────────────────────────────────────────────
+
+const METHODOLOGY_TOOLS = [
+  { id: "improve", label: "AI Content Improver", icon: Wand2, color: "from-violet-500/20 to-violet-500/5", border: "border-violet-500/30", text: "text-violet-400", desc: "Paste a caption or script — AI rewrites the hook, structure and CTA", placeholder: "Paste your caption or script here..." },
+  { id: "hooks", label: "Hook Optimizer", icon: Zap, color: "from-yellow-500/20 to-yellow-500/5", border: "border-yellow-500/30", text: "text-yellow-400", desc: "Paste a hook — get 4 viral rewrites (curiosity, controversy, storytelling, authority)", placeholder: "Paste your hook line here..." },
+  { id: "score", label: "Content Score", icon: Activity, color: "from-green-500/20 to-green-500/5", border: "border-green-500/30", text: "text-green-400", desc: "Paste any content — get scored out of 100 across hook, engagement, clarity, retention and CTA", placeholder: "Paste your content here to score it..." },
+  { id: "abtest", label: "A/B Test Generator", icon: Layers, color: "from-blue-500/20 to-blue-500/5", border: "border-blue-500/30", text: "text-blue-400", desc: "Paste a content idea — get 3 hooks, 3 captions and 2 CTAs to split-test", placeholder: "Describe your content idea or paste a draft post..." },
+];
+
+function ScoreBar({ label, score, feedback }: { label: string; score: number; feedback: string }) {
+  const color = score >= 75 ? "bg-green-500" : score >= 55 ? "bg-primary" : "bg-red-500";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-foreground">{label}</span>
+        <span className={`text-xs font-bold ${score >= 75 ? "text-green-400" : score >= 55 ? "text-primary" : "text-red-400"}`}>{score}/100</span>
+      </div>
+      <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">{feedback}</p>
+    </div>
+  );
+}
+
+function DNAProfile({ profile }: { profile: any }) {
+  const dna = profile?.contentDNA || {};
+  const sc = profile?.scorecard || {};
+  const SCORE_FIELDS = [
+    { key: "hookStrength", label: "Hook Strength" },
+    { key: "ctaEffectiveness", label: "CTA Effectiveness" },
+    { key: "contentConsistency", label: "Content Consistency" },
+    { key: "engagementRate", label: "Engagement Rate" },
+    { key: "viralPotential", label: "Viral Potential" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Fingerprint banner */}
+      <div className="bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/30 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <Dna className="w-4 h-4 text-primary" />
+          <p className="text-xs font-bold text-primary uppercase tracking-wider">Your Content DNA Fingerprint</p>
+        </div>
+        <p className="text-sm text-foreground leading-relaxed font-medium">"{dna.fingerprint}"</p>
+        <div className="flex items-center gap-2 mt-3">
+          <div className="flex items-center gap-1.5 bg-primary/20 rounded-full px-3 py-1">
+            <span className="text-lg font-black text-primary">{sc.overall ?? "—"}</span>
+            <span className="text-[10px] text-primary/70 font-semibold">/100 overall score</span>
+          </div>
+          <span className={`text-xs font-bold ${(sc.overall ?? 0) >= 70 ? "text-green-400" : (sc.overall ?? 0) >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+            {(sc.overall ?? 0) >= 70 ? "Strong content methodology" : (sc.overall ?? 0) >= 50 ? "Needs some work" : "Significant room to improve"}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Hook Style */}
+        <div className="bg-card border border-card-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-yellow-400" />
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">Hook Style</p>
+          </div>
+          <p className="text-sm text-foreground">{dna.hookStyle}</p>
+          {Array.isArray(dna.hookExamples) && dna.hookExamples.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Real examples from your posts:</p>
+              {dna.hookExamples.map((ex: string, i: number) => (
+                <div key={i} className="bg-muted/20 rounded-xl px-3 py-2 text-xs text-foreground italic">"{ex}"</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* CTA Style */}
+        <div className="bg-card border border-card-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-blue-400" />
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">CTA Style</p>
+          </div>
+          <p className="text-sm text-foreground">{dna.ctaStyle}</p>
+          {Array.isArray(dna.ctaExamples) && dna.ctaExamples.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Real examples from your posts:</p>
+              {dna.ctaExamples.map((ex: string, i: number) => (
+                <div key={i} className="bg-muted/20 rounded-xl px-3 py-2 text-xs text-foreground italic">"{ex}"</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Content Structure */}
+        <div className="bg-card border border-card-border rounded-2xl p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-violet-400" />
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">Content Structure</p>
+          </div>
+          <p className="text-sm text-foreground font-medium">{dna.contentStructure}</p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="bg-muted/20 rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Format</p>
+              <p className="text-xs text-foreground font-bold mt-0.5">{dna.dominantFormat}</p>
+            </div>
+            <div className="bg-muted/20 rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Frequency</p>
+              <p className="text-xs text-foreground font-bold mt-0.5">{dna.postingFrequency}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tone + Themes */}
+        <div className="bg-card border border-card-border rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Brain className="w-4 h-4 text-pink-400" />
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">Tone + Themes</p>
+          </div>
+          <p className="text-xs text-muted-foreground">{dna.toneOfVoice}</p>
+          {Array.isArray(dna.topThemes) && (
+            <div className="flex flex-wrap gap-1.5">
+              {dna.topThemes.map((t: string, i: number) => (
+                <span key={i} className="bg-pink-500/10 border border-pink-500/25 text-pink-300 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">{t}</span>
+              ))}
+            </div>
+          )}
+          {Array.isArray(dna.engagementTriggers) && (
+            <div>
+              <p className="text-[10px] text-muted-foreground font-semibold mb-1.5">Engagement Triggers:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {dna.engagementTriggers.map((t: string, i: number) => (
+                  <span key={i} className="bg-green-500/10 border border-green-500/25 text-green-300 rounded-full px-2.5 py-0.5 text-[10px] font-semibold">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Scorecard */}
+      <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <BarChart2 className="w-4 h-4 text-primary" />
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider">Content Scorecard</p>
+        </div>
+        <div className="space-y-4">
+          {SCORE_FIELDS.map(({ key, label }) => (
+            <ScoreBar key={key} label={label} score={sc[key] ?? 0} feedback="" />
+          ))}
+        </div>
+      </div>
+
+      {/* Weaknesses */}
+      {Array.isArray(dna.weaknesses) && dna.weaknesses.length > 0 && (
+        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <p className="text-xs font-bold text-red-400 uppercase tracking-wider">Content Weaknesses Detected</p>
+          </div>
+          <div className="space-y-2">
+            {dna.weaknesses.map((w: string, i: number) => (
+              <div key={i} className="flex items-start gap-2">
+                <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-foreground">{w}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Improvement plan */}
+      {Array.isArray(profile.improvements) && profile.improvements.length > 0 && (
+        <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-yellow-400" />
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">AI Improvement Plan</p>
+          </div>
+          <div className="space-y-3">
+            {profile.improvements.map((imp: any, i: number) => (
+              <div key={i} className="bg-muted/20 rounded-xl p-3.5 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">{imp.area}</span>
+                </div>
+                <p className="text-xs text-red-400 flex items-start gap-1.5"><XCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />{imp.issue}</p>
+                <p className="text-xs text-green-400 flex items-start gap-1.5"><CheckCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />{imp.fix}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolResult({ tool, result }: { tool: string; result: any }) {
+  const { toast } = useToast();
+  const copy = (text: string) => { navigator.clipboard.writeText(text); toast({ title: "Copied!" }); };
+
+  if (tool === "improve") {
+    return (
+      <div className="space-y-4 mt-4">
+        <div className="bg-green-500/5 border border-green-500/25 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-green-400 uppercase tracking-wider">✓ Improved Version</p>
+            <button onClick={() => copy(result.improved)} className="p-1.5 rounded-lg hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-colors"><Copy className="w-3.5 h-3.5" /></button>
+          </div>
+          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{result.improved}</p>
+        </div>
+        {Array.isArray(result.changes) && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider">What Changed & Why</p>
+            {result.changes.map((c: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-xl p-3.5 space-y-2">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider">{c.element}</span>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  <div className="bg-red-500/5 rounded-lg p-2"><p className="text-[10px] text-red-400 font-semibold mb-0.5">Before</p><p className="text-xs text-muted-foreground">{c.original}</p></div>
+                  <div className="bg-green-500/5 rounded-lg p-2"><p className="text-[10px] text-green-400 font-semibold mb-0.5">After</p><p className="text-xs text-foreground">{c.improved}</p></div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{c.reason}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {result.whyItWillPerform && (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+            <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1.5">Why This Will Perform Better</p>
+            <p className="text-xs text-foreground leading-relaxed">{result.whyItWillPerform}</p>
+            {result.expectedLift && <p className="text-xs text-primary font-semibold mt-2">Expected lift: {result.expectedLift}</p>}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (tool === "hooks") {
+    const colorMap: Record<string, string> = {
+      Curiosity: "bg-purple-500/10 border-purple-500/30 text-purple-300",
+      Controversy: "bg-red-500/10 border-red-500/30 text-red-300",
+      Storytelling: "bg-blue-500/10 border-blue-500/30 text-blue-300",
+      Authority: "bg-yellow-500/10 border-yellow-500/30 text-yellow-300",
+    };
+    return (
+      <div className="space-y-3 mt-4">
+        <p className="text-xs font-bold text-foreground uppercase tracking-wider">4 Hook Rewrites</p>
+        {(result.hooks || []).map((h: any, i: number) => (
+          <div key={i} className={`border rounded-2xl p-4 space-y-2 ${colorMap[h.style] ?? "bg-card border-card-border text-foreground"}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider">{h.style}</span>
+              <button onClick={() => copy(h.text)} className="p-1.5 rounded-lg hover:bg-black/20 text-current opacity-60 hover:opacity-100 transition-all"><Copy className="w-3 h-3" /></button>
+            </div>
+            <p className="text-sm font-semibold text-foreground">"{h.text}"</p>
+            <p className="text-[10px] opacity-70 leading-relaxed">{h.explanation}</p>
+          </div>
+        ))}
+        {result.bestPick && (
+          <div className="bg-primary/10 border border-primary/30 rounded-xl p-3.5">
+            <p className="text-xs font-bold text-primary mb-0.5">✨ Best Pick: {result.bestPick}</p>
+            <p className="text-xs text-muted-foreground">{result.bestPickReason}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (tool === "score") {
+    const scores = result.scores || {};
+    const fields = [
+      { key: "hook", label: "Hook" },
+      { key: "engagement", label: "Engagement" },
+      { key: "clarity", label: "Clarity" },
+      { key: "retention", label: "Retention" },
+      { key: "cta", label: "CTA" },
+    ];
+    return (
+      <div className="space-y-4 mt-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 ${(result.overall ?? 0) >= 70 ? "bg-green-500/10 border-green-500/40" : (result.overall ?? 0) >= 50 ? "bg-primary/10 border-primary/40" : "bg-red-500/10 border-red-500/40"}`}>
+            <span className={`text-xl font-black ${(result.overall ?? 0) >= 70 ? "text-green-400" : (result.overall ?? 0) >= 50 ? "text-primary" : "text-red-400"}`}>{result.overall}</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Overall Content Score</p>
+            <p className={`text-xs font-semibold ${result.verdict === "Strong" ? "text-green-400" : result.verdict === "Needs Work" ? "text-yellow-400" : "text-red-400"}`}>{result.verdict}</p>
+          </div>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4 space-y-4">
+          {fields.map(({ key, label }) => (
+            <ScoreBar key={key} label={label} score={scores[key]?.score ?? 0} feedback={scores[key]?.feedback ?? ""} />
+          ))}
+        </div>
+        {result.topIssue && (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3.5 space-y-1">
+            <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider">Top Issue</p>
+            <p className="text-xs text-foreground">{result.topIssue}</p>
+          </div>
+        )}
+        {result.quickFix && (
+          <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3.5 space-y-1">
+            <p className="text-[10px] text-green-400 font-bold uppercase tracking-wider">Quick Fix</p>
+            <p className="text-xs text-foreground">{result.quickFix}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (tool === "abtest") {
+    return (
+      <div className="space-y-5 mt-4">
+        <div>
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-3">3 Hook Variants to Test</p>
+          <div className="space-y-2">
+            {(result.hooks || []).map((h: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-black flex items-center justify-center">{h.variant}</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold capitalize">{h.angle}</span>
+                  </div>
+                  <button onClick={() => copy(h.text)} className="p-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /></button>
+                </div>
+                <p className="text-xs text-foreground font-medium">"{h.text}"</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-3">3 Caption Variants to Test</p>
+          <div className="space-y-2">
+            {(result.captions || []).map((c: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-black flex items-center justify-center">{c.variant}</span>
+                  <button onClick={() => copy(c.text)} className="p-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /></button>
+                </div>
+                <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{c.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-3">2 CTA Variants to Test</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(result.ctas || []).map((c: any, i: number) => (
+              <div key={i} className="bg-card border border-card-border rounded-xl p-3.5 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-300 text-[9px] font-black flex items-center justify-center">{c.variant}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] text-muted-foreground">{c.type}</span>
+                    <button onClick={() => copy(c.text)} className="p-1 text-muted-foreground hover:text-foreground"><Copy className="w-3 h-3" /></button>
+                  </div>
+                </div>
+                <p className="text-xs text-foreground">{c.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        {result.recommendation && (
+          <div className="bg-primary/10 border border-primary/30 rounded-xl p-3.5">
+            <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-1">Recommendation</p>
+            <p className="text-xs text-foreground leading-relaxed">{result.recommendation}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
+  const [profileUrl, setProfileUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [toolContent, setToolContent] = useState("");
+  const [toolResult, setToolResult] = useState<any>(null);
+  const [toolLoading, setToolLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleAnalyze = async () => {
+    if (!profileUrl.trim()) return toast({ title: "Enter your Instagram URL", variant: "destructive" });
+    setAnalyzing(true);
+    setProfile(null);
+    setActiveTool(null);
+    setToolResult(null);
+    try {
+      const data = await apiRequest("POST", "/api/methodology/analyze", { profileUrl: profileUrl.trim() });
+      setProfile(data);
+      toast({ title: "Content DNA Profile Ready!", description: `Analysed ${data?.handle}'s methodology from their recent posts.` });
+    } catch (err: any) {
+      toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleRunTool = async () => {
+    if (!toolContent.trim() || !activeTool) return;
+    setToolLoading(true);
+    setToolResult(null);
+    try {
+      const data = await apiRequest("POST", "/api/methodology/improve", {
+        content: toolContent.trim(),
+        tool: activeTool,
+        dna: profile?.contentDNA ?? null,
+      });
+      setToolResult(data);
+    } catch (err: any) {
+      toast({ title: "Tool failed", description: err.message, variant: "destructive" });
+    } finally {
+      setToolLoading(false);
+    }
+  };
+
+  const currentTool = METHODOLOGY_TOOLS.find(t => t.id === activeTool);
+
+  return (
+    <div className="space-y-6">
+      {/* Profile URL input */}
+      <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center">
+            <Dna className="w-4 h-4 text-violet-400" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Build Your Content DNA Profile</p>
+            <p className="text-xs text-muted-foreground">Enter your Instagram URL — AI scrapes your posts and reverse-engineers your exact methodology</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={profileUrl}
+            onChange={e => setProfileUrl(e.target.value)}
+            placeholder="https://instagram.com/yourusername"
+            className="flex-1 h-9 text-sm"
+            data-testid="input-methodology-url"
+            onKeyDown={e => e.key === "Enter" && handleAnalyze()}
+          />
+          <Button
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            className="h-9 px-4 gap-2"
+            data-testid="button-analyze-methodology"
+          >
+            {analyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse My Content</>}
+          </Button>
+        </div>
+        {analyzing && (
+          <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-3 text-center">
+            <p className="text-xs text-violet-300">Scraping your last 30 posts and reverse-engineering your content methodology…</p>
+            <p className="text-[10px] text-muted-foreground mt-1">This usually takes 15–30 seconds</p>
+          </div>
+        )}
+      </div>
+
+      {/* DNA Profile */}
+      {profile && <DNAProfile profile={profile} />}
+
+      {/* AI Tools */}
+      {profile && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Wand2 className="w-4 h-4 text-primary" />
+            <p className="text-sm font-bold text-foreground">AI Content Tools</p>
+            <p className="text-xs text-muted-foreground">— use your Content DNA to improve your content</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {METHODOLOGY_TOOLS.map(tool => {
+              const Icon = tool.icon;
+              const isActive = activeTool === tool.id;
+              return (
+                <button
+                  key={tool.id}
+                  onClick={() => { setActiveTool(isActive ? null : tool.id); setToolResult(null); setToolContent(""); }}
+                  data-testid={`tool-${tool.id}`}
+                  className={`group relative overflow-hidden rounded-2xl border text-left p-4 flex flex-col gap-3 transition-all ${isActive ? `${tool.border} bg-gradient-to-br ${tool.color}` : "border-border bg-card hover:border-primary/30 hover:bg-primary/5"}`}
+                >
+                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${tool.color} border ${tool.border} flex items-center justify-center transition-all`}>
+                    <Icon className={`w-4 h-4 ${tool.text}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground mb-0.5">{tool.label}</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">{tool.desc}</p>
+                  </div>
+                  {isActive && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary opacity-80" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active tool interface */}
+          {activeTool && currentTool && (
+            <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <currentTool.icon className={`w-4 h-4 ${currentTool.text}`} />
+                <p className="text-sm font-bold text-foreground">{currentTool.label}</p>
+              </div>
+              <textarea
+                value={toolContent}
+                onChange={e => setToolContent(e.target.value)}
+                placeholder={currentTool.placeholder}
+                className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
+                data-testid="textarea-tool-content"
+              />
+              <Button
+                onClick={handleRunTool}
+                disabled={toolLoading || !toolContent.trim()}
+                className="gap-2"
+                data-testid="button-run-tool"
+              >
+                {toolLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Running…</> : <><Sparkles className="w-3.5 h-3.5" />Run {currentTool.label}</>}
+              </Button>
+              {toolResult && <ToolResult tool={activeTool} result={toolResult} />}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | null>(null);
+  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
@@ -2618,6 +3139,8 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                   ? "Competitor Analysis"
                   : activeSection === "niche"
                   ? "What's Working in My Niche"
+                  : activeSection === "methodology"
+                  ? "Use My Own Methodology"
                   : "Competitor Study"}
               </h1>
             </div>
@@ -2626,14 +3149,16 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 ? "Your account vs one competitor · 9-section deep-dive · Steal their strategy"
                 : activeSection === "niche"
                 ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
+                : activeSection === "methodology"
+                ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
                 : "Choose a study mode below"}
             </p>
           </div>
         </div>
 
-        {/* Landing — two option cards */}
+        {/* Landing — three option cards */}
         {!activeSection && (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Competitor Analysis card */}
             <button
               onClick={() => setActiveSection("competitor")}
@@ -2665,11 +3190,32 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
               <div className="relative flex-1">
                 <div className="flex items-center gap-2 mb-1.5">
                   <p className="text-base font-black text-foreground">What's Working in My Niche</p>
-                  <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-primary uppercase tracking-wider">NEW</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">Add 3–5 competitor URLs and your niche. Get the full intelligence map — trends, gaps, hooks, audience desires, 20 content angles, and a 30-day growth playbook.</p>
               </div>
               <div className="relative flex items-center gap-1.5 text-xs text-primary font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+
+            {/* Use My Own Methodology card */}
+            <button
+              onClick={() => setActiveSection("methodology")}
+              data-testid="tab-methodology"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                <Dna className="w-6 h-6 text-violet-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Use My Own Methodology</p>
+                  <span className="bg-violet-500/20 border border-violet-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-violet-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Analyse your own posts to build a Content DNA Profile — then use AI tools to improve captions, optimize hooks, score content and generate A/B test variants.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-violet-400 font-semibold">
                 Open <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </button>
@@ -2682,6 +3228,9 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
         )}
         {activeSection === "niche" && (
           <NicheIntelligenceSection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        )}
+        {activeSection === "methodology" && (
+          <MethodologySection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
         )}
 
       </div>

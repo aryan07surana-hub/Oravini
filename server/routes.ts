@@ -1838,6 +1838,214 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
     }
   });
 
+  // ── Methodology Engine ────────────────────────────────────────────────────
+  app.post("/api/methodology/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl is required" });
+
+      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
+      if (!items || items.length === 0) return res.status(404).json({ message: "Could not scrape this profile. Make sure it's a public Instagram account." });
+
+      const handle = extractHandle(profileUrl);
+      const metrics = processProfileMetrics(items, handle);
+      const posts = buildPostList(items);
+
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "OPENROUTER_API_KEY not configured" });
+
+      const systemPrompt = `You are an elite Instagram content strategist who specialises in reverse-engineering a creator's unique content methodology. Analyse their post data and build a precise "Content DNA Profile". Always respond with valid JSON only — no markdown, no explanation outside the JSON.`;
+
+      const userPrompt = `Analyse this Instagram creator's last ${posts.length} posts and extract their exact content methodology.
+
+Handle: ${handle}
+Aggregate metrics: ${JSON.stringify(metrics)}
+Posts: ${JSON.stringify(posts)}
+
+Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
+{
+  "handle": "${handle}",
+  "contentDNA": {
+    "hookStyle": "e.g. Authority-based — they open with stats, credentials, or bold claims",
+    "hookExamples": ["exact hook from post 1", "exact hook from post 2", "exact hook from post 3"],
+    "ctaStyle": "e.g. Soft CTA — they end with questions or 'save this', never hard sells",
+    "ctaExamples": ["exact CTA from post 1", "exact CTA from post 2"],
+    "contentStructure": "e.g. Problem → Solution → Proof → CTA",
+    "dominantFormat": "Reels|Carousels|Posts|Mixed",
+    "postingFrequency": "e.g. 4-5x per week",
+    "toneOfVoice": "e.g. Authoritative + relatable — speaks like a mentor, not a guru",
+    "topThemes": ["theme1", "theme2", "theme3"],
+    "engagementTriggers": ["trigger1", "trigger2"],
+    "weaknesses": ["weakness1", "weakness2"],
+    "fingerprint": "One-sentence summary like: 'You use authority-based hooks + educational structure + soft CTAs — a trust-building methodology designed for long-term audience growth'"
+  },
+  "topPosts": [
+    { "caption": "first 120 chars", "views": 0, "likes": 0, "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "whyItWorked": "1 sentence" }
+  ],
+  "scorecard": {
+    "hookStrength": 75,
+    "ctaEffectiveness": 60,
+    "contentConsistency": 80,
+    "engagementRate": 70,
+    "viralPotential": 55,
+    "overall": 68
+  },
+  "improvements": [
+    { "area": "Hooks", "issue": "specific issue", "fix": "specific actionable fix" },
+    { "area": "CTA", "issue": "specific issue", "fix": "specific actionable fix" },
+    { "area": "Structure", "issue": "specific issue", "fix": "specific actionable fix" }
+  ]
+}`;
+
+      const aiResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://brandverse.app",
+          "X-Title": "Brandverse Methodology Engine",
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3.1-70b-instruct",
+          max_tokens: 3000,
+          temperature: 0.3,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      });
+
+      const aiJson = await aiResp.json() as any;
+      const raw = aiJson.choices?.[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const profile = JSON.parse(cleaned);
+      return res.json(profile);
+    } catch (err: any) {
+      console.error("Methodology analyze error:", err);
+      return res.status(500).json({ message: err.message || "Analysis failed" });
+    }
+  });
+
+  app.post("/api/methodology/improve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { content, dna, tool } = req.body;
+      if (!content || !tool) return res.status(400).json({ message: "content and tool are required" });
+
+      const dnaContext = dna?.fingerprint
+        ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
+        : "";
+
+      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      let prompt = "";
+
+      if (tool === "improve") {
+        prompt = `You are an elite Instagram content strategist. Improve the following content (caption or script).${dnaContext}
+
+Original content:
+"${content}"
+
+Return ONLY this exact JSON:
+{
+  "improved": "The full improved version of the content",
+  "changes": [
+    { "element": "Hook", "original": "...", "improved": "...", "reason": "why this is better" },
+    { "element": "Structure", "original": "...", "improved": "...", "reason": "why this is better" },
+    { "element": "CTA", "original": "...", "improved": "...", "reason": "why this is better" }
+  ],
+  "whyItWillPerform": "2-3 sentences on why the improved version will get more reach and engagement",
+  "expectedLift": "e.g. 40-60% more engagement based on improved hook and CTA"
+}`;
+      } else if (tool === "hooks") {
+        prompt = `You are a viral hook specialist. Rewrite this hook into 4 different styles.${dnaContext}
+
+Original hook: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "hooks": [
+    { "style": "Curiosity", "text": "rewritten hook", "explanation": "why this drives curiosity" },
+    { "style": "Controversy", "text": "rewritten hook", "explanation": "why this sparks debate" },
+    { "style": "Storytelling", "text": "rewritten hook", "explanation": "why this pulls people in" },
+    { "style": "Authority", "text": "rewritten hook", "explanation": "why this builds instant credibility" }
+  ],
+  "bestPick": "Curiosity|Controversy|Storytelling|Authority",
+  "bestPickReason": "1 sentence on why this style will work best for this content"
+}`;
+      } else if (tool === "score") {
+        prompt = `You are an Instagram content quality analyst. Score this content.${dnaContext}
+
+Content: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "scores": {
+    "hook": { "score": 75, "feedback": "specific feedback" },
+    "engagement": { "score": 60, "feedback": "specific feedback" },
+    "clarity": { "score": 80, "feedback": "specific feedback" },
+    "retention": { "score": 55, "feedback": "specific feedback" },
+    "cta": { "score": 70, "feedback": "specific feedback" }
+  },
+  "overall": 68,
+  "verdict": "Strong|Needs Work|Weak",
+  "topIssue": "The single biggest problem with this content",
+  "quickFix": "The single most impactful change to make right now"
+}`;
+      } else if (tool === "abtest") {
+        prompt = `You are a conversion-focused content strategist. Generate A/B test variants.${dnaContext}
+
+Content idea or post concept: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "hooks": [
+    { "variant": "A", "text": "hook variant A", "angle": "curiosity/authority/pain-point" },
+    { "variant": "B", "text": "hook variant B", "angle": "curiosity/authority/pain-point" },
+    { "variant": "C", "text": "hook variant C", "angle": "curiosity/authority/pain-point" }
+  ],
+  "captions": [
+    { "variant": "A", "text": "full caption variant A" },
+    { "variant": "B", "text": "full caption variant B" },
+    { "variant": "C", "text": "full caption variant C" }
+  ],
+  "ctas": [
+    { "variant": "A", "text": "CTA text", "type": "soft|hard|question" },
+    { "variant": "B", "text": "CTA text", "type": "soft|hard|question" }
+  ],
+  "recommendation": "Which combination to test first and why"
+}`;
+      } else {
+        return res.status(400).json({ message: "Invalid tool type" });
+      }
+
+      for (const model of GROQ_MODELS) {
+        try {
+          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: JSON.stringify({
+              model,
+              max_tokens: 2000,
+              temperature: 0.6,
+              messages: [
+                { role: "system", content: "You are an elite Instagram content strategist. Return ONLY valid JSON — no markdown, no extra text." },
+                { role: "user", content: prompt },
+              ],
+            }),
+          });
+          const json = await resp.json() as any;
+          const raw = json.choices?.[0]?.message?.content?.trim() || "";
+          const cleaned = raw.replace(/```json|```/g, "").trim();
+          return res.json(JSON.parse(cleaned));
+        } catch (e) { continue; }
+      }
+      return res.status(500).json({ message: "AI improvement failed" });
+    } catch (err: any) {
+      console.error("Methodology improve error:", err);
+      return res.status(500).json({ message: err.message || "Improvement failed" });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {
