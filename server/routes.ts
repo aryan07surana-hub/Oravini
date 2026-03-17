@@ -1308,6 +1308,21 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     };
   }
 
+  function buildPostList(items: any[]) {
+    return (items || []).slice(0, 20).map((p: any, i: number) => ({
+      rank: i + 1,
+      type: p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post",
+      views: p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0,
+      likes: p.likesCount ?? 0,
+      comments: p.commentsCount ?? 0,
+      saves: p.savesCount ?? 0,
+      caption: p.caption ? p.caption.slice(0, 300) : "",
+      hashtags: Array.isArray(p.hashtags) ? p.hashtags.slice(0, 10).join(" ") : "",
+      timestamp: p.timestamp ?? null,
+      url: p.url ?? (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : null),
+    }));
+  }
+
   app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
       const { clientUrl, competitorUrl, clientId } = req.body;
@@ -1325,22 +1340,6 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       const competitorData = processProfileMetrics(competitorItems, competitorHandle);
 
       if (!clientData && !competitorData) return res.status(404).json({ message: "Could not scrape either profile. Make sure they are public Instagram accounts." });
-
-      // Build per-post arrays for deep AI analysis
-      function buildPostList(items: any[]) {
-        return (items || []).slice(0, 20).map((p: any, i: number) => ({
-          rank: i + 1,
-          type: p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post",
-          views: p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0,
-          likes: p.likesCount ?? 0,
-          comments: p.commentsCount ?? 0,
-          saves: p.savesCount ?? 0,
-          caption: p.caption ? p.caption.slice(0, 300) : "",
-          hashtags: Array.isArray(p.hashtags) ? p.hashtags.slice(0, 10).join(" ") : "",
-          timestamp: p.timestamp ?? null,
-          url: p.url ?? (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : null),
-        }));
-      }
 
       const clientPosts = buildPostList(clientItems);
       const competitorPosts = buildPostList(competitorItems);
