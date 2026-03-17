@@ -521,7 +521,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const item = items?.[0];
       if (!item) return res.status(404).json({ message: "No data returned for this URL" });
       return res.json({
-        views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+        views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
         likes: item.likesCount ?? 0,
         comments: item.commentsCount ?? 0,
         title: item.caption ? item.caption.slice(0, 120) : undefined,
@@ -543,7 +543,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const item = items?.[0];
       if (!item) return res.status(404).json({ message: "No data returned for this Instagram URL" });
 
-      const v = item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0;
+      const v = item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0;
       const l = item.likesCount ?? 0;
       const c = item.commentsCount ?? 0;
       const s = item.savesCount ?? 0;
@@ -586,7 +586,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             contentType: item.type === "Video" || item.type === "Reel" ? "reel"
               : item.type === "Sidecar" ? "carousel" : "post",
             funnelStage: "top",
-            views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+            views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
             likes: item.likesCount ?? 0,
             comments: item.commentsCount ?? 0,
             saves: 0,
@@ -709,7 +709,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const posts = items.map((item: any) => ({
         title: item.caption ? item.caption.slice(0, 120) : "Untitled",
         contentType: item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post",
-        views: item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0,
+        views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
         likes: item.likesCount ?? 0,
         comments: item.commentsCount ?? 0,
         postDate: item.timestamp,
@@ -993,7 +993,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   function processProfileMetrics(items: any[], handle: string) {
     if (!items?.length) return null;
     const posts = items.slice(0, 20);
-    const totalViews = posts.reduce((s: number, p: any) => s + (p.videoViewCount ?? p.videoPlayCount ?? p.playsCount ?? 0), 0);
+    const totalViews = posts.reduce((s: number, p: any) => s + (p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0), 0);
     const totalLikes = posts.reduce((s: number, p: any) => s + (p.likesCount ?? 0), 0);
     const totalComments = posts.reduce((s: number, p: any) => s + (p.commentsCount ?? 0), 0);
     const totalSaves = posts.reduce((s: number, p: any) => s + (p.savesCount ?? 0), 0);
@@ -1016,8 +1016,8 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     }
 
     const topPost = posts.reduce((best: any, p: any) => {
-      const v = p.videoViewCount ?? p.videoPlayCount ?? p.playsCount ?? 0;
-      return v > (best.videoViewCount ?? best.videoPlayCount ?? best.playsCount ?? 0) ? p : best;
+      const v = p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0;
+      return v > (best.videoPlayCount ?? best.videoViewCount ?? best.playsCount ?? 0) ? p : best;
     }, posts[0]);
 
     return {
@@ -1031,7 +1031,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       contentTypes: typeCount,
       topPost: {
         caption: topPost?.caption ? topPost.caption.slice(0, 150) : "No caption",
-        views: topPost?.videoViewCount ?? topPost?.videoPlayCount ?? topPost?.playsCount ?? 0,
+        views: topPost?.videoPlayCount ?? topPost?.videoViewCount ?? topPost?.playsCount ?? 0,
       },
     };
   }

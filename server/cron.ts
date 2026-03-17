@@ -37,7 +37,7 @@ export async function runAutoSync() {
         const item = items?.[0];
         if (!item) continue;
 
-        const v = item.videoViewCount ?? item.videoPlayCount ?? item.playsCount ?? 0;
+        const v = item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0;
         const l = item.likesCount ?? 0;
         const c = item.commentsCount ?? 0;
         const s = item.savesCount ?? 0;
