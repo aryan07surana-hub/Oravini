@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox
 } from "lucide-react";
 import { useState } from "react";
 
@@ -24,6 +24,7 @@ const mainNavItems = [
   { href: "/calls", label: "Call Feedback", icon: Phone },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
+  { href: "/dm-tracker", label: "DM Tracker", icon: Inbox },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
 ];
 

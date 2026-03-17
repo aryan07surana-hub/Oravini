@@ -25,6 +25,7 @@ import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
+import DMTracker from "@/pages/client/DMTracker";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -96,6 +97,9 @@ function Router() {
       <Route path="/tracking/competitor">
         {() => <ProtectedRoute component={CompetitorStudy} />}
       </Route>
+      <Route path="/dm-tracker">
+        {() => <ProtectedRoute component={DMTracker} />}
+      </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
@@ -125,6 +129,9 @@ function Router() {
       </Route>
       <Route path="/admin/competitor-study">
         {() => <ProtectedRoute component={CompetitorStudy} adminOnly useAdmin={true} />}
+      </Route>
+      <Route path="/admin/dm-tracker">
+        {() => <ProtectedRoute component={DMTracker} adminOnly useAdmin={true} />}
       </Route>
       <Route path="/admin/calendar">
         {() => <ProtectedRoute component={AdminCalendar} adminOnly />}

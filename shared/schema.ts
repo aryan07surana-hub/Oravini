@@ -194,6 +194,36 @@ export type InsertCallBooking = z.infer<typeof insertCallBookingSchema>;
 export type AiIdeaLog = typeof aiIdeaLogs.$inferSelect;
 export type InsertAiIdeaLog = z.infer<typeof insertAiIdeaLogSchema>;
 
+export const dmLeads = pgTable("dm_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  instagramHandle: varchar("instagram_handle"),
+  status: varchar("status").notNull().default("new"),
+  notes: text("notes"),
+  lastContactAt: timestamp("last_contact_at"),
+  followUpDate: timestamp("follow_up_date"),
+  source: varchar("source"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDmLeadSchema = createInsertSchema(dmLeads).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDmLead = z.infer<typeof insertDmLeadSchema>;
+export type DmLead = typeof dmLeads.$inferSelect;
+
+export const dmQuickReplies = pgTable("dm_quick_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDmQuickReplySchema = createInsertSchema(dmQuickReplies).omit({ id: true, createdAt: true });
+export type InsertDmQuickReply = z.infer<typeof insertDmQuickReplySchema>;
+export type DmQuickReply = typeof dmQuickReplies.$inferSelect;
+
 export const competitorAnalyses = pgTable("competitor_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clientId: varchar("client_id").notNull().references(() => users.id),

@@ -984,6 +984,67 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   // Background scheduler — check every 60s for due metric reminders and alert online clients
   const notifiedIds = new Set<string>();
+  // ── DM Tracker ────────────────────────────────────────────────────────────
+  app.get("/api/dm/leads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = req.query.clientId as string;
+      let leads;
+      if (user.role === "admin" && clientId) leads = await storage.getDmLeads(clientId);
+      else if (user.role === "admin") leads = await storage.getAllDmLeads();
+      else leads = await storage.getDmLeads(user.id);
+      return res.json(leads);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/leads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = user.role === "admin" ? (req.body.clientId || user.id) : user.id;
+      const lead = await storage.createDmLead({ ...req.body, clientId });
+      return res.json(lead);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const lead = await storage.updateDmLead(req.params.id, req.body);
+      return res.json(lead);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmLead(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/dm/quick-replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = (req.query.clientId as string) || user.id;
+      const replies = await storage.getDmQuickReplies(clientId);
+      return res.json(replies);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/quick-replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = user.role === "admin" ? (req.body.clientId || user.id) : user.id;
+      const reply = await storage.createDmQuickReply({ ...req.body, clientId });
+      return res.json(reply);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/quick-replies/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmQuickReply(req.params.id);
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
   // ── Competitor Analysis ────────────────────────────────────────────────────
   function extractHandle(url: string): string {
     const m = url.match(/instagram\.com\/([^/?#]+)/);

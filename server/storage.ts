@@ -4,6 +4,7 @@ import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses,
+  dmLeads, dmQuickReplies,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -11,6 +12,7 @@ import {
   type CompetitorAnalysis, type InsertCompetitorAnalysis,
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
   type CallBooking, type InsertCallBooking,
+  type DmLead, type InsertDmLead, type DmQuickReply, type InsertDmQuickReply,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -91,6 +93,15 @@ export interface IStorage {
   getCompetitorAnalyses(clientId: string): Promise<CompetitorAnalysis[]>;
   deleteCompetitorAnalysis(id: string): Promise<void>;
   getAllInstagramPostsWithUrls(): Promise<any[]>;
+  // DM Tracker
+  getDmLeads(clientId: string): Promise<DmLead[]>;
+  getAllDmLeads(): Promise<DmLead[]>;
+  createDmLead(data: InsertDmLead): Promise<DmLead>;
+  updateDmLead(id: string, data: Partial<InsertDmLead>): Promise<DmLead>;
+  deleteDmLead(id: string): Promise<void>;
+  getDmQuickReplies(clientId: string): Promise<DmQuickReply[]>;
+  createDmQuickReply(data: InsertDmQuickReply): Promise<DmQuickReply>;
+  deleteDmQuickReply(id: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -405,6 +416,34 @@ class DatabaseStorage implements IStorage {
 
   async deleteCompetitorAnalysis(id: string) {
     await db.delete(competitorAnalyses).where(eq(competitorAnalyses.id, id));
+  }
+
+  async getDmLeads(clientId: string) {
+    return db.select().from(dmLeads).where(eq(dmLeads.clientId, clientId)).orderBy(desc(dmLeads.updatedAt));
+  }
+  async getAllDmLeads() {
+    return db.select().from(dmLeads).orderBy(desc(dmLeads.updatedAt));
+  }
+  async createDmLead(data: InsertDmLead) {
+    const [lead] = await db.insert(dmLeads).values(data).returning();
+    return lead;
+  }
+  async updateDmLead(id: string, data: Partial<InsertDmLead>) {
+    const [lead] = await db.update(dmLeads).set({ ...data, updatedAt: new Date() }).where(eq(dmLeads.id, id)).returning();
+    return lead;
+  }
+  async deleteDmLead(id: string) {
+    await db.delete(dmLeads).where(eq(dmLeads.id, id));
+  }
+  async getDmQuickReplies(clientId: string) {
+    return db.select().from(dmQuickReplies).where(eq(dmQuickReplies.clientId, clientId)).orderBy(desc(dmQuickReplies.createdAt));
+  }
+  async createDmQuickReply(data: InsertDmQuickReply) {
+    const [reply] = await db.insert(dmQuickReplies).values(data).returning();
+    return reply;
+  }
+  async deleteDmQuickReply(id: string) {
+    await db.delete(dmQuickReplies).where(eq(dmQuickReplies.id, id));
   }
 
   async getAllInstagramPostsWithUrls() {

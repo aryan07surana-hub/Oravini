@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp
+  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox
 } from "lucide-react";
 import { useState } from "react";
 
@@ -20,6 +20,7 @@ const mainNavItems = [
   { href: "/admin/clients", label: "Clients", icon: Users },
   { href: "/admin/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/admin/competitor-study", label: "Competitor Study", icon: TrendingUp },
+  { href: "/admin/dm-tracker", label: "DM Tracker", icon: Inbox },
   { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
   { href: "/admin/course-modules", label: "Course Modules", icon: BookOpen },
