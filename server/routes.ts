@@ -1587,26 +1587,14 @@ Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. M
       const { myReelUrl, competitorReelUrl } = req.body;
       if (!myReelUrl || !competitorReelUrl) return res.status(400).json({ message: "myReelUrl and competitorReelUrl are required" });
 
-      const apifyToken = process.env.APIFY_TOKEN;
-      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
-
-      // Scrape both reels in parallel
-      const scrapeReel = async (url: string) => {
-        const r = await fetch("https://api.apify.com/v2/acts/apify~instagram-post-scraper/run-sync-get-dataset-items?token=" + apifyToken, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
-          signal: AbortSignal.timeout(35000),
-        });
-        if (!r.ok) throw new Error("Apify scrape failed for " + url);
-        const items = await r.json();
-        return Array.isArray(items) ? items[0] : null;
-      };
-
-      const [myPost, compPost] = await Promise.all([
-        scrapeReel(myReelUrl),
-        scrapeReel(competitorReelUrl),
+      // Scrape both reels in parallel using the shared instagram-scraper actor
+      const [myItems, compItems] = await Promise.all([
+        apifyInstagram({ directUrls: [myReelUrl], resultsType: "posts", resultsLimit: 1 }),
+        apifyInstagram({ directUrls: [competitorReelUrl], resultsType: "posts", resultsLimit: 1 }),
       ]);
+
+      const myPost = myItems?.[0] ?? null;
+      const compPost = compItems?.[0] ?? null;
 
       if (!myPost && !compPost) return res.status(404).json({ message: "Could not scrape either reel. Make sure the posts are public." });
 
@@ -2062,19 +2050,8 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
       const shortcode = reelUrl.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
       if (!shortcode) return res.status(400).json({ message: "Invalid Instagram reel URL" });
 
-      const apifyToken = process.env.APIFY_TOKEN;
-      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
-
-      const runRes = await fetch("https://api.apify.com/v2/acts/apify~instagram-post-scraper/run-sync-get-dataset-items?token=" + apifyToken, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ directUrls: [reelUrl], resultsLimit: 1 }),
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!runRes.ok) return res.status(500).json({ message: "Apify scrape failed" });
-      const items = await runRes.json();
-      const post = Array.isArray(items) ? items[0] : null;
+      const items = await apifyInstagram({ directUrls: [reelUrl], resultsType: "posts", resultsLimit: 1 });
+      const post = items?.[0] ?? null;
       if (!post) return res.json({ caption: null });
 
       const caption = post.caption ?? post.alt ?? post.description ?? post.accessibility_caption ?? null;
