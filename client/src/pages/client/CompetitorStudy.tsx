@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -225,7 +226,8 @@ function AnalysisReport({ analysis, onDelete }: { analysis: any; onDelete: () =>
   );
 }
 
-export default function CompetitorStudy() {
+export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
+  const Layout = useAdmin ? AdminLayout : ClientLayout;
   const { user } = useAuth();
   const { toast } = useToast();
   const [clientUrl, setClientUrl] = useState("");
@@ -295,7 +297,7 @@ export default function CompetitorStudy() {
   };
 
   return (
-    <AdminLayout>
+    <Layout>
       <div className="p-6 max-w-4xl mx-auto space-y-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -406,6 +408,6 @@ export default function CompetitorStudy() {
           )}
         </div>
       </div>
-    </AdminLayout>
+    </Layout>
   );
 }
