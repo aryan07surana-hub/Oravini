@@ -1581,6 +1581,133 @@ Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. M
     }
   });
 
+  // ── Direct Reel vs Reel Comparison ────────────────────────────────────────
+  app.post("/api/competitor/compare-reels", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { myReelUrl, competitorReelUrl } = req.body;
+      if (!myReelUrl || !competitorReelUrl) return res.status(400).json({ message: "myReelUrl and competitorReelUrl are required" });
+
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
+
+      // Scrape both reels in parallel
+      const scrapeReel = async (url: string) => {
+        const r = await fetch("https://api.apify.com/v2/acts/apify~instagram-post-scraper/run-sync-get-dataset-items?token=" + apifyToken, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
+          signal: AbortSignal.timeout(35000),
+        });
+        if (!r.ok) throw new Error("Apify scrape failed for " + url);
+        const items = await r.json();
+        return Array.isArray(items) ? items[0] : null;
+      };
+
+      const [myPost, compPost] = await Promise.all([
+        scrapeReel(myReelUrl),
+        scrapeReel(competitorReelUrl),
+      ]);
+
+      if (!myPost && !compPost) return res.status(404).json({ message: "Could not scrape either reel. Make sure the posts are public." });
+
+      const formatPost = (p: any) => ({
+        url: p?.url ?? p?.shortCode ? `https://instagram.com/p/${p.shortCode}` : "N/A",
+        caption: p?.caption ?? p?.alt ?? "",
+        views: p?.videoPlayCount ?? p?.videoViewCount ?? 0,
+        likes: p?.likesCount ?? p?.likes ?? 0,
+        comments: p?.commentsCount ?? p?.comments ?? 0,
+        saves: p?.savesCount ?? 0,
+        shares: p?.sharesCount ?? 0,
+        duration: p?.videoDuration ?? null,
+        timestamp: p?.timestamp ?? p?.takenAt ?? null,
+        ownerUsername: p?.ownerUsername ?? p?.owner?.username ?? "unknown",
+        hashtags: p?.hashtags ?? [],
+        type: p?.type ?? "Video",
+      });
+
+      const my = formatPost(myPost);
+      const comp = formatPost(compPost);
+
+      const myEr = my.views > 0 ? (((my.likes + my.comments) / my.views) * 100).toFixed(2) : "0";
+      const compEr = comp.views > 0 ? (((comp.likes + comp.comments) / comp.views) * 100).toFixed(2) : "0";
+
+      const openRouterKey = process.env.OPENROUTER_API_KEY;
+      if (!openRouterKey) return res.status(500).json({ message: "OpenRouter not configured" });
+
+      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://brandverse.replit.app",
+          "X-Title": "Brandverse Portal",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are an elite Instagram content strategist. Analyse two Instagram reels and produce a deep comparison. Respond ONLY with valid JSON." },
+            { role: "user", content: `Compare these two Instagram reels in depth.
+
+MY REEL:
+Owner: @${my.ownerUsername}
+Caption: "${my.caption.slice(0, 600)}"
+Views: ${my.views.toLocaleString()} | Likes: ${my.likes.toLocaleString()} | Comments: ${my.comments.toLocaleString()} | ER: ${myEr}%
+Duration: ${my.duration ? my.duration + "s" : "unknown"} | Hashtags: ${my.hashtags.length}
+
+COMPETITOR REEL:
+Owner: @${comp.ownerUsername}
+Caption: "${comp.caption.slice(0, 600)}"
+Views: ${comp.views.toLocaleString()} | Likes: ${comp.likes.toLocaleString()} | Comments: ${comp.comments.toLocaleString()} | ER: ${compEr}%
+Duration: ${comp.duration ? comp.duration + "s" : "unknown"} | Hashtags: ${comp.hashtags.length}
+
+Return this EXACT JSON:
+{
+  "winner": "mine"|"competitor"|"tie",
+  "winnerReason": "2-3 sentence explanation of who wins and exactly why",
+  "scores": {
+    "mine": { "hook": 0-10, "caption": 0-10, "engagement": 0-10, "retention": 0-10, "hashtags": 0-10, "overall": 0-100 },
+    "competitor": { "hook": 0-10, "caption": 0-10, "engagement": 0-10, "retention": 0-10, "hashtags": 0-10, "overall": 0-100 }
+  },
+  "hookAnalysis": {
+    "mine": { "hook": "First line / hook of the caption", "type": "curiosity|storytelling|authority|pain-point|controversy|education", "strength": "what makes it strong or weak" },
+    "competitor": { "hook": "First line / hook of the caption", "type": "curiosity|storytelling|authority|pain-point|controversy|education", "strength": "what makes it strong or weak" }
+  },
+  "captionBreakdown": {
+    "mine": { "structure": "e.g. Hook → Story → Value → CTA", "cta": "the CTA used or none", "tone": "tone of voice", "readability": "simple|moderate|complex" },
+    "competitor": { "structure": "e.g. Hook → Value → CTA", "cta": "the CTA used or none", "tone": "tone of voice", "readability": "simple|moderate|complex" }
+  },
+  "whatCompetitorDoesBetter": ["specific point 1", "specific point 2", "specific point 3"],
+  "whatYouDoBetter": ["specific point 1", "specific point 2"],
+  "stealThese": ["Actionable thing to steal from competitor reel 1", "Actionable thing 2", "Actionable thing 3"],
+  "improvementPlan": "3-5 sentence concrete plan: exactly what to change in YOUR reel to beat competitor's performance",
+  "rewrittenHook": "A rewritten, stronger hook for MY reel based on what competitor does better",
+  "verdictTags": ["tag1", "tag2", "tag3"]
+}` }
+          ],
+        }),
+        signal: AbortSignal.timeout(40000),
+      });
+
+      if (!aiRes.ok) return res.status(500).json({ message: "AI analysis failed" });
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+      let ai: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        ai = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch { ai = {}; }
+
+      return res.json({
+        myReel: { ...my, er: myEr },
+        competitorReel: { ...comp, er: compEr },
+        ai,
+      });
+    } catch (err: any) {
+      console.error("compare-reels error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── Steal Strategy: 30-day content plan ───────────────────────────────────
   app.post("/api/competitor/steal-strategy", requireAuth, async (req: Request, res: Response) => {
     try {

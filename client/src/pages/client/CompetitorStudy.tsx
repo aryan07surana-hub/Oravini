@@ -271,6 +271,361 @@ function OverviewSection({ report, analysis }: { report: any; analysis: any }) {
   );
 }
 
+// ─── Direct Reel vs Reel Comparison ──────────────────────────────────────────
+
+const SCORE_LABELS = ["hook", "caption", "engagement", "retention", "hashtags"] as const;
+const SCORE_COLORS: Record<string, string> = {
+  hook: "text-purple-400", caption: "text-blue-400", engagement: "text-green-400",
+  retention: "text-yellow-400", hashtags: "text-pink-400",
+};
+
+function ScoreBar({ label, myVal, compVal }: { label: string; myVal: number; compVal: number }) {
+  const max = 10;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className={`text-[10px] font-semibold uppercase tracking-wide ${SCORE_COLORS[label] ?? "text-muted-foreground"}`}>{label}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold text-primary">{myVal}/10</span>
+          <span className="text-[10px] text-muted-foreground">vs</span>
+          <span className="text-[10px] font-bold text-pink-400">{compVal}/10</span>
+        </div>
+      </div>
+      <div className="flex gap-1 h-2">
+        <div className="flex-1 bg-muted/30 rounded-full overflow-hidden">
+          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(myVal / max) * 100}%` }} />
+        </div>
+        <div className="flex-1 bg-muted/30 rounded-full overflow-hidden">
+          <div className="h-full bg-pink-500 rounded-full transition-all" style={{ width: `${(compVal / max) * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle?: string; competitorHandle?: string }) {
+  const [myReelUrl, setMyReelUrl] = useState("");
+  const [competitorReelUrl, setCompetitorReelUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [step, setStep] = useState(0);
+  const { toast } = useToast();
+
+  const STEPS = [
+    "Scraping your reel…",
+    "Scraping competitor reel…",
+    "Comparing metrics…",
+    "Running AI analysis…",
+    "Building comparison report…",
+  ];
+
+  const handleCompare = async () => {
+    if (!myReelUrl.trim() || !competitorReelUrl.trim()) return toast({ title: "Enter both reel URLs", variant: "destructive" });
+    setLoading(true);
+    setResult(null);
+    setStep(0);
+    const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 5000);
+    try {
+      const data = await apiRequest("POST", "/api/competitor/compare-reels", {
+        myReelUrl: myReelUrl.trim(),
+        competitorReelUrl: competitorReelUrl.trim(),
+      });
+      setResult(data);
+    } catch (err: any) {
+      toast({ title: "Comparison failed", description: err.message, variant: "destructive" });
+    } finally {
+      clearInterval(interval);
+      setLoading(false);
+    }
+  };
+
+  const ai = result?.ai ?? {};
+  const my = result?.myReel ?? {};
+  const comp = result?.competitorReel ?? {};
+  const winner = ai.winner; // "mine" | "competitor" | "tie"
+
+  return (
+    <div className="bg-card border border-primary/25 rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-4 bg-primary/5 border-b border-primary/20">
+        <div className="w-9 h-9 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
+          <Sword className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-foreground">Direct Reel vs Reel Comparison</p>
+          <p className="text-[11px] text-muted-foreground">Paste any two Instagram reel URLs — AI scrapes real metrics and compares them head-to-head</p>
+        </div>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* URL Inputs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <Instagram className="w-3 h-3" /> My Reel URL
+            </Label>
+            <Input
+              value={myReelUrl}
+              onChange={e => setMyReelUrl(e.target.value)}
+              placeholder="https://www.instagram.com/reel/..."
+              className="h-9 text-sm bg-muted/20 border-primary/30"
+              data-testid="input-my-reel-url"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-pink-400 flex items-center gap-1.5">
+              <Crosshair className="w-3 h-3" /> Competitor Reel URL
+            </Label>
+            <Input
+              value={competitorReelUrl}
+              onChange={e => setCompetitorReelUrl(e.target.value)}
+              placeholder="https://www.instagram.com/reel/..."
+              className="h-9 text-sm bg-muted/20 border-pink-500/30"
+              data-testid="input-competitor-reel-url"
+            />
+          </div>
+        </div>
+
+        <Button
+          onClick={handleCompare}
+          disabled={loading || !myReelUrl.trim() || !competitorReelUrl.trim()}
+          className="gap-2 w-full sm:w-auto"
+          data-testid="button-compare-reels"
+        >
+          {loading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />{STEPS[step]}</> : <><Sword className="w-3.5 h-3.5" />Compare Reels Head-to-Head</>}
+        </Button>
+
+        {/* Loading state */}
+        {loading && (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
+            <div className="flex gap-2 items-center justify-center">
+              {STEPS.map((s, i) => (
+                <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-700 ${i <= step ? "bg-primary" : "bg-muted/30"}`} />
+              ))}
+            </div>
+            <p className="text-xs text-center text-muted-foreground">{STEPS[step]}</p>
+          </div>
+        )}
+
+        {/* Results */}
+        {result && !loading && (
+          <div className="space-y-5">
+            {/* Winner Banner */}
+            <div className={`rounded-2xl p-4 border flex items-center gap-4 ${winner === "mine" ? "bg-green-500/10 border-green-500/30" : winner === "competitor" ? "bg-red-500/10 border-red-500/30" : "bg-muted/20 border-border"}`}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl ${winner === "mine" ? "bg-green-500/20" : winner === "competitor" ? "bg-red-500/20" : "bg-muted/30"}`}>
+                {winner === "mine" ? "🏆" : winner === "competitor" ? "😤" : "🤝"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-bold ${winner === "mine" ? "text-green-400" : winner === "competitor" ? "text-red-400" : "text-foreground"}`}>
+                  {winner === "mine" ? "Your reel wins!" : winner === "competitor" ? "Competitor's reel wins" : "It's a tie"}
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{ai.winnerReason}</p>
+                {ai.verdictTags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {ai.verdictTags.map((t: string, i: number) => (
+                      <span key={i} className="text-[9px] px-2 py-0.5 rounded-full bg-muted/40 border border-border text-muted-foreground">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Side-by-side Metrics */}
+            <div className="grid grid-cols-2 divide-x divide-border border border-border rounded-2xl overflow-hidden">
+              {/* My reel */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                  <p className="text-xs font-bold text-primary">@{my.ownerUsername || clientHandle || "My Reel"}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["👁", my.views?.toLocaleString() ?? 0, "Views"], ["❤️", my.likes?.toLocaleString() ?? 0, "Likes"], ["💬", my.comments?.toLocaleString() ?? 0, "Comments"], ["📊", `${my.er}%`, "ER"]].map(([icon, val, label]) => (
+                    <div key={String(label)} className="bg-muted/20 rounded-xl p-2 text-center">
+                      <p className="text-[10px]">{icon}</p>
+                      <p className="text-sm font-bold text-foreground">{val}</p>
+                      <p className="text-[9px] text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center">
+                  <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-3 py-1 rounded-full">
+                    Score: {ai.scores?.mine?.overall ?? "—"}/100
+                  </span>
+                </div>
+              </div>
+              {/* Competitor */}
+              <div className="p-4 space-y-3 bg-red-500/3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-pink-500" />
+                  <p className="text-xs font-bold text-pink-400">@{comp.ownerUsername || competitorHandle || "Their Reel"}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[["👁", comp.views?.toLocaleString() ?? 0, "Views"], ["❤️", comp.likes?.toLocaleString() ?? 0, "Likes"], ["💬", comp.comments?.toLocaleString() ?? 0, "Comments"], ["📊", `${comp.er}%`, "ER"]].map(([icon, val, label]) => (
+                    <div key={String(label)} className="bg-muted/20 rounded-xl p-2 text-center">
+                      <p className="text-[10px]">{icon}</p>
+                      <p className="text-sm font-bold text-foreground">{val}</p>
+                      <p className="text-[9px] text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center">
+                  <span className="text-[10px] font-bold text-pink-400 bg-pink-500/10 border border-pink-500/25 px-3 py-1 rounded-full">
+                    Score: {ai.scores?.competitor?.overall ?? "—"}/100
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Score Bars */}
+            {ai.scores?.mine && ai.scores?.competitor && (
+              <div className="bg-muted/10 border border-border rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-bold text-foreground">Score Breakdown</p>
+                  <div className="flex items-center gap-3 text-[9px]">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" /> Me</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500 inline-block" /> Competitor</span>
+                  </div>
+                </div>
+                {SCORE_LABELS.map(lbl => (
+                  <ScoreBar key={lbl} label={lbl} myVal={ai.scores.mine[lbl] ?? 0} compVal={ai.scores.competitor[lbl] ?? 0} />
+                ))}
+              </div>
+            )}
+
+            {/* Hook Analysis */}
+            {ai.hookAnalysis && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(["mine", "competitor"] as const).map(side => {
+                  const h = ai.hookAnalysis[side] ?? {};
+                  const isMine = side === "mine";
+                  return (
+                    <div key={side} className={`rounded-2xl border p-4 space-y-2 ${isMine ? "border-primary/25 bg-primary/5" : "border-pink-500/25 bg-pink-500/5"}`}>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${isMine ? "text-primary" : "text-pink-400"}`}>
+                        {isMine ? "My Hook" : "Their Hook"}
+                      </p>
+                      {h.hook && <p className="text-xs italic text-foreground leading-relaxed">"{h.hook}"</p>}
+                      {h.type && <Pill text={h.type} />}
+                      {h.strength && <p className="text-[11px] text-muted-foreground leading-relaxed">{h.strength}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Caption Breakdown */}
+            {ai.captionBreakdown && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(["mine", "competitor"] as const).map(side => {
+                  const c = ai.captionBreakdown[side] ?? {};
+                  const isMine = side === "mine";
+                  return (
+                    <div key={side} className="bg-muted/10 border border-border rounded-2xl p-4 space-y-2">
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${isMine ? "text-primary" : "text-pink-400"}`}>
+                        {isMine ? "My Caption" : "Their Caption"}
+                      </p>
+                      {c.structure && (
+                        <div><p className="text-[9px] text-muted-foreground uppercase tracking-wider">Structure</p><p className="text-xs font-semibold text-foreground">{c.structure}</p></div>
+                      )}
+                      {c.cta && (
+                        <div><p className="text-[9px] text-muted-foreground uppercase tracking-wider">CTA</p><p className="text-xs text-foreground">{c.cta}</p></div>
+                      )}
+                      {c.tone && (
+                        <div className="flex gap-2">
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-muted/40 border border-border text-muted-foreground">{c.tone}</span>
+                          {c.readability && <span className="text-[9px] px-2 py-0.5 rounded-full bg-muted/40 border border-border text-muted-foreground">{c.readability}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* What competitor does better / you do better */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ai.whatCompetitorDoesBetter?.length > 0 && (
+                <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-red-400 flex items-center gap-1.5"><TrendingDown className="w-3 h-3" />Competitor Does Better</p>
+                  {ai.whatCompetitorDoesBetter.map((pt: string, i: number) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground">{pt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {ai.whatYouDoBetter?.length > 0 && (
+                <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-4 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-green-400 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" />You Do Better</p>
+                  {ai.whatYouDoBetter.map((pt: string, i: number) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground">{pt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Steal These */}
+            {ai.stealThese?.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5"><Sword className="w-3 h-3" />Steal These From Competitor</p>
+                {ai.stealThese.map((pt: string, i: number) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <ArrowRight className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-foreground">{pt}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Improvement Plan */}
+            {ai.improvementPlan && (
+              <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl p-4 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400 flex items-center gap-1.5"><Lightbulb className="w-3 h-3" />Improvement Plan for Your Reel</p>
+                <p className="text-xs text-foreground leading-relaxed">{ai.improvementPlan}</p>
+              </div>
+            )}
+
+            {/* Rewritten Hook */}
+            {ai.rewrittenHook && (
+              <div className="bg-violet-500/5 border border-violet-500/20 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400 flex items-center gap-1.5"><Wand2 className="w-3 h-3" />AI-Rewritten Hook for Your Reel</p>
+                  <CopyButton text={ai.rewrittenHook} />
+                </div>
+                <p className="text-sm font-semibold text-foreground leading-relaxed italic">"{ai.rewrittenHook}"</p>
+              </div>
+            )}
+
+            {/* Captions preview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[{ label: "My Caption", caption: my.caption, color: "text-primary", bg: "bg-primary/5", border: "border-primary/20" }, { label: "Their Caption", caption: comp.caption, color: "text-pink-400", bg: "bg-pink-500/5", border: "border-pink-500/20" }].map(({ label, caption, color, bg, border }) => caption ? (
+                <div key={label} className={`${bg} border ${border} rounded-2xl p-4 space-y-2`}>
+                  <div className="flex items-center justify-between">
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${color}`}>{label}</p>
+                    <CopyButton text={caption} />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-6">{caption}</p>
+                </div>
+              ) : null)}
+            </div>
+
+            {/* Reset */}
+            <button
+              onClick={() => { setResult(null); setMyReelUrl(""); setCompetitorReelUrl(""); }}
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+            >
+              Compare different reels
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Section: Reel by Reel ────────────────────────────────────────────────────
 
 function ReelByReelSection({ report, analysis }: { report: any; analysis: any }) {
@@ -286,16 +641,26 @@ function ReelByReelSection({ report, analysis }: { report: any; analysis: any })
     });
   };
 
-  if (!comparisons.length) return <EmptyState message="No reel comparison data. Run a new analysis." />;
-
   const visible = comparisons.filter((_: any, i: number) => selectedIdxs.has(i));
 
   return (
     <div className="space-y-5">
-      <SectionHeader icon={Play} title="Reel by Reel" desc="Select reels to deep-dive and compare side by side" color="from-pink-500/20 to-pink-500/5" />
+      <SectionHeader icon={Play} title="Reel by Reel" desc="Compare specific reels head-to-head or browse AI-analysed comparisons below" color="from-pink-500/20 to-pink-500/5" />
 
-      {/* Reel selector */}
-      <div className="bg-card border border-card-border rounded-2xl p-4">
+      {/* Direct Reel Comparison Tool — always shown */}
+      <DirectReelComparison clientHandle={analysis?.clientHandle} competitorHandle={analysis?.competitorHandle} />
+
+      {/* Divider */}
+      {comparisons.length > 0 && (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">AI-Generated Reel Comparisons from Full Analysis</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
+
+      {/* Reel selector — only when full analysis exists */}
+      {comparisons.length > 0 && <div className="bg-card border border-card-border rounded-2xl p-4">
         <p className="text-xs font-semibold text-foreground mb-3">Choose which reels to compare:</p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -444,8 +809,8 @@ function ReelByReelSection({ report, analysis }: { report: any; analysis: any })
         );
       })}
 
-      {visible.length === 0 && (
-        <div className="text-center py-10 text-muted-foreground text-sm">Select at least one reel above to compare</div>
+      {comparisons.length > 0 && visible.length === 0 && (
+        <div className="text-center py-6 text-muted-foreground text-sm">Select at least one reel above to view it</div>
       )}
     </div>
   );
