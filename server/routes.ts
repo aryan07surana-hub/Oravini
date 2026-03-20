@@ -674,17 +674,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq JSON generation failed: ${lastError}`);
   }
 
-  // ── Anthropic helper (deep analysis — Claude with model fallback) ─────────
+  // ── Anthropic helper (deep analysis — Claude 4 models) ───────────────────
   async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    const apiKey = process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("No Anthropic API key configured");
     const client = new Anthropic({ apiKey });
     const models = [
-      "claude-3-5-sonnet-20241022",
-      "claude-3-5-sonnet-20240620",
-      "claude-3-5-haiku-20241022",
-      "claude-3-haiku-20240307",
-      "claude-3-sonnet-20240229",
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-20250514",
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-20250514",
     ];
     let lastError = "";
     for (const model of models) {
