@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ViralityTester from "@/pages/client/ViralityTester";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
@@ -3585,7 +3586,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
 
 export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | null>(null);
+  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | "virality" | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
@@ -3618,6 +3619,8 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                   ? "What's Working in My Niche"
                   : activeSection === "methodology"
                   ? "Use My Own Methodology"
+                  : activeSection === "virality"
+                  ? "Virality Tester"
                   : "Competitor Study"}
               </h1>
             </div>
@@ -3628,14 +3631,16 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
                 : activeSection === "methodology"
                 ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
+                : activeSection === "virality"
+                ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
                 : "Choose a study mode below"}
             </p>
           </div>
         </div>
 
-        {/* Landing — three option cards */}
+        {/* Landing — four option cards */}
         {!activeSection && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Competitor Analysis card */}
             <button
               onClick={() => setActiveSection("competitor")}
@@ -3693,6 +3698,28 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 <p className="text-xs text-muted-foreground leading-relaxed">Analyse your own posts to build a Content DNA Profile — then use AI tools to improve captions, optimize hooks, score content and generate A/B test variants.</p>
               </div>
               <div className="relative flex items-center gap-1.5 text-xs text-violet-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+
+            {/* Virality Tester card */}
+            <button
+              onClick={() => setActiveSection("virality")}
+              data-testid="tab-virality-tester"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-red-500/40 hover:bg-red-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/25 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                <Flame className="w-6 h-6 text-red-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Virality Tester</p>
+                  <span className="bg-red-500/20 border border-red-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-red-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Paste your script or drop a reel URL. Get a second-by-second retention curve, drop-off detection, hook analysis, emotion mapping, and a viral rewrite — before you post.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-red-400 font-semibold">
                 Open <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </button>
