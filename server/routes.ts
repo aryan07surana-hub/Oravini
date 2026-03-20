@@ -8,6 +8,7 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -492,11 +493,80 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return resp.json() as Promise<any[]>;
   }
 
-  // Sync a single post's stats from its Instagram URL
+  // ── Meta API account status ──────────────────────────────────────────────
+  let _cachedIgAccountId: string | null = null;
+  let _igAccountCacheTime = 0;
+
+  async function getIgAccountIdCached(): Promise<string | null> {
+    const now = Date.now();
+    if (_cachedIgAccountId && now - _igAccountCacheTime < 60 * 60 * 1000) return _cachedIgAccountId;
+    try {
+      const acct = await getConnectedIGAccount();
+      if (acct?.igAccountId) {
+        _cachedIgAccountId = acct.igAccountId;
+        _igAccountCacheTime = now;
+      }
+    } catch { _cachedIgAccountId = null; }
+    return _cachedIgAccountId;
+  }
+
+  app.get("/api/meta/account", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const tokenInfo = await getTokenInfo();
+      if (!tokenInfo.valid) {
+        return res.json({ connected: false, tokenExpired: true, message: "Access token is expired or invalid. Please refresh it." });
+      }
+      const account = await getConnectedIGAccount();
+      if (!account) {
+        return res.json({ connected: false, tokenValid: true, message: "No Instagram Business Account linked to this token." });
+      }
+      const profile = await getIGProfile(account.igAccountId);
+      return res.json({
+        connected: true, tokenValid: true,
+        expiresAt: tokenInfo.expiresAt,
+        scopes: tokenInfo.scopes,
+        igAccountId: account.igAccountId,
+        igUsername: account.igUsername,
+        pageName: account.pageName,
+        followersCount: profile?.followers_count,
+        mediaCount: profile?.media_count,
+      });
+    } catch (err: any) {
+      return res.json({ connected: false, error: err.message });
+    }
+  });
+
+  app.post("/api/meta/refresh-token", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { shortToken } = req.body;
+      if (!shortToken) return res.status(400).json({ message: "shortToken required" });
+      const result = await exchangeForLongLivedToken(shortToken);
+      if (!result) return res.status(400).json({ message: "Could not exchange token — check your app credentials." });
+      return res.json({ access_token: result.access_token, expires_in: result.expires_in, message: "Save this as META_ACCESS_TOKEN in your secrets." });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sync a single post's stats from its Instagram URL — Meta API first, Apify fallback
   app.post("/api/instagram/sync-post", requireAuth, async (req: Request, res: Response) => {
     try {
       const { postUrl } = req.body;
       if (!postUrl) return res.status(400).json({ message: "postUrl required" });
+
+      // Try Meta API first
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          if (metaResult) {
+            console.log("[sync-post] Meta API ✓");
+            return res.json({ ...metaResult, source: "meta" });
+          }
+        }
+      } catch (e: any) { console.warn("[sync-post] Meta API failed, falling back to Apify:", e.message); }
+
+      // Apify fallback
       const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
       const item = items?.[0];
       if (!item) return res.status(404).json({ message: "No data returned for this URL" });
@@ -504,43 +574,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
         likes: item.likesCount ?? 0,
         comments: item.commentsCount ?? 0,
+        saves: item.savesCount ?? 0,
         title: item.caption ? item.caption.slice(0, 120) : undefined,
         postDate: item.timestamp ? new Date(item.timestamp).toISOString() : undefined,
         contentType: item.type === "Video" || item.type === "Reel" ? "reel"
           : item.type === "Sidecar" ? "carousel" : "post",
+        source: "apify",
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
   });
 
-  // Sync a single post's metrics for a specific checkpoint (initial / 2w / 4w)
+  // Sync checkpoint — Meta API first, Apify fallback
   app.post("/api/instagram/sync-checkpoint", requireAuth, async (req: Request, res: Response) => {
     try {
       const { postId, postUrl, checkpoint } = req.body;
       if (!postUrl || !postId || !checkpoint) return res.status(400).json({ message: "postId, postUrl, and checkpoint required" });
-      const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
-      const item = items?.[0];
-      if (!item) return res.status(404).json({ message: "No data returned for this Instagram URL" });
 
-      const v = item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0;
-      const l = item.likesCount ?? 0;
-      const c = item.commentsCount ?? 0;
-      const s = item.savesCount ?? 0;
-      const now = new Date();
+      let v = 0, l = 0, c = 0, s = 0, source = "apify";
 
-      let updateData: any = {};
-      if (checkpoint === "initial") {
-        updateData = { views: v, likes: l, comments: c, saves: s, initialSyncedAt: now };
-      } else if (checkpoint === "2w") {
-        updateData = { views2w: v, likes2w: l, comments2w: c, saves2w: s, twoWeekSyncedAt: now };
-      } else if (checkpoint === "4w") {
-        updateData = { views4w: v, likes4w: l, comments4w: c, saves4w: s, fourWeekSyncedAt: now };
-      } else {
-        return res.status(400).json({ message: "Invalid checkpoint" });
+      // Try Meta API first
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          if (metaResult) {
+            v = metaResult.views; l = metaResult.likes; c = metaResult.comments; s = metaResult.saves;
+            source = "meta";
+            console.log("[sync-checkpoint] Meta API ✓");
+          }
+        }
+      } catch (e: any) { console.warn("[sync-checkpoint] Meta fallback:", e.message); }
+
+      // Apify fallback
+      if (source === "apify") {
+        const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
+        const item = items?.[0];
+        if (!item) return res.status(404).json({ message: "No data returned for this Instagram URL" });
+        v = item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0;
+        l = item.likesCount ?? 0;
+        c = item.commentsCount ?? 0;
+        s = item.savesCount ?? 0;
       }
+
+      const now = new Date();
+      let updateData: any = {};
+      if (checkpoint === "initial") updateData = { views: v, likes: l, comments: c, saves: s, initialSyncedAt: now };
+      else if (checkpoint === "2w") updateData = { views2w: v, likes2w: l, comments2w: c, saves2w: s, twoWeekSyncedAt: now };
+      else if (checkpoint === "4w") updateData = { views4w: v, likes4w: l, comments4w: c, saves4w: s, fourWeekSyncedAt: now };
+      else return res.status(400).json({ message: "Invalid checkpoint" });
+
       const updated = await storage.updateContentPost(postId, updateData);
-      return res.json(updated);
+      return res.json({ ...updated, source });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -551,27 +637,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { profileUrl, clientId, platform } = req.body;
       if (!profileUrl || !clientId) return res.status(400).json({ message: "profileUrl and clientId required" });
-      const resultsType = platform === "youtube" ? "posts" : "posts";
-      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType, resultsLimit: 20 });
-      if (!items?.length) return res.status(404).json({ message: "No posts found for this profile" });
+
+      type SyncItem = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; };
+      let syncItems: SyncItem[] = [];
+
+      // Try Meta API first (only for Instagram profiles matching connected account)
+      if (platform !== "youtube") {
+        try {
+          const igAccountId = await getIgAccountIdCached();
+          if (igAccountId) {
+            const connAcct = await getConnectedIGAccount();
+            const reqHandle = (profileUrl.match(/instagram\.com\/([^/?#]+)/)?.[1] || "").toLowerCase().replace(/^@/, "");
+            const connHandle = (connAcct?.igUsername || "").toLowerCase();
+            if (reqHandle && connHandle && reqHandle === connHandle) {
+              const media = await getIGMedia(igAccountId, 30);
+              if (media.length > 0) {
+                syncItems = media.map((m: any) => ({
+                  postUrl: m.permalink,
+                  caption: m.caption || "",
+                  postDate: new Date(m.timestamp),
+                  contentType: (m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post") as "reel"|"carousel"|"post",
+                  views: 0, likes: m.like_count || 0, comments: m.comments_count || 0, saves: 0,
+                }));
+                console.log(`[sync-profile] Meta API ✓ — ${syncItems.length} posts`);
+              }
+            }
+          }
+        } catch (e: any) { console.warn("[sync-profile] Meta fallback:", e.message); }
+      }
+
+      // Apify fallback
+      if (!syncItems.length) {
+        const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 20 });
+        if (!items?.length) return res.status(404).json({ message: "No posts found for this profile" });
+        syncItems = items.map((item: any) => ({
+          postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
+          caption: item.caption || "",
+          postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel"|"carousel"|"post",
+          views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+          likes: item.likesCount ?? 0,
+          comments: item.commentsCount ?? 0,
+          saves: item.savesCount ?? 0,
+        })).filter((p: SyncItem) => p.postUrl);
+      }
+
       const created: any[] = [];
-      for (const item of items) {
+      for (const p of syncItems) {
+        if (!p.postUrl) continue;
         try {
           const post = await storage.createContentPost({
-            clientId,
-            platform: platform ?? "instagram",
-            title: item.caption ? item.caption.slice(0, 120) : "Untitled",
-            postUrl: item.url ?? item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null,
-            postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
-            contentType: item.type === "Video" || item.type === "Reel" ? "reel"
-              : item.type === "Sidecar" ? "carousel" : "post",
-            funnelStage: "top",
-            views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
-            likes: item.likesCount ?? 0,
-            comments: item.commentsCount ?? 0,
-            saves: 0,
-            followersGained: 0,
-            subscribersGained: 0,
+            clientId, platform: platform ?? "instagram",
+            title: p.caption ? p.caption.slice(0, 120) : "Untitled",
+            postUrl: p.postUrl, postDate: p.postDate,
+            contentType: p.contentType, funnelStage: "top",
+            views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
+            followersGained: 0, subscribersGained: 0,
           });
           created.push(post);
         } catch (_) { /* skip duplicates/errors */ }
@@ -802,47 +923,91 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const handleMatch = profileUrl.match(/instagram\.com\/([^/?#]+)/);
       const handle = handleMatch ? handleMatch[1].replace(/^@/, "") : null;
 
-      // 1. Scrape last 30 posts via Apify
-      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
-      if (!items?.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
+      // 1. Try Meta API first, fall back to Apify
+      type NormalisedPost = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; type: string; };
+      let normalisedPosts: NormalisedPost[] = [];
+      let dataSource = "apify";
+
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const connAcct = await getConnectedIGAccount();
+          // Check if the profile handle matches connected account
+          const handleMatch = profileUrl.match(/instagram\.com\/([^/?#]+)/);
+          const reqHandle = (handleMatch?.[1] || "").toLowerCase().replace(/^@/, "");
+          const connHandle = (connAcct?.igUsername || "").toLowerCase();
+          if (reqHandle && connHandle && (reqHandle === connHandle || profileUrl.includes(connHandle))) {
+            const media = await getIGMedia(igAccountId, 50);
+            if (media.length > 0) {
+              for (const m of media) {
+                const insights = await getMediaInsights(m.id, m.media_type);
+                normalisedPosts.push({
+                  postUrl: m.permalink,
+                  caption: m.caption || "",
+                  postDate: new Date(m.timestamp),
+                  contentType: m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post",
+                  views: insights.plays ?? insights.video_views ?? 0,
+                  likes: m.like_count || insights.likes || 0,
+                  comments: m.comments_count || insights.comments || 0,
+                  saves: insights.saved || 0,
+                  type: m.media_type,
+                });
+              }
+              dataSource = "meta";
+              console.log(`[analyze-profile] Meta API ✓ — ${normalisedPosts.length} posts`);
+            }
+          }
+        }
+      } catch (e: any) { console.warn("[analyze-profile] Meta API failed, using Apify:", e.message); }
+
+      // Apify fallback
+      if (!normalisedPosts.length) {
+        const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
+        if (!items?.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
+        normalisedPosts = items.map((item: any) => ({
+          postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
+          caption: item.caption || "",
+          postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel"|"carousel"|"post",
+          views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+          likes: item.likesCount ?? 0,
+          comments: item.commentsCount ?? 0,
+          saves: item.savesCount ?? 0,
+          type: item.type || "",
+        })).filter((p: NormalisedPost) => p.postUrl);
+      }
+
+      if (!normalisedPosts.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
 
       // 2. Sync posts to content tracking (upsert by url; skip duplicates)
       const existingPosts = await storage.getContentPostsByClient(clientId);
       const existingUrls = new Set(existingPosts.map((p: any) => p.postUrl).filter(Boolean));
       let imported = 0;
-      for (const item of items) {
-        const postUrl = item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null);
-        if (!postUrl || existingUrls.has(postUrl)) continue;
+      for (const p of normalisedPosts) {
+        if (!p.postUrl || existingUrls.has(p.postUrl)) continue;
         try {
           await storage.createContentPost({
-            clientId,
-            platform: "instagram",
-            title: item.caption ? item.caption.slice(0, 120) : "Untitled",
-            postUrl,
-            postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
-            contentType: item.type === "Video" || item.type === "Reel" ? "reel"
-              : item.type === "Sidecar" ? "carousel" : "post",
-            funnelStage: "top",
-            views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
-            likes: item.likesCount ?? 0,
-            comments: item.commentsCount ?? 0,
-            saves: 0,
-            followersGained: 0,
-            subscribersGained: 0,
+            clientId, platform: "instagram",
+            title: p.caption ? p.caption.slice(0, 120) : "Untitled",
+            postUrl: p.postUrl, postDate: p.postDate,
+            contentType: p.contentType, funnelStage: "top",
+            views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
+            followersGained: 0, subscribersGained: 0,
           });
           imported++;
         } catch (_) { /* skip */ }
       }
 
       // 3. Build data summary for AI
-      const totalLikes = items.reduce((s: number, p: any) => s + (p.likesCount ?? 0), 0);
-      const totalComments = items.reduce((s: number, p: any) => s + (p.commentsCount ?? 0), 0);
-      const totalViews = items.reduce((s: number, p: any) => s + (p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0), 0);
-      const reels = items.filter((p: any) => p.type === "Video" || p.type === "Reel").length;
-      const carousels = items.filter((p: any) => p.type === "Sidecar").length;
-      const posts = items.filter((p: any) => p.type !== "Video" && p.type !== "Reel" && p.type !== "Sidecar").length;
-      const captions = items.slice(0, 10).map((p: any) => p.caption?.slice(0, 200)).filter(Boolean);
-      const topByLikes = [...items].sort((a: any, b: any) => (b.likesCount ?? 0) - (a.likesCount ?? 0)).slice(0, 3);
+      const items = normalisedPosts; // alias for AI prompt below
+      const totalLikes = items.reduce((s, p) => s + p.likes, 0);
+      const totalComments = items.reduce((s, p) => s + p.comments, 0);
+      const totalViews = items.reduce((s, p) => s + p.views, 0);
+      const reels = items.filter((p) => p.contentType === "reel").length;
+      const carousels = items.filter((p) => p.contentType === "carousel").length;
+      const posts = items.filter((p) => p.contentType === "post").length;
+      const captions = items.slice(0, 10).map((p) => p.caption?.slice(0, 200)).filter(Boolean);
+      const topByLikes = [...items].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).slice(0, 3);
 
       const systemPrompt = `You are an elite Instagram growth strategist. Analyze Instagram profile data and return ONLY valid JSON — no markdown, no extra text.`;
       const userPrompt = `Analyze this Instagram account and return a detailed profile report as JSON.
@@ -852,7 +1017,7 @@ Posts analyzed: ${items.length}
 Total likes: ${totalLikes}, Total comments: ${totalComments}, Total views: ${totalViews}
 Content breakdown: ${reels} Reels, ${carousels} Carousels, ${posts} Static posts
 Sample captions: ${JSON.stringify(captions)}
-Top 3 posts by likes: ${JSON.stringify(topByLikes.map((p: any) => ({ likes: p.likesCount, comments: p.commentsCount, type: p.type, caption: p.caption?.slice(0, 100) })))}
+Top 3 posts by likes: ${JSON.stringify(topByLikes.map((p) => ({ likes: p.likes, comments: p.comments, views: p.views, saves: p.saves, type: p.contentType, caption: p.caption?.slice(0, 100) })))}
 
 Return this exact JSON structure:
 {
