@@ -127,7 +127,7 @@ const CustomRetentionTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function ViralityTester({ useAdmin, activeClientId, user }: { useAdmin?: boolean; activeClientId?: number; user?: any }) {
+export default function ViralityTester({ useAdmin, activeClientId, user }: { useAdmin?: boolean; activeClientId?: string | number; user?: any }) {
   const { toast } = useToast();
   const [mode, setMode] = useState<"new" | "reel">("new");
   const [script, setScript] = useState("");
@@ -142,8 +142,7 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
 
   const analyzeMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest("POST", "/api/virality/analyze", payload);
-      return res.json();
+      return await apiRequest("POST", "/api/virality/analyze", payload);
     },
     onSuccess: (data) => {
       setResult(data);
@@ -157,8 +156,7 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
 
   const hooksMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest("POST", "/api/virality/hooks", payload);
-      return res.json();
+      return await apiRequest("POST", "/api/virality/hooks", payload);
     },
     onSuccess: (data) => { setNewHooks(data.hooks || []); setShowHooks(true); },
     onError: (err: any) => toast({ title: "Hook generation failed", description: err.message, variant: "destructive" }),
@@ -166,8 +164,7 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
 
   const rewriteMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest("POST", "/api/virality/rewrite", payload);
-      return res.json();
+      return await apiRequest("POST", "/api/virality/rewrite", payload);
     },
     onSuccess: (data) => { setRewrittenScript(data.script || ""); setShowRewrite(true); },
     onError: (err: any) => toast({ title: "Rewrite failed", description: err.message, variant: "destructive" }),

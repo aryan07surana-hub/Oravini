@@ -2386,7 +2386,7 @@ Return ONLY this exact JSON:
   });
 
   // ── Virality Tester ──────────────────────────────────────────────────────
-  app.post("/api/virality/analyze", async (req: Request, res: Response) => {
+  app.post("/api/virality/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
       const { mode, script, reelUrl, platform, audience } = req.body;
       let contentToAnalyze = script;
@@ -2494,7 +2494,7 @@ Scoring rules:
     }
   });
 
-  app.post("/api/virality/hooks", async (req: Request, res: Response) => {
+  app.post("/api/virality/hooks", requireAuth, async (req: Request, res: Response) => {
     try {
       const { script, platform } = req.body;
       const apiKey = process.env.GROQ_API_KEY;
@@ -2538,7 +2538,7 @@ Return ONLY a JSON array of 5 strings:
     }
   });
 
-  app.post("/api/virality/rewrite", async (req: Request, res: Response) => {
+  app.post("/api/virality/rewrite", requireAuth, async (req: Request, res: Response) => {
     try {
       const { script, platform, audience, score, fixes } = req.body;
       const apiKey = process.env.GROQ_API_KEY;
