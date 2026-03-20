@@ -352,9 +352,9 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
                   <span className="text-xs text-zinc-500">Prediction Confidence: <span className="text-zinc-300 font-semibold">{r.confidence ?? 80}%</span></span>
                 </div>
                 <p className="text-sm text-zinc-300 leading-relaxed">{r.viralPrediction}</p>
-                {r.penalties?.length > 0 && (
+                {r.penalties?.filter((p: any) => p.impact < 0 && p.reason?.toLowerCase() !== "none").length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {r.penalties.map((p: any, i: number) => (
+                    {r.penalties.filter((p: any) => p.impact < 0 && p.reason?.toLowerCase() !== "none").map((p: any, i: number) => (
                       <span key={i} className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
                         <TrendingDown className="w-3 h-3" /> {p.reason} ({p.impact}%)
                       </span>
@@ -376,17 +376,17 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={r.retentionCurve} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-                    <XAxis dataKey="label" tick={{ fill: "#666", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="second" tickFormatter={(v) => `${v}s`} tick={{ fill: "#666", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 100]} tick={{ fill: "#666", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
                     <Tooltip content={<CustomRetentionTooltip />} />
                     <Line type="monotone" dataKey="retention" stroke={GOLD} strokeWidth={2.5} dot={{ fill: GOLD, strokeWidth: 0, r: 4 }} activeDot={{ r: 6, fill: GOLD }} />
                   </LineChart>
                 </ResponsiveContainer>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap gap-3 mt-3">
                   {r.retentionCurve.map((p: any, i: number) => (
                     <div key={i} className="text-[10px] text-center">
                       <div className={`font-bold ${p.retention >= 70 ? "text-green-400" : p.retention >= 40 ? "text-primary" : "text-red-400"}`}>{p.retention}%</div>
-                      <div className="text-zinc-600">{p.label}</div>
+                      <div className="text-zinc-500">{p.label || `${p.second}s`}</div>
                     </div>
                   ))}
                 </div>

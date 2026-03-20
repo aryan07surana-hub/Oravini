@@ -5,6 +5,7 @@ import passport from "passport";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
@@ -645,8 +646,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq generation failed: ${lastError}`);
   }
 
-  // ── OpenRouter helper (smart – used for reports) ──────────────────────────
+  // ── Anthropic helper (deep analysis — Claude 3.5 Sonnet) ─────────────────
+  async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+    return message.content[0].type === "text" ? message.content[0].text : "";
+  }
+
+  // ── OpenRouter helper (smart – prefers Anthropic when key is available) ──
   async function callOpenRouter(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
+    if (process.env.ANTHROPIC_API_KEY) return callAnthropic(systemPrompt, userPrompt, maxTokens);
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
 
@@ -1619,22 +1635,9 @@ Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. M
       const myEr = my.views > 0 ? (((my.likes + my.comments) / my.views) * 100).toFixed(2) : "0";
       const compEr = comp.views > 0 ? (((comp.likes + comp.comments) / comp.views) * 100).toFixed(2) : "0";
 
-      const openRouterKey = process.env.OPENROUTER_API_KEY;
-      if (!openRouterKey) return res.status(500).json({ message: "OpenRouter not configured" });
-
-      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openRouterKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://brandverse.replit.app",
-          "X-Title": "Brandverse Portal",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You are an elite Instagram content strategist. Analyse two Instagram reels and produce a deep comparison. Respond ONLY with valid JSON." },
-            { role: "user", content: `Compare these two Instagram reels in depth.
+      const rawAi = await callAnthropic(
+        "You are an elite Instagram content strategist. Analyse two Instagram reels and produce a deep comparison. Respond ONLY with valid JSON.",
+        `Compare these two Instagram reels in depth.
 
 MY REEL:
 Owner: @${my.ownerUsername}
@@ -1670,19 +1673,12 @@ Return this EXACT JSON:
   "improvementPlan": "3-5 sentence concrete plan: exactly what to change in YOUR reel to beat competitor's performance",
   "rewrittenHook": "A rewritten, stronger hook for MY reel based on what competitor does better",
   "verdictTags": ["tag1", "tag2", "tag3"]
-}` }
-          ],
-        }),
-        signal: AbortSignal.timeout(40000),
-      });
-
-      if (!aiRes.ok) return res.status(500).json({ message: "AI analysis failed" });
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content ?? "{}";
+}`
+      );
       let ai: any = {};
       try {
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
-        ai = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+        const jsonMatch = rawAi.match(/\{[\s\S]*\}/);
+        ai = JSON.parse(jsonMatch ? jsonMatch[0] : rawAi);
       } catch { ai = {}; }
 
       return res.json({
@@ -1966,9 +1962,6 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
       const metrics = processProfileMetrics(items, handle);
       const posts = buildPostList(items);
 
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "OPENROUTER_API_KEY not configured" });
-
       const systemPrompt = `You are an elite Instagram content strategist who specialises in reverse-engineering a creator's unique content methodology. Analyse their post data and build a precise "Content DNA Profile". Always respond with valid JSON only — no markdown, no explanation outside the JSON.`;
 
       const userPrompt = `Analyse this Instagram creator's last ${posts.length} posts and extract their exact content methodology.
@@ -2012,28 +2005,8 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
   ]
 }`;
 
-      const aiResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://brandverse.app",
-          "X-Title": "Brandverse Methodology Engine",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-70b-instruct",
-          max_tokens: 3000,
-          temperature: 0.3,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-      });
-
-      const aiJson = await aiResp.json() as any;
-      const raw = aiJson.choices?.[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const rawText = await callAnthropic(systemPrompt, userPrompt, 3000);
+      const cleaned = rawText.replace(/```json|```/g, "").trim();
       const profile = JSON.parse(cleaned);
       return res.json(profile);
     } catch (err: any) {
@@ -2185,9 +2158,6 @@ Return ONLY this exact JSON:
   app.post("/api/virality/analyze", async (req: Request, res: Response) => {
     try {
       const { mode, script, reelUrl, platform, audience } = req.body;
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "OPENROUTER_API_KEY not configured" });
-
       let contentToAnalyze = script;
 
       if (mode === "reel" && reelUrl) {
@@ -2278,31 +2248,14 @@ Scoring rules:
 - retentionCurve must have at least 5 data points showing realistic audience drop-off
 - Return ONLY the JSON object, no markdown, no explanation`;
 
-      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://brandverse.replit.app",
-          "X-Title": "Brandverse Virality Tester",
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-3-haiku",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 2000,
-          temperature: 0.3,
-        }),
-      });
-
-      if (!aiRes.ok) {
-        const errText = await aiRes.text();
-        throw new Error(`OpenRouter error: ${errText}`);
-      }
-
-      const aiData = await aiRes.json();
-      const raw = aiData.choices?.[0]?.message?.content || "{}";
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+      const rawText = await callAnthropic(
+        "You are an elite content retention analyst and viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON.",
+        prompt,
+        2500
+      );
+      const cleaned = rawText.replace(/```json|```/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
       return res.json(parsed);
     } catch (err: any) {
       console.error("[Virality Analyze] Error:", err.message);
