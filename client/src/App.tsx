@@ -25,6 +25,7 @@ import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
+import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
@@ -85,6 +86,9 @@ function Router() {
       </Route>
       <Route path="/ai-ideas">
         {() => <ProtectedRoute component={AIIdeas} />}
+      </Route>
+      <Route path="/ai-coach">
+        {() => <ProtectedRoute component={AIContentCoach} />}
       </Route>
       <Route path="/tracking/content/instagram">
         {() => <ProtectedRoute component={InstagramTracking} />}

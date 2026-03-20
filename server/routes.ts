@@ -2420,6 +2420,168 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
     }
   });
 
+  // ── AI Content Coach ──────────────────────────────────────────────────────
+  const COACH_SYSTEM = `You are an AI Content Coach named "Coach" — a witty, sharp, animated character who helps creators make viral content. You speak like a real mentor: casual, direct, slightly funny. Never robotic.
+
+Personality: Friendly but honest. Use "yo", "okay", "bro" occasionally. Be encouraging but NEVER sugarcoat weak content.
+
+When no script is provided yet: greet the user warmly and ask what they're working on.
+
+When a script/idea IS provided: analyze it and return a JSON response with BOTH a conversational reply AND structured analysis.
+
+Return ONLY this JSON format:
+{
+  "reply": "your conversational coach message (1-4 sentences, punchy, mentor-style)",
+  "mood": "weak" | "decent" | "strong",
+  "analysis": {
+    "overallScore": <0-100>,
+    "scores": {
+      "hook": <0-10>,
+      "clarity": <0-10>,
+      "emotion": <0-10>,
+      "pacing": <0-10>,
+      "retention": <0-10>,
+      "payoff": <0-10>
+    },
+    "issues": [
+      { "line": "exact weak line or section", "problem": "why it's weak", "fix": "rewritten version", "severity": "high"|"medium"|"low" }
+    ],
+    "strengths": ["strength 1", "strength 2"],
+    "dropoffs": [
+      { "second": <number>, "reason": "why they drop off here", "severity": "high"|"medium"|"low" }
+    ],
+    "verdict": "2-sentence verdict on virality potential"
+  }
+}
+
+Scoring rules: hook is 25% of score, pacing 20%, emotion 15%, retention 15%, clarity 10%, payoff 15%. Apply penalties for weak hook (-15), no payoff (-20), slow pacing (-10), flat emotion (-10). Be HONEST — don't inflate scores. Provide 1-4 issues max. Only include analysis when content is provided.`;
+
+  app.post("/api/coach/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, script, mode, goal, history = [] } = req.body;
+      const content = script || message;
+      const hasScript = content && content.trim().length > 20;
+
+      const goalNote = goal ? `The user's goal is: ${goal} (optimize for this).` : "";
+      const modeNote = mode === "pre-post" ? "This is a Pre-Post check — be extra critical about retention risks." : mode === "live" ? "Give quick line-by-line feedback." : "";
+      const userPrompt = hasScript
+        ? `${goalNote} ${modeNote}\n\nContent to analyze:\n"${content}"\n\nAnalyze this content and respond with the full JSON format.`
+        : `The user says: "${message}". ${!hasScript ? "No script provided yet — greet them and ask what they want to work on. Return reply and mood only, set analysis to null." : ""}`;
+
+      const msgs: any[] = [
+        { role: "system", content: COACH_SYSTEM },
+        ...history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })),
+        { role: "user", content: userPrompt },
+      ];
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: msgs,
+          temperature: 0.75,
+          max_tokens: 2000,
+          response_format: { type: "json_object" },
+        }),
+      });
+      const data: any = await r.json();
+      if (data?.error) throw new Error(data.error.message);
+      const raw = data.choices?.[0]?.message?.content || "{}";
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("[Coach Chat] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Coach failed" });
+    }
+  });
+
+  app.post("/api/coach/fix-line", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { line, context, goal } = req.body;
+      const prompt = `You are a viral content expert. Rewrite this weak line to be more scroll-stopping, emotional, and engaging.
+Goal: ${goal || "viral content"}
+Context: ${context || "Instagram Reel script"}
+Weak line: "${line}"
+
+Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrite 1", "rewrite 2", "rewrite 3"], "explanation": "why these work better" }`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/coach/improve-script", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, goal, issues } = req.body;
+      const issueList = issues?.map((i: any) => `- ${i.problem}: "${i.line}"`).join("\n") || "";
+      const prompt = `You are a viral content strategist. Rewrite this script for maximum retention on Instagram Reels.
+Goal: ${goal || "viral content"}
+${issueList ? `Known issues to fix:\n${issueList}` : ""}
+
+Original script:
+"${script}"
+
+Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
+      });
+      const data: any = await r.json();
+      return res.json({ script: data.choices?.[0]?.message?.content || "" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/coach/competitor", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "url required" });
+      const handle = url.replace(/\/$/, "").split("/").pop()?.replace("@", "") || url;
+      const items = await apifyInstagram({ directUrls: [url], resultsType: "posts", resultsLimit: 15 });
+      if (!items?.length) return res.json({ reply: `Hmm, couldn't scrape @${handle} — make sure it's a public account 👀`, mood: "weak", profile: null });
+      const posts = items.slice(0, 10).map((p: any) => ({
+        caption: (p.caption || "").slice(0, 120),
+        views: p.videoViewCount || p.videoPlayCount || 0,
+        likes: p.likesCount || 0,
+        comments: p.commentsCount || 0,
+        type: p.type || "reel",
+      }));
+      const avgViews = Math.round(posts.reduce((s: number, p: any) => s + p.views, 0) / posts.length);
+      const avgLikes = Math.round(posts.reduce((s: number, p: any) => s + p.likes, 0) / posts.length);
+      const prompt = `You are an AI Content Coach. Analyze this Instagram competitor and give actionable insights.
+
+Handle: @${handle}
+Posts analyzed: ${posts.length}
+Avg views: ${avgViews}, Avg likes: ${avgLikes}
+Recent posts: ${JSON.stringify(posts)}
+
+Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)", "mood": "weak"|"decent"|"strong", "topPatterns": ["pattern 1", "pattern 2", "pattern 3"], "whatWorks": ["...", "..."], "gaps": ["opportunity 1", "opportunity 2"], "stealThis": "one specific tactic to steal from this account" }`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      return res.json({ ...parsed, profile: { handle, posts: posts.length, avgViews, avgLikes } });
+    } catch (err: any) {
+      console.error("[Coach Competitor] Error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── Meta / Instagram Webhook & Callbacks (required for Meta App Review) ───
   // Webhook verification — Meta sends GET with hub.challenge to verify endpoint
   app.get("/api/webhooks/meta", (req: Request, res: Response) => {
