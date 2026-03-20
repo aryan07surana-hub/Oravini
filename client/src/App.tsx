@@ -29,6 +29,7 @@ import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
+import Landing from "@/pages/Landing";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -57,7 +58,7 @@ function HomeRedirect() {
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
-  if (!user) return <Redirect to="/login" />;
+  if (!user) return <Landing />;
   if (user.role === "admin") return <Redirect to="/admin" />;
   return <Redirect to="/dashboard" />;
 }
