@@ -2181,6 +2181,228 @@ Return ONLY this exact JSON:
     }
   });
 
+  // ── Virality Tester ──────────────────────────────────────────────────────
+  app.post("/api/virality/analyze", async (req: Request, res: Response) => {
+    try {
+      const { mode, script, reelUrl, platform, audience } = req.body;
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "OPENROUTER_API_KEY not configured" });
+
+      let contentToAnalyze = script;
+
+      if (mode === "reel" && reelUrl) {
+        try {
+          const apifyToken = process.env.APIFY_TOKEN;
+          if (apifyToken) {
+            const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ directUrls: [reelUrl], resultsType: "posts", resultsLimit: 1 }),
+            });
+            if (apifyRes.ok) {
+              const posts = await apifyRes.json();
+              if (posts?.[0]) {
+                const p = posts[0];
+                contentToAnalyze = `REEL DATA:\nCaption: ${p.caption || p.text || ""}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nEngagement Rate: ${p.engagementRate || "unknown"}\nURL: ${reelUrl}`;
+              }
+            }
+          }
+        } catch {}
+        if (!contentToAnalyze) contentToAnalyze = `Reel URL: ${reelUrl}`;
+      }
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+
+      const prompt = `You are an elite content retention analyst and viral content strategist. Analyse the following ${mode === "reel" ? "reel" : "script/content idea"} for ${platformLabel} and return a detailed retention analysis as strict JSON.
+
+Content: ${contentToAnalyze}
+${audienceNote}
+${mode === "reel" ? "This is an EXISTING reel — analyse why it went viral or why it didn't go viral. Be specific about real engagement signals if metrics are provided." : ""}
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "overallScore": number (0-100),
+  "confidence": number (0-100),
+  "label": string,
+  "viralPrediction": string (2-3 sentences: detailed verdict on virality/retention, be specific and surgical),
+  "retentionCurve": [
+    { "second": number, "retention": number (0-100), "label": string }
+  ],
+  "scores": {
+    "hook": number (0-10),
+    "pacing": number (0-10),
+    "emotion": number (0-10),
+    "clarity": number (0-10),
+    "dropRisk": number (0-10, higher = lower drop risk),
+    "payoff": number (0-10),
+    "rewatch": number (0-10)
+  },
+  "penalties": [
+    { "reason": string, "impact": number (negative, e.g. -15) }
+  ],
+  "dropoffs": [
+    { "second": number, "reason": string, "severity": "high"|"medium"|"low" }
+  ],
+  "hookAnalysis": {
+    "score": number (0-10),
+    "strengths": string[],
+    "weaknesses": string[],
+    "scrollStoppingScore": number (0-100)
+  },
+  "fixes": [
+    { "type": "cut"|"add"|"rewrite"|"move", "text": string, "priority": "high"|"medium"|"low" }
+  ],
+  "platformFit": {
+    "score": number (0-100),
+    "platform": string,
+    "notes": string
+  },
+  "audienceFit": {
+    "score": number (0-100),
+    "notes": string
+  },
+  "emotionCurve": [
+    { "phase": "Hook"|"Build"|"Value"|"Payoff", "emotion": string, "intensity": number (0-10) }
+  ],
+  "loopPotential": number (0-100),
+  "narrativeFlow": string,
+  "informationDensity": string
+}
+
+Scoring rules:
+- Apply penalty system: weak hook -15%, no payoff -20%, early confusion -10%, flat emotion -10%
+- Overall score = (hook×0.25 + pacing×0.20 + emotion×0.15 + dropRisk×0.15 + clarity×0.10 + payoff×0.10 + rewatch×0.05) × 10, then apply penalties
+- Be honest and critical — do not inflate scores
+- Provide 4-6 specific fixes, 2-4 drop-off points, 3-5 penalties if applicable
+- retentionCurve must have at least 5 data points showing realistic audience drop-off
+- Return ONLY the JSON object, no markdown, no explanation`;
+
+      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://brandverse.replit.app",
+          "X-Title": "Brandverse Virality Tester",
+        },
+        body: JSON.stringify({
+          model: "anthropic/claude-3-haiku",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 2000,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const errText = await aiRes.text();
+        throw new Error(`OpenRouter error: ${errText}`);
+      }
+
+      const aiData = await aiRes.json();
+      const raw = aiData.choices?.[0]?.message?.content || "{}";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("[Virality Analyze] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed" });
+    }
+  });
+
+  app.post("/api/virality/hooks", async (req: Request, res: Response) => {
+    try {
+      const { script, platform } = req.body;
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+
+      const prompt = `You are a viral content hook specialist. Based on this content, generate 5 powerful upgraded hooks for ${platformLabel}.
+
+Content context: ${script}
+
+Rules:
+- Each hook must be under 15 words
+- Use proven hook formulas: curiosity gap, pattern interrupt, bold claim, story start, controversy
+- Make them scroll-stopping and impossible to ignore
+- No generic hooks — be specific and punchy
+
+Return ONLY a JSON array of 5 strings:
+["hook 1", "hook 2", "hook 3", "hook 4", "hook 5"]`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+          temperature: 0.8,
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const raw = data.choices?.[0]?.message?.content || "[]";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const hooks = JSON.parse(cleaned);
+      return res.json({ hooks });
+    } catch (err: any) {
+      console.error("[Virality Hooks] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Hook generation failed" });
+    }
+  });
+
+  app.post("/api/virality/rewrite", async (req: Request, res: Response) => {
+    try {
+      const { script, platform, audience, score, fixes } = req.body;
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const fixNote = fixes?.length ? `Apply these specific improvements: ${fixes.map((f: any) => f.text).join("; ")}` : "";
+
+      const prompt = `You are a viral content strategist. Rewrite this script for maximum retention and virality on ${platformLabel}.
+
+Original content: ${script}
+${audienceNote}
+${fixNote}
+Current retention score: ${score || "unknown"}/100
+
+Rules:
+- Start with an irresistible hook (first 3 seconds = everything)
+- Add pattern interrupts every 5-7 seconds
+- Build tension and deliver on the promise
+- Keep pacing tight — cut every unnecessary word
+- End with a strong payoff and optional loop/rewatch trigger
+- Match the platform format: ${platformLabel === "Instagram Reels" ? "15-60 seconds, punchy, visual cues" : platformLabel === "TikTok" ? "fast-paced, trend-aware, conversational" : "structured, value-forward, slightly longer"}
+- Label each section: [HOOK] [BUILD] [VALUE] [PAYOFF]
+
+Return ONLY the rewritten script, no explanation, no JSON.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 800,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const rewrittenScript = data.choices?.[0]?.message?.content || "";
+      return res.json({ script: rewrittenScript });
+    } catch (err: any) {
+      console.error("[Virality Rewrite] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Rewrite failed" });
+    }
+  });
+
   // ── Meta / Instagram Webhook & Callbacks (required for Meta App Review) ───
   // Webhook verification — Meta sends GET with hub.challenge to verify endpoint
   app.get("/api/webhooks/meta", (req: Request, res: Response) => {

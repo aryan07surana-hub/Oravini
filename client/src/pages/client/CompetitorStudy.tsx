@@ -3736,6 +3736,9 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
         {activeSection === "methodology" && (
           <MethodologySection useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
         )}
+        {activeSection === "virality" && (
+          <ViralityTester useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        )}
 
       </div>
     </Layout>
