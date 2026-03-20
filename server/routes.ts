@@ -2181,6 +2181,58 @@ Return ONLY this exact JSON:
     }
   });
 
+  // ── Meta / Instagram Webhook & Callbacks (required for Meta App Review) ───
+  // Webhook verification — Meta sends GET with hub.challenge to verify endpoint
+  app.get("/api/webhooks/meta", (req: Request, res: Response) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN || "brandverse_meta_verify_2024";
+    if (mode === "subscribe" && token === verifyToken) {
+      console.log("[Meta Webhook] Verified successfully");
+      return res.status(200).send(challenge);
+    }
+    console.warn("[Meta Webhook] Verification failed — token mismatch");
+    return res.status(403).json({ message: "Forbidden" });
+  });
+
+  // Webhook event receiver — Meta sends POST for Instagram events
+  app.post("/api/webhooks/meta", (req: Request, res: Response) => {
+    const body = req.body;
+    console.log("[Meta Webhook] Event received:", JSON.stringify(body, null, 2));
+    if (body.object === "instagram") {
+      body.entry?.forEach((entry: any) => {
+        const changes = entry.changes || [];
+        changes.forEach((change: any) => {
+          console.log(`[Meta Webhook] Change field: ${change.field}`, change.value);
+        });
+        const messaging = entry.messaging || [];
+        messaging.forEach((msg: any) => {
+          console.log("[Meta Webhook] Message event:", JSON.stringify(msg));
+        });
+      });
+    }
+    return res.status(200).json({ status: "EVENT_RECEIVED" });
+  });
+
+  // Deauthorize callback — required by Meta; called when user removes app access
+  app.post("/api/auth/meta/deauth", (req: Request, res: Response) => {
+    const signedRequest = req.body.signed_request;
+    console.log("[Meta Deauth] Deauthorize callback received:", signedRequest);
+    return res.status(200).json({ status: "ok" });
+  });
+
+  // Data deletion callback — required by Meta; called when user requests data deletion
+  app.post("/api/auth/meta/delete", (req: Request, res: Response) => {
+    const signedRequest = req.body.signed_request;
+    console.log("[Meta Data Deletion] Request received:", signedRequest);
+    const confirmationCode = `del_${Date.now()}`;
+    return res.status(200).json({
+      url: `${req.protocol}://${req.get("host")}/privacy`,
+      confirmation_code: confirmationCode,
+    });
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {

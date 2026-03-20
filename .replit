@@ -38,3 +38,8 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+META_WEBHOOK_VERIFY_TOKEN = "brandverse_meta_verify_2024"

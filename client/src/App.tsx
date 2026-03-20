@@ -26,6 +26,8 @@ import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import DMTracker from "@/pages/client/DMTracker";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -64,6 +66,8 @@ function Router() {
     <Switch>
       <Route path="/" component={HomeRedirect} />
       <Route path="/login" component={Login} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={ClientDashboard} />}
       </Route>
