@@ -8,7 +8,7 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
-import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken } from "./meta";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -542,7 +542,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!shortToken) return res.status(400).json({ message: "shortToken required" });
       const result = await exchangeForLongLivedToken(shortToken);
       if (!result) return res.status(400).json({ message: "Could not exchange token — check your app credentials." });
-      return res.json({ access_token: result.access_token, expires_in: result.expires_in, message: "Save this as META_ACCESS_TOKEN in your secrets." });
+      // Auto-save the long-lived token to the database so it's available immediately
+      await saveTokenToDB(result.access_token);
+      return res.json({ access_token: result.access_token, expires_in: result.expires_in, message: "Token saved and active. Valid for ~60 days." });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }

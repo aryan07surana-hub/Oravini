@@ -1,8 +1,24 @@
+import { storage } from "./storage";
+
 const META_BASE = "https://graph.facebook.com/v19.0";
+
+// ── Get active token (DB first, env var fallback) ─────────────────────────────
+export async function getActiveToken(): Promise<string | null> {
+  try {
+    const dbToken = await storage.getAppSetting("META_ACCESS_TOKEN");
+    if (dbToken) return dbToken;
+  } catch { /* ignore DB errors, fall through to env */ }
+  return process.env.META_ACCESS_TOKEN || null;
+}
+
+// ── Save token to DB ──────────────────────────────────────────────────────────
+export async function saveTokenToDB(token: string): Promise<void> {
+  await storage.setAppSetting("META_ACCESS_TOKEN", token);
+}
 
 // ── Core fetch helper ────────────────────────────────────────────────────────
 export async function metaGet(path: string, params: Record<string, string> = {}): Promise<any> {
-  const token = process.env.META_ACCESS_TOKEN;
+  const token = await getActiveToken();
   if (!token) throw new Error("META_ACCESS_TOKEN not configured");
   const url = new URL(`${META_BASE}${path}`);
   url.searchParams.set("access_token", token);
@@ -18,11 +34,17 @@ export async function getTokenInfo(): Promise<{ valid: boolean; expiresAt?: Date
   try {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const token = process.env.META_ACCESS_TOKEN;
+    const token = await getActiveToken();
     if (!token || !appId || !appSecret) return { valid: false };
     const res = await fetch(`${META_BASE}/debug_token?input_token=${token}&access_token=${appId}|${appSecret}`);
     const data = await res.json() as any;
-    if (!data?.data?.is_valid) return { valid: false };
+    if (!data?.data?.is_valid) {
+      // Fallback: just try a simple /me call to see if token works at all
+      const meRes = await fetch(`${META_BASE}/me?access_token=${token}`);
+      const me = await meRes.json() as any;
+      if (me?.id) return { valid: true };
+      return { valid: false };
+    }
     return {
       valid: true,
       expiresAt: data.data.expires_at ? new Date(data.data.expires_at * 1000) : undefined,

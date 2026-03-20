@@ -52,7 +52,9 @@ export default function AdminSettings() {
     onSuccess: (data: any) => {
       setExchangedToken(data.access_token);
       const days = data.expires_in ? Math.round(data.expires_in / 86400) : 60;
-      toast({ title: "Token exchanged!", description: `You now have a long-lived token valid for ~${days} days. Copy it and save it as META_ACCESS_TOKEN in your secrets.` });
+      toast({ title: "Connected!", description: `Long-lived token active — valid for ~${days} days. Connection is live.` });
+      setShortToken("");
+      setTimeout(() => refetchMeta(), 1000);
     },
     onError: (err: any) => toast({ title: "Exchange failed", description: err.message, variant: "destructive" }),
   });
@@ -154,13 +156,12 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground">{metaAccount?.message || "Your Meta access token is missing or expired."}</p>
 
                   <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-xs text-muted-foreground border border-border">
-                    <p className="font-semibold text-foreground text-sm mb-1">How to get a fresh token:</p>
+                    <p className="font-semibold text-foreground text-sm mb-1">How to reconnect:</p>
                     <ol className="list-decimal list-inside space-y-1.5">
                       <li>Go to <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-primary underline inline-flex items-center gap-1">Graph API Explorer <ExternalLink className="w-3 h-3" /></a></li>
                       <li>Select your Meta App from the dropdown</li>
                       <li>Click <strong>Generate Access Token</strong> — grant: <code className="bg-muted px-1 rounded">instagram_basic</code>, <code className="bg-muted px-1 rounded">instagram_manage_insights</code>, <code className="bg-muted px-1 rounded">pages_show_list</code>, <code className="bg-muted px-1 rounded">pages_read_engagement</code></li>
-                      <li>Paste the short-lived token below to exchange it for a 60-day token</li>
-                      <li>Save the result as <code className="bg-muted px-1 rounded">META_ACCESS_TOKEN</code> in Replit Secrets</li>
+                      <li>Paste the token below — it will be exchanged for a 60-day token and saved automatically</li>
                     </ol>
                   </div>
 
@@ -185,15 +186,12 @@ export default function AdminSettings() {
                   </Button>
 
                   {exchangedToken && (
-                    <div className="space-y-2">
-                      <Label className="text-sm text-green-400">Your 60-day token (copy & save as META_ACCESS_TOKEN):</Label>
-                      <div className="flex gap-2">
-                        <Input value={exchangedToken} readOnly className="font-mono text-xs" data-testid="text-exchanged-token" />
-                        <Button variant="outline" size="icon" onClick={copyToken} data-testid="button-copy-token">
-                          <Copy className="w-4 h-4" />
-                        </Button>
+                    <div className="flex items-start gap-2 bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                      <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                      <div className="text-xs text-green-400">
+                        <p className="font-semibold mb-0.5">Token saved and active</p>
+                        <p className="text-green-500/70">Your 60-day long-lived token is saved and in use. No further action needed.</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">After saving it in Replit Secrets, reload the page and refresh the status above.</p>
                     </div>
                   )}
                 </div>

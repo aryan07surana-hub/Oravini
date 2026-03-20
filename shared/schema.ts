@@ -266,3 +266,9 @@ export const competitorAnalyses = pgTable("competitor_analyses", {
 export const insertCompetitorAnalysisSchema = createInsertSchema(competitorAnalyses).omit({ id: true, createdAt: true });
 export type InsertCompetitorAnalysis = z.infer<typeof insertCompetitorAnalysisSchema>;
 export type CompetitorAnalysis = typeof competitorAnalyses.$inferSelect;
+
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
