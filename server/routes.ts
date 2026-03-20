@@ -2749,6 +2749,167 @@ Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)
     }
   });
 
+  // ── Coach: Tone Transform ─────────────────────────────────────────────────
+  app.post("/api/coach/tone", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, tone } = req.body;
+      if (!script || !tone) return res.status(400).json({ message: "script and tone required" });
+      const toneDescriptions: Record<string, string> = {
+        funny: "Add humor, wit, and comedy. Make it entertaining and shareable. Use unexpected twists.",
+        serious: "Make it authoritative, credible, and professional. Deep and impactful.",
+        educational: "Structure it as a clear lesson with steps, examples, and takeaways. Make the viewer smarter.",
+        sales: "Optimize for conversion. Create urgency, highlight pain points, and make the CTA irresistible.",
+        story: "Convert into a compelling narrative arc. Hook → struggle → turning point → resolution.",
+        emotional: "Inject raw emotion, vulnerability, and relatability. Make people feel something deeply.",
+      };
+      const prompt = `You are a viral content strategist. Rewrite the following script in ${tone} mode.
+${toneDescriptions[tone] || "Rewrite for maximum engagement."}
+
+Original script:
+"${script}"
+
+Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2 sentences explaining the key changes you made and why they work better" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Clarify ────────────────────────────────────────────────────────
+  app.post("/api/coach/clarify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are a clarity editor. Simplify this script — remove jargon, cut confusion, make every line instantly understandable to anyone.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Add Emotion ────────────────────────────────────────────────────
+  app.post("/api/coach/add-emotion", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are an emotional resonance expert. Inject curiosity, relatability, and emotional triggers into this script. Make people FEEL something.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Shorten ────────────────────────────────────────────────────────
+  app.post("/api/coach/shorten", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are a content editor. Cut this script by 30-40%. Remove all fluff, filler words, and redundant lines. Keep only what makes people stay and share.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Personal Brand Builder ────────────────────────────────────────
+  app.post("/api/coach/brand", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, target, goal, currentBio, handle } = req.body;
+      const prompt = `You are a personal brand strategist for Instagram/social media creators. Build a complete brand strategy.
+
+Creator info:
+- Niche: ${niche}
+- Target audience: ${target}
+- Goal: ${goal}
+${currentBio ? `- Current bio: "${currentBio}"` : ""}
+${handle ? `- Handle: @${handle}` : ""}
+
+Return ONLY this JSON:
+{
+  "bioRewrite": "optimized Instagram bio (max 150 chars, punchy, keyword-rich)",
+  "usernameIdeas": ["idea1", "idea2", "idea3"],
+  "profilePicAdvice": "specific advice for their profile picture style",
+  "highlightStrategy": ["highlight name 1", "highlight name 2", "highlight name 3", "highlight name 4"],
+  "contentPillars": [
+    { "pillar": "pillar name", "description": "what to post", "example": "example post idea" }
+  ],
+  "toneAndVoice": "2-sentence description of their brand voice",
+  "audiencePsychology": "what their audience wants to feel/achieve",
+  "postingPlan": "how often and what mix of content types",
+  "uniqueAngle": "what makes them different from everyone else in this niche"
+}`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: AI Roadmap ─────────────────────────────────────────────────────
+  app.post("/api/coach/roadmap", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, goal, currentFollowers, mainProblem } = req.body;
+      const prompt = `You are a growth mentor creating a personalized 30-day content roadmap.
+
+Creator profile:
+- Niche: ${niche}
+- Goal: ${goal}
+- Current followers: ${currentFollowers || "unknown"}
+- Main problem: ${mainProblem || "getting started"}
+
+Return ONLY this JSON:
+{
+  "overview": "2-sentence roadmap summary and expected outcome",
+  "weeks": [
+    {
+      "week": 1,
+      "theme": "week theme/focus",
+      "goal": "specific measurable goal",
+      "dailyTasks": ["task 1", "task 2", "task 3", "task 4", "task 5", "task 6", "task 7"],
+      "challenge": "one creative challenge for the week",
+      "metric": "what to track this week"
+    },
+    { "week": 2, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." },
+    { "week": 3, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." },
+    { "week": 4, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." }
+  ],
+  "keyHabits": ["habit 1", "habit 2", "habit 3"],
+  "commonMistakes": ["mistake 1", "mistake 2"],
+  "successMetrics": "how to know the roadmap is working"
+}`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
   // ── Meta / Instagram Webhook & Callbacks (required for Meta App Review) ───
   // Webhook verification — Meta sends GET with hub.challenge to verify endpoint
   app.get("/api/webhooks/meta", (req: Request, res: Response) => {
