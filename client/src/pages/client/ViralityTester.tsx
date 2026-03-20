@@ -25,8 +25,6 @@ const PIE_COLORS = ["#d4b461", "#e879a0", "#60a5fa", "#34d399", "#a78bfa", "#fb9
 
 const PLATFORMS = [
   { id: "instagram", label: "Instagram Reels", icon: "📸" },
-  { id: "tiktok", label: "TikTok", icon: "🎵" },
-  { id: "youtube", label: "YouTube Shorts", icon: "▶️" },
 ];
 
 function ScoreRing({ score, size = 120 }: { score: number; size?: number }) {
@@ -240,21 +238,10 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
             </button>
           </div>
 
-          {/* Platform */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-zinc-300">Platform</Label>
-            <div className="flex gap-2 flex-wrap">
-              {PLATFORMS.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setPlatform(p.id)}
-                  data-testid={`btn-platform-${p.id}`}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${platform === p.id ? "border-primary bg-primary/15 text-primary" : "border-border text-zinc-400 hover:border-zinc-600"}`}
-                >
-                  <span>{p.icon}</span> {p.label}
-                </button>
-              ))}
-            </div>
+          {/* Platform — Instagram only */}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 bg-primary/5 w-fit">
+            <span>📸</span>
+            <span className="text-sm font-semibold text-primary">Instagram Reels</span>
           </div>
 
           {mode === "new" ? (

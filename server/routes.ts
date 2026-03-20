@@ -646,18 +646,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq generation failed: ${lastError}`);
   }
 
-  // ── Anthropic helper (deep analysis — Claude 3.5 Sonnet) ─────────────────
+  // ── Anthropic helper (deep analysis — Claude with model fallback) ─────────
   async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
     const client = new Anthropic({ apiKey });
-    const message = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-    return message.content[0].type === "text" ? message.content[0].text : "";
+    const models = [
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20240620",
+      "claude-3-5-haiku-20241022",
+      "claude-3-haiku-20240307",
+      "claude-3-sonnet-20240229",
+    ];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const message = await client.messages.create({
+          model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        });
+        return message.content[0].type === "text" ? message.content[0].text : "";
+      } catch (e: any) {
+        lastError = e.message || String(e);
+        console.warn(`[Anthropic] ${model} failed: ${lastError}`);
+      }
+    }
+    throw new Error(`Anthropic generation failed: ${lastError}`);
   }
 
   // ── OpenRouter helper (smart – prefers Anthropic when key is available) ──
