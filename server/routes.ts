@@ -704,38 +704,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Anthropic generation failed: ${lastError}`);
   }
 
-  // ── OpenRouter helper (smart – prefers Anthropic when key is available) ──
+  // ── OpenRouter / Anthropic / Groq cascade (deep analysis) ──────────────────
   async function callOpenRouter(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
-    if (process.env.ANTHROPIC_API_KEY) return callAnthropic(systemPrompt, userPrompt, maxTokens);
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
-
-    const models = ["deepseek/deepseek-chat", "anthropic/claude-3-haiku", "openai/gpt-4o-mini"];
-    let lastError = "";
-    for (const model of models) {
+    // 1. Try Anthropic first (if key present) — catch auth/model errors and fall through
+    if (process.env.ANTHROPIC_API_KEY) {
       try {
-        const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://brandverse.app",
-            "X-Title": "Brandverse Portal",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-            temperature: 0.7,
-            max_tokens: maxTokens,
-          }),
-        });
-        const data: any = await r.json();
-        if (data?.error) { lastError = data.error.message || JSON.stringify(data.error); console.warn(`OpenRouter ${model} error: ${lastError}`); continue; }
-        const text = data?.choices?.[0]?.message?.content;
-        if (text) return text;
-      } catch (e: any) { lastError = e.message; }
+        const result = await callAnthropic(systemPrompt, userPrompt, maxTokens);
+        if (result) return result;
+      } catch (e: any) {
+        console.warn("[OpenRouter cascade] Anthropic failed, falling back to Groq:", e.message?.slice(0, 120));
+      }
     }
-    throw new Error(`OpenRouter generation failed: ${lastError}`);
+
+    // 2. Try Groq as a reliable fallback for deep analysis
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const result = await callGroq(systemPrompt, userPrompt, Math.min(maxTokens, 8000));
+        if (result) return result;
+      } catch (e: any) {
+        console.warn("[OpenRouter cascade] Groq failed:", e.message?.slice(0, 120));
+      }
+    }
+
+    // 3. Try OpenRouter as last resort
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (apiKey) {
+      const models = ["deepseek/deepseek-chat", "anthropic/claude-3-haiku", "openai/gpt-4o-mini"];
+      let lastError = "";
+      for (const model of models) {
+        try {
+          const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://brandverse.app",
+              "X-Title": "Brandverse Portal",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.7,
+              max_tokens: maxTokens,
+            }),
+          });
+          const data: any = await r.json();
+          if (data?.error) { lastError = data.error.message || JSON.stringify(data.error); console.warn(`OpenRouter ${model} error: ${lastError}`); continue; }
+          const text = data?.choices?.[0]?.message?.content;
+          if (text) return text;
+        } catch (e: any) { lastError = e.message; }
+      }
+    }
+
+    throw new Error("All AI providers failed — check your API keys");
   }
 
   // ── Scrape Instagram profile without saving (for AI context) ─────────────
