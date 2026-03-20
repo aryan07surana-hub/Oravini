@@ -646,6 +646,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq generation failed: ${lastError}`);
   }
 
+  // ── Groq JSON-mode helper (structured output, virality analysis) ──────────
+  async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.6,
+            max_tokens: maxTokens,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message; console.warn(`GroqJSON ${model} error: ${lastError}`); continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`Groq JSON generation failed: ${lastError}`);
+  }
+
   // ── Anthropic helper (deep analysis — Claude with model fallback) ─────────
   async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -2264,10 +2292,10 @@ Scoring rules:
 - retentionCurve must have at least 5 data points showing realistic audience drop-off
 - Return ONLY the JSON object, no markdown, no explanation`;
 
-      const rawText = await callAnthropic(
+      const rawText = await callGroqJson(
         "You are an elite content retention analyst and viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON.",
         prompt,
-        2500
+        3000
       );
       const cleaned = rawText.replace(/```json|```/g, "").trim();
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
