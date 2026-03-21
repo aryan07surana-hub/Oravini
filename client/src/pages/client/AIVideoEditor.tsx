@@ -301,6 +301,35 @@ const MOOD_COLORS: Record<string, string> = {
   funny: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
 };
 
+const CAPTION_STYLES = [
+  { id: "netflix",   name: "Netflix",       desc: "Dark box, clean subtitle",     emoji: "🎬", textClass: "text-white text-sm font-medium tracking-wide text-center",          boxClass: "bg-black/80 px-4 py-2 rounded" },
+  { id: "tiktok",    name: "TikTok Bold",   desc: "Viral / Hormozi energy",       emoji: "⚡", textClass: "text-white text-2xl font-black uppercase text-center leading-tight", boxClass: "" },
+  { id: "highlight", name: "Keywords",      desc: "Gold highlight on key words",  emoji: "✨", textClass: "text-white text-sm font-bold text-center",                          boxClass: "bg-black/70 px-4 py-2 rounded-xl" },
+  { id: "minimal",   name: "Minimal",       desc: "Aesthetic & understated",      emoji: "◽", textClass: "text-white/85 text-xs font-light tracking-[0.15em] text-center",    boxClass: "" },
+  { id: "popup",     name: "Word by Word",  desc: "Bold pop-up style",            emoji: "🎯", textClass: "text-black text-sm font-black uppercase tracking-wide",             boxClass: "bg-primary px-5 py-2 rounded-full" },
+];
+
+const CAPTION_VARIATIONS = [
+  { id: "original", label: "Original",     color: "text-muted-foreground" },
+  { id: "engaging", label: "Engaging",     color: "text-blue-400" },
+  { id: "viral",    label: "Viral",        color: "text-red-400" },
+  { id: "punchy",   label: "Short & Punchy", color: "text-primary" },
+];
+
+function getYouTubeEmbedId(url: string): string | null {
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function renderHighlightCaption(text: string) {
+  const POWER_WORDS = new Set(["stop","never","always","secret","hack","viral","truth","free","money","now","today","proven","instantly","shocking","urgent","limited","exclusive","guaranteed","discover","revealed","warning","attention","mistake","fail","success","change","transform","unlock","skyrocket","explode"]);
+  return text.split(" ").map((word, i) => {
+    const clean = word.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    const isKey = word === word.toUpperCase() && word.length > 1 || POWER_WORDS.has(clean);
+    return <span key={i}>{i > 0 ? " " : ""}<span className={isKey ? "text-primary font-bold" : ""}>{word}</span></span>;
+  });
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const { toast } = useToast();
@@ -354,6 +383,14 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [audioTip, setAudioTip] = useState("");
   const [generatingAudio, setGeneratingAudio] = useState(false);
 
+  // Caption system
+  const [captionSegments, setCaptionSegments] = useState<any[]>([]);
+  const [captionVariation, setCaptionVariation] = useState<"original" | "engaging" | "viral" | "punchy">("original");
+  const [captionStyle, setCaptionStyle] = useState("netflix");
+  const [captionPosition, setCaptionPosition] = useState<"top" | "center" | "bottom">("bottom");
+  const [generatingCaptions, setGeneratingCaptions] = useState(false);
+  const [previewCapIdx, setPreviewCapIdx] = useState(0);
+
   // Active competitor URLs (non-empty)
   const activeCompUrls = competitorUrls.filter(u => u.trim().length > 5);
 
@@ -371,7 +408,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       ]);
       return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(false); setActiveTab("timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); },
+    onSuccess: (data) => { setResult(data); setIsIdeaResult(false); setActiveTab("timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); setCaptionSegments([]); setAudioSuggestions([]); },
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
   });
 
@@ -386,7 +423,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       ]);
       return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); },
+    onSuccess: (data) => { setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); setCaptionSegments([]); setAudioSuggestions([]); },
     onError: (err: any) => toast({ title: "Idea Builder failed", description: err.message, variant: "destructive" }),
   });
 
@@ -449,6 +486,22 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
     } catch (err: any) {
       toast({ title: "Audio suggestions failed", description: err.message, variant: "destructive" });
     } finally { setGeneratingAudio(false); }
+  };
+
+  // Caption generation
+  const generateCaptions = async () => {
+    if (!result) return;
+    const script = result.fullScript || result.summary || concept;
+    if (!script?.trim()) return toast({ title: "No script to caption", description: "Generate an Idea Builder result first", variant: "destructive" });
+    setGeneratingCaptions(true);
+    try {
+      const res = await apiRequest("POST", "/api/video/generate-captions", { script, title: result.title, duration: Number(targetDuration) || 30 });
+      setCaptionSegments(res.segments || []);
+      setPreviewCapIdx(0);
+      toast({ title: `${res.segments?.length || 0} caption segments ready`, description: "Choose a style and variation below" });
+    } catch (err: any) {
+      toast({ title: "Caption generation failed", description: err.message, variant: "destructive" });
+    } finally { setGeneratingCaptions(false); }
   };
 
   const handleGenerate = () => {
@@ -1104,51 +1157,199 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 )}
 
                 {/* Captions */}
-                {activeTab === "captions" && (
-                  <div className="space-y-5">
-                    <SectionHeader icon={Hash} title="Caption Generator" desc="On-screen text, post caption, hashtags & CTAs" color="from-purple-500/20 to-purple-500/5 border-purple-500/30" />
-                    {result.captions?.onScreen?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold text-foreground mb-2">On-Screen Captions</p>
-                        <div className="space-y-1.5">
-                          {result.captions.onScreen.map((c: string, i: number) => (
-                            <div key={i} className="flex items-center gap-2 p-2.5 bg-muted/10 rounded-lg border border-muted/20">
-                              <span className="text-[10px] text-muted-foreground w-4 text-center font-mono">{i + 1}</span>
-                              <p className="text-xs text-foreground flex-1 font-medium">{c}</p>
-                              <CopyButton text={c} />
+                {activeTab === "captions" && (() => {
+                  const youtubeId = (inputType === "url" && inputValue) ? getYouTubeEmbedId(inputValue) : null;
+                  const activeStyle = CAPTION_STYLES.find(s => s.id === captionStyle) || CAPTION_STYLES[0];
+                  const currentSeg = captionSegments[previewCapIdx];
+                  const previewText = currentSeg ? (currentSeg[captionVariation] || currentSeg.original || "") : (result.captions?.onScreen?.[0] || result.summary?.slice(0, 60) || "Your caption will appear here");
+                  const posClass = captionPosition === "top" ? "items-start pt-8" : captionPosition === "center" ? "items-center" : "items-end pb-8";
+                  return (
+                  <div className="space-y-6">
+                    <SectionHeader icon={Hash} title="Caption Studio" desc="AI-timed captions with 5 visual styles & 4 text variations" color="from-purple-500/20 to-purple-500/5 border-purple-500/30" />
+
+                    {/* ── Video Preview Panel ────────────────────────────────── */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-foreground flex items-center gap-2"><Play className="w-3.5 h-3.5 text-primary" />Video Preview</p>
+                      <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl" style={{ aspectRatio: "16/9" }}>
+                        {youtubeId ? (
+                          <iframe
+                            src={`https://www.youtube.com/embed/${youtubeId}?modestbranding=1&rel=0&cc_load_policy=0`}
+                            className="absolute inset-0 w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            title="Video preview"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
+                            <div className="text-center space-y-2 opacity-30">
+                              <div className="w-16 h-16 rounded-full border-2 border-white/30 flex items-center justify-center mx-auto">
+                                <Play className="w-7 h-7 text-white fill-white" />
+                              </div>
+                              <p className="text-white/60 text-xs font-medium">{result.title || "Video Preview"}</p>
+                            </div>
+                          </div>
+                        )}
+                        {!youtubeId && (
+                          <div className={`absolute inset-0 flex flex-col justify-end ${posClass} px-4 pointer-events-none`}>
+                            <div className={`${activeStyle.boxClass} max-w-[90%] mx-auto`}>
+                              {activeStyle.id === "highlight"
+                                ? <p className={activeStyle.textClass}>{renderHighlightCaption(previewText)}</p>
+                                : activeStyle.id === "tiktok"
+                                ? <p className={activeStyle.textClass} style={{ textShadow: "0 2px 12px #000, 0 0 4px #000" }}>{previewText}</p>
+                                : <p className={activeStyle.textClass}>{previewText}</p>
+                              }
+                            </div>
+                          </div>
+                        )}
+                        {captionSegments.length > 0 && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 pt-6 pb-2">
+                            <input
+                              type="range" min={0} max={captionSegments.length - 1} value={previewCapIdx}
+                              onChange={e => setPreviewCapIdx(Number(e.target.value))}
+                              className="w-full h-1 accent-primary cursor-pointer"
+                              data-testid="caption-timeline-scrubber"
+                            />
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[9px] text-white/50 font-mono">{currentSeg?.startSec ?? 0}s</span>
+                              <span className="text-[9px] text-white/50 font-mono">{currentSeg?.endSec ?? 0}s</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Position + caption text */}
+                      {captionSegments.length > 0 && !youtubeId && (
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold flex-shrink-0">Position:</p>
+                          {(["top","center","bottom"] as const).map(pos => (
+                            <button key={pos} onClick={() => setCaptionPosition(pos)}
+                              className={`text-[10px] px-2.5 py-1 rounded-full border capitalize font-medium transition-all ${captionPosition === pos ? "bg-primary/20 border-primary/50 text-primary" : "border-muted/30 text-muted-foreground hover:border-muted/50"}`}
+                              data-testid={`btn-caption-pos-${pos}`}>
+                              {pos}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ── Style Selector ────────────────────────────────────── */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-foreground">Caption Style</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {CAPTION_STYLES.map(style => (
+                          <button key={style.id} onClick={() => setCaptionStyle(style.id)}
+                            className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-center transition-all ${captionStyle === style.id ? "bg-primary/15 border-primary/50 shadow-[0_0_12px_rgba(212,180,97,0.2)]" : "bg-muted/5 border-muted/20 hover:border-muted/40"}`}
+                            data-testid={`btn-caption-style-${style.id}`}>
+                            <span className="text-lg">{style.emoji}</span>
+                            <span className={`text-[10px] font-bold leading-none ${captionStyle === style.id ? "text-primary" : "text-foreground"}`}>{style.name}</span>
+                            <span className="text-[9px] text-muted-foreground leading-tight hidden sm:block">{style.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── Variation Tabs ────────────────────────────────────── */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-foreground">Text Variation</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {CAPTION_VARIATIONS.map(v => (
+                          <button key={v.id} onClick={() => setCaptionVariation(v.id as any)}
+                            className={`py-2 px-2 rounded-xl text-[10px] font-semibold border transition-all ${captionVariation === v.id ? "bg-primary/15 border-primary/50 text-primary" : "bg-muted/5 border-muted/20 text-muted-foreground hover:border-muted/40"}`}
+                            data-testid={`btn-caption-var-${v.id}`}>
+                            {v.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── Generate Button ───────────────────────────────────── */}
+                    <Button onClick={generateCaptions} disabled={generatingCaptions} className="w-full bg-primary/20 hover:bg-primary/30 border border-primary/40 text-primary font-bold h-11 rounded-2xl gap-2" data-testid="btn-generate-captions">
+                      {generatingCaptions ? <><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />Generating Caption Segments…</> : <><Hash className="w-4 h-4" />{captionSegments.length > 0 ? "Regenerate Captions" : "Generate AI Captions"}</>}
+                    </Button>
+
+                    {/* ── Caption Segments List ─────────────────────────────── */}
+                    {captionSegments.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-foreground">{captionSegments.length} Caption Segments</p>
+                          <CopyButton text={captionSegments.map(s => `[${s.startSec}s-${s.endSec}s] ${s[captionVariation] || s.original}`).join("\n")} />
+                        </div>
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {captionSegments.map((seg: any, i: number) => (
+                            <div key={seg.id || i}
+                              onClick={() => setPreviewCapIdx(i)}
+                              className={`p-3 rounded-xl border cursor-pointer transition-all ${previewCapIdx === i ? "bg-primary/10 border-primary/40" : "bg-muted/5 border-muted/20 hover:border-muted/40"}`}
+                              data-testid={`caption-segment-${i}`}>
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 text-center">
+                                  <div className={`w-7 h-7 rounded-full border flex items-center justify-center ${previewCapIdx === i ? "bg-primary/20 border-primary/40" : "border-muted/30"}`}>
+                                    <span className="text-[9px] font-black text-primary">{i + 1}</span>
+                                  </div>
+                                  <p className="text-[8px] text-muted-foreground mt-0.5 font-mono">{seg.startSec}s</p>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-xs font-semibold leading-snug ${CAPTION_VARIATIONS.find(v => v.id === captionVariation)?.color || "text-foreground"}`}>
+                                    {seg[captionVariation] || seg.original}
+                                  </p>
+                                  {captionVariation !== "original" && seg.original && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5 italic line-clamp-1">{seg.original}</p>
+                                  )}
+                                </div>
+                                <CopyButton text={seg[captionVariation] || seg.original} />
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-                    {result.captions?.postCaption && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2"><p className="text-xs font-bold text-foreground">Post Caption</p><CopyButton text={result.captions.postCaption} /></div>
-                        <div className="p-4 bg-muted/10 rounded-xl border border-muted/20"><p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{result.captions.postCaption}</p></div>
-                      </div>
-                    )}
-                    {result.captions?.hashtags?.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2"><p className="text-xs font-bold text-foreground">Hashtags</p><CopyButton text={result.captions.hashtags.join(" ")} /></div>
-                        <div className="flex flex-wrap gap-1.5">{result.captions.hashtags.map((h: string, i: number) => <span key={i} className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-1 font-medium">{h}</span>)}</div>
-                      </div>
-                    )}
-                    {result.ctas?.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold text-foreground mb-2">CTA Options</p>
-                        <div className="space-y-2">
-                          {result.ctas.map((c: string, i: number) => (
-                            <div key={i} className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/15 rounded-xl">
-                              <Target className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                              <p className="text-xs text-foreground flex-1">{c}</p>
-                              <CopyButton text={c} />
-                            </div>
-                          ))}
+
+                    {/* ── Post Captions (from AI result) ───────────────────── */}
+                    <div className="pt-2 border-t border-muted/20 space-y-4">
+                      <p className="text-xs font-bold text-foreground uppercase tracking-wider text-muted-foreground">Post Copy</p>
+                      {result.captions?.onScreen?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-foreground mb-2">On-Screen Text Ideas</p>
+                          <div className="space-y-1.5">
+                            {result.captions.onScreen.map((c: string, i: number) => (
+                              <div key={i} className="flex items-center gap-2 p-2.5 bg-muted/10 rounded-lg border border-muted/20">
+                                <span className="text-[10px] text-muted-foreground w-4 text-center font-mono">{i + 1}</span>
+                                <p className="text-xs text-foreground flex-1 font-medium">{c}</p>
+                                <CopyButton text={c} />
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {result.captions?.postCaption && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2"><p className="text-xs font-bold text-foreground">Post Caption</p><CopyButton text={result.captions.postCaption} /></div>
+                          <div className="p-4 bg-muted/10 rounded-xl border border-muted/20"><p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{result.captions.postCaption}</p></div>
+                        </div>
+                      )}
+                      {result.captions?.hashtags?.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2"><p className="text-xs font-bold text-foreground">Hashtags</p><CopyButton text={result.captions.hashtags.join(" ")} /></div>
+                          <div className="flex flex-wrap gap-1.5">{result.captions.hashtags.map((h: string, i: number) => <span key={i} className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-1 font-medium">{h}</span>)}</div>
+                        </div>
+                      )}
+                      {result.ctas?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-foreground mb-2">CTA Options</p>
+                          <div className="space-y-2">
+                            {result.ctas.map((c: string, i: number) => (
+                              <div key={i} className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/15 rounded-xl">
+                                <Target className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                                <p className="text-xs text-foreground flex-1">{c}</p>
+                                <CopyButton text={c} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Hooks */}
                 {activeTab === "hooks" && (
@@ -1329,14 +1530,29 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             </div>
 
             {/* ── AI Chat Editor ──────────────────────────────────────────────── */}
-            <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
-              <div className="flex items-center gap-3 px-5 py-3 border-b border-card-border bg-primary/5">
-                <MessageCircle className="w-4 h-4 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-foreground">AI Creative Director</p>
-                  <p className="text-[10px] text-muted-foreground">Ask me to improve any part — hooks, script, style, captions, structure…</p>
+            <div className="bg-card border border-primary/25 rounded-2xl overflow-hidden shadow-[0_0_32px_rgba(212,180,97,0.08)]">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                  </div>
+                  <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-black ${isChatPending ? "bg-yellow-400 animate-pulse" : "bg-green-400"}`} />
                 </div>
-                {isChatPending && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-foreground tracking-wide">AI Creative Director</p>
+                  <p className="text-[10px] text-muted-foreground">Chat-powered editing — hooks, script, style, captions, structure…</p>
+                </div>
+                {isChatPending ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-full">
+                    <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                    <span className="text-[10px] text-primary font-semibold">Thinking…</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                    <span className="text-[10px] text-green-400 font-semibold">Ready</span>
+                  </div>
+                )}
               </div>
 
               {/* Chat history */}
@@ -1421,7 +1637,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               <Button variant="outline" size="sm" onClick={exportPlan} className="flex-1 border-primary/30 text-primary hover:bg-primary/10 text-xs gap-2" data-testid="btn-export">
                 <Download className="w-3.5 h-3.5" />Export Edit Plan
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); setThumbnails([]); setShotImages({}); setChatHistory([]); setAudioSuggestions([]); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
+              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); setThumbnails([]); setShotImages({}); setChatHistory([]); setAudioSuggestions([]); setCaptionSegments([]); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
                 <RotateCcw className="w-3.5 h-3.5" />Start Over
               </Button>
             </div>

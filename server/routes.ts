@@ -3463,6 +3463,41 @@ Return ONLY valid JSON:
     }
   });
 
+  // ── Caption Generation ──────────────────────────────────────────────────────
+  app.post("/api/video/generate-captions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, title, duration = 30 } = req.body;
+      if (!script?.trim()) return res.status(400).json({ message: "script required" });
+      const prompt = `You are a professional caption writer for viral social media videos. Generate perfectly timed caption segments from this script.
+
+TITLE: "${title || "Untitled"}"
+SCRIPT: "${String(script).slice(0, 1400)}"
+TARGET DURATION: ~${duration} seconds
+
+Create 8-10 caption segments covering the full script. Distribute times across ${duration} seconds. For each segment, generate 4 text variations with different energy levels.
+
+Return ONLY valid JSON:
+{
+  "segments": [
+    {
+      "id": 1,
+      "startSec": 0,
+      "endSec": 3,
+      "original": "Exact phrase from the script",
+      "engaging": "More expressive and dynamic version of the same phrase",
+      "viral": "Maximum energy TikTok-style — bold word choices, exclamation energy, punchy",
+      "punchy": "3-5 words absolute maximum — distilled essence only"
+    }
+  ]
+}`;
+      const result = await callVideoGroq(prompt, 2000);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Captions] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Caption generation failed" });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {
