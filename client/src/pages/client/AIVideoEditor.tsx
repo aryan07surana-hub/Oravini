@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -13,7 +13,7 @@ import {
   Loader2, Link2, FileText, Lightbulb, Scissors, Volume2, Eye, ListChecks,
   Shuffle, Wand2, Music, Layers, Star, Play, RotateCcw, Hash, Video, Camera,
   Download, CheckSquare, Square, Plus, X, TrendingUp, Trophy, AlertCircle,
-  ArrowRight, Image, Film
+  ArrowRight, Image, Film, MessageCircle, Send, Radio
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -269,6 +269,38 @@ function detectPlatform(url: string) {
   return "URL";
 }
 
+// ─── Loading Messages ──────────────────────────────────────────────────────────
+const IDEA_LOADING_MSGS = [
+  "Analyzing trends in your niche…",
+  "Mapping out viral content patterns…",
+  "Crafting your hook and opening sequence…",
+  "Writing your word-for-word script…",
+  "Building shot list and visual direction…",
+  "Structuring your edit timeline…",
+  "Generating caption and hashtag strategy…",
+  "Optimizing for engagement and shareability…",
+  "Finalizing your complete video plan…",
+];
+const ANALYZE_LOADING_MSGS = [
+  "Processing your content…",
+  "Detecting pacing issues and dead zones…",
+  "Analyzing audience retention patterns…",
+  "Studying high-performing content strategies…",
+  "Building your timestamped edit plan…",
+  "Generating hook and engagement improvements…",
+  "Optimizing caption and visual strategy…",
+  "Finalizing your content analysis…",
+];
+
+const MOOD_COLORS: Record<string, string> = {
+  hype: "text-red-400 bg-red-500/15 border-red-500/30",
+  energetic: "text-orange-400 bg-orange-500/15 border-orange-500/30",
+  calm: "text-blue-400 bg-blue-500/15 border-blue-500/30",
+  emotional: "text-purple-400 bg-purple-500/15 border-purple-500/30",
+  cinematic: "text-cyan-400 bg-cyan-500/15 border-cyan-500/30",
+  funny: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30",
+};
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const { toast } = useToast();
@@ -308,6 +340,20 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [shotImages, setShotImages] = useState<Record<number, string>>({});
   const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
 
+  // Loading experience
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
+  const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Chat editing
+  const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Audio suggestions
+  const [audioSuggestions, setAudioSuggestions] = useState<any[]>([]);
+  const [audioTip, setAudioTip] = useState("");
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+
   // Active competitor URLs (non-empty)
   const activeCompUrls = competitorUrls.filter(u => u.trim().length > 5);
 
@@ -319,20 +365,28 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       else if (inputType === "script") payload.script = inputValue;
       else payload.description = inputValue;
       if (activeCompUrls.length) payload.competitorUrls = activeCompUrls;
-      return await apiRequest("POST", "/api/video/analyze", payload);
+      const [data] = await Promise.all([
+        apiRequest("POST", "/api/video/analyze", payload),
+        new Promise(r => setTimeout(r, 25000)),
+      ]);
+      return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(false); setActiveTab("timeline"); setAppliedEdits(new Set()); },
+    onSuccess: (data) => { setResult(data); setIsIdeaResult(false); setActiveTab("timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); },
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
   });
 
   const ideaMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/video/idea-builder", {
-        concept, mode, goal, audience, style, platform, duration: targetDuration,
-        competitorUrls: activeCompUrls,
-      });
+      const [data] = await Promise.all([
+        apiRequest("POST", "/api/video/idea-builder", {
+          concept, mode, goal, audience, style, platform, duration: targetDuration,
+          competitorUrls: activeCompUrls,
+        }),
+        new Promise(r => setTimeout(r, 25000)),
+      ]);
+      return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline"); setAppliedEdits(new Set()); },
+    onSuccess: (data) => { setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); },
     onError: (err: any) => toast({ title: "Idea Builder failed", description: err.message, variant: "destructive" }),
   });
 
@@ -348,6 +402,54 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   });
 
   const isPending = analyzeMutation.isPending || ideaMutation.isPending;
+
+  // Rotating loading messages — declared after isPending
+  useEffect(() => {
+    if (!isPending) { setLoadingMsgIdx(0); if (loadingTimerRef.current) clearInterval(loadingTimerRef.current); return; }
+    setLoadingMsgIdx(0);
+    loadingTimerRef.current = setInterval(() => {
+      setLoadingMsgIdx(prev => {
+        const msgs = inputType === "idea" ? IDEA_LOADING_MSGS : ANALYZE_LOADING_MSGS;
+        return prev < msgs.length - 1 ? prev + 1 : prev;
+      });
+    }, 3200);
+    return () => { if (loadingTimerRef.current) clearInterval(loadingTimerRef.current); };
+  }, [isPending]);
+
+  // Chat editing
+  const [isChatPending, setIsChatPending] = useState(false);
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !result) return;
+    const msg = chatInput.trim();
+    setChatInput("");
+    setChatHistory(h => [...h, { role: "user", content: msg }]);
+    setIsChatPending(true);
+    try {
+      const res = await apiRequest("POST", "/api/video/chat-edit", {
+        userMessage: msg,
+        context: { title: result.title, summary: result.summary, mode, goal, fullScript: result.fullScript, currentHooks: result.hooks },
+      });
+      setChatHistory(h => [...h, { role: "ai", content: res.reply || "Got it!", suggestion: res.suggestion, suggestionType: res.suggestionType, actionLabel: res.actionLabel }]);
+    } catch (err: any) {
+      setChatHistory(h => [...h, { role: "ai", content: "Something went wrong — try again." }]);
+    } finally {
+      setIsChatPending(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
+  // Audio suggestions
+  const generateAudioSuggestions = async () => {
+    if (!result) return;
+    setGeneratingAudio(true);
+    try {
+      const res = await apiRequest("POST", "/api/video/suggest-audio", { concept: result.title || concept, mode, goal, platform, title: result.title });
+      setAudioSuggestions(res.suggestions || []);
+      setAudioTip(res.tip || "");
+    } catch (err: any) {
+      toast({ title: "Audio suggestions failed", description: err.message, variant: "destructive" });
+    } finally { setGeneratingAudio(false); }
+  };
 
   const handleGenerate = () => {
     if (inputType === "idea") {
@@ -443,6 +545,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
     { id: "timeline",  label: `Edit Plan${appliedEdits.size > 0 ? ` (${appliedEdits.size}/${result?.timeline?.length || 0})` : ""}`, icon: Scissors },
     { id: "captions",  label: "Captions",  icon: Hash       },
     { id: "hooks",     label: "Hooks",     icon: Zap        },
+    { id: "audio",     label: "Audio",     icon: Radio      },
     { id: "visuals",   label: "Visuals",   icon: Eye        },
     { id: "checklist", label: "Checklist", icon: ListChecks },
     ...(!isIdeaResult ? [{ id: "variations", label: "Variations", icon: Shuffle }] : []),
@@ -461,7 +564,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             </div>
             <div>
               <h1 className="text-2xl font-black text-foreground tracking-tight">AI Video Editor</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Powered by Google Gemini — create from idea or optimize existing content</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Your intelligent creative partner — build from idea or optimize existing content</p>
             </div>
           </div>
           <Button variant="outline" size="sm" data-testid="btn-templates" onClick={() => setShowTemplates(v => !v)} className="border-primary/30 text-primary hover:bg-primary/10 gap-2">
@@ -630,7 +733,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             {inputType === "url" && (
               <div>
                 <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://www.instagram.com/reel/... or https://youtu.be/..." className="bg-background border-border text-sm" />
-                <p className="text-[11px] text-muted-foreground mt-2">YouTube URLs: Gemini watches the actual video. Instagram: extracts engagement data via Apify.</p>
+                <p className="text-[11px] text-muted-foreground mt-2">Paste a link from YouTube or Instagram — our AI will pull the video context and analyze it.</p>
               </div>
             )}
             {inputType === "script" && (
@@ -728,25 +831,47 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
         {/* ── Generate Button ──────────────────────────────────────────────────── */}
         <Button data-testid="btn-analyze" onClick={handleGenerate} disabled={isPending} className="w-full h-12 text-sm font-black bg-primary text-black hover:bg-primary/90 gap-2">
           {isPending
-            ? <><Loader2 className="w-4 h-4 animate-spin" />{inputType === "idea" ? "Gemini is building your video..." : "Gemini is analyzing your content..."}</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" />Processing your video…</>
             : <><Wand2 className="w-4 h-4" />{inputType === "idea" ? "Build My Video — Generate Full Plan" : "Analyze & Generate Edit Plan"}{activeCompUrls.length > 0 ? ` (+ ${activeCompUrls.length} competitor${activeCompUrls.length > 1 ? "s" : ""})` : ""}</>
           }
         </Button>
 
         {/* ── Loading state ────────────────────────────────────────────────────── */}
-        {isPending && (
-          <div className="bg-card border border-card-border rounded-2xl p-6 space-y-3">
-            {(inputType === "idea"
-              ? ["Understanding your video concept...", "Analyzing competitor style patterns...", "Writing your word-for-word script...", "Building timeline, shot list and captions..."]
-              : ["Analyzing your content with Google Gemini...", "Identifying cut points and weak spots...", "Scraping competitor style data...", "Building timestamped edit plan..."]
-            ).map((step, i) => (
-              <div key={i} className="flex items-center gap-3 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }}>
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0"><div className="w-2 h-2 rounded-full bg-primary" /></div>
-                <p className="text-xs text-muted-foreground">{step}</p>
+        {isPending && (() => {
+          const msgs = inputType === "idea" ? IDEA_LOADING_MSGS : ANALYZE_LOADING_MSGS;
+          const currentMsg = msgs[loadingMsgIdx];
+          const pct = Math.round(((loadingMsgIdx + 1) / msgs.length) * 100);
+          return (
+            <div className="bg-card border border-card-border rounded-2xl p-6 space-y-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground leading-tight">{currentMsg}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">Step {loadingMsgIdx + 1} of {msgs.length} — crafting your complete video strategy</p>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Building</span>
+                  <span>{pct}%</span>
+                </div>
+                <div className="h-1.5 bg-muted/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {msgs.slice(0, loadingMsgIdx + 1).map((step, i) => (
+                  <div key={i} className={`flex items-center gap-2 text-[11px] ${i === loadingMsgIdx ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === loadingMsgIdx ? "bg-primary animate-pulse" : "bg-green-400"}`} />
+                    <span className="truncate">{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Results ──────────────────────────────────────────────────────────── */}
         {result && !isPending && (
@@ -1074,6 +1199,65 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   </div>
                 )}
 
+                {/* Audio */}
+                {activeTab === "audio" && (
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <SectionHeader icon={Radio} title="Audio Strategy" desc="Trending sounds and music that will amplify this video's performance" color="from-green-500/20 to-green-500/5 border-green-500/30" />
+                      <Button size="sm" variant="outline" onClick={generateAudioSuggestions} disabled={generatingAudio}
+                        className="flex-shrink-0 border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs gap-1.5 h-8 mt-0.5" data-testid="btn-suggest-audio">
+                        {generatingAudio ? <><Loader2 className="w-3 h-3 animate-spin" />Analyzing…</> : <><Sparkles className="w-3 h-3" />{audioSuggestions.length > 0 ? "Refresh" : "Get Audio Picks"}</>}
+                      </Button>
+                    </div>
+                    {audioSuggestions.length === 0 && !generatingAudio && (
+                      <div className="flex flex-col items-center justify-center py-10 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-3">
+                          <Music className="w-6 h-6 text-green-400" />
+                        </div>
+                        <p className="text-sm font-semibold text-foreground mb-1">Audio Makes or Breaks Virality</p>
+                        <p className="text-xs text-muted-foreground max-w-xs">Get AI-curated audio picks based on your video's mood, goal and platform — chosen to maximize reach.</p>
+                      </div>
+                    )}
+                    {audioTip && (
+                      <div className="flex items-start gap-2 p-3 bg-green-500/5 border border-green-500/20 rounded-xl">
+                        <Lightbulb className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-foreground"><span className="font-semibold text-green-400">Pro tip: </span>{audioTip}</p>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {audioSuggestions.map((a: any, i: number) => (
+                        <div key={i} data-testid={`audio-suggestion-${i}`} className="bg-muted/10 border border-muted/20 rounded-xl p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <p className="text-sm font-bold text-foreground">{a.name}</p>
+                                <span className="text-xs text-muted-foreground">by {a.artist}</span>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge className={`text-[9px] px-1.5 py-0 border capitalize ${MOOD_COLORS[a.mood] || "text-muted-foreground bg-muted/20 border-muted"}`}>{a.mood}</Badge>
+                                <span className="text-[10px] text-muted-foreground">{a.genre}</span>
+                                {a.bpm && <span className="text-[10px] text-muted-foreground font-mono">{a.bpm} BPM</span>}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              <div className="flex items-center gap-1">
+                                <div className={`w-2 h-2 rounded-full ${(a.trendScore || 0) > 75 ? "bg-red-400" : (a.trendScore || 0) > 50 ? "bg-yellow-400" : "bg-muted"}`} />
+                                <span className="text-[10px] text-muted-foreground">{a.trendScore || 0}% trending</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{a.why}</p>
+                          {a.bestFor && (
+                            <p className="text-[10px] text-primary font-medium flex items-center gap-1">
+                              <ArrowRight className="w-3 h-3" />Best for: {a.bestFor}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Visuals */}
                 {activeTab === "visuals" && (
                   <div className="space-y-4">
@@ -1144,11 +1328,100 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               </div>
             </div>
 
+            {/* ── AI Chat Editor ──────────────────────────────────────────────── */}
+            <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-card-border bg-primary/5">
+                <MessageCircle className="w-4 h-4 text-primary" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-foreground">AI Creative Director</p>
+                  <p className="text-[10px] text-muted-foreground">Ask me to improve any part — hooks, script, style, captions, structure…</p>
+                </div>
+                {isChatPending && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
+              </div>
+
+              {/* Chat history */}
+              {chatHistory.length > 0 && (
+                <div className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                  {chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                      {msg.role === "ai" && (
+                        <div className="w-7 h-7 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                      )}
+                      <div className={`max-w-[80%] space-y-2 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col`}>
+                        <div className={`px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${msg.role === "user" ? "bg-primary text-black font-medium rounded-tr-sm" : "bg-muted/20 text-foreground rounded-tl-sm"}`}>
+                          {msg.content}
+                        </div>
+                        {msg.suggestion && (
+                          <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 space-y-2 w-full">
+                            <p className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                              {msg.suggestionType ? `✦ ${msg.suggestionType.charAt(0).toUpperCase() + msg.suggestionType.slice(1)} Suggestion` : "✦ Suggestion"}
+                            </p>
+                            <p className="text-xs text-foreground leading-relaxed italic">"{msg.suggestion}"</p>
+                            {msg.actionLabel && (
+                              <button onClick={() => { navigator.clipboard.writeText(msg.suggestion!); toast({ title: `${msg.actionLabel} — copied!` }); }}
+                                className="text-[10px] font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
+                                <Copy className="w-3 h-3" />{msg.actionLabel}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {isChatPending && (
+                    <div className="flex gap-2.5">
+                      <div className="w-7 h-7 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <div className="bg-muted/20 rounded-2xl rounded-tl-sm px-3.5 py-3 flex items-center gap-1.5">
+                        {[0, 1, 2].map(i => <div key={i} className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              )}
+
+              {/* Starter prompts */}
+              {chatHistory.length === 0 && (
+                <div className="p-4">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Quick actions</p>
+                  <div className="flex flex-wrap gap-2">
+                    {["Make the hook more powerful", "Rewrite the opening line", "Make it more emotional", "Give me a better title", "How do I make this go viral?"].map(prompt => (
+                      <button key={prompt} onClick={() => { setChatInput(prompt); }}
+                        className="text-[11px] px-2.5 py-1.5 bg-muted/15 hover:bg-primary/10 hover:text-primary border border-muted/20 hover:border-primary/30 rounded-lg transition-colors text-muted-foreground">
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Input */}
+              <div className="flex gap-2 p-3 border-t border-card-border">
+                <input
+                  data-testid="input-chat"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                  placeholder="e.g. make the hook punchier, rewrite the opening, change the style…"
+                  className="flex-1 bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-colors"
+                  disabled={isChatPending}
+                />
+                <Button size="sm" onClick={sendChatMessage} disabled={isChatPending || !chatInput.trim()}
+                  className="bg-primary text-black hover:bg-primary/90 h-auto px-3 rounded-xl" data-testid="btn-chat-send">
+                  <Send className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={exportPlan} className="flex-1 border-primary/30 text-primary hover:bg-primary/10 text-xs gap-2" data-testid="btn-export">
                 <Download className="w-3.5 h-3.5" />Export Edit Plan
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); setThumbnails([]); setShotImages({}); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
+              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); setThumbnails([]); setShotImages({}); setChatHistory([]); setAudioSuggestions([]); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
                 <RotateCcw className="w-3.5 h-3.5" />Start Over
               </Button>
             </div>

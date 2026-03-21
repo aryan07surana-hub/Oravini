@@ -3391,6 +3391,78 @@ Return ONLY valid JSON:
     }
   });
 
+  // ── Chat-Based Video Editing ────────────────────────────────────────────────
+  app.post("/api/video/chat-edit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { userMessage, context } = req.body;
+      if (!userMessage?.trim()) return res.status(400).json({ message: "Message required" });
+      const prompt = `You are an expert AI video editor and creative director. A creator has a video plan and is asking you to refine or improve it.
+
+CURRENT VIDEO CONTEXT:
+- Title: "${context?.title || "Untitled"}"
+- Summary: "${context?.summary || ""}"
+- Mode: "${context?.mode || "viral"}"
+- Goal: "${context?.goal || "viral"}"
+${context?.fullScript ? `- Script (excerpt): "${String(context.fullScript).slice(0, 400)}..."` : ""}
+${context?.currentHooks?.length ? `- Current hooks: ${context.currentHooks.slice(0, 2).join(" | ")}` : ""}
+
+USER REQUEST: "${userMessage}"
+
+Respond as a brilliant creative director. Be specific and immediately actionable. If they ask for a rewrite, provide the actual rewritten text. If they ask for improvements, give concrete examples.
+
+Return ONLY valid JSON (no markdown):
+{
+  "reply": "Your conversational coaching response (2-3 sentences, direct and specific)",
+  "suggestion": "The exact new text or content if applicable (null if not a content request)",
+  "suggestionType": "One of: hook | script | title | caption | style | null",
+  "actionLabel": "Short label for the suggestion like 'Use this hook' or null"
+}`;
+      const result = await callVideoGroq(prompt, 800);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Chat Edit] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Chat edit failed" });
+    }
+  });
+
+  // ── AI Audio Suggestions ────────────────────────────────────────────────────
+  app.post("/api/video/suggest-audio", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal, platform, title } = req.body;
+      const prompt = `You are a music and audio trend expert for social media content. Based on this video concept, suggest the perfect audio tracks and sounds.
+
+VIDEO DETAILS:
+- Concept: "${concept || title || "general content"}"
+- Style: "${mode || "viral"}"
+- Goal: "${goal || "engagement"}"
+- Platform: "${platform || "instagram"}"
+
+Generate 6 diverse audio suggestions that would make this video perform better. Mix trending sounds with timeless picks.
+
+Return ONLY valid JSON:
+{
+  "suggestions": [
+    {
+      "name": "Track/Sound name",
+      "artist": "Artist or source",
+      "mood": "One word mood: hype | calm | emotional | funny | cinematic | energetic",
+      "bpm": number (approximate BPM),
+      "why": "One sentence explaining why this audio fits perfectly",
+      "trendScore": number (1-100, how trending right now),
+      "bestFor": "Best moment in the video to use this",
+      "genre": "Genre tag"
+    }
+  ],
+  "tip": "One golden tip about audio strategy for this type of content"
+}`;
+      const result = await callVideoGroq(prompt, 1200);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Audio] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Audio suggestion failed" });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {
