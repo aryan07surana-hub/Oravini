@@ -1036,7 +1036,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               <Button variant="outline" size="sm" onClick={exportPlan} className="flex-1 border-primary/30 text-primary hover:bg-primary/10 text-xs gap-2" data-testid="btn-export">
                 <Download className="w-3.5 h-3.5" />Export Edit Plan
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
+              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
                 <RotateCcw className="w-3.5 h-3.5" />Start Over
               </Button>
             </div>

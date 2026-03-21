@@ -2,48 +2,20 @@
 
 ## Overview
 
-Brandverse Client Portal is a SaaS-style dashboard web application built for coaches and consultants to manage their clients in one place. The platform enables the admin (Brandverse) to upload documents, share call recordings, track client progress, send reminders, and communicate with clients through a built-in chat system. Clients get their own dashboard to view documents, track progress, review call feedback, and chat with their coach.
+The Brandverse Client Portal is a SaaS-style web application designed for coaches and consultants to efficiently manage their clients. It provides a centralized platform for document sharing, call recording management, client progress tracking, communication via a built-in chat system, and a notification/reminder system. Both administrators (Brandverse) and clients have dedicated dashboards tailored to their specific needs, enabling seamless interaction and progress monitoring.
 
-**Key features:**
-- Role-based access: Admin panel and Client dashboard
-- Document management (recordings, summaries, contracts, worksheets, etc.)
-- Materials Library: admin-uploaded shared resources visible to all clients
-- Progress tracking with visual progress bars
-- Call feedback system (two-way: admin and client submit feedback)
-- Real-time chat via WebSockets with image/file upload support
-- Notification/reminder system
-- Tracking hub: /tracking shows 4 cards in grid (Content Metrics, Competitor Study, Sales [soon], Ad [soon])
-- Content Metrics: /tracking/content shows 3 big cards (Instagram, YouTube, Calendar)
-- Instagram Tracking: month-by-month grid, click month → full month dashboard with daily post grouping
-- YouTube Tracking: same month-by-month structure as Instagram
-- Per-post engagement rate auto-calculated: (likes+comments+saves)/views*100, color-coded badge
-- Per-post metric update stages: Initial, 2-Week, 4-Week (via MetricsUpdateDialog with tabs)
-- Per-post Instagram auto-sync: Zap/Regenerate button expands inline panel with Initial/2W/4W checkpoints, each with Sync button that fetches live metrics from Instagram via Apify; sync timestamps tracked per checkpoint (initialSyncedAt, twoWeekSyncedAt, fourWeekSyncedAt)
-- Per-post YouTube auto-sync: same checkpoint system using YouTube Data API v3 (YOUTUBE_API_KEY); "Sync Stats" button in Log Video dialog auto-fetches views/likes/comments/title from YouTube API; "Import from YouTube" channel import uses /api/youtube/import-channel (last 20 videos); sync-checkpoint via /api/youtube/sync-checkpoint; channel stats via /api/youtube/channel-stats; helper file: server/youtube.ts (extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos)
-- Visual analytics charts: bar chart (monthly views), pie chart (content type breakdown), line chart (engagement trend)
-- AI Report Generator: date range picker (Quick Range: 1W/2W/4W + Custom From/To) instead of static period selector; posts filtered by date range; animated loading then OpenRouter-powered report with summary, insights, recommendations
-- Content Calendar: /tracking/content/calendar shows posts visually on a calendar
-- AI Content Ideas: /ai-ideas with Gemini, copy/heart-save per idea
-- Admin Calendar: /admin/calendar with full monthly calendar, Calendly bookings, call feedback events
-- Calendly integration: webhook at /api/webhooks/calendly auto-stores bookings, matches to client accounts
-- Course Modules section on dashboard with "Coming Soon" placeholder cards
-- Instagram Profile Setup: dashboard card (data-testid="instagram-setup-card") — enter Instagram URL or @handle → Apify scrapes last 30 posts → posts auto-synced to content tracking → OpenRouter AI generates niche/audience/engagement/recommendations report; saved per-client in instagram_profile_reports table; GET /api/instagram/profile-report + POST /api/instagram/analyze-profile; Re-analyse button to refresh anytime
-- DM Tracker: /dm-tracker (client) and /admin/dm-tracker (admin) — manual Instagram lead CRM; pipeline view (New/Warm/Hot/Cold columns), list view, quick reply templates with copy button; add/edit/delete leads with name, handle, status, source, notes, last contact, follow-up date; admin has client selector to filter by client; status: new/hot/warm/cold/converted/lost; API: GET/POST/PATCH/DELETE /api/dm/leads, GET/POST/DELETE /api/dm/quick-replies; tables: dm_leads, dm_quick_replies
-- Competitor Study: /tracking/competitor — AI-powered Instagram profile comparison; enter your URL + competitor URL, scrapes both via Apify, generates side-by-side metrics + OpenRouter AI analysis (strengths, weaknesses, competitor edge, action plan, content gaps); saves analyses to DB; delete individual reports
-- Auto-sync cron: node-cron job in server/cron.ts, runs daily at 3AM UTC — syncs Instagram post stats (Meta Graph API first, Apify fallback) AND YouTube post stats (YouTube Data API v3 via YOUTUBE_API_KEY); also accessible via POST /api/admin/auto-sync
-- Meta Graph API integration (server/meta.ts): getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken; all sync routes (sync-post, sync-checkpoint, sync-profile, analyze-profile) try Meta API first then fall back to Apify; competitor/niche analysis still uses Apify (Meta cannot access other accounts)
-- Meta API status in Admin Settings: shows token validity, connected IG account, follower count, expiry date; token refresh flow (paste short-lived token → exchanges to 60-day long-lived token) with copy button; GET /api/meta/account, POST /api/meta/refresh-token
-- AI Video Editor (Gemini-powered): /video-editor (client) and /admin/video-editor (admin); TWO modes — (1) Idea Builder: describe a video concept → Gemini writes full word-for-word script + shot list + timeline; (2) Analyze mode: paste script, URL, or describe existing content → Gemini generates edit plan; supports YouTube video URLs (gemini-1.5-pro native video analysis); 7 editing modes (Viral/Story/Sales/Funny/Cinematic/Educational/Personal Brand); 4 goals; Template Library with 7 pre-built structures; Idea Builder results: Script tab (full word-for-word script with [PAUSE]/[ZOOM]/[CUT] markers formatted as colored badges), Shot List tab (numbered shots with type/timestamp), Edit Plan tab (timeline with apply checkboxes + applied counter), Captions, Hooks, Visuals, Checklist; Analyze results: Edit Plan, Captions, Hooks, Visuals, Checklist, Variations; apply toggles track which edits are done; Export Plan button copies formatted text to clipboard; Start Over button resets; backends: POST /api/video/analyze (Gemini 2.0 Flash / 1.5 Pro for YouTube), POST /api/video/idea-builder (Gemini 2.0 Flash); callGemini() helper function with 429 quota-exceeded friendly error handling; GOOGLEEDITOR_API_KEY env var
-- AI Content Coach (Ultimate): /ai-coach — 5 modes: Script Breakdown, Pre-Post Check, Competitor Intel, Brand Builder, AI Roadmap; animated coach character (mood states); chat interface with history; 6 quick actions (Generate Hooks, Make It Viral, Retention Warning, Improve Clarity, Add Emotion, Shorten/Tighten); 6 tone modes (Funny, Serious, Educational, Sales, Story, Emotional); script result cards with copy; Brand Builder outputs bio rewrite/pillars/strategy/voice; 30-day Roadmap with week-by-week daily tasks/challenges; competitor analysis with patterns/gaps/what-works/steal-this; backend: POST /api/coach/chat, /fix-line, /improve-script, /competitor, /tone, /clarify, /add-emotion, /shorten, /brand, /roadmap; all powered by Groq JSON mode
-- Landing page: `/` shows premium SaaS landing page for unauthenticated visitors — hero with animated gradient headline + floating dashboard mockup, stats row, 6 feature cards (bento grid), how-it-works steps, testimonials, final CTA; all inline animated with IntersectionObserver FadeIn; authenticated users auto-redirected to dashboard or admin
-- Sidebar: "Tracking" link + separate "Competitor Study" link, "AI Content Ideas" link, "AI Content Coach" link
-- Admin sidebar: Calendar link added
-- Auto metric-reminder notification created on each content post log (48-72 hour prompt)
-- Income goal tracking: set goal on first join via auto-open dialog; displays on dashboard
-- Dashboard: world clocks bar at top, Daily Quote + Income Goal cards, Course Modules section
-- Admin Content Tracking (/admin/tracking): client selector + Instagram/YouTube tabs + per-client reports
-- Session-based authentication with Passport.js
-- Admin ClientDetail: 7-tab view including Content tab (content posts + income goal per client)
+The platform aims to enhance client-coach relationships by streamlining administrative tasks and providing powerful tools for content tracking, AI-powered analytics, and lead management. Key capabilities include:
+
+- **Role-based dashboards:** Separate interfaces for admins and clients.
+- **Comprehensive document management:** For various file types including shared materials.
+- **Advanced content tracking:** Detailed metrics and auto-sync features for Instagram and YouTube posts.
+- **AI-powered insights:** Report generation, content idea generation, video editing, and a sophisticated AI Content Coach.
+- **CRM for DMs:** A lead management system for Instagram DMs with pipeline views and quick replies.
+- **Competitor analysis:** AI-driven comparison of Instagram profiles.
+- **Integrated scheduling:** Calendly webhook for booking management.
+- **Real-time communication:** WebSocket-based chat with file support.
+
+The business vision is to empower coaches and consultants with a robust, all-in-one solution that reduces overhead, improves client engagement, and drives better results through data-driven insights and intelligent automation.
 
 ## User Preferences
 
@@ -53,110 +25,84 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-- **Framework:** React 18 with TypeScript, using Vite as the build tool
-- **Routing:** Wouter (lightweight client-side router) with protected routes for auth and role gating
-- **State Management / Data Fetching:** TanStack React Query v5 — all API calls use `apiRequest` helper and are cached via query keys that match the API URL paths
-- **UI Component Library:** shadcn/ui (New York style) built on top of Radix UI primitives
-- **Styling:** Tailwind CSS v3 with CSS variables for theming (light/dark mode ready), custom color tokens defined in `index.css`
-- **Forms:** React Hook Form with `@hookform/resolvers` and Zod for validation
+The frontend is built with **React 18 and TypeScript** using **Vite** for fast development and bundling. **Wouter** handles client-side routing, providing protected routes based on authentication and user roles. **TanStack React Query v5** manages server state and data fetching, utilizing query keys for caching based on API URL paths.
 
-**Page structure:**
-- `client/src/pages/Login.tsx` — Login page
-- `client/src/pages/client/` — Client-facing pages (Dashboard, Documents, Chat, Progress, Calls)
-- `client/src/pages/admin/` — Admin pages (Dashboard, Clients, ClientDetail, Chat, Documents)
-- `client/src/components/layout/ClientLayout.tsx` and `AdminLayout.tsx` — Sidebar layouts for each role
+For UI components, the application leverages **shadcn/ui**, which is built on **Radix UI primitives**, offering a modern "New York style" aesthetic. **Tailwind CSS v3** is used for styling, with custom CSS variables and color tokens supporting theming (light/dark mode). **React Hook Form** with **Zod** provides robust form handling and validation.
 
-**Path aliases:**
-- `@/` → `client/src/`
-- `@shared/` → `shared/`
-- `@assets/` → `attached_assets/`
+The project structure separates client and admin-facing pages, with dedicated layout components for each role (`ClientLayout.tsx`, `AdminLayout.tsx`). Path aliases (`@/`, `@shared/`, `@assets/`) simplify module imports.
 
 ### Backend Architecture
 
-- **Runtime:** Node.js with Express 5 (TypeScript, ESM modules)
-- **Entry point:** `server/index.ts` — sets up Express, sessions, Passport, and routes
-- **Authentication:** Passport.js with `passport-local` strategy; passwords hashed using `scrypt` via Node.js crypto module; sessions stored in PostgreSQL via `connect-pg-simple`
-- **WebSockets:** Native `ws` library attached to the same HTTP server at path `/ws`; used for real-time chat and notifications; clients are tracked in a `Map<userId, WebSocket>`
-- **Routes:** Defined in `server/routes.ts`; middleware guards `requireAuth` and `requireAdmin` protect endpoints
-- **File uploads:** `multer` handles multipart form data for document uploads
-- **Database access:** `server/storage.ts` exposes an `IStorage` interface implemented with Drizzle ORM + `node-postgres`
-- **Seed data:** `server/seed.ts` auto-runs on startup to create the admin account and sample clients if they don't exist
+The backend runs on **Node.js with Express 5 (TypeScript, ESM modules)**. The entry point (`server/index.ts`) initializes Express, session management, Passport.js, and routes. **Passport.js** with a `passport-local` strategy handles authentication, using `scrypt` for password hashing and `connect-pg-simple` for session storage in PostgreSQL.
 
-**Build process:** `script/build.ts` runs Vite for the frontend then esbuild for the server, bundling a specific allowlist of dependencies into `dist/index.cjs` for faster cold starts.
+Real-time communication, primarily for chat and notifications, is facilitated by the native **`ws` library**, integrated directly with the Express HTTP server at the `/ws` path. User connections are tracked for efficient message delivery. API routes, defined in `server/routes.ts`, are protected by middleware (`requireAuth`, `requireAdmin`) to enforce authorization. **Multer** is used for handling file uploads.
+
+Database interactions are abstracted through an `IStorage` interface, implemented with **Drizzle ORM** and `node-postgres`. A `server/seed.ts` script ensures initial setup of admin and sample client accounts. The build process uses Vite for the frontend and esbuild for the backend, bundling dependencies for optimized production deployment.
 
 ### Data Storage
 
-- **Database:** PostgreSQL (required via `DATABASE_URL` environment variable)
-- **ORM:** Drizzle ORM with `drizzle-kit` for migrations (`./migrations/` directory, schema at `shared/schema.ts`)
-- **Session store:** PostgreSQL-backed sessions via `connect-pg-simple`
+The application uses **PostgreSQL** as its primary database, configured via the `DATABASE_URL` environment variable. **Drizzle ORM** is used for object-relational mapping, with `drizzle-kit` managing database migrations. Session data is also stored in PostgreSQL using `connect-pg-simple`.
 
-**Schema tables:**
-- `users` — both admin and client accounts, with role enum (`admin` | `client`), program name, next call date, phone
-- `documents` — files linked to a client and uploader; typed with `doc_type` enum (recording, summary, audit, strategy, worksheet, contract, material, other); fileType="material" = shared library resource
-- `messages` — direct messages between users with read status, optional file attachment (fileUrl, fileName, fileMime)
-- `progress` — per-client progress percentages for offer creation, funnel, content, monetization (unique per client)
-- `call_feedback` — call records with recording URL, summary, admin feedback, client feedback + learnings
-- `tasks` — action items per client with completion status
-- `notifications` — dashboard notifications per user with read status
-- `content_posts` — Instagram/YouTube post metrics per client (views, likes, comments, followers, revenue, postDate, funnelStage)
-- `income_goals` — monthly income target and current income per client (unique per client)
+Key database tables include:
+- `users`: Stores both admin and client accounts with role distinctions.
+- `documents`: Manages uploaded files, categorized by type and linked to clients.
+- `messages`: Stores chat messages, supporting file attachments.
+- `progress`: Tracks client-specific progress percentages across various categories.
+- `call_feedback`: Records feedback for client calls.
+- `content_posts`: Stores detailed metrics for Instagram and YouTube posts.
+- `income_goals`: Tracks client income targets.
+- `dm_leads`: Manages Instagram DM leads for CRM functionality.
+- `dm_quick_replies`: Stores quick reply templates for DM management.
+- `instagram_profile_reports`: Stores AI-generated Instagram profile analyses.
 
-All IDs use PostgreSQL `gen_random_uuid()` defaults.
+All IDs are generated using PostgreSQL's `gen_random_uuid()`.
 
 ### Authentication & Authorization
 
-- Session cookies (7-day expiry, `httpOnly`) stored server-side in Postgres
-- Two roles: `admin` and `client`
-- `requireAuth` middleware checks session; `requireAdmin` additionally checks role
-- After login, users are redirected to `/admin` or `/dashboard` based on role
-- Frontend `useAuth` hook queries `/api/auth/me`; unauthenticated responses return `null` gracefully
+Authentication is session-based, using `httpOnly` cookies with a 7-day expiry, stored server-side in PostgreSQL. The system supports two roles: `admin` and `client`. `requireAuth` middleware verifies user sessions, while `requireAdmin` specifically checks for administrative privileges. Users are redirected to appropriate dashboards (`/admin` or `/dashboard`) post-login. The frontend uses a `useAuth` hook to query authentication status.
 
 ### Real-time Communication
 
-- WebSocket server on `/ws` path; clients connect with `?userId=<id>` query param
-- Server maintains a map of active WebSocket connections keyed by userId
-- Used for chat message delivery and notifications
+A WebSocket server, operating on the `/ws` path, manages real-time chat and notification delivery. The server maintains a mapping of active WebSocket connections to user IDs, enabling direct and efficient communication.
 
 ## External Dependencies
 
 ### Core Runtime Dependencies
-| Package | Purpose |
-|---|---|
-| `express` v5 | HTTP server and API routing |
-| `drizzle-orm` + `pg` | PostgreSQL ORM and driver |
-| `passport` + `passport-local` | Authentication strategy |
-| `express-session` + `connect-pg-simple` | Server-side session management in Postgres |
-| `ws` | WebSocket server for real-time chat |
-| `multer` | File upload handling |
-| `zod` + `drizzle-zod` | Schema validation and type inference |
+- `express` v5: HTTP server and API routing.
+- `drizzle-orm` + `pg`: PostgreSQL ORM and driver.
+- `passport` + `passport-local`: Authentication strategy.
+- `express-session` + `connect-pg-simple`: Server-side session management.
+- `ws`: WebSocket server for real-time features.
+- `multer`: File upload handling.
+- `zod` + `drizzle-zod`: Schema validation and type inference.
+- `node-cron`: Scheduled tasks (e.g., auto-sync).
+
+### AI/API Integrations
+- **Apify:** For scraping Instagram data (e.g., initial profile analysis, competitor study, fallback for post metrics).
+- **OpenRouter:** Powers AI report generation, Instagram niche/audience analysis, and competitor analysis.
+- **Gemini (Google AI):** Used for AI Content Ideas (`GOOGLEEDITOR_API_KEY`). Note: AI Video Editor was migrated from Gemini to Groq.
+- **YouTube Data API v3:** For fetching YouTube video and channel statistics (`YOUTUBE_API_KEY`). Also used to enrich YouTube URL context in the AI Video Editor.
+- **Meta Graph API:** Primary API for Instagram post statistics and profile information (token management, `ACCESS_TOKEN`).
+- **Groq:** Powers the AI Content Coach, AI Video Editor (Idea Builder + Analyze + Template Suggest — all 3 endpoints), and various AI functions using `llama-3.3-70b-versatile` in JSON mode.
+- **Calendly Webhooks:** For integrating scheduling and booking data.
 
 ### Frontend Dependencies
-| Package | Purpose |
-|---|---|
-| `react` + `react-dom` | UI framework |
-| `wouter` | Client-side routing |
-| `@tanstack/react-query` v5 | Server state management and caching |
-| `@radix-ui/*` | Accessible UI primitives (full suite) |
-| `tailwindcss` | Utility-first CSS |
-| `class-variance-authority` + `clsx` + `tailwind-merge` | Dynamic class utilities |
-| `react-hook-form` + `@hookform/resolvers` | Form handling |
-| `date-fns` | Date formatting |
-| `recharts` | Charts for progress visualization |
-| `lucide-react` | Icon library |
-| `embla-carousel-react` | Carousel component |
-| `vaul` | Drawer component |
-| `cmdk` | Command palette |
-
-### Development / Build Tools
-| Package | Purpose |
-|---|---|
-| `vite` + `@vitejs/plugin-react` | Frontend dev server and bundler |
-| `esbuild` | Server bundler for production |
-| `tsx` | TypeScript execution for dev server |
-| `drizzle-kit` | Database schema migrations and push |
-| `@replit/vite-plugin-runtime-error-modal` | Dev error overlay |
-| `@replit/vite-plugin-cartographer` | Replit-specific dev tool |
+- `react` + `react-dom`: UI framework.
+- `wouter`: Client-side routing.
+- `@tanstack/react-query` v5: Server state management and caching.
+- `@radix-ui/*`: Accessible UI primitives.
+- `tailwindcss`: Utility-first CSS.
+- `react-hook-form` + `@hookform/resolvers`: Form handling.
+- `date-fns`: Date formatting.
+- `recharts`: Charts for data visualization.
+- `lucide-react`: Icon library.
 
 ### Environment Variables Required
-- `DATABASE_URL` — PostgreSQL connection string (required; app throws on startup without it)
-- `SESSION_SECRET` — Session signing secret (falls back to hardcoded string if not set; should be set in production)
+- `DATABASE_URL`: PostgreSQL connection string.
+- `SESSION_SECRET`: Session signing secret.
+- `YOUTUBE_API_KEY`: YouTube Data API v3 key.
+- `GOOGLEEDITOR_API_KEY`: Google AI Studio API key for Gemini.
+- `APIFY_API_TOKEN`: Apify API key.
+- `OPENROUTER_API_KEY`: OpenRouter API key.
+- `GROQ_API_KEY`: Groq API key.
+- `CALENDLY_WEBHOOK_SECRET`: Secret for Calendly webhook validation.

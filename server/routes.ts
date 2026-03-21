@@ -3059,32 +3059,53 @@ Return ONLY this JSON:
     });
   });
 
-  // ── AI Video Editor (Gemini-powered) ─────────────────────────────────────
-  async function callGemini(prompt: string, parts?: any[], model = "gemini-2.0-flash"): Promise<any> {
-    const googleKey = process.env.GOOGLEEDITOR_API_KEY;
-    if (!googleKey) throw new Error("GOOGLEEDITOR_API_KEY not configured");
-    const contentParts: any[] = parts ? [...parts, { text: prompt }] : [{ text: prompt }];
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${googleKey}`, {
+  // ── AI Video Editor (Groq-powered) ───────────────────────────────────────
+  async function callVideoGroq(prompt: string, maxTokens = 8192): Promise<any> {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) throw new Error("GROQ_API_KEY not configured");
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: contentParts }],
-        generationConfig: { temperature: 0.75, maxOutputTokens: 8192, responseMimeType: "application/json" },
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.75,
+        max_tokens: maxTokens,
+        response_format: { type: "json_object" },
       }),
     });
     if (!r.ok) {
       const errText = await r.text();
-      if (r.status === 429) {
-        let retryIn = "";
-        try { const parsed = JSON.parse(errText); const delay = parsed?.error?.details?.find((d: any) => d?.retryDelay)?.retryDelay; if (delay) retryIn = ` (retry in ${delay})`; } catch {}
-        throw new Error(`Gemini is currently busy — you've hit the rate limit${retryIn}. Please wait a moment and try again.`);
-      }
-      throw new Error(`Gemini API error: ${r.status} — ${errText.substring(0, 200)}`);
+      if (r.status === 429) throw new Error("The AI is currently busy — please wait a moment and try again.");
+      if (r.status === 413) throw new Error("The request was too large — try a shorter script or concept.");
+      throw new Error(`AI API error ${r.status}: ${errText.substring(0, 200)}`);
     }
     const data = await r.json();
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    if (data.error) throw new Error(data.error.message || "AI generation failed");
+    const raw = data.choices?.[0]?.message?.content || "{}";
     const cleaned = raw.replace(/```json|```/g, "").trim();
     return JSON.parse(cleaned);
+  }
+
+  async function fetchYouTubeTextContext(url: string): Promise<string> {
+    try {
+      const { extractYouTubeVideoId: extractId } = await import("./youtube");
+      const videoId = extractId(url);
+      if (!videoId) return `YouTube video URL: ${url}`;
+      const ytKey = process.env.YOUTUBE_API_KEY;
+      if (!ytKey) return `YouTube video URL: ${url}`;
+      const resp = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${videoId}&key=${ytKey}`);
+      if (!resp.ok) return `YouTube video URL: ${url}`;
+      const ytData = await resp.json();
+      const item = ytData.items?.[0];
+      if (!item) return `YouTube video URL: ${url}`;
+      const s = item.statistics || {};
+      const sn = item.snippet || {};
+      const desc = (sn.description || "").substring(0, 500);
+      return `YOUTUBE VIDEO CONTEXT:\nTitle: ${sn.title || "Unknown"}\nChannel: ${sn.channelTitle || "Unknown"}\nViews: ${parseInt(s.viewCount || "0").toLocaleString()} | Likes: ${parseInt(s.likeCount || "0").toLocaleString()} | Comments: ${parseInt(s.commentCount || "0").toLocaleString()}\nPublished: ${sn.publishedAt ? new Date(sn.publishedAt).toLocaleDateString() : "Unknown"}\nDescription: ${desc}\nTags: ${(sn.tags || []).slice(0, 15).join(", ")}\nURL: ${url}`;
+    } catch {
+      return `YouTube video URL: ${url}`;
+    }
   }
 
   const VID_MODE_MAP: Record<string, string> = {
@@ -3106,8 +3127,6 @@ Return ONLY this JSON:
   app.post("/api/video/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
       const { inputType, instagramUrl, script, description, mode, goal, audience, style, duration } = req.body;
-      const googleKey = process.env.GOOGLEEDITOR_API_KEY;
-      if (!googleKey) return res.status(500).json({ message: "GOOGLEEDITOR_API_KEY not configured" });
 
       const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
       const goalDesc = VID_GOAL_MAP[goal] || VID_GOAL_MAP.viral;
@@ -3116,15 +3135,11 @@ Return ONLY this JSON:
       const styleNote = style ? `Style reference: "${style}" — channel this approach in all suggestions.` : "";
 
       let contentInfo = "";
-      let geminiParts: any[] | undefined;
-      let geminiModel = "gemini-2.0-flash";
 
       if (inputType === "url" && instagramUrl) {
         const isYouTube = /youtube\.com|youtu\.be/.test(instagramUrl);
         if (isYouTube) {
-          geminiModel = "gemini-1.5-pro";
-          geminiParts = [{ fileData: { mimeType: "video/mp4", fileUri: instagramUrl } }];
-          contentInfo = `YouTube video: ${instagramUrl} — analyze the actual video content directly.`;
+          contentInfo = await fetchYouTubeTextContext(instagramUrl);
         } else {
           try {
             const apifyToken = process.env.APIFY_TOKEN;
@@ -3167,7 +3182,7 @@ Return ONLY this JSON:
   "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
 }`;
 
-      const prompt = `You are an elite AI video editing strategist powered by Google Gemini. Produce the most specific, actionable video edit plan possible.
+      const prompt = `You are an elite AI video editing strategist. Produce the most specific, actionable video edit plan possible.
 
 CONTENT:
 ${contentInfo}
@@ -3183,7 +3198,7 @@ Be surgically specific — name exact timestamps, exact words to cut, exact repl
 Return ONLY valid JSON matching this schema:
 ${editSchema}`;
 
-      const result = await callGemini(prompt, geminiParts, geminiModel);
+      const result = await callVideoGroq(prompt);
       return res.json(result);
     } catch (err: any) {
       console.error("[Video Editor] Error:", err.message);
@@ -3212,7 +3227,8 @@ ${editSchema}`;
           try {
             const isYT = /youtube\.com|youtu\.be/.test(url);
             if (isYT) {
-              scraped.push(`YouTube competitor video: ${url} — analyze its style, pacing, and structure`);
+              const ytContext = await fetchYouTubeTextContext(url);
+              scraped.push(`COMPETITOR YOUTUBE VIDEO:\n${ytContext}`);
             } else {
               const apifyToken = process.env.APIFY_TOKEN;
               if (apifyToken) {
@@ -3258,7 +3274,7 @@ CRITICAL STYLE-MATCH INSTRUCTION: Study what makes these competitor reels succes
   "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
 }`;
 
-      const prompt = `You are an elite viral content director powered by Google Gemini. Transform this video concept into a complete, production-ready plan that will actually get views.
+      const prompt = `You are an elite viral content director. Transform this video concept into a complete, production-ready plan that will actually get views.
 
 VIDEO CONCEPT: "${concept}"
 Platform: ${platformLabel}
@@ -3274,7 +3290,7 @@ Write the actual word-for-word script they should record. Be creative, specific,
 Return ONLY valid JSON matching this schema:
 ${ideaSchema}`;
 
-      const result = await callGemini(prompt);
+      const result = await callVideoGroq(prompt);
       return res.json(result);
     } catch (err: any) {
       console.error("[Video Idea Builder] Error:", err.message);
@@ -3300,7 +3316,7 @@ Return ONLY valid JSON:
   "avoidThese": [string] (1-2 template IDs that would NOT work well, with brief reason in format "id: reason")
 }`;
 
-      const result = await callGemini(prompt);
+      const result = await callVideoGroq(prompt);
       return res.json(result);
     } catch (err: any) {
       console.error("[Video Suggest Templates] Error:", err.message);
