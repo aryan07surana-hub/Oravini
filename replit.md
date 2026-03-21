@@ -81,6 +81,7 @@ A WebSocket server, operating on the `/ws` path, manages real-time chat and noti
 - **Apify:** For scraping Instagram data (e.g., initial profile analysis, competitor study, fallback for post metrics).
 - **OpenRouter:** Powers AI report generation, Instagram niche/audience analysis, and competitor analysis.
 - **Gemini (Google AI):** Used for AI Content Ideas (`GOOGLEEDITOR_API_KEY`). Note: AI Video Editor was migrated from Gemini to Groq.
+- **Runware:** Ultra-fast AI image generation (`RUNWARE_API_KEY`). Used in AI Video Editor to generate 4 thumbnail concepts (`POST /api/video/generate-images`) and storyboard frames for each shot in the Shot List. WebSocket-based API (`wss://ws.runware.ai/v1`), model `runware:100@1` (FLUX.1-Schnell), output as WEBP URLs.
 - **YouTube Data API v3:** For fetching YouTube video and channel statistics (`YOUTUBE_API_KEY`). Also used to enrich YouTube URL context in the AI Video Editor.
 - **Meta Graph API:** Primary API for Instagram post statistics and profile information (token management, `ACCESS_TOKEN`).
 - **Groq:** Powers the AI Content Coach, AI Video Editor (Idea Builder + Analyze + Template Suggest — all 3 endpoints), and various AI functions using `llama-3.3-70b-versatile` in JSON mode.

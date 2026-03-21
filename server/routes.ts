@@ -3087,6 +3087,42 @@ Return ONLY this JSON:
     return JSON.parse(cleaned);
   }
 
+  async function runwareGenerate(apiKey: string, tasks: any[]): Promise<{ url: string; taskUUID: string }[]> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket("wss://ws.runware.ai/v1");
+      const images: { url: string; taskUUID: string }[] = [];
+      const timer = setTimeout(() => { ws.terminate(); reject(new Error("Runware timed out after 60s")); }, 60000);
+
+      ws.on("open", () => {
+        ws.send(JSON.stringify([{ taskType: "authentication", apiKey }]));
+      });
+
+      ws.on("message", (data: Buffer) => {
+        try {
+          const messages = JSON.parse(data.toString());
+          for (const msg of Array.isArray(messages) ? messages : [messages]) {
+            if (msg.taskType === "authentication") {
+              ws.send(JSON.stringify(tasks));
+            } else if (msg.taskType === "imageInference" && msg.imageURL) {
+              images.push({ url: msg.imageURL, taskUUID: msg.taskUUID });
+              if (images.length >= tasks.length) {
+                clearTimeout(timer);
+                ws.close();
+                resolve(images);
+              }
+            } else if (msg.taskType === "error") {
+              clearTimeout(timer);
+              ws.close();
+              reject(new Error(msg.errorMessage || "Runware image generation failed"));
+            }
+          }
+        } catch (e) { clearTimeout(timer); ws.close(); reject(e); }
+      });
+
+      ws.on("error", (err: Error) => { clearTimeout(timer); reject(err); });
+    });
+  }
+
   async function fetchYouTubeTextContext(url: string): Promise<string> {
     try {
       const { extractYouTubeVideoId: extractId } = await import("./youtube");
@@ -3321,6 +3357,37 @@ Return ONLY valid JSON:
     } catch (err: any) {
       console.error("[Video Suggest Templates] Error:", err.message);
       return res.status(500).json({ message: err.message || "Template suggestion failed" });
+    }
+  });
+
+  // ── Runware AI Image Generation ─────────────────────────────────────────────
+  app.post("/api/video/generate-images", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompts, width = 1024, height = 576 } = req.body;
+      const runwareKey = process.env.RUNWARE_API_KEY;
+      if (!runwareKey) return res.status(500).json({ message: "RUNWARE_API_KEY not configured" });
+      if (!Array.isArray(prompts) || !prompts.length) return res.status(400).json({ message: "prompts array required" });
+
+      const tasks = prompts.slice(0, 6).map((prompt: string) => ({
+        taskType: "imageInference",
+        taskUUID: crypto.randomUUID(),
+        positivePrompt: String(prompt).slice(0, 900),
+        negativePrompt: "blurry, low quality, watermark, text overlay, ugly, deformed",
+        model: "runware:100@1",
+        width: Number(width) || 1024,
+        height: Number(height) || 576,
+        numberResults: 1,
+        outputType: ["URL"],
+        outputFormat: "WEBP",
+        steps: 4,
+        CFGScale: 1,
+      }));
+
+      const images = await runwareGenerate(runwareKey, tasks);
+      return res.json({ images });
+    } catch (err: any) {
+      console.error("[Runware] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Image generation failed" });
     }
   });
 

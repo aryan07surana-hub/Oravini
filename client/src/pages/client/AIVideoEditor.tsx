@@ -13,7 +13,7 @@ import {
   Loader2, Link2, FileText, Lightbulb, Scissors, Volume2, Eye, ListChecks,
   Shuffle, Wand2, Music, Layers, Star, Play, RotateCcw, Hash, Video, Camera,
   Download, CheckSquare, Square, Plus, X, TrendingUp, Trophy, AlertCircle,
-  ArrowRight
+  ArrowRight, Image, Film
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -302,6 +302,12 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [activeTab, setActiveTab] = useState("timeline");
   const [appliedEdits, setAppliedEdits] = useState<Set<number>>(new Set());
 
+  // Runware image generation
+  const [thumbnails, setThumbnails] = useState<string[]>([]);
+  const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [shotImages, setShotImages] = useState<Record<number, string>>({});
+  const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
+
   // Active competitor URLs (non-empty)
   const activeCompUrls = competitorUrls.filter(u => u.trim().length > 5);
 
@@ -387,6 +393,49 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   };
 
   const selectedMode = MODES.find(m => m.id === mode);
+
+  const generateThumbnails = async () => {
+    if (!result) return;
+    setGeneratingThumbnails(true);
+    try {
+      const title = result.title || concept || "viral video";
+      const modeLabel = selectedMode?.label || "Viral";
+      const prompts = [
+        `YouTube thumbnail, cinematic dramatic, "${title}", ${modeLabel} content creator, high energy, dynamic lighting, vivid bold colors, person looking at camera, professional DSLR photo, sharp focus, no text`,
+        `YouTube thumbnail, clean minimalist, "${title}", single subject centered, eye contact, bright studio lighting, contrasting background, compelling face expression, no text, professional photography`,
+        `YouTube thumbnail, storytelling visual, "${title}", emotional expression, cinematic color grading, warm tones, depth of field, content creator aesthetic, film still quality, no text`,
+        `YouTube thumbnail, high contrast graphic, "${title}", dynamic composition, vibrant neon colors, dramatic shadows, social media optimized, editorial photography style, no text`,
+      ];
+      const res = await apiRequest("POST", "/api/video/generate-images", { prompts, width: 1280, height: 720 });
+      setThumbnails(res.images.map((img: any) => img.url));
+      toast({ title: "Thumbnails generated!", description: "4 AI thumbnail concepts ready below" });
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingThumbnails(false);
+    }
+  };
+
+  const generateStoryboard = async () => {
+    if (!result?.shotList?.length) return;
+    setGeneratingStoryboard(true);
+    try {
+      const shots = result.shotList.slice(0, 6);
+      const modeLabel = selectedMode?.label || "viral";
+      const prompts = shots.map((s: any) =>
+        `Cinematic film still, ${s.description}, ${modeLabel} social media video style, professional cinematography, dramatic natural lighting, high quality camera, no text overlay, realistic`
+      );
+      const res = await apiRequest("POST", "/api/video/generate-images", { prompts, width: 768, height: 432 });
+      const map: Record<number, string> = {};
+      res.images.forEach((img: any, idx: number) => { map[idx] = img.url; });
+      setShotImages(map);
+      toast({ title: "Storyboard ready!", description: `${res.images.length} shot frames visualized` });
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setGeneratingStoryboard(false);
+    }
+  };
 
   const TABS = [
     ...(isIdeaResult && result?.fullScript   ? [{ id: "script",   label: "Script",    icon: FileText  }] : []),
@@ -714,6 +763,15 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     {activeCompUrls.length > 0 && <Badge className="bg-purple-500/15 text-purple-400 border-purple-500/30 text-xs border">Competitor Style Match</Badge>}
                   </div>
                   <p className="text-sm text-foreground leading-relaxed">{result.summary}</p>
+
+                  {/* Thumbnail generator */}
+                  <div className="mt-3">
+                    <Button size="sm" variant="outline" onClick={generateThumbnails} disabled={generatingThumbnails}
+                      className="border-primary/30 text-primary hover:bg-primary/10 text-xs gap-1.5 h-7" data-testid="btn-generate-thumbnails">
+                      {generatingThumbnails ? <><Loader2 className="w-3 h-3 animate-spin" />Generating thumbnails…</> : <><Image className="w-3 h-3" />Generate AI Thumbnails</>}
+                    </Button>
+                  </div>
+
                   {/* Competitor insights */}
                   {result.competitorInsights && (
                     <div className="mt-3 p-3 bg-purple-500/5 border border-purple-500/15 rounded-xl flex items-start gap-2">
@@ -736,6 +794,36 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   )}
                 </div>
               </div>
+
+              {/* AI Generated Thumbnails Grid */}
+              {thumbnails.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-card-border">
+                  <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-2">
+                    <Image className="w-3.5 h-3.5 text-primary" />AI Thumbnail Concepts
+                    <span className="text-muted-foreground font-normal">— hover to download</span>
+                  </p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {thumbnails.map((url, i) => (
+                      <div key={i} data-testid={`thumbnail-${i}`} className="relative group rounded-xl overflow-hidden border border-muted/20 aspect-video bg-muted/10">
+                        <img src={url} alt={`Thumbnail concept ${i + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <a href={url} target="_blank" rel="noopener noreferrer" download
+                            className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors backdrop-blur-sm" title="Download">
+                            <Download className="w-4 h-4 text-white" />
+                          </a>
+                        </div>
+                        <div className="absolute bottom-2 left-2">
+                          <Badge className="bg-black/70 text-white border-0 text-[9px] px-1.5 py-0.5">Concept {i + 1}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={generateThumbnails} disabled={generatingThumbnails}
+                    className="mt-2 text-muted-foreground text-xs gap-1.5 h-7" data-testid="btn-regenerate-thumbnails">
+                    {generatingThumbnails ? <><Loader2 className="w-3 h-3 animate-spin" />Regenerating…</> : <><RotateCcw className="w-3 h-3" />Regenerate</>}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Result Tabs */}
@@ -774,7 +862,30 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 {/* Shot List */}
                 {activeTab === "shotlist" && result.shotList?.length > 0 && (
                   <div className="space-y-4">
-                    <SectionHeader icon={Camera} title="Shot List" desc="Exactly what to film — shot by shot, in order" color="from-cyan-500/20 to-cyan-500/5 border-cyan-500/30" />
+                    <div className="flex items-start justify-between gap-3">
+                      <SectionHeader icon={Camera} title="Shot List" desc="Exactly what to film — shot by shot, in order" color="from-cyan-500/20 to-cyan-500/5 border-cyan-500/30" />
+                      <Button size="sm" variant="outline" onClick={generateStoryboard} disabled={generatingStoryboard}
+                        className="flex-shrink-0 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 text-xs gap-1.5 h-8 mt-0.5" data-testid="btn-generate-storyboard">
+                        {generatingStoryboard ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</> : <><Film className="w-3 h-3" />Visualize Storyboard</>}
+                      </Button>
+                    </div>
+                    {Object.keys(shotImages).length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(shotImages).map(([idx, url]) => (
+                          <div key={idx} className="relative rounded-xl overflow-hidden border border-muted/20 aspect-video bg-muted/10 group">
+                            <img src={url} alt={`Shot ${Number(idx) + 1} frame`} className="w-full h-full object-cover" />
+                            <div className="absolute bottom-1.5 left-1.5">
+                              <Badge className="bg-black/70 text-white border-0 text-[9px] px-1.5 py-0.5">Shot {Number(idx) + 1}</Badge>
+                            </div>
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-white/20 rounded-lg hover:bg-white/30 transition-colors">
+                                <Download className="w-3.5 h-3.5 text-white" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="space-y-2">
                       {result.shotList.map((s: any, i: number) => (
                         <div key={i} className="flex items-start gap-3 p-3 bg-muted/10 rounded-xl border border-muted/20">
@@ -786,6 +897,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize border-muted-foreground/30">{s.type}</Badge>
                               {s.timestamp && <span className="text-[10px] font-mono text-primary">{s.timestamp}</span>}
                               {s.duration && <span className="text-[10px] text-muted-foreground">{s.duration}</span>}
+                              {shotImages[i] && <Badge className="bg-cyan-500/15 text-cyan-400 border-0 text-[9px] px-1.5 py-0">Visualized</Badge>}
                             </div>
                             <p className="text-xs text-foreground">{s.description}</p>
                           </div>
@@ -1036,7 +1148,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               <Button variant="outline" size="sm" onClick={exportPlan} className="flex-1 border-primary/30 text-primary hover:bg-primary/10 text-xs gap-2" data-testid="btn-export">
                 <Download className="w-3.5 h-3.5" />Export Edit Plan
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
+              <Button variant="outline" size="sm" onClick={() => { setResult(null); setActiveTab("timeline"); setAppliedEdits(new Set()); setConcept(""); setInputValue(""); setInputType("idea"); setCompetitorUrls(["", "", ""]); setCompetitorInput(""); setShowCompetitor(false); setThumbnails([]); setShotImages({}); }} className="flex-1 border-muted-foreground/20 text-muted-foreground text-xs gap-2" data-testid="btn-reset">
                 <RotateCcw className="w-3.5 h-3.5" />Start Over
               </Button>
             </div>
