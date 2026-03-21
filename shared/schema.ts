@@ -273,6 +273,22 @@ export const appSettings = pgTable("app_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const videoResources = pgTable("video_resources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  category: text("category").default("General"),
+  platform: text("platform"),
+  thumbnailUrl: text("thumbnail_url"),
+  addedBy: varchar("added_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVideoResourceSchema = createInsertSchema(videoResources).omit({ id: true, createdAt: true });
+export type InsertVideoResource = z.infer<typeof insertVideoResourceSchema>;
+export type VideoResource = typeof videoResources.$inferSelect;
+
 export const canvaTokens = pgTable("canva_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id).unique(),

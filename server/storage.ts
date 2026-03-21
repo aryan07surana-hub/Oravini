@@ -4,7 +4,7 @@ import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
-  dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens,
+  dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -16,6 +16,7 @@ import {
   type DmLead, type InsertDmLead, type DmQuickReply, type InsertDmQuickReply,
   type InstagramProfileReport, type InsertInstagramProfileReport,
   type CanvaToken, type InsertCanvaToken,
+  type VideoResource, type InsertVideoResource,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -30,6 +31,13 @@ export interface IStorage {
   getCanvaToken(userId: string): Promise<CanvaToken | undefined>;
   upsertCanvaToken(data: InsertCanvaToken): Promise<CanvaToken>;
   deleteCanvaToken(userId: string): Promise<void>;
+
+  // Video Resource Library
+  getVideoResources(): Promise<VideoResource[]>;
+  getVideoResource(id: string): Promise<VideoResource | undefined>;
+  createVideoResource(data: InsertVideoResource): Promise<VideoResource>;
+  updateVideoResource(id: string, data: Partial<InsertVideoResource>): Promise<VideoResource | undefined>;
+  deleteVideoResource(id: string): Promise<void>;
 
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -537,6 +545,29 @@ class DatabaseStorage implements IStorage {
 
   async deleteCanvaToken(userId: string): Promise<void> {
     await db.delete(canvaTokens).where(eq(canvaTokens.userId, userId));
+  }
+
+  async getVideoResources(): Promise<VideoResource[]> {
+    return await db.select().from(videoResources).orderBy(desc(videoResources.createdAt));
+  }
+
+  async getVideoResource(id: string): Promise<VideoResource | undefined> {
+    const [row] = await db.select().from(videoResources).where(eq(videoResources.id, id));
+    return row;
+  }
+
+  async createVideoResource(data: InsertVideoResource): Promise<VideoResource> {
+    const [row] = await db.insert(videoResources).values(data).returning();
+    return row;
+  }
+
+  async updateVideoResource(id: string, data: Partial<InsertVideoResource>): Promise<VideoResource | undefined> {
+    const [row] = await db.update(videoResources).set(data).where(eq(videoResources.id, id)).returning();
+    return row;
+  }
+
+  async deleteVideoResource(id: string): Promise<void> {
+    await db.delete(videoResources).where(eq(videoResources.id, id));
   }
 }
 

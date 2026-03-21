@@ -3516,6 +3516,55 @@ Return ONLY valid JSON:
   });
 
   // ══════════════════════════════════════════════════════════════════════════════
+  // VIDEO RESOURCE LIBRARY
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/video-resources — list all (any auth)
+  app.get("/api/video-resources", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const items = await storage.getVideoResources();
+      return res.json(items);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/video-resources — admin create
+  app.post("/api/video-resources", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, description, url, category, platform, thumbnailUrl } = req.body;
+      if (!title || !url) return res.status(400).json({ message: "title and url are required" });
+      const item = await storage.createVideoResource({ title, description, url, category: category || "General", platform, thumbnailUrl, addedBy: user.id });
+      return res.status(201).json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/video-resources/:id — admin update
+  app.patch("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { title, description, url, category, platform, thumbnailUrl } = req.body;
+      const item = await storage.updateVideoResource(req.params.id, { title, description, url, category, platform, thumbnailUrl });
+      if (!item) return res.status(404).json({ message: "Not found" });
+      return res.json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/video-resources/:id — admin delete
+  app.delete("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoResource(req.params.id);
+      return res.json({ message: "Deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════════
   // CANVA CONNECT API
   // OAuth 2.0 with PKCE + design/asset creation
   // ══════════════════════════════════════════════════════════════════════════════

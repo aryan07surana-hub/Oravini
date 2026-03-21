@@ -327,6 +327,16 @@ function getInstagramEmbedInfo(url: string): { embedUrl: string; shortcode: stri
   return m ? { embedUrl: `https://www.instagram.com/${m[1]}/${m[2]}/embed/`, shortcode: m[2], type: m[1] } : null;
 }
 
+function getGoogleDriveEmbedInfo(url: string): { embedUrl: string; fileId: string } | null {
+  const m = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return { embedUrl: `https://drive.google.com/file/d/${m[1]}/preview`, fileId: m[1] };
+  const m2 = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (m2) return { embedUrl: `https://drive.google.com/file/d/${m2[1]}/preview`, fileId: m2[1] };
+  const m3 = url.match(/drive\.google\.com\/uc\?.*id=([a-zA-Z0-9_-]+)/);
+  if (m3) return { embedUrl: `https://drive.google.com/file/d/${m3[1]}/preview`, fileId: m3[1] };
+  return null;
+}
+
 const EDIT_TYPE_COLORS: Record<string, string> = {
   "cut":           "text-red-400    bg-red-500/10    border-red-500/25",
   "b-roll":        "text-purple-400 bg-purple-500/10 border-purple-500/25",
@@ -849,7 +859,8 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             {inputType === "url" && (() => {
               const liveYtId = getYouTubeEmbedId(inputValue);
               const liveIg = !liveYtId ? getInstagramEmbedInfo(inputValue) : null;
-              const hasLiveVideo = !!(liveYtId || liveIg);
+              const liveDrive = (!liveYtId && !liveIg) ? getGoogleDriveEmbedInfo(inputValue) : null;
+              const hasLiveVideo = !!(liveYtId || liveIg || liveDrive);
               const SEEK_POINTS = [
                 { sec: 0, label: "0s", thumb: 0 }, { sec: 5, label: "5s", thumb: 1 },
                 { sec: 10, label: "10s", thumb: 2 }, { sec: 15, label: "15s", thumb: 3 },
@@ -861,7 +872,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               return (
                 <div className="space-y-3">
                   <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://youtu.be/... or https://www.instagram.com/reel/..." className="bg-background border-border text-sm" />
-                  <p className="text-[11px] text-muted-foreground">Paste a YouTube or Instagram link — the video loads live below so you can scrub and analyze frame by frame.</p>
+                  <p className="text-[11px] text-muted-foreground">Paste a YouTube, Instagram, or Google Drive video link — it loads live so you can scrub and analyze frame by frame.</p>
 
                   {hasLiveVideo && (
                     <div className="space-y-3 mt-1">
@@ -965,6 +976,27 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                               <span className="text-[10px] text-muted-foreground font-medium capitalize">{liveIg.type === "reel" ? "Instagram Reel" : liveIg.type === "tv" ? "IGTV" : "Instagram Post"} · Live</span>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* ── Google Drive Player ───────────────────────────── */}
+                      {liveDrive && (
+                        <div className="space-y-2">
+                          <div className="relative rounded-2xl overflow-hidden border border-blue-400/30 shadow-[0_0_32px_rgba(96,165,250,0.10)]" style={{ aspectRatio: "16/9" }}>
+                            <iframe
+                              src={liveDrive.embedUrl}
+                              className="absolute inset-0 w-full h-full"
+                              allow="autoplay"
+                              allowFullScreen
+                              title="Google Drive Video Preview"
+                              data-testid="drive-player-iframe"
+                            />
+                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                              <span className="text-[9px] text-white/80 font-semibold uppercase tracking-wide">Google Drive · Video</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground text-center">Google Drive video loaded · AI will analyze the concept</p>
                         </div>
                       )}
 
@@ -1210,7 +1242,8 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             {inputType === "url" && (() => {
               const dockYtId = getYouTubeEmbedId(inputValue);
               const dockIg = !dockYtId ? getInstagramEmbedInfo(inputValue) : null;
-              if (!dockYtId && !dockIg) return null;
+              const dockDrive = (!dockYtId && !dockIg) ? getGoogleDriveEmbedInfo(inputValue) : null;
+              if (!dockYtId && !dockIg && !dockDrive) return null;
               return (
                 <div className="bg-card border border-primary/20 rounded-2xl overflow-hidden shadow-[0_0_24px_rgba(212,180,97,0.08)]">
                   {/* Dock header */}
@@ -1222,7 +1255,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     </div>
                     <div className="flex-1 text-left">
                       <p className="text-xs font-bold text-foreground">
-                        {dockYtId ? "YouTube" : "Instagram"} · Live Video
+                        {dockYtId ? "YouTube" : dockIg ? "Instagram" : "Google Drive"} · Live Video
                       </p>
                       <p className="text-[10px] text-muted-foreground">Visible across all tabs — scrub + seek while you edit</p>
                     </div>
@@ -1297,6 +1330,16 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                             </div>
                             <iframe src={dockIg.embedUrl} className="absolute inset-0 w-full h-full" allow="autoplay; clipboard-write; encrypted-media" allowFullScreen scrolling="no" title="IG Dock" data-testid="ig-dock-iframe" style={{ marginTop: "20px", height: "calc(100% - 20px)" }} />
                             <div className="absolute bottom-0 left-0 right-0 h-4 bg-gray-950 z-10" />
+                          </div>
+                        </div>
+                      )}
+                      {/* Google Drive dock player */}
+                      {dockDrive && (
+                        <div className="relative rounded-xl overflow-hidden border border-blue-400/20" style={{ aspectRatio: "16/9" }}>
+                          <iframe src={dockDrive.embedUrl} className="absolute inset-0 w-full h-full" allow="autoplay" allowFullScreen title="Drive Dock" data-testid="drive-dock-iframe" />
+                          <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 px-2 py-0.5 rounded-full pointer-events-none">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                            <span className="text-[8px] text-white/80 font-semibold">Drive</span>
                           </div>
                         </div>
                       )}
