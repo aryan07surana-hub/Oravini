@@ -2962,6 +2962,127 @@ Return ONLY this JSON:
     });
   });
 
+  // ── AI Video Editor ──────────────────────────────────────────────────────
+  app.post("/api/video/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { inputType, instagramUrl, script, description, mode, goal, audience, style, duration } = req.body;
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      let contentInfo = "";
+      if (inputType === "url" && instagramUrl) {
+        try {
+          const apifyToken = process.env.APIFY_TOKEN;
+          if (apifyToken) {
+            const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ directUrls: [instagramUrl], resultsType: "posts", resultsLimit: 1 }),
+            });
+            if (apifyRes.ok) {
+              const posts = await apifyRes.json();
+              if (posts?.[0]) {
+                const p = posts[0];
+                contentInfo = `INSTAGRAM REEL DATA:\nCaption: ${p.caption || p.text || "N/A"}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nHashtags: ${(p.hashtags || []).join(", ")}\nURL: ${instagramUrl}`;
+              }
+            }
+          }
+        } catch {}
+        if (!contentInfo) contentInfo = `Video URL provided: ${instagramUrl}\nNote: Could not extract metadata — analyze as a general video editing request based on this URL context.`;
+      } else if (inputType === "script" && script) {
+        contentInfo = `VIDEO SCRIPT / CONTENT:\n${script}`;
+      } else if (inputType === "describe" && description) {
+        contentInfo = `VIDEO CONCEPT / DESCRIPTION:\n${description}`;
+      }
+
+      const modeMap: Record<string, string> = {
+        viral: "VIRAL MODE: Fast cuts every 2-3s, bold captions, pattern interrupts, curiosity loops, high energy. Every second must earn its place.",
+        story: "STORY MODE: Narrative arc with emotional beats. Build tension → create connection → resolve with insight. Pacing follows emotional intensity.",
+        sales: "SALES MODE: Problem → Agitate → Solution → Proof → CTA. Every element drives toward conversion. Include urgency and social proof moments.",
+        funny: "FUNNY MODE: Timing is everything. Setup → pause → punchline. Use reaction cuts, callbacks, unexpected pivots. Caption every punchline.",
+        cinematic: "CINEMATIC MODE: Visual storytelling. Long reveals, B-roll heavy, dramatic pauses, music sync cuts. Quality over quantity.",
+        educational: "EDUCATIONAL MODE: Clear numbered structure. One concept per segment. Examples after each point. Recap at end. Clarity over entertainment.",
+        personal_brand: "PERSONAL BRAND MODE: Authentic voice, personal story, direct address to camera. Values-driven narrative that builds trust.",
+      };
+      const goalMap: Record<string, string> = {
+        viral: "GOAL - GO VIRAL: Hook must be irresistible. Include rewatch triggers. Optimize for shares and saves.",
+        followers: "GOAL - GET FOLLOWERS: Build connection and trust throughout. End with a compelling follow reason + CTA.",
+        sales: "GOAL - SELL PRODUCT: Drive purchase decision — include price anchoring, social proof, urgency, and clear CTA.",
+        brand: "GOAL - BUILD BRAND: Establish authority and expertise. Make this creator unforgettable.",
+      };
+
+      const durationNote = duration ? `Estimated video duration: ${duration} seconds.` : "Estimate reasonable timestamps for a 30-60 second reel.";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const styleNote = style ? `Desired style reference: "${style}". Apply this aesthetic and energy to all suggestions.` : "";
+
+      const prompt = `You are an elite AI video editing strategist. Analyze this video content and produce a comprehensive, actionable edit plan.
+
+CONTENT:
+${contentInfo}
+
+${modeMap[mode] || modeMap.viral}
+${goalMap[goal] || goalMap.viral}
+${audienceNote}
+${styleNote}
+${durationNote}
+
+Return ONLY valid JSON (no markdown) matching this exact schema:
+{
+  "overallScore": number (0-100),
+  "modeApplied": string,
+  "summary": string (2-3 sentence overall verdict — be direct and specific),
+  "timeline": [
+    { "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "KEEP"|"CUT"|"TRIM"|"ADD"|"REORDER", "note": string, "energyLevel": number (1-10) }
+  ],
+  "cuts": [
+    { "timestamp": string, "reason": string, "severity": "high"|"medium"|"low", "fix": string }
+  ],
+  "hook": {
+    "current": string,
+    "score": number (0-10),
+    "improved": [string, string, string]
+  },
+  "captions": {
+    "onScreen": [string],
+    "postCaption": string,
+    "hashtags": [string]
+  },
+  "ctas": [string, string, string],
+  "audio": [
+    { "name": string, "mood": string, "why": string }
+  ],
+  "visuals": [
+    { "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }
+  ],
+  "checklist": [string],
+  "variations": [
+    { "name": string, "targetPlatform": string, "description": string, "changes": [string] }
+  ],
+  "styleGuide": {
+    "pacing": string,
+    "captions": string,
+    "energy": string,
+    "colorGrading": string,
+    "soundDesign": string
+  }
+}`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 4000, temperature: 0.75 }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const raw = data.choices?.[0]?.message?.content || "{}";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      return res.json(JSON.parse(cleaned));
+    } catch (err: any) {
+      console.error("[Video Editor] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Video analysis failed" });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {

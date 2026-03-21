@@ -1,0 +1,641 @@
+ADD A NEW SECTION AS AI VIDEO EDITOR
+Yeah do it in a new section where they can insert the link for the video maybe a google drive one and also include the proper Ai templates and ask them how they wanna edit the video and how they should be able to
+You are an AI Video Editing Assistant designed to transform raw video content into high-performing, engaging social media content.
+
+Your role is to:
+- Analyze video or script input
+- Identify weak and strong sections
+- Suggest and apply edits to improve engagement and retention
+
+When given input (video, script, or URL):
+
+1. Break down content into:
+- Hook
+- Body
+- Payoff
+
+2. Analyze:
+- Pacing
+- Emotional intensity
+- Clarity
+- Engagement level
+
+3. Provide:
+- Cut suggestions
+- Caption suggestions
+- Visual enhancement suggestions
+- Audio recommendations
+
+4. Apply editing styles based on selected mode:
+- Viral, Story, Sales, Funny, Cinematic, Educational
+
+5. Generate:
+- Improved hooks
+- On-screen captions
+- Final video structure
+
+6. Suggest:
+- Trending audio usage
+- Graphics and visual elements
+- CTA improvements
+
+Output must be:
+- Clear
+- Actionable
+- Structured
+- Optimized for retention and virality
+🤖 3. AI Layer (Your Secret Sauce)
+Generates edit instructions
+
+
+Applies templates
+
+
+Suggests cuts, captions, effects
+
+
+
+🎯 FEATURES YOU SHOULD BUILD (THIS IS THE GOLD)
+🎥 1. “Paste Instagram URL → Auto Edit”
+User pastes reel link →
+System:
+Extracts video
+
+
+Transcribes audio
+
+
+Detects:
+
+
+hook
+
+
+pauses
+
+
+boring parts
+
+
+👉 Output:
+“Cut here”
+
+
+“Add captions here”
+
+
+“Zoom here”
+
+
+
+✂️ 2. AI Editing Modes
+User selects:
+Viral Mode 🔥
+
+
+Story Mode 🎬
+
+
+Sales Mode 💰
+
+
+Funny Mode 😂
+
+
+Cinematic Mode 🎥
+
+
+👉 Each = different editing style
+
+🎨 3. Template Library
+Hook templates
+
+
+Caption styles
+
+
+Subtitle animations
+
+
+B-roll insert templates
+
+
+Sound effects presets
+
+
+
+🤖 4. “Edit For Me” Button
+User says:
+👉 “Make this more engaging”
+AI:
+Cuts silence
+
+
+Adds captions
+
+
+Adds zooms
+
+
+Improves pacing
+
+
+
+🧠 5. Describe-to-Edit (CRAZY FEATURE)
+User types:
+👉 “Make it like Alex Hormozi style”
+AI:
+Fast cuts
+
+
+Bold captions
+
+
+Zoom effects
+
+
+High energy pacing
+
+
+
+📊 6. Editing Feedback System
+Connected to your retention analyzer:
+👉 “This section is boring → cut it”
+ 👉 “Hook too long → trim 2 sec”
+
+🎮 7. Timeline Lite (Simple UI)
+Not complex editing
+Just:
+Cut segments
+
+
+Drag clips
+
+
+Toggle effects
+
+
+
+⚡ HOW IT SHOULD FEEL (IMPORTANT)
+User flow:
+Paste URL
+
+
+Select “Viral Mode”
+
+
+Click “Edit For Me”
+
+
+AI processes
+
+
+Preview video
+
+
+Download
+
+
+👉 DONE in 30–60 seconds
+
+💡 REALITY CHECK (VERY IMPORTANT)
+If you try to:
+ ❌ build full editor from scratch → you’ll fail / waste time
+If you:
+ ✅ use APIs + AI logic → you win fast
+
+🚀 MVP YOU SHOULD BUILD FIRST
+Start SIMPLE:
+URL input
+
+
+AI gives:
+
+
+cuts
+
+
+captions
+
+
+suggestions
+
+
+Basic template output
+
+
+Then upgrade:
+auto-edit
+
+
+rendering
+
+
+Effects
+
+
+This module should function as an AI-powered editing studio where users don’t need editing skills — they just provide input (URL, script, or idea), and the system transforms it into a high-performing video using templates, trends, and AI-driven decisions.
+The experience begins with a simple input:
+👉 “Paste your Instagram URL, upload a video, or describe how you want your video to look.”
+From here, the system activates a multi-layer AI pipeline that analyzes, edits, enhances, and optimizes the content automatically.
+
+⚙️ CORE SYSTEM FLOW
+Step 1: Input
+User can:
+Paste Instagram Reel URL
+
+
+Upload raw video
+
+
+Describe desired output
+
+
+
+Step 2: AI Breakdown
+System automatically:
+Extracts video
+
+
+Transcribes speech
+
+
+Detects:
+
+
+Hook
+
+
+Dead space
+
+
+Energy drops
+
+
+Key moments
+
+
+
+Step 3: AI Editing Engine
+AI generates:
+Cut suggestions
+
+
+Caption placement
+
+
+Zoom/transition points
+
+
+Visual enhancement suggestions
+
+
+
+Step 4: Output
+Edited preview
+
+
+Download-ready video
+
+
+Editable timeline (light version)
+
+
+
+🤖 AI LAYER (YOUR SECRET SAUCE)
+This is what makes your product unfair:
+Generates edit instructions
+
+
+Applies templates automatically
+
+
+Suggests captions, cuts, effects
+
+
+Predicts retention + virality
+
+
+
+🎯 CORE FEATURES (FULL SYSTEM)
+🎥 1. Paste URL → Auto Edit
+User pastes Instagram link →
+AI:
+Pulls video
+
+
+Breaks it down
+
+
+Suggests edits OR auto-edits
+
+
+👉 Output:
+“Cut here”
+
+
+“Add captions here”
+
+
+“Zoom here”
+
+
+
+✂️ 2. AI Editing Modes
+User selects style:
+Viral Mode 🔥 (fast cuts, high energy)
+
+
+Story Mode 🎬 (narrative flow)
+
+
+Sales Mode 💰 (conversion-focused)
+
+
+Funny Mode 😂 (timing + humor edits)
+
+
+Cinematic Mode 🎥 (visual aesthetics)
+
+
+Educational Mode 📚 (clarity + structure)
+
+
+Personal Brand Mode 🚀
+
+
+
+🎨 3. Smart Template Library
+Templates for:
+Hooks
+
+
+Caption styles
+
+
+Subtitle animations
+
+
+B-roll overlays
+
+
+CTA endings
+
+
+Sound effects
+
+
+👉 AI auto-applies templates based on content
+
+🤖 4. “Edit For Me” Button
+One-click transformation:
+AI:
+Cuts silence
+
+
+Speeds pacing
+
+
+Adds captions
+
+
+Applies effects
+
+
+Optimizes hook
+
+
+
+🧠 5. Describe-to-Edit
+User types:
+👉 “Make it high energy like a business guru”
+ 👉 “Make it storytelling style”
+AI converts:
+Tone
+
+
+Cuts
+
+
+Visual style
+
+
+
+📝 6. Caption Generator (Advanced)
+Generate:
+On-screen captions
+
+
+Instagram caption (post text)
+
+
+Hashtags
+
+
+CTA lines
+
+
+Options:
+Short / long
+
+
+Funny / serious / viral
+
+
+Sales / educational
+
+
+
+📊 7. Editing Feedback System
+Connected to retention analyzer:
+“Drop at 4s → trim intro”
+
+
+“Low energy → add cuts”
+
+
+“No payoff → restructure ending”
+
+
+
+🎮 8. Timeline Lite
+Simple editing:
+Cut clips
+
+
+Rearrange
+
+
+Toggle effects
+
+
+Adjust captions
+
+
+(No complex editing — keep it fast)
+
+🔥 ADVANCED FEATURES (THIS IS WHERE YOU WIN)
+📈 9. Trend Scanner (BIG FEATURE)
+System scans Instagram trends:
+Trending audio
+
+
+Viral formats
+
+
+Hook patterns
+
+
+👉 Suggests:
+“Use this audio”
+
+
+“This style is trending”
+
+
+
+🎧 10. Smart Audio Matching
+AI:
+Replaces or suggests trending audio
+
+
+Syncs cuts to beats
+
+
+
+🧬 11. Visual Enhancement Engine
+AI suggests:
+Emojis
+
+
+Graphics
+
+
+Motion elements
+
+
+B-roll inserts
+
+
+👉 “Add visual here to boost engagement”
+
+🧠 12. Content Intelligence
+AI explains:
+Why edits work
+
+
+Why something is boring
+
+
+How to improve
+
+
+
+🔁 13. Multi-Version Generator
+Create:
+3–5 variations of same video
+
+
+👉 A/B test content
+
+🎯 14. Goal-Based Editing
+User selects goal:
+Go viral
+
+
+Get followers
+
+
+Sell product
+
+
+AI adapts editing style
+
+🕵️ 15. Competitor Video Breakdown
+Paste competitor reel →
+AI shows:
+Their cuts
+
+
+Their hook strategy
+
+
+Their pacing
+
+
+
+🎨 16. Thumbnail + Cover Generator
+AI generates:
+Reel covers
+
+
+Hook text overlays
+
+
+
+⏱️ 17. Hook Optimizer
+Rewrites first 3 seconds:
+Faster
+
+
+Stronger
+
+
+More curiosity
+
+
+
+📣 18. CTA Generator
+AI suggests:
+“Follow for more”
+
+
+“Comment below”
+
+
+“DM me”
+
+
+
+⚡ UX FLOW (MAKE IT ADDICTIVE)
+Paste URL
+
+
+Choose mode
+
+
+Click “Edit For Me”
+
+
+AI processes
+
+
+Preview
+
+
+Download
+
+
+👉 Fast, clean, powerful
+
+🚀 MVP STRATEGY (DO THIS FIRST)
+Start with:
+Phase 1:
+URL input
+
+
+AI suggestions (cuts, captions)
+
+
+Phase 2:
+Templates
+
+
+Caption generator
+
+
+Phase 3:
+Auto editing + rendering
+
+
+

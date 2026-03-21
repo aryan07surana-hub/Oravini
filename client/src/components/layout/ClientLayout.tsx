@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard
 } from "lucide-react";
 import { useState } from "react";
 
@@ -25,6 +25,7 @@ const mainNavItems = [
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
+  { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
