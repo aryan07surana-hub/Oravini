@@ -3096,7 +3096,7 @@ ${editSchema}`;
 
   app.post("/api/video/idea-builder", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { concept, mode, goal, audience, style, platform, duration } = req.body;
+      const { concept, mode, goal, audience, style, platform, duration, competitorUrls } = req.body;
       if (!concept?.trim()) return res.status(400).json({ message: "Video concept is required" });
 
       const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
@@ -3106,9 +3106,47 @@ ${editSchema}`;
       const platformLabel = platform === "tiktok" ? "TikTok" : platform === "youtube" ? "YouTube Shorts" : "Instagram Reels";
       const durationLabel = duration ? `${duration} seconds` : "30-45 seconds";
 
+      // Scrape competitor/inspiration reels
+      let competitorContext = "";
+      const urls: string[] = Array.isArray(competitorUrls) ? competitorUrls.filter(Boolean) : [];
+      if (urls.length > 0) {
+        const scraped: string[] = [];
+        for (const url of urls.slice(0, 3)) {
+          try {
+            const isYT = /youtube\.com|youtu\.be/.test(url);
+            if (isYT) {
+              scraped.push(`YouTube competitor video: ${url} — analyze its style, pacing, and structure`);
+            } else {
+              const apifyToken = process.env.APIFY_TOKEN;
+              if (apifyToken) {
+                const r = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ directUrls: [url], resultsType: "posts", resultsLimit: 1 }),
+                });
+                if (r.ok) {
+                  const posts = await r.json();
+                  if (posts?.[0]) {
+                    const p = posts[0];
+                    scraped.push(`Competitor reel: ${url}\n  Caption: ${(p.caption || p.text || "").substring(0, 200)}\n  Likes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0} | Views: ${p.videoViewCount || p.videoPlayCount || 0}\n  Hashtags: ${(p.hashtags || []).slice(0, 10).join(", ")}`);
+                  }
+                }
+              }
+              if (!scraped.some(s => s.includes(url))) scraped.push(`Competitor reel URL: ${url} — extract the visual style, hook pattern, pacing and caption approach`);
+            }
+          } catch {}
+        }
+        if (scraped.length > 0) {
+          competitorContext = `\nCOMPETITOR / INSPIRATION REELS TO STYLE-MATCH:
+${scraped.join("\n\n")}
+
+CRITICAL STYLE-MATCH INSTRUCTION: Study what makes these competitor reels successful — their hook type, pacing, cut frequency, caption style, energy level, and content structure. Create the new video concept in a similar style but with completely original content. Note in the script and shot list where you're applying competitor-inspired techniques.`;
+        }
+      }
+
       const ideaSchema = `{
   "title": string,
   "overallScore": number (85-99),
+  "competitorInsights": string (if competitor URLs provided: 2-3 sentences on what patterns you borrowed from them and why they work; otherwise empty string),
   "summary": string (3-4 sentences about what this video will achieve),
   "fullScript": string (complete word-for-word voiceover script with [PAUSE] [ZOOM] [CUT] markers — at least 150 words, conversational and punchy),
   "shotList": [{ "shot": number, "timestamp": string, "type": string, "description": string, "duration": string }],
@@ -3132,6 +3170,7 @@ ${modeDesc}
 ${goalDesc}
 ${audienceNote}
 ${styleNote}
+${competitorContext}
 
 Write the actual word-for-word script they should record. Be creative, specific, and genuinely engaging. This creator is counting on you.
 
@@ -3143,6 +3182,32 @@ ${ideaSchema}`;
     } catch (err: any) {
       console.error("[Video Idea Builder] Error:", err.message);
       return res.status(500).json({ message: err.message || "Idea builder failed" });
+    }
+  });
+
+  app.post("/api/video/suggest-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal } = req.body;
+      const templateIds = ["hook-reel", "story-arc", "sales-convert", "funny-timing", "cinematic-reveal", "educational-breakdown", "personal-brand"];
+      const prompt = `You are a viral content strategist. A creator has this video concept: "${concept || "general social media content"}". Their preferred mode is "${mode || "viral"}" and goal is "${goal || "viral"}".
+
+From these 7 template IDs: ${templateIds.join(", ")}
+
+Pick the TOP 2 or 3 that would work best for this concept. Be decisive and explain why.
+
+Return ONLY valid JSON:
+{
+  "recommendations": [
+    { "id": string (one of the template IDs above), "rank": number (1=best), "reason": string (1 sentence why this template fits perfectly), "customization": string (1 sentence on how to adapt it for this specific concept) }
+  ],
+  "avoidThese": [string] (1-2 template IDs that would NOT work well, with brief reason in format "id: reason")
+}`;
+
+      const result = await callGemini(prompt);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Suggest Templates] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Template suggestion failed" });
     }
   });
 
