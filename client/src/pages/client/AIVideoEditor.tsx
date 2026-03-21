@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
+import CanvaPanel from "@/components/canva/CanvaPanel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -381,6 +382,20 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [activeTab, setActiveTab] = useState("timeline");
   const [appliedEdits, setAppliedEdits] = useState<Set<number>>(new Set());
 
+  // Handle Canva OAuth redirect callbacks
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("canva") === "connected") {
+      toast({ title: "Canva connected!", description: "Your Canva account is linked. Check the Canva tab to create designs." });
+      setActiveTab("canva");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("canva") === "error") {
+      const reason = params.get("reason") || "unknown";
+      toast({ title: "Canva connection failed", description: reason.replace(/_/g, " "), variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   // Runware image generation
   const [thumbnails, setThumbnails] = useState<string[]>([]);
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
@@ -649,6 +664,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
     { id: "visuals",   label: "Visuals",   icon: Eye        },
     { id: "checklist", label: "Checklist", icon: ListChecks },
     ...(!isIdeaResult ? [{ id: "variations", label: "Variations", icon: Shuffle }] : []),
+    { id: "canva",     label: "Canva",     icon: Layers     },
   ];
 
   // Render ─────────────────────────────────────────────────────────────────────
@@ -1812,6 +1828,10 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     </div>
                   </div>
                 )}
+
+                {/* ── Canva Tab ────────────────────────────────────────────── */}
+                {activeTab === "canva" && <CanvaPanel result={result} platform={platform} />}
+
               </div>
             </div>
 

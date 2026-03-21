@@ -3515,6 +3515,271 @@ Return ONLY valid JSON:
     }
   });
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CANVA CONNECT API
+  // OAuth 2.0 with PKCE + design/asset creation
+  // ══════════════════════════════════════════════════════════════════════════════
+  const CANVA_CLIENT_ID = process.env.CANVA_CLIENT_ID!;
+  const CANVA_CLIENT_SECRET = process.env.CANVA_CLIENT_SECRET!;
+  const CANVA_BASE = "https://api.canva.com/rest/v1";
+  const CANVA_AUTH_URL = "https://www.canva.com/api/oauth/authorize";
+  const CANVA_TOKEN_URL = "https://api.canva.com/rest/v1/oauth/token";
+  const CANVA_SCOPES = [
+    "design:content:read",
+    "design:content:write",
+    "design:meta:read",
+    "asset:read",
+    "asset:write",
+    "folder:read",
+    "profile:read",
+  ].join(" ");
+
+  // Helper: get fresh access token (refresh if expired)
+  async function getCanvaAccessToken(userId: string): Promise<string | null> {
+    const token = await storage.getCanvaToken(userId);
+    if (!token) return null;
+    if (new Date() < new Date(token.expiresAt)) return token.accessToken;
+    // Refresh
+    if (!token.refreshToken) { await storage.deleteCanvaToken(userId); return null; }
+    try {
+      const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+      const r = await fetch(CANVA_TOKEN_URL, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: token.refreshToken }),
+      });
+      if (!r.ok) { await storage.deleteCanvaToken(userId); return null; }
+      const data = await r.json() as any;
+      await storage.upsertCanvaToken({
+        userId,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token || token.refreshToken,
+        expiresAt: new Date(Date.now() + (data.expires_in || 14400) * 1000),
+        scope: data.scope || token.scope,
+      });
+      return data.access_token;
+    } catch { await storage.deleteCanvaToken(userId); return null; }
+  }
+
+  // Helper: call Canva REST API
+  async function canvaFetch(userId: string, path: string, options: RequestInit = {}): Promise<any> {
+    const token = await getCanvaAccessToken(userId);
+    if (!token) throw new Error("Canva account not connected. Please connect your Canva account first.");
+    const res = await fetch(`${CANVA_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+    const body = await res.json() as any;
+    if (!res.ok) throw new Error(body?.message || body?.error?.message || `Canva API error ${res.status}`);
+    return body;
+  }
+
+  // ── OAuth: Start ────────────────────────────────────────────────────────────
+  app.get("/api/canva/oauth/start", requireAuth, (req: Request, res: Response) => {
+    const { crypto } = globalThis;
+    const codeVerifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+    const state = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
+    // Store in session
+    (req.session as any).canvaCodeVerifier = codeVerifier;
+    (req.session as any).canvaState = state;
+    // Build code challenge (S256)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(codeVerifier);
+    crypto.subtle.digest("SHA-256", data).then(hash => {
+      const challenge = Buffer.from(hash).toString("base64url");
+      const redirectUri = `${req.protocol}://${req.get("host")}/api/canva/oauth/callback`;
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: CANVA_CLIENT_ID,
+        redirect_uri: redirectUri,
+        scope: CANVA_SCOPES,
+        state,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+      });
+      return res.redirect(`${CANVA_AUTH_URL}?${params}`);
+    }).catch(err => res.status(500).json({ message: err.message }));
+  });
+
+  // ── OAuth: Callback ─────────────────────────────────────────────────────────
+  app.get("/api/canva/oauth/callback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { code, state, error } = req.query as any;
+      if (error) return res.redirect("/?canva=error&reason=" + encodeURIComponent(error));
+      const storedState = (req.session as any).canvaState;
+      const codeVerifier = (req.session as any).canvaCodeVerifier;
+      if (!storedState || state !== storedState) return res.redirect("/?canva=error&reason=state_mismatch");
+      delete (req.session as any).canvaState;
+      delete (req.session as any).canvaCodeVerifier;
+      const redirectUri = `${req.protocol}://${req.get("host")}/api/canva/oauth/callback`;
+      const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+      const tokenRes = await fetch(CANVA_TOKEN_URL, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: codeVerifier, redirect_uri: redirectUri }),
+      });
+      const tokenData = await tokenRes.json() as any;
+      if (!tokenRes.ok) return res.redirect("/?canva=error&reason=" + encodeURIComponent(tokenData.error || "token_failed"));
+      const user = req.user as any;
+      await storage.upsertCanvaToken({
+        userId: user.id,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: new Date(Date.now() + (tokenData.expires_in || 14400) * 1000),
+        scope: tokenData.scope,
+      });
+      return res.redirect("/video-editor?canva=connected");
+    } catch (err: any) {
+      console.error("[Canva OAuth callback]", err.message);
+      return res.redirect("/?canva=error&reason=server_error");
+    }
+  });
+
+  // ── OAuth: Status ───────────────────────────────────────────────────────────
+  app.get("/api/canva/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const token = await storage.getCanvaToken(user.id);
+      if (!token) return res.json({ connected: false });
+      const isExpired = new Date() >= new Date(token.expiresAt);
+      const canRefresh = !isExpired || !!token.refreshToken;
+      return res.json({ connected: true, expired: isExpired, canRefresh, scope: token.scope });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── OAuth: Disconnect ───────────────────────────────────────────────────────
+  app.delete("/api/canva/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const token = await storage.getCanvaToken(user.id);
+      if (token?.accessToken) {
+        const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+        await fetch("https://api.canva.com/rest/v1/oauth/revoke", {
+          method: "POST",
+          headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: token.accessToken }),
+        }).catch(() => {});
+      }
+      await storage.deleteCanvaToken(user.id);
+      return res.json({ message: "Canva disconnected" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── List Designs ────────────────────────────────────────────────────────────
+  app.get("/api/canva/designs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { limit = "10", query } = req.query as any;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (query) params.set("query", query);
+      const data = await canvaFetch(user.id, `/designs?${params}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Create Design ───────────────────────────────────────────────────────────
+  app.post("/api/canva/designs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { designType = "instagram-reel", title, assetId } = req.body;
+      const body: any = {
+        design_type: { type: "preset", name: designType },
+        title: title || "Brandverse Design",
+      };
+      if (assetId) body.asset_id = assetId;
+      const data = await canvaFetch(user.id, "/designs", { method: "POST", body: JSON.stringify(body) });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Upload Asset from URL ───────────────────────────────────────────────────
+  app.post("/api/canva/assets/upload-url", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { url, name } = req.body;
+      if (!url) return res.status(400).json({ message: "url required" });
+      const data = await canvaFetch(user.id, "/asset-uploads", {
+        method: "POST",
+        body: JSON.stringify({ url, name: name || "Brandverse Asset" }),
+      });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Get Asset ───────────────────────────────────────────────────────────────
+  app.get("/api/canva/assets/:assetId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const data = await canvaFetch(user.id, `/assets/${req.params.assetId}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── List Brand Templates ────────────────────────────────────────────────────
+  app.get("/api/canva/brand-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { limit = "20", query } = req.query as any;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (query) params.set("query", query);
+      const data = await canvaFetch(user.id, `/brand-templates?${params}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Get User Profile ────────────────────────────────────────────────────────
+  app.get("/api/canva/profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const data = await canvaFetch(user.id, "/users/me");
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Create Design from AI video context (Thumbnail / Reel Cover) ────────────
+  app.post("/api/canva/create-from-video", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, concept, platform = "instagram-reel", designType } = req.body;
+      const canvaDesignType = designType || (
+        platform === "youtube" ? "youtube-thumbnail" :
+        platform === "tiktok" ? "tiktok-video" :
+        "instagram-reel"
+      );
+      const cleanTitle = String(title || concept || "My Video").slice(0, 80);
+      const data = await canvaFetch(user.id, "/designs", {
+        method: "POST",
+        body: JSON.stringify({
+          design_type: { type: "preset", name: canvaDesignType },
+          title: cleanTitle,
+        }),
+      });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
   // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
   app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
     try {

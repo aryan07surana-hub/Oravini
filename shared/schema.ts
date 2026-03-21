@@ -272,3 +272,18 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const canvaTokens = pgTable("canva_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at").notNull(),
+  scope: text("scope"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCanvaTokenSchema = createInsertSchema(canvaTokens).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCanvaToken = z.infer<typeof insertCanvaTokenSchema>;
+export type CanvaToken = typeof canvaTokens.$inferSelect;

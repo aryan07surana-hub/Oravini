@@ -85,6 +85,7 @@ A WebSocket server, operating on the `/ws` path, manages real-time chat and noti
 - **YouTube Data API v3:** For fetching YouTube video and channel statistics (`YOUTUBE_API_KEY`). Also used to enrich YouTube URL context in the AI Video Editor.
 - **Meta Graph API:** Primary API for Instagram post statistics and profile information (token management, `ACCESS_TOKEN`).
 - **Groq:** Powers the AI Content Coach, AI Video Editor (Idea Builder + Analyze + Template Suggest + Chat Edit + Suggest Audio + Generate Captions — 6 endpoints), and various AI functions using `llama-3.3-70b-versatile` in JSON mode.
+- **Canva Connect API:** OAuth 2.0 with PKCE flow (`CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`). Allows users to connect their Canva account and create designs (Instagram Reels, YouTube Thumbnails, TikTok, Presentations, Docs) directly from the AI Video Editor. Tokens stored in `canva_tokens` table per user. Routes: GET `/api/canva/oauth/start`, GET `/api/canva/oauth/callback`, GET `/api/canva/status`, DELETE `/api/canva/disconnect`, GET `/api/canva/designs`, POST `/api/canva/designs`, POST `/api/canva/assets/upload-url`, GET `/api/canva/assets/:id`, GET `/api/canva/brand-templates`, GET `/api/canva/profile`, POST `/api/canva/create-from-video`. Canva tab in Video Editor (client/src/components/canva/CanvaPanel.tsx).
 - **Calendly Webhooks:** For integrating scheduling and booking data.
 
 ### Frontend Dependencies
