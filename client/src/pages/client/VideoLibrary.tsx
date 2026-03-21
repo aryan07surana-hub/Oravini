@@ -6,28 +6,37 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Play, ExternalLink, Clapperboard, Filter, Search, ChevronRight,
-  Youtube, Instagram, HardDrive, Globe, Loader2, Film, Sparkles
+  Youtube, Instagram, HardDrive, Globe, Loader2, Film, Sparkles,
+  FolderOpen, ChevronDown, ChevronUp
 } from "lucide-react";
 
-const CATEGORIES = ["All", "Hooks & Openings", "Viral Formats", "Storytelling", "Sales & CTA", "Transitions", "Trending Styles", "General"];
+const CATEGORIES = ["All", "Satisfying Reels", "Hooks & Openings", "Viral Formats", "Storytelling", "Sales & CTA", "Transitions", "Trending Styles", "General"];
 
 const PLATFORM_ICONS: Record<string, any> = {
   youtube: Youtube,
   instagram: Instagram,
   drive: HardDrive,
+  "drive-folder": HardDrive,
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
-  youtube:   "text-red-400   border-red-500/30   bg-red-500/10",
-  instagram: "text-pink-400  border-pink-500/30  bg-pink-500/10",
-  drive:     "text-blue-400  border-blue-500/30  bg-blue-500/10",
+  youtube:        "text-red-400   border-red-500/30   bg-red-500/10",
+  instagram:      "text-pink-400  border-pink-500/30  bg-pink-500/10",
+  drive:          "text-blue-400  border-blue-500/30  bg-blue-500/10",
+  "drive-folder": "text-blue-400  border-blue-500/30  bg-blue-500/10",
 };
 
 function detectPlatform(url: string): string {
   if (/youtube\.com|youtu\.be/.test(url)) return "youtube";
   if (/instagram\.com/.test(url)) return "instagram";
+  if (/drive\.google\.com\/drive\/folders/.test(url)) return "drive-folder";
   if (/drive\.google\.com/.test(url)) return "drive";
   return "other";
+}
+
+function getDriveFolderId(url: string): string | null {
+  const m = url.match(/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
 }
 
 function getYouTubeId(url: string): string | null {
@@ -81,6 +90,67 @@ function VideoPlayer({ url, platform, title, onClose }: { url: string; platform:
           </a>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DriveFolderCard({ resource, embedUrl, platformColor, navigate }: {
+  resource: any; embedUrl: string | null; platformColor: string; navigate: (path: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="col-span-1 sm:col-span-2 lg:col-span-3 bg-card border border-blue-400/20 rounded-2xl overflow-hidden hover:border-blue-400/40 transition-all"
+      data-testid={`video-card-${resource.id}`}>
+      <button onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-4 p-4 hover:bg-muted/5 transition-colors"
+        data-testid={`btn-expand-folder-${resource.id}`}>
+        <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-400/30 flex items-center justify-center flex-shrink-0">
+          <FolderOpen className="w-5 h-5 text-blue-400" />
+        </div>
+        <div className="flex-1 text-left">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-foreground">{resource.title}</p>
+            <Badge className={`text-[9px] px-1.5 py-0 border ${platformColor} font-semibold`}>
+              <HardDrive className="w-2.5 h-2.5 mr-1" />Google Drive Folder
+            </Badge>
+            {resource.category && resource.category !== "General" && (
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-primary/25 text-primary/80">{resource.category}</Badge>
+            )}
+          </div>
+          {resource.description && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">{resource.description}</p>
+          )}
+          <p className="text-[10px] text-blue-400/70 mt-0.5">Click to browse videos inside this folder</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <a href={resource.url} target="_blank" rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="p-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-colors"
+            data-testid={`btn-external-${resource.id}`}>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {expanded && embedUrl && (
+        <div className="border-t border-blue-400/15">
+          <div className="px-4 py-2 flex items-center gap-3 bg-blue-500/5">
+            <span className="text-[10px] text-blue-400/80 font-semibold">Browse folder contents below — click any file to open it in Drive, or copy its link to analyze in the AI Video Editor</span>
+            <Button size="sm" onClick={() => navigate("/video-editor")}
+              className="ml-auto h-7 bg-primary/10 border border-primary/30 text-primary text-[10px] gap-1 rounded-xl flex-shrink-0">
+              <Clapperboard className="w-3 h-3" />Open Editor
+            </Button>
+          </div>
+          <iframe
+            src={embedUrl}
+            className="w-full border-0"
+            style={{ height: "340px" }}
+            title={resource.title}
+            data-testid={`folder-embed-${resource.id}`}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -162,9 +232,20 @@ export default function VideoLibrary() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((resource: any) => {
               const platform = resource.platform || detectPlatform(resource.url);
-              const thumb = getThumbnail(resource.url, platform, resource.thumbnailUrl);
               const PlatformIcon = PLATFORM_ICONS[platform] || Globe;
               const platformColor = PLATFORM_COLORS[platform] || "text-muted-foreground border-muted/30 bg-muted/10";
+
+              /* ── Drive Folder card ─────────────────────────────── */
+              if (platform === "drive-folder") {
+                const folderId = getDriveFolderId(resource.url);
+                const embedUrl = folderId ? `https://drive.google.com/embeddedfolderview?id=${folderId}#grid` : null;
+                return (
+                  <DriveFolderCard key={resource.id} resource={resource} embedUrl={embedUrl} platformColor={platformColor} navigate={navigate} />
+                );
+              }
+
+              /* ── Regular video card ───────────────────────────── */
+              const thumb = getThumbnail(resource.url, platform, resource.thumbnailUrl);
               return (
                 <div key={resource.id} className="group bg-card border border-card-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-[0_0_24px_rgba(212,180,97,0.08)] transition-all"
                   data-testid={`video-card-${resource.id}`}>
