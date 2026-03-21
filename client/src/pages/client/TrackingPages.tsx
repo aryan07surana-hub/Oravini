@@ -85,7 +85,8 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
     if (!form.postUrl) return;
     setSyncing(true);
     try {
-      const data = await apiRequest("POST", "/api/instagram/sync-post", { postUrl: form.postUrl });
+      const endpoint = isYt ? "/api/youtube/sync-post" : "/api/instagram/sync-post";
+      const data = await apiRequest("POST", endpoint, { postUrl: form.postUrl });
       setForm(f => ({
         ...f,
         views: data.views ?? f.views,
@@ -93,9 +94,10 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
         comments: data.comments ?? f.comments,
         ...(data.title && !f.title ? { title: data.title } : {}),
         ...(data.contentType ? { contentType: data.contentType } : {}),
+        ...(data.publishedAt && !f.postDate ? { postDate: format(new Date(data.publishedAt), "yyyy-MM-dd") } : {}),
         ...(data.postDate ? { postDate: format(new Date(data.postDate), "yyyy-MM-dd") } : {}),
       }));
-      toast({ title: "Stats synced!", description: `Fetched real-time data from Instagram.` });
+      toast({ title: "Stats synced!", description: isYt ? `Fetched real-time data from YouTube.` : `Fetched real-time data from Instagram.` });
     } catch (err: any) {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
     } finally {
@@ -138,15 +140,15 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
           <Label>{isYt ? "Video Link (optional)" : "Post Link (optional)"}</Label>
           <div className="flex gap-2 mt-1">
             <Input value={form.postUrl} onChange={e => set("postUrl", e.target.value)} placeholder={isYt ? "https://youtube.com/watch?v=..." : "https://instagram.com/p/..."} className="flex-1" />
-            {!isYt && form.postUrl && (
+            {form.postUrl && (
               <Button type="button" variant="outline" size="sm" onClick={handleSyncStats} disabled={syncing} className="flex-shrink-0 border-primary/30 text-primary hover:bg-primary/10 gap-1.5" data-testid="button-sync-stats">
                 {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 {syncing ? "Syncing…" : "Sync Stats"}
               </Button>
             )}
           </div>
-          {!isYt && form.postUrl && (
-            <p className="text-[11px] text-muted-foreground mt-1">Paste the Instagram post link then click Sync Stats to auto-fill views, likes & comments in real time.</p>
+          {form.postUrl && (
+            <p className="text-[11px] text-muted-foreground mt-1">Paste the {isYt ? "YouTube video" : "Instagram post"} link then click Sync Stats to auto-fill views, likes & comments in real time.</p>
           )}
         </div>
         <div>
@@ -840,14 +842,15 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
 
   const syncCheckpoint = async (checkpoint: "initial" | "2w" | "4w") => {
     if (!post.postUrl) {
-      toast({ title: "No URL", description: "This post needs a URL to sync from Instagram.", variant: "destructive" });
+      toast({ title: "No URL", description: `This post needs a URL to sync from ${isYt ? "YouTube" : "Instagram"}.`, variant: "destructive" });
       return;
     }
     setSyncing(checkpoint);
     try {
-      await apiRequest("POST", "/api/instagram/sync-checkpoint", { postId: post.id, postUrl: post.postUrl, checkpoint });
+      const endpoint = isYt ? "/api/youtube/sync-checkpoint" : "/api/instagram/sync-checkpoint";
+      await apiRequest("POST", endpoint, { postId: post.id, postUrl: post.postUrl, checkpoint });
       queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] });
-      toast({ title: "Synced!", description: `${checkpoint === "initial" ? "Initial" : checkpoint === "2w" ? "2-Week" : "4-Week"} metrics updated from Instagram.` });
+      toast({ title: "Synced!", description: `${checkpoint === "initial" ? "Initial" : checkpoint === "2w" ? "2-Week" : "4-Week"} metrics updated from ${isYt ? "YouTube" : "Instagram"}.` });
     } catch (e: any) {
       toast({ title: "Sync failed", description: e.message, variant: "destructive" });
     } finally {
@@ -1318,13 +1321,24 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
     if (!importUrl.trim()) return;
     setImporting(true);
     try {
-      const data = await apiRequest("POST", "/api/instagram/sync-profile", {
-        profileUrl: importUrl.trim(),
-        clientId: user?.id,
-        platform,
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
-      toast({ title: `${data.imported} posts imported!`, description: "Real stats pulled directly from Instagram." });
+      let data: any;
+      if (isYt) {
+        data = await apiRequest("POST", "/api/youtube/import-channel", {
+          channelUrl: importUrl.trim(),
+          clientId: user?.id,
+        });
+        queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
+        const channelName = data.channel?.title ? ` from ${data.channel.title}` : "";
+        toast({ title: `${data.imported} videos imported!`, description: `Real stats pulled directly from YouTube${channelName}.` });
+      } else {
+        data = await apiRequest("POST", "/api/instagram/sync-profile", {
+          profileUrl: importUrl.trim(),
+          clientId: user?.id,
+          platform,
+        });
+        queryClient.invalidateQueries({ queryKey: [`/api/content/${user?.id}`] });
+        toast({ title: `${data.imported} posts imported!`, description: "Real stats pulled directly from Instagram." });
+      }
       setImportOpen(false);
       setImportUrl("");
     } catch (err: any) {
@@ -1395,11 +1409,9 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {!isYt && (
-              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="border-pink-500/30 text-pink-400 hover:bg-pink-500/10 gap-1.5" data-testid="button-import-instagram">
-                <RefreshCw className="w-3.5 h-3.5" /> Import from Instagram
-              </Button>
-            )}
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className={isYt ? "border-red-500/30 text-red-400 hover:bg-red-500/10 gap-1.5" : "border-pink-500/30 text-pink-400 hover:bg-pink-500/10 gap-1.5"} data-testid={isYt ? "button-import-youtube" : "button-import-instagram"}>
+              <RefreshCw className="w-3.5 h-3.5" /> {isYt ? "Import from YouTube" : "Import from Instagram"}
+            </Button>
             <Button size="sm" onClick={() => setAddOpen(true)} data-testid={`button-log-${platform}`}>
               <Plus className="w-4 h-4 mr-1.5" /> Log {isYt ? "Video" : "Post"}
             </Button>
@@ -1411,26 +1423,32 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Instagram className="w-4 h-4 text-pink-400" /> Import Posts from Instagram
+                {isYt ? <Youtube className="w-4 h-4 text-red-400" /> : <Instagram className="w-4 h-4 text-pink-400" />}
+                {isYt ? "Import Videos from YouTube" : "Import Posts from Instagram"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
-              <p className="text-sm text-muted-foreground">Paste your Instagram profile link and we'll automatically pull your last 20 posts with real views, likes, and comments.</p>
+              <p className="text-sm text-muted-foreground">
+                {isYt
+                  ? "Paste your YouTube channel link and we'll automatically pull your last 20 videos with real views, likes, and comments directly from the YouTube API."
+                  : "Paste your Instagram profile link and we'll automatically pull your last 20 posts with real views, likes, and comments."}
+              </p>
               <div>
-                <Label>Instagram Profile URL</Label>
+                <Label>{isYt ? "YouTube Channel URL" : "Instagram Profile URL"}</Label>
                 <Input
                   className="mt-1"
-                  placeholder="https://instagram.com/yourhandle"
+                  placeholder={isYt ? "https://youtube.com/@yourchannel" : "https://instagram.com/yourhandle"}
                   value={importUrl}
                   onChange={e => setImportUrl(e.target.value)}
                   data-testid="input-import-url"
                 />
+                {isYt && <p className="text-[11px] text-muted-foreground mt-1">Supports @handle, /channel/, and /user/ URLs.</p>}
               </div>
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={() => setImportOpen(false)}>Cancel</Button>
                 <Button className="flex-1 gap-2" onClick={handleImportProfile} disabled={importing || !importUrl.trim()} data-testid="button-confirm-import">
                   {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  {importing ? "Importing…" : "Import Posts"}
+                  {importing ? "Importing…" : isYt ? "Import Videos" : "Import Posts"}
                 </Button>
               </div>
             </div>

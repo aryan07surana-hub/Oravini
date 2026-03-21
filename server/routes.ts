@@ -12,6 +12,7 @@ import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMedia
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -700,6 +701,102 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         } catch (_) { /* skip duplicates/errors */ }
       }
       return res.json({ imported: created.length, posts: created });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── YouTube Data API v3 ────────────────────────────────────────────────────
+
+  // Fetch live stats for a YouTube video by URL
+  app.post("/api/youtube/sync-post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postUrl } = req.body;
+      if (!postUrl) return res.status(400).json({ message: "postUrl required" });
+      const videoId = extractYouTubeVideoId(postUrl);
+      if (!videoId) return res.status(400).json({ message: "Could not extract YouTube video ID from this URL" });
+      const stats = await getYouTubeVideoStats(videoId);
+      if (!stats) return res.status(404).json({ message: "Video not found on YouTube" });
+      return res.json({ ...stats, source: "youtube-api" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sync a checkpoint (initial / 2w / 4w) for a YouTube post
+  app.post("/api/youtube/sync-checkpoint", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postId, postUrl, checkpoint } = req.body;
+      if (!postUrl || !postId || !checkpoint) return res.status(400).json({ message: "postId, postUrl, and checkpoint required" });
+      const videoId = extractYouTubeVideoId(postUrl);
+      if (!videoId) return res.status(400).json({ message: "Could not extract YouTube video ID from this URL" });
+      const stats = await getYouTubeVideoStats(videoId);
+      if (!stats) return res.status(404).json({ message: "Video not found on YouTube" });
+
+      const now = new Date();
+      let updateData: any = {};
+      if (checkpoint === "initial") updateData = { views: stats.views, likes: stats.likes, comments: stats.comments, initialSyncedAt: now };
+      else if (checkpoint === "2w") updateData = { views2w: stats.views, likes2w: stats.likes, comments2w: stats.comments, twoWeekSyncedAt: now };
+      else if (checkpoint === "4w") updateData = { views4w: stats.views, likes4w: stats.likes, comments4w: stats.comments, fourWeekSyncedAt: now };
+      else return res.status(400).json({ message: "Invalid checkpoint" });
+
+      const updated = await storage.updateContentPost(postId, updateData);
+      return res.json({ ...updated, source: "youtube-api" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Fetch YouTube channel stats by channel URL/handle
+  app.post("/api/youtube/channel-stats", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl } = req.body;
+      if (!channelUrl) return res.status(400).json({ message: "channelUrl required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+      const stats = await getYouTubeChannelStats(channelRef);
+      if (!stats) return res.status(404).json({ message: "Channel not found on YouTube" });
+      return res.json(stats);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Import recent videos from a YouTube channel into content tracking
+  app.post("/api/youtube/import-channel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl, clientId } = req.body;
+      if (!channelUrl || !clientId) return res.status(400).json({ message: "channelUrl and clientId required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+
+      const channelStats = await getYouTubeChannelStats(channelRef);
+      if (!channelStats) return res.status(404).json({ message: "Channel not found on YouTube" });
+
+      const videos = await getYouTubeChannelRecentVideos(channelStats.channelId, 20);
+      if (!videos.length) return res.status(404).json({ message: "No videos found for this channel" });
+
+      const created: any[] = [];
+      for (const vid of videos as any[]) {
+        if (!vid.videoUrl) continue;
+        try {
+          const post = await storage.createContentPost({
+            clientId,
+            platform: "youtube",
+            title: vid.title ? vid.title.slice(0, 120) : "Untitled",
+            postUrl: vid.videoUrl,
+            postDate: vid.publishedAt ? new Date(vid.publishedAt) : new Date(),
+            contentType: vid.contentType === "short" ? "reel" : "post",
+            views: vid.views,
+            likes: vid.likes,
+            comments: vid.comments,
+            saves: 0,
+            notes: vid.description ? vid.description.slice(0, 500) : "",
+          });
+          created.push(post);
+        } catch (_) { /* skip duplicates */ }
+      }
+      return res.json({ imported: created.length, posts: created, channel: channelStats });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }

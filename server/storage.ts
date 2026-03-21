@@ -99,6 +99,7 @@ export interface IStorage {
   getCompetitorAnalyses(clientId: string): Promise<CompetitorAnalysis[]>;
   deleteCompetitorAnalysis(id: string): Promise<void>;
   getAllInstagramPostsWithUrls(): Promise<any[]>;
+  getAllYouTubePostsWithUrls(): Promise<any[]>;
   // DM Tracker
   getDmLeads(clientId: string): Promise<DmLead[]>;
   getAllDmLeads(): Promise<DmLead[]>;
@@ -473,6 +474,14 @@ class DatabaseStorage implements IStorage {
     return db.select().from(contentPosts)
       .where(and(
         eq(contentPosts.platform, "instagram"),
+        sqlExpr`${contentPosts.postUrl} IS NOT NULL AND ${contentPosts.postUrl} != ''`
+      ));
+  }
+
+  async getAllYouTubePostsWithUrls() {
+    return db.select().from(contentPosts)
+      .where(and(
+        eq(contentPosts.platform, "youtube"),
         sqlExpr`${contentPosts.postUrl} IS NOT NULL AND ${contentPosts.postUrl} != ''`
       ));
   }
