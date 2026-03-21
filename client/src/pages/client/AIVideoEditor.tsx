@@ -321,6 +321,24 @@ function getYouTubeEmbedId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function getInstagramEmbedInfo(url: string): { embedUrl: string; shortcode: string; type: string } | null {
+  const m = url.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+  return m ? { embedUrl: `https://www.instagram.com/${m[1]}/${m[2]}/embed/`, shortcode: m[2], type: m[1] } : null;
+}
+
+const EDIT_TYPE_COLORS: Record<string, string> = {
+  "cut":           "text-red-400    bg-red-500/10    border-red-500/25",
+  "b-roll":        "text-purple-400 bg-purple-500/10 border-purple-500/25",
+  "text-overlay":  "text-blue-400   bg-blue-500/10   border-blue-500/25",
+  "transition":    "text-green-400  bg-green-500/10  border-green-500/25",
+  "hook":          "text-yellow-400 bg-yellow-500/10 border-yellow-500/25",
+  "script":        "text-cyan-400   bg-cyan-500/10   border-cyan-500/25",
+  "caption":       "text-pink-400   bg-pink-500/10   border-pink-500/25",
+  "pacing":        "text-orange-400 bg-orange-500/10 border-orange-500/25",
+  "audio":         "text-indigo-400 bg-indigo-500/10 border-indigo-500/25",
+  "gap-fill":      "text-primary    bg-primary/10    border-primary/25",
+};
+
 function renderHighlightCaption(text: string) {
   const POWER_WORDS = new Set(["stop","never","always","secret","hack","viral","truth","free","money","now","today","proven","instantly","shocking","urgent","limited","exclusive","guaranteed","discover","revealed","warning","attention","mistake","fail","success","change","transform","unlock","skyrocket","explode"]);
   return text.split(" ").map((word, i) => {
@@ -374,7 +392,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Chat editing
-  const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string }[]>([]);
+  const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string; edits?: any[] }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLIFrameElement>(null);
@@ -464,20 +482,40 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
 
   // Chat editing
   const [isChatPending, setIsChatPending] = useState(false);
-  const sendChatMessage = async () => {
-    if (!chatInput.trim() || !result) return;
-    const msg = chatInput.trim();
-    setChatInput("");
-    setChatHistory(h => [...h, { role: "user", content: msg }]);
+  const [videoDockedOpen, setVideoDockedOpen] = useState(true);
+  const sendChatMessage = async (overrideMsg?: string) => {
+    const msg = (overrideMsg ?? chatInput).trim();
+    if (!msg || !result) return;
+    if (!overrideMsg) setChatInput("");
+    setChatHistory(h => [...h, { role: "user" as const, content: msg }]);
     setIsChatPending(true);
     try {
       const res = await apiRequest("POST", "/api/video/chat-edit", {
         userMessage: msg,
-        context: { title: result.title, summary: result.summary, mode, goal, fullScript: result.fullScript, currentHooks: result.hooks },
+        context: {
+          title: result.title,
+          summary: result.summary,
+          mode,
+          goal,
+          platform,
+          duration: targetDuration,
+          fullScript: result.fullScript,
+          timeline: result.timeline,
+          hook: result.hook,
+          currentHooks: result.hooks,
+          currentTab: activeTab,
+        },
       });
-      setChatHistory(h => [...h, { role: "ai", content: res.reply || "Got it!", suggestion: res.suggestion, suggestionType: res.suggestionType, actionLabel: res.actionLabel }]);
+      setChatHistory(h => [...h, {
+        role: "ai" as const,
+        content: res.reply || "Got it!",
+        suggestion: res.suggestion,
+        suggestionType: res.suggestionType,
+        actionLabel: res.actionLabel,
+        edits: res.edits || [],
+      }]);
     } catch (err: any) {
-      setChatHistory(h => [...h, { role: "ai", content: "Something went wrong — try again." }]);
+      setChatHistory(h => [...h, { role: "ai" as const, content: "Something went wrong — try again." }]);
     } finally {
       setIsChatPending(false);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -794,6 +832,8 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             )}
             {inputType === "url" && (() => {
               const liveYtId = getYouTubeEmbedId(inputValue);
+              const liveIg = !liveYtId ? getInstagramEmbedInfo(inputValue) : null;
+              const hasLiveVideo = !!(liveYtId || liveIg);
               const SEEK_POINTS = [
                 { sec: 0, label: "0s", thumb: 0 }, { sec: 5, label: "5s", thumb: 1 },
                 { sec: 10, label: "10s", thumb: 2 }, { sec: 15, label: "15s", thumb: 3 },
@@ -804,111 +844,128 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               ];
               return (
                 <div className="space-y-3">
-                  <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://youtu.be/... or https://www.youtube.com/watch?v=..." className="bg-background border-border text-sm" />
+                  <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://youtu.be/... or https://www.instagram.com/reel/..." className="bg-background border-border text-sm" />
                   <p className="text-[11px] text-muted-foreground">Paste a YouTube or Instagram link — the video loads live below so you can scrub and analyze frame by frame.</p>
 
-                  {liveYtId && (
-                    <div className="space-y-2 mt-1">
-                      {/* ── Live Embedded Player ─────────────────────────── */}
-                      <div className="relative rounded-2xl overflow-hidden border border-primary/30 shadow-[0_0_48px_rgba(212,180,97,0.15)]" style={{ aspectRatio: "16/9" }}>
-                        <iframe
-                          ref={playerRef}
-                          src={`https://www.youtube.com/embed/${liveYtId}?enablejsapi=1&modestbranding=1&rel=0&origin=${window.location.origin}`}
-                          className="absolute inset-0 w-full h-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                          allowFullScreen
-                          title="Video Preview"
-                          data-testid="yt-player-iframe"
-                        />
-                        {/* Corner badge */}
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[9px] text-white/80 font-semibold uppercase tracking-wide">Live Preview</span>
-                        </div>
-                      </div>
-
-                      {/* ── Film Strip Frame Timeline ─────────────────────── */}
-                      <div className="bg-black rounded-xl border border-white/10 overflow-hidden">
-                        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-black/80">
-                          <Film className="w-3.5 h-3.5 text-primary" />
-                          <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Frame-by-Frame Timeline</p>
-                          <span className="ml-auto text-[9px] text-muted-foreground italic">Click any frame to jump there</span>
-                        </div>
-
-                        {/* Scrollable frame strip */}
-                        <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                          {SEEK_POINTS.map((pt, i) => (
-                            <button
-                              key={i}
-                              onClick={() => seekYouTube(pt.sec)}
-                              className="relative flex-shrink-0 group focus:outline-none"
-                              style={{ width: "76px" }}
-                              data-testid={`btn-seek-${pt.sec}`}
-                              title={`Jump to ${pt.label}`}
-                            >
-                              {/* Film sprocket top */}
-                              <div className="h-[7px] bg-black/90 border-b border-white/10 flex items-center justify-evenly px-1">
-                                {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
-                              </div>
-                              {/* Frame image */}
-                              <div className="relative h-[42px] overflow-hidden border-r border-black/60">
-                                <img
-                                  src={`https://img.youtube.com/vi/${liveYtId}/${pt.thumb}.jpg`}
-                                  className={`w-full h-full object-cover transition-all duration-200 ${seekTime === pt.sec ? "brightness-110 saturate-150" : "brightness-75 group-hover:brightness-100 group-hover:scale-105"}`}
-                                  alt={`Frame at ${pt.label}`}
-                                  loading="lazy"
-                                />
-                                {/* Selected indicator */}
-                                {seekTime === pt.sec && (
-                                  <div className="absolute inset-0 border-2 border-primary/80 pointer-events-none" />
-                                )}
-                                {/* Hover play icon */}
-                                <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${seekTime === pt.sec ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-                                  <div className="w-5 h-5 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
-                                    <Play className="w-2.5 h-2.5 text-black fill-black" />
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Film sprocket bottom */}
-                              <div className="h-[7px] bg-black/90 border-t border-white/10 flex items-center justify-evenly px-1">
-                                {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
-                              </div>
-                              {/* Time label */}
-                              <div className={`text-[8px] text-center py-0.5 font-mono transition-colors ${seekTime === pt.sec ? "text-primary font-bold bg-primary/10" : "text-white/40 group-hover:text-white/80 bg-black/80"}`}>
-                                {pt.label}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Seek bar */}
-                        <div className="px-3 py-2 bg-black/60 border-t border-white/5 flex items-center gap-3">
-                          <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">0:00</span>
-                          <div className="flex-1 relative h-1.5 bg-white/10 rounded-full cursor-pointer" onClick={e => {
-                            const rect = (e.target as HTMLElement).getBoundingClientRect();
-                            const pct = (e.clientX - rect.left) / rect.width;
-                            seekYouTube(Math.round(pct * 60));
-                          }} data-testid="btn-seekbar">
-                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(seekTime / 60) * 100}%` }} />
-                            <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(212,180,97,0.8)] -translate-x-1/2" style={{ left: `${(seekTime / 60) * 100}%` }} />
+                  {hasLiveVideo && (
+                    <div className="space-y-3 mt-1">
+                      {/* ── YouTube Live Player ─────────────────────────────── */}
+                      {liveYtId && (
+                        <>
+                          <div className="relative rounded-2xl overflow-hidden border border-primary/30 shadow-[0_0_48px_rgba(212,180,97,0.15)]" style={{ aspectRatio: "16/9" }}>
+                            <iframe
+                              ref={playerRef}
+                              src={`https://www.youtube.com/embed/${liveYtId}?enablejsapi=1&modestbranding=1&rel=0&origin=${window.location.origin}`}
+                              className="absolute inset-0 w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                              allowFullScreen
+                              title="Video Preview"
+                              data-testid="yt-player-iframe"
+                            />
+                            <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              <span className="text-[9px] text-white/80 font-semibold uppercase tracking-wide">YouTube · Live Preview</span>
+                            </div>
                           </div>
-                          <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">1:00</span>
+                          {/* ── Film Strip Frame Timeline ─────────────────── */}
+                          <div className="bg-black rounded-xl border border-white/10 overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-black/80">
+                              <Film className="w-3.5 h-3.5 text-primary" />
+                              <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Frame-by-Frame Timeline</p>
+                              <span className="ml-auto text-[9px] text-muted-foreground italic">Click any frame to jump there</span>
+                            </div>
+                            <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                              {SEEK_POINTS.map((pt, i) => (
+                                <button key={i} onClick={() => seekYouTube(pt.sec)}
+                                  className="relative flex-shrink-0 group focus:outline-none" style={{ width: "76px" }}
+                                  data-testid={`btn-seek-${pt.sec}`} title={`Jump to ${pt.label}`}>
+                                  <div className="h-[7px] bg-black/90 border-b border-white/10 flex items-center justify-evenly px-1">
+                                    {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
+                                  </div>
+                                  <div className="relative h-[42px] overflow-hidden border-r border-black/60">
+                                    <img src={`https://img.youtube.com/vi/${liveYtId}/${pt.thumb}.jpg`}
+                                      className={`w-full h-full object-cover transition-all duration-200 ${seekTime === pt.sec ? "brightness-110 saturate-150" : "brightness-75 group-hover:brightness-100 group-hover:scale-105"}`}
+                                      alt={`Frame at ${pt.label}`} loading="lazy" />
+                                    {seekTime === pt.sec && <div className="absolute inset-0 border-2 border-primary/80 pointer-events-none" />}
+                                    <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${seekTime === pt.sec ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                                      <div className="w-5 h-5 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                                        <Play className="w-2.5 h-2.5 text-black fill-black" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="h-[7px] bg-black/90 border-t border-white/10 flex items-center justify-evenly px-1">
+                                    {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
+                                  </div>
+                                  <div className={`text-[8px] text-center py-0.5 font-mono transition-colors ${seekTime === pt.sec ? "text-primary font-bold bg-primary/10" : "text-white/40 group-hover:text-white/80 bg-black/80"}`}>
+                                    {pt.label}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="px-3 py-2 bg-black/60 border-t border-white/5 flex items-center gap-3">
+                              <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">0:00</span>
+                              <div className="flex-1 relative h-1.5 bg-white/10 rounded-full cursor-pointer" onClick={e => {
+                                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                                seekYouTube(Math.round(((e.clientX - rect.left) / rect.width) * 60));
+                              }} data-testid="btn-seekbar">
+                                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(seekTime / 60) * 100}%` }} />
+                                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(212,180,97,0.8)] -translate-x-1/2" style={{ left: `${(seekTime / 60) * 100}%` }} />
+                              </div>
+                              <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">1:00</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* ── Instagram Live Player (portrait/phone) ─────────── */}
+                      {liveIg && (
+                        <div className="flex justify-center">
+                          <div className="relative" style={{ width: "240px" }}>
+                            {/* Phone frame */}
+                            <div className="relative bg-gray-950 rounded-[28px] border-2 border-white/20 overflow-hidden shadow-[0_0_40px_rgba(212,180,97,0.12),inset_0_0_0_1px_rgba(255,255,255,0.05)]" style={{ aspectRatio: "9/16" }}>
+                              {/* Notch */}
+                              <div className="absolute top-0 left-0 right-0 h-7 bg-gray-950 z-10 flex items-center justify-center">
+                                <div className="w-16 h-3 bg-black rounded-full" />
+                              </div>
+                              {/* Instagram embed */}
+                              <iframe
+                                src={liveIg.embedUrl}
+                                className="absolute inset-0 w-full h-full"
+                                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                                allowFullScreen
+                                title="Instagram Preview"
+                                scrolling="no"
+                                data-testid="ig-player-iframe"
+                                style={{ marginTop: "28px", height: "calc(100% - 28px)" }}
+                              />
+                              {/* Bottom bar */}
+                              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gray-950 z-10" />
+                            </div>
+                            {/* Platform badge */}
+                            <div className="mt-2 flex items-center justify-center gap-1.5">
+                              <div className="w-3.5 h-3.5 rounded bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 flex items-center justify-center flex-shrink-0">
+                                <span className="text-[6px] text-white font-black">IG</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground font-medium capitalize">{liveIg.type === "reel" ? "Instagram Reel" : liveIg.type === "tv" ? "IGTV" : "Instagram Post"} · Live</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* ── Quick AI Actions ──────────────────────────────── */}
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { icon: Scissors, label: "Cut Points", desc: "AI finds best cuts" },
-                          { icon: Zap, label: "Hook Analysis", desc: "Rate first 3 sec" },
-                          { icon: Volume2, label: "Audio Detect", desc: "Music & voice levels" },
+                          { icon: Scissors, label: "Cut Points", msg: "Analyze this video and tell me the best places to make cuts for maximum engagement" },
+                          { icon: Zap, label: "Hook Analysis", msg: "Rate the opening 3 seconds and rewrite a stronger hook" },
+                          { icon: Volume2, label: "Audio Strategy", msg: "Suggest audio and music that would make this video perform better" },
                         ].map((action, i) => (
-                          <div key={i} onClick={() => { setActiveTab && null; }}
-                            className="p-3 bg-muted/5 border border-muted/20 rounded-xl text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group">
+                          <button key={i}
+                            onClick={() => { if (result) { setChatInput(action.msg); } }}
+                            className="p-3 bg-muted/5 border border-muted/20 rounded-xl text-center hover:border-primary/30 hover:bg-primary/5 transition-all group"
+                            data-testid={`btn-quick-action-${i}`}>
                             <action.icon className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground group-hover:text-primary transition-colors" />
                             <p className="text-[10px] font-bold text-foreground group-hover:text-primary transition-colors">{action.label}</p>
-                            <p className="text-[9px] text-muted-foreground mt-0.5">{action.desc}</p>
-                          </div>
+                          </button>
                         ))}
                       </div>
 
@@ -1132,6 +1189,106 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 </div>
               )}
             </div>
+
+            {/* ── Persistent Video Dock (shown across all tabs) ─────────────────── */}
+            {inputType === "url" && (() => {
+              const dockYtId = getYouTubeEmbedId(inputValue);
+              const dockIg = !dockYtId ? getInstagramEmbedInfo(inputValue) : null;
+              if (!dockYtId && !dockIg) return null;
+              return (
+                <div className="bg-card border border-primary/20 rounded-2xl overflow-hidden shadow-[0_0_24px_rgba(212,180,97,0.08)]">
+                  {/* Dock header */}
+                  <button onClick={() => setVideoDockedOpen(o => !o)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/5 transition-colors border-b border-primary/15"
+                    data-testid="btn-video-dock-toggle">
+                    <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                      <Video className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-xs font-bold text-foreground">
+                        {dockYtId ? "YouTube" : "Instagram"} · Live Video
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Visible across all tabs — scrub + seek while you edit</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                      {videoDockedOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                    </div>
+                  </button>
+
+                  {videoDockedOpen && (
+                    <div className="p-3 space-y-2">
+                      {/* YouTube dock player */}
+                      {dockYtId && (
+                        <>
+                          <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
+                            <iframe
+                              ref={playerRef}
+                              src={`https://www.youtube.com/embed/${dockYtId}?enablejsapi=1&modestbranding=1&rel=0&origin=${window.location.origin}`}
+                              className="absolute inset-0 w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                              allowFullScreen
+                              title="Docked Video"
+                              data-testid="yt-dock-iframe"
+                            />
+                          </div>
+                          {/* Mini film strip */}
+                          <div className="bg-black rounded-lg overflow-hidden border border-white/10">
+                            <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                              {[0,5,10,15,20,25,30,35,40,45,50,60].map((sec, i) => (
+                                <button key={sec} onClick={() => seekYouTube(sec)}
+                                  className="relative flex-shrink-0 group" style={{ width: "64px" }}
+                                  data-testid={`btn-dock-seek-${sec}`}>
+                                  <div className="h-[5px] bg-black flex items-center justify-evenly px-0.5">
+                                    {[0,1,2].map(j => <div key={j} className="w-[8px] h-[3px] bg-white/15 rounded-sm" />)}
+                                  </div>
+                                  <div className="relative h-[36px] overflow-hidden">
+                                    <img src={`https://img.youtube.com/vi/${dockYtId}/${Math.min(i % 4, 3)}.jpg`}
+                                      className={`w-full h-full object-cover transition-all ${seekTime === sec ? "brightness-110" : "brightness-60 group-hover:brightness-90"}`}
+                                      alt="" loading="lazy" />
+                                    {seekTime === sec && <div className="absolute inset-0 border border-primary/80 pointer-events-none" />}
+                                  </div>
+                                  <div className="h-[5px] bg-black flex items-center justify-evenly px-0.5">
+                                    {[0,1,2].map(j => <div key={j} className="w-[8px] h-[3px] bg-white/15 rounded-sm" />)}
+                                  </div>
+                                  <div className={`text-[7px] text-center font-mono py-0.5 ${seekTime === sec ? "text-primary bg-primary/10" : "text-white/30 group-hover:text-white/60"}`}>
+                                    {sec === 60 ? "1:00" : `${sec}s`}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            {/* Seekbar */}
+                            <div className="px-2 py-1.5 bg-black/60 flex items-center gap-2">
+                              <span className="text-[8px] text-muted-foreground font-mono">0s</span>
+                              <div className="flex-1 relative h-1 bg-white/10 rounded-full cursor-pointer" onClick={e => {
+                                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                                seekYouTube(Math.round(((e.clientX - rect.left) / rect.width) * 60));
+                              }}>
+                                <div className="h-full bg-primary rounded-full" style={{ width: `${(seekTime / 60) * 100}%` }} />
+                                <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-primary rounded-full" style={{ left: `${(seekTime / 60) * 100}%` }} />
+                              </div>
+                              <span className="text-[8px] text-muted-foreground font-mono">1:00</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {/* Instagram dock player */}
+                      {dockIg && (
+                        <div className="flex justify-center py-1">
+                          <div className="relative bg-gray-950 rounded-[20px] border border-white/15 overflow-hidden" style={{ width: "180px", aspectRatio: "9/16" }}>
+                            <div className="absolute top-0 left-0 right-0 h-5 bg-gray-950 z-10 flex items-center justify-center">
+                              <div className="w-10 h-2 bg-black rounded-full" />
+                            </div>
+                            <iframe src={dockIg.embedUrl} className="absolute inset-0 w-full h-full" allow="autoplay; clipboard-write; encrypted-media" allowFullScreen scrolling="no" title="IG Dock" data-testid="ig-dock-iframe" style={{ marginTop: "20px", height: "calc(100% - 20px)" }} />
+                            <div className="absolute bottom-0 left-0 right-0 h-4 bg-gray-950 z-10" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Result Tabs */}
             <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
@@ -1712,6 +1869,38 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                             )}
                           </div>
                         )}
+
+                        {/* ── Edit Cards ──────────────────────────────────── */}
+                        {msg.edits && msg.edits.length > 0 && (
+                          <div className="w-full space-y-2 mt-1">
+                            <p className="text-[10px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Scissors className="w-3 h-3 text-primary" />
+                              {msg.edits.length} Specific Edit{msg.edits.length !== 1 ? "s" : ""}
+                            </p>
+                            {msg.edits.map((edit: any, ei: number) => (
+                              <div key={ei} className="bg-card border border-card-border rounded-xl p-3 space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ${EDIT_TYPE_COLORS[edit.type] || "text-muted-foreground bg-muted/10 border-muted/20"}`}>
+                                      {edit.type}
+                                    </span>
+                                    {edit.timestamp && (
+                                      <span className="text-[9px] text-primary font-mono bg-primary/10 px-1.5 py-0.5 rounded">⏱ {edit.timestamp}</span>
+                                    )}
+                                  </div>
+                                  <CopyButton text={`[${edit.type.toUpperCase()}] ${edit.timestamp || ""}: ${edit.action} — ${edit.content}`} />
+                                </div>
+                                <p className="text-[11px] font-semibold text-foreground">{edit.action}</p>
+                                {edit.content && (
+                                  <p className="text-[11px] text-muted-foreground leading-relaxed italic border-l-2 border-primary/30 pl-2">"{edit.content}"</p>
+                                )}
+                                {edit.impact && (
+                                  <p className="text-[10px] text-green-400 flex items-start gap-1"><span className="flex-shrink-0">→</span>{edit.impact}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1731,15 +1920,39 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
 
               {/* Starter prompts */}
               {chatHistory.length === 0 && (
-                <div className="p-4">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Quick actions</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["Make the hook more powerful", "Rewrite the opening line", "Make it more emotional", "Give me a better title", "How do I make this go viral?"].map(prompt => (
-                      <button key={prompt} onClick={() => { setChatInput(prompt); }}
-                        className="text-[11px] px-2.5 py-1.5 bg-muted/15 hover:bg-primary/10 hover:text-primary border border-muted/20 hover:border-primary/30 rounded-lg transition-colors text-muted-foreground">
-                        {prompt}
-                      </button>
-                    ))}
+                <div className="p-4 space-y-3">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">✂️ Edit the Video</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Give me specific cut points for this video with exact timestamps",
+                        "Fill in the gaps — what's missing from this video?",
+                        "Suggest 5 B-roll shots to add with exact timing",
+                        "Fix the pacing — where should I speed up or slow down?",
+                      ].map(p => (
+                        <button key={p} onClick={() => sendChatMessage(p)}
+                          className="text-[11px] px-2.5 py-1.5 bg-muted/15 hover:bg-primary/10 hover:text-primary border border-muted/20 hover:border-primary/30 rounded-lg transition-colors text-muted-foreground text-left">
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">🎯 Boost Performance</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Make the hook more powerful — rewrite it completely",
+                        "Rewrite the full script to be more viral",
+                        "How do I make this go viral? Give me specific tactics",
+                        "Give me a better title and thumbnail concept",
+                        "Make it more emotional and story-driven",
+                      ].map(p => (
+                        <button key={p} onClick={() => sendChatMessage(p)}
+                          className="text-[11px] px-2.5 py-1.5 bg-muted/15 hover:bg-primary/10 hover:text-primary border border-muted/20 hover:border-primary/30 rounded-lg transition-colors text-muted-foreground text-left">
+                          {p}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

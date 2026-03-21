@@ -3396,28 +3396,45 @@ Return ONLY valid JSON:
     try {
       const { userMessage, context } = req.body;
       if (!userMessage?.trim()) return res.status(400).json({ message: "Message required" });
-      const prompt = `You are an expert AI video editor and creative director. A creator has a video plan and is asking you to refine or improve it.
+      const prompt = `You are a world-class AI video editor and creative director. You are sitting in the edit bay with this creator, making frame-level decisions. Be extremely specific, action-oriented, and fill in ALL gaps you see.
 
 CURRENT VIDEO CONTEXT:
 - Title: "${context?.title || "Untitled"}"
-- Summary: "${context?.summary || ""}"
+- Platform: "${context?.platform || "Instagram Reels / YouTube Shorts"}"
+- Duration: ${context?.duration || 30} seconds
 - Mode: "${context?.mode || "viral"}"
-- Goal: "${context?.goal || "viral"}"
-${context?.fullScript ? `- Script (excerpt): "${String(context.fullScript).slice(0, 400)}..."` : ""}
-${context?.currentHooks?.length ? `- Current hooks: ${context.currentHooks.slice(0, 2).join(" | ")}` : ""}
+- Goal: "${context?.goal || "engagement"}"
+${context?.summary ? `- Summary: "${context.summary}"` : ""}
+${context?.fullScript ? `- Full Script:\n"${String(context.fullScript).slice(0, 1000)}"` : ""}
+${context?.timeline?.length ? `- Timeline cuts:\n${context.timeline.slice(0, 8).map((c: any, i: number) => `  [${i+1}] ${c.startSec ?? "?"}s-${c.endSec ?? "?"}s: ${c.text || c.action || c.description || JSON.stringify(c)}`).join("\n")}` : ""}
+${context?.hook?.current ? `- Current hook: "${context.hook.current}"` : ""}
+${context?.currentHooks?.length ? `- Hook options: ${context.currentHooks.slice(0, 2).join(" | ")}` : ""}
+${context?.currentTab ? `- Creator is on the "${context.currentTab}" tab right now` : ""}
 
 USER REQUEST: "${userMessage}"
 
-Respond as a brilliant creative director. Be specific and immediately actionable. If they ask for a rewrite, provide the actual rewritten text. If they ask for improvements, give concrete examples.
+As an expert creative director, give a powerful, specific response. Fill in any gaps in the script or timeline. Suggest real, frame-level edits. Think like a professional editor who has watched this video 20 times.
 
-Return ONLY valid JSON (no markdown):
+Return ONLY valid JSON (no markdown, no code fences):
 {
-  "reply": "Your conversational coaching response (2-3 sentences, direct and specific)",
-  "suggestion": "The exact new text or content if applicable (null if not a content request)",
-  "suggestionType": "One of: hook | script | title | caption | style | null",
-  "actionLabel": "Short label for the suggestion like 'Use this hook' or null"
-}`;
-      const result = await callVideoGroq(prompt, 800);
+  "reply": "Direct, specific, energetic coaching response (2-4 sentences, creator-to-creator tone — reference specific timestamps or lines from the script if you can)",
+  "suggestion": "Exact new text/script content if they asked for a rewrite — provide the COMPLETE rewritten version, not a summary (null if not applicable)",
+  "suggestionType": "hook | script | title | caption | structure | pacing | b-roll | null",
+  "actionLabel": "Short CTA label like 'Apply this hook' or 'Replace opening' or null",
+  "edits": [
+    {
+      "id": 1,
+      "type": "cut | b-roll | text-overlay | transition | hook | script | caption | pacing | audio | gap-fill",
+      "timestamp": "e.g. '0:00-0:03' or 'sec 12-15' or 'opening' or 'closing 5 sec'",
+      "action": "One specific thing to do — verb-first (Cut here, Add, Replace, Insert, Remove)",
+      "content": "Exact text to use, or specific description of what to film/show/add",
+      "impact": "Why this specific edit will improve performance"
+    }
+  ]
+}
+
+Generate 4-7 specific, diverse edits covering different parts of the video. Include at least one gap-fill edit if the script has missing pieces.`;
+      const result = await callVideoGroq(prompt, 1800);
       return res.json(result);
     } catch (err: any) {
       console.error("[Video Chat Edit] Error:", err.message);
