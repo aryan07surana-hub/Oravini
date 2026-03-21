@@ -377,6 +377,15 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<HTMLIFrameElement>(null);
+  const [seekTime, setSeekTime] = useState(0);
+
+  const seekYouTube = (seconds: number) => {
+    if (!playerRef.current) return;
+    setSeekTime(seconds);
+    playerRef.current.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "seekTo", args: [seconds, true] }), "*");
+    playerRef.current.contentWindow?.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+  };
 
   // Audio suggestions
   const [audioSuggestions, setAudioSuggestions] = useState<any[]>([]);
@@ -783,12 +792,132 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 </div>
               </div>
             )}
-            {inputType === "url" && (
-              <div>
-                <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://www.instagram.com/reel/... or https://youtu.be/..." className="bg-background border-border text-sm" />
-                <p className="text-[11px] text-muted-foreground mt-2">Paste a link from YouTube or Instagram — our AI will pull the video context and analyze it.</p>
-              </div>
-            )}
+            {inputType === "url" && (() => {
+              const liveYtId = getYouTubeEmbedId(inputValue);
+              const SEEK_POINTS = [
+                { sec: 0, label: "0s", thumb: 0 }, { sec: 5, label: "5s", thumb: 1 },
+                { sec: 10, label: "10s", thumb: 2 }, { sec: 15, label: "15s", thumb: 3 },
+                { sec: 20, label: "20s", thumb: 1 }, { sec: 25, label: "25s", thumb: 2 },
+                { sec: 30, label: "30s", thumb: 3 }, { sec: 35, label: "35s", thumb: 1 },
+                { sec: 40, label: "40s", thumb: 2 }, { sec: 45, label: "45s", thumb: 3 },
+                { sec: 50, label: "50s", thumb: 1 }, { sec: 60, label: "1:00", thumb: 2 },
+              ];
+              return (
+                <div className="space-y-3">
+                  <Input data-testid="input-url" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="https://youtu.be/... or https://www.youtube.com/watch?v=..." className="bg-background border-border text-sm" />
+                  <p className="text-[11px] text-muted-foreground">Paste a YouTube or Instagram link — the video loads live below so you can scrub and analyze frame by frame.</p>
+
+                  {liveYtId && (
+                    <div className="space-y-2 mt-1">
+                      {/* ── Live Embedded Player ─────────────────────────── */}
+                      <div className="relative rounded-2xl overflow-hidden border border-primary/30 shadow-[0_0_48px_rgba(212,180,97,0.15)]" style={{ aspectRatio: "16/9" }}>
+                        <iframe
+                          ref={playerRef}
+                          src={`https://www.youtube.com/embed/${liveYtId}?enablejsapi=1&modestbranding=1&rel=0&origin=${window.location.origin}`}
+                          className="absolute inset-0 w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                          allowFullScreen
+                          title="Video Preview"
+                          data-testid="yt-player-iframe"
+                        />
+                        {/* Corner badge */}
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          <span className="text-[9px] text-white/80 font-semibold uppercase tracking-wide">Live Preview</span>
+                        </div>
+                      </div>
+
+                      {/* ── Film Strip Frame Timeline ─────────────────────── */}
+                      <div className="bg-black rounded-xl border border-white/10 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 bg-black/80">
+                          <Film className="w-3.5 h-3.5 text-primary" />
+                          <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Frame-by-Frame Timeline</p>
+                          <span className="ml-auto text-[9px] text-muted-foreground italic">Click any frame to jump there</span>
+                        </div>
+
+                        {/* Scrollable frame strip */}
+                        <div className="flex overflow-x-auto" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                          {SEEK_POINTS.map((pt, i) => (
+                            <button
+                              key={i}
+                              onClick={() => seekYouTube(pt.sec)}
+                              className="relative flex-shrink-0 group focus:outline-none"
+                              style={{ width: "76px" }}
+                              data-testid={`btn-seek-${pt.sec}`}
+                              title={`Jump to ${pt.label}`}
+                            >
+                              {/* Film sprocket top */}
+                              <div className="h-[7px] bg-black/90 border-b border-white/10 flex items-center justify-evenly px-1">
+                                {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
+                              </div>
+                              {/* Frame image */}
+                              <div className="relative h-[42px] overflow-hidden border-r border-black/60">
+                                <img
+                                  src={`https://img.youtube.com/vi/${liveYtId}/${pt.thumb}.jpg`}
+                                  className={`w-full h-full object-cover transition-all duration-200 ${seekTime === pt.sec ? "brightness-110 saturate-150" : "brightness-75 group-hover:brightness-100 group-hover:scale-105"}`}
+                                  alt={`Frame at ${pt.label}`}
+                                  loading="lazy"
+                                />
+                                {/* Selected indicator */}
+                                {seekTime === pt.sec && (
+                                  <div className="absolute inset-0 border-2 border-primary/80 pointer-events-none" />
+                                )}
+                                {/* Hover play icon */}
+                                <div className={`absolute inset-0 flex items-center justify-center transition-opacity ${seekTime === pt.sec ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                                  <div className="w-5 h-5 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                                    <Play className="w-2.5 h-2.5 text-black fill-black" />
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Film sprocket bottom */}
+                              <div className="h-[7px] bg-black/90 border-t border-white/10 flex items-center justify-evenly px-1">
+                                {[0,1,2].map(j => <div key={j} className="w-[10px] h-[5px] bg-white/15 rounded-sm" />)}
+                              </div>
+                              {/* Time label */}
+                              <div className={`text-[8px] text-center py-0.5 font-mono transition-colors ${seekTime === pt.sec ? "text-primary font-bold bg-primary/10" : "text-white/40 group-hover:text-white/80 bg-black/80"}`}>
+                                {pt.label}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Seek bar */}
+                        <div className="px-3 py-2 bg-black/60 border-t border-white/5 flex items-center gap-3">
+                          <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">0:00</span>
+                          <div className="flex-1 relative h-1.5 bg-white/10 rounded-full cursor-pointer" onClick={e => {
+                            const rect = (e.target as HTMLElement).getBoundingClientRect();
+                            const pct = (e.clientX - rect.left) / rect.width;
+                            seekYouTube(Math.round(pct * 60));
+                          }} data-testid="btn-seekbar">
+                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(seekTime / 60) * 100}%` }} />
+                            <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(212,180,97,0.8)] -translate-x-1/2" style={{ left: `${(seekTime / 60) * 100}%` }} />
+                          </div>
+                          <span className="text-[9px] text-muted-foreground font-mono flex-shrink-0">1:00</span>
+                        </div>
+                      </div>
+
+                      {/* ── Quick AI Actions ──────────────────────────────── */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { icon: Scissors, label: "Cut Points", desc: "AI finds best cuts" },
+                          { icon: Zap, label: "Hook Analysis", desc: "Rate first 3 sec" },
+                          { icon: Volume2, label: "Audio Detect", desc: "Music & voice levels" },
+                        ].map((action, i) => (
+                          <div key={i} onClick={() => { setActiveTab && null; }}
+                            className="p-3 bg-muted/5 border border-muted/20 rounded-xl text-center hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group">
+                            <action.icon className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                            <p className="text-[10px] font-bold text-foreground group-hover:text-primary transition-colors">{action.label}</p>
+                            <p className="text-[9px] text-muted-foreground mt-0.5">{action.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-[10px] text-muted-foreground text-center italic">Video loaded · Click "Build My Video" below to get the full AI breakdown</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {inputType === "script" && (
               <Textarea data-testid="input-script" value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Paste your video script, voiceover, or raw content..." className="bg-background border-border text-sm min-h-[120px] resize-none" />
             )}
