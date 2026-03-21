@@ -2962,124 +2962,187 @@ Return ONLY this JSON:
     });
   });
 
-  // ── AI Video Editor ──────────────────────────────────────────────────────
+  // ── AI Video Editor (Gemini-powered) ─────────────────────────────────────
+  async function callGemini(prompt: string, parts?: any[], model = "gemini-2.0-flash"): Promise<any> {
+    const googleKey = process.env.GOOGLEEDITOR_API_KEY;
+    if (!googleKey) throw new Error("GOOGLEEDITOR_API_KEY not configured");
+    const contentParts: any[] = parts ? [...parts, { text: prompt }] : [{ text: prompt }];
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${googleKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: contentParts }],
+        generationConfig: { temperature: 0.75, maxOutputTokens: 8192, responseMimeType: "application/json" },
+      }),
+    });
+    if (!r.ok) {
+      const errText = await r.text();
+      if (r.status === 429) {
+        let retryIn = "";
+        try { const parsed = JSON.parse(errText); const delay = parsed?.error?.details?.find((d: any) => d?.retryDelay)?.retryDelay; if (delay) retryIn = ` (retry in ${delay})`; } catch {}
+        throw new Error(`Gemini is currently busy — you've hit the rate limit${retryIn}. Please wait a moment and try again.`);
+      }
+      throw new Error(`Gemini API error: ${r.status} — ${errText.substring(0, 200)}`);
+    }
+    const data = await r.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
+  }
+
+  const VID_MODE_MAP: Record<string, string> = {
+    viral: "VIRAL MODE: Fast cuts every 2-3s, bold captions, pattern interrupts, curiosity loops, high energy. Every second must earn its place.",
+    story: "STORY MODE: Narrative arc with emotional beats. Build tension, create connection, resolve with insight. Pacing follows emotional intensity.",
+    sales: "SALES MODE: Problem, Agitate, Solution, Proof, Urgency, CTA. Every element drives toward conversion. Include price anchor and social proof.",
+    funny: "FUNNY MODE: Timing is everything. Setup, pause, punchline. Use reaction cuts, callbacks, unexpected pivots. Caption every punchline.",
+    cinematic: "CINEMATIC MODE: Visual storytelling. B-roll heavy, dramatic pauses, music sync cuts. Quality over quantity.",
+    educational: "EDUCATIONAL MODE: Clear numbered structure. One concept per segment. Examples after each point. Recap at end. Clarity beats entertainment.",
+    personal_brand: "PERSONAL BRAND MODE: Authentic voice, personal story, direct camera address. Values-driven narrative that builds trust.",
+  };
+  const VID_GOAL_MAP: Record<string, string> = {
+    viral: "GOAL: GO VIRAL — Hook must be impossible to scroll past. Include rewatch trigger. Optimize for shares and saves.",
+    followers: "GOAL: GET FOLLOWERS — Build connection and trust. End with a compelling follow reason — make them feel they'd miss out.",
+    sales: "GOAL: SELL — Drive one clear decision. Include proof, urgency, and frictionless CTA.",
+    brand: "GOAL: BUILD BRAND — Establish a clear, memorable point of view. Be the only creator who says this, this way.",
+  };
+
   app.post("/api/video/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
       const { inputType, instagramUrl, script, description, mode, goal, audience, style, duration } = req.body;
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+      const googleKey = process.env.GOOGLEEDITOR_API_KEY;
+      if (!googleKey) return res.status(500).json({ message: "GOOGLEEDITOR_API_KEY not configured" });
+
+      const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
+      const goalDesc = VID_GOAL_MAP[goal] || VID_GOAL_MAP.viral;
+      const durationNote = duration ? `Video duration: ${duration} seconds.` : "Estimate timestamps for a 30-60s reel.";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const styleNote = style ? `Style reference: "${style}" — channel this approach in all suggestions.` : "";
 
       let contentInfo = "";
+      let geminiParts: any[] | undefined;
+      let geminiModel = "gemini-2.0-flash";
+
       if (inputType === "url" && instagramUrl) {
-        try {
-          const apifyToken = process.env.APIFY_TOKEN;
-          if (apifyToken) {
-            const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ directUrls: [instagramUrl], resultsType: "posts", resultsLimit: 1 }),
-            });
-            if (apifyRes.ok) {
-              const posts = await apifyRes.json();
-              if (posts?.[0]) {
-                const p = posts[0];
-                contentInfo = `INSTAGRAM REEL DATA:\nCaption: ${p.caption || p.text || "N/A"}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nHashtags: ${(p.hashtags || []).join(", ")}\nURL: ${instagramUrl}`;
+        const isYouTube = /youtube\.com|youtu\.be/.test(instagramUrl);
+        if (isYouTube) {
+          geminiModel = "gemini-1.5-pro";
+          geminiParts = [{ fileData: { mimeType: "video/mp4", fileUri: instagramUrl } }];
+          contentInfo = `YouTube video: ${instagramUrl} — analyze the actual video content directly.`;
+        } else {
+          try {
+            const apifyToken = process.env.APIFY_TOKEN;
+            if (apifyToken) {
+              const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ directUrls: [instagramUrl], resultsType: "posts", resultsLimit: 1 }),
+              });
+              if (apifyRes.ok) {
+                const posts = await apifyRes.json();
+                if (posts?.[0]) {
+                  const p = posts[0];
+                  contentInfo = `INSTAGRAM REEL:\nCaption: ${p.caption || p.text || "N/A"}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nURL: ${instagramUrl}`;
+                }
               }
             }
-          }
-        } catch {}
-        if (!contentInfo) contentInfo = `Video URL provided: ${instagramUrl}\nNote: Could not extract metadata — analyze as a general video editing request based on this URL context.`;
+          } catch {}
+          if (!contentInfo) contentInfo = `Video URL: ${instagramUrl} — optimize for social media editing.`;
+        }
       } else if (inputType === "script" && script) {
-        contentInfo = `VIDEO SCRIPT / CONTENT:\n${script}`;
+        contentInfo = `VIDEO SCRIPT:\n${script}`;
       } else if (inputType === "describe" && description) {
-        contentInfo = `VIDEO CONCEPT / DESCRIPTION:\n${description}`;
+        contentInfo = `VIDEO CONCEPT:\n${description}`;
       }
 
-      const modeMap: Record<string, string> = {
-        viral: "VIRAL MODE: Fast cuts every 2-3s, bold captions, pattern interrupts, curiosity loops, high energy. Every second must earn its place.",
-        story: "STORY MODE: Narrative arc with emotional beats. Build tension → create connection → resolve with insight. Pacing follows emotional intensity.",
-        sales: "SALES MODE: Problem → Agitate → Solution → Proof → CTA. Every element drives toward conversion. Include urgency and social proof moments.",
-        funny: "FUNNY MODE: Timing is everything. Setup → pause → punchline. Use reaction cuts, callbacks, unexpected pivots. Caption every punchline.",
-        cinematic: "CINEMATIC MODE: Visual storytelling. Long reveals, B-roll heavy, dramatic pauses, music sync cuts. Quality over quantity.",
-        educational: "EDUCATIONAL MODE: Clear numbered structure. One concept per segment. Examples after each point. Recap at end. Clarity over entertainment.",
-        personal_brand: "PERSONAL BRAND MODE: Authentic voice, personal story, direct address to camera. Values-driven narrative that builds trust.",
-      };
-      const goalMap: Record<string, string> = {
-        viral: "GOAL - GO VIRAL: Hook must be irresistible. Include rewatch triggers. Optimize for shares and saves.",
-        followers: "GOAL - GET FOLLOWERS: Build connection and trust throughout. End with a compelling follow reason + CTA.",
-        sales: "GOAL - SELL PRODUCT: Drive purchase decision — include price anchoring, social proof, urgency, and clear CTA.",
-        brand: "GOAL - BUILD BRAND: Establish authority and expertise. Make this creator unforgettable.",
-      };
+      const editSchema = `{
+  "overallScore": number (0-100),
+  "modeApplied": string,
+  "summary": string (3-4 sentences, specific and surgical),
+  "timeline": [{ "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "KEEP"|"CUT"|"TRIM"|"ADD"|"REORDER", "note": string, "energyLevel": number }],
+  "cuts": [{ "timestamp": string, "reason": string, "severity": "high"|"medium"|"low", "fix": string }],
+  "hook": { "current": string, "score": number, "analysis": string, "improved": [string, string, string] },
+  "captions": { "onScreen": [string], "postCaption": string, "hashtags": [string] },
+  "ctas": [string, string, string],
+  "audio": [{ "name": string, "mood": string, "bpm": string, "why": string }],
+  "visuals": [{ "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }],
+  "checklist": [string],
+  "variations": [{ "name": string, "targetPlatform": string, "description": string, "changes": [string] }],
+  "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
+}`;
 
-      const durationNote = duration ? `Estimated video duration: ${duration} seconds.` : "Estimate reasonable timestamps for a 30-60 second reel.";
-      const audienceNote = audience ? `Target audience: ${audience}.` : "";
-      const styleNote = style ? `Desired style reference: "${style}". Apply this aesthetic and energy to all suggestions.` : "";
-
-      const prompt = `You are an elite AI video editing strategist. Analyze this video content and produce a comprehensive, actionable edit plan.
+      const prompt = `You are an elite AI video editing strategist powered by Google Gemini. Produce the most specific, actionable video edit plan possible.
 
 CONTENT:
 ${contentInfo}
 
-${modeMap[mode] || modeMap.viral}
-${goalMap[goal] || goalMap.viral}
+${modeDesc}
+${goalDesc}
 ${audienceNote}
 ${styleNote}
 ${durationNote}
 
-Return ONLY valid JSON (no markdown) matching this exact schema:
-{
-  "overallScore": number (0-100),
-  "modeApplied": string,
-  "summary": string (2-3 sentence overall verdict — be direct and specific),
-  "timeline": [
-    { "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "KEEP"|"CUT"|"TRIM"|"ADD"|"REORDER", "note": string, "energyLevel": number (1-10) }
-  ],
-  "cuts": [
-    { "timestamp": string, "reason": string, "severity": "high"|"medium"|"low", "fix": string }
-  ],
-  "hook": {
-    "current": string,
-    "score": number (0-10),
-    "improved": [string, string, string]
-  },
-  "captions": {
-    "onScreen": [string],
-    "postCaption": string,
-    "hashtags": [string]
-  },
-  "ctas": [string, string, string],
-  "audio": [
-    { "name": string, "mood": string, "why": string }
-  ],
-  "visuals": [
-    { "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }
-  ],
-  "checklist": [string],
-  "variations": [
-    { "name": string, "targetPlatform": string, "description": string, "changes": [string] }
-  ],
-  "styleGuide": {
-    "pacing": string,
-    "captions": string,
-    "energy": string,
-    "colorGrading": string,
-    "soundDesign": string
-  }
-}`;
+Be surgically specific — name exact timestamps, exact words to cut, exact replacements. Reference the actual content. Think like a viral content director who has studied 10,000 successful reels.
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 4000, temperature: 0.75 }),
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      const raw = data.choices?.[0]?.message?.content || "{}";
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      return res.json(JSON.parse(cleaned));
+Return ONLY valid JSON matching this schema:
+${editSchema}`;
+
+      const result = await callGemini(prompt, geminiParts, geminiModel);
+      return res.json(result);
     } catch (err: any) {
       console.error("[Video Editor] Error:", err.message);
       return res.status(500).json({ message: err.message || "Video analysis failed" });
+    }
+  });
+
+  app.post("/api/video/idea-builder", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal, audience, style, platform, duration } = req.body;
+      if (!concept?.trim()) return res.status(400).json({ message: "Video concept is required" });
+
+      const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
+      const goalDesc = VID_GOAL_MAP[goal] || VID_GOAL_MAP.viral;
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const styleNote = style ? `Style reference: "${style}".` : "";
+      const platformLabel = platform === "tiktok" ? "TikTok" : platform === "youtube" ? "YouTube Shorts" : "Instagram Reels";
+      const durationLabel = duration ? `${duration} seconds` : "30-45 seconds";
+
+      const ideaSchema = `{
+  "title": string,
+  "overallScore": number (85-99),
+  "summary": string (3-4 sentences about what this video will achieve),
+  "fullScript": string (complete word-for-word voiceover script with [PAUSE] [ZOOM] [CUT] markers — at least 150 words, conversational and punchy),
+  "shotList": [{ "shot": number, "timestamp": string, "type": string, "description": string, "duration": string }],
+  "brollList": [string],
+  "timeline": [{ "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "ADD", "note": string, "energyLevel": number }],
+  "hook": { "current": string, "score": number, "analysis": string, "improved": [string, string, string] },
+  "captions": { "onScreen": [string], "postCaption": string, "hashtags": [string] },
+  "ctas": [string, string, string],
+  "audio": [{ "name": string, "mood": string, "bpm": string, "why": string }],
+  "visuals": [{ "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }],
+  "checklist": [string],
+  "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
+}`;
+
+      const prompt = `You are an elite viral content director powered by Google Gemini. Transform this video concept into a complete, production-ready plan that will actually get views.
+
+VIDEO CONCEPT: "${concept}"
+Platform: ${platformLabel}
+Target duration: ${durationLabel}
+${modeDesc}
+${goalDesc}
+${audienceNote}
+${styleNote}
+
+Write the actual word-for-word script they should record. Be creative, specific, and genuinely engaging. This creator is counting on you.
+
+Return ONLY valid JSON matching this schema:
+${ideaSchema}`;
+
+      const result = await callGemini(prompt);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Idea Builder] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Idea builder failed" });
     }
   });
 
