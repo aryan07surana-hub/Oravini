@@ -14,7 +14,7 @@ import {
   Loader2, Link2, FileText, Lightbulb, Scissors, Volume2, Eye, ListChecks,
   Shuffle, Wand2, Music, Layers, Star, Play, RotateCcw, Hash, Video, Camera,
   Download, CheckSquare, Square, Plus, X, TrendingUp, Trophy, AlertCircle,
-  ArrowRight, Image, Film, MessageCircle, Send, Radio, FolderOpen, ExternalLink
+  ArrowRight, Image, Film, MessageCircle, Send, Radio
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -359,48 +359,6 @@ function renderHighlightCaption(text: string) {
   });
 }
 
-// ─── Asset Folder Panel ────────────────────────────────────────────────────────
-const FOLDER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  orange: { bg: "bg-orange-500/10", border: "border-orange-400/30", text: "text-orange-300" },
-  pink:   { bg: "bg-pink-500/10",   border: "border-pink-400/30",   text: "text-pink-300"   },
-  purple: { bg: "bg-purple-500/10", border: "border-purple-400/30", text: "text-purple-300" },
-};
-function AssetFolderPanel({ label, folderId, color, onUse }: { label: string; folderId: string; color: string; onUse: (label: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const c = FOLDER_COLORS[color] || FOLDER_COLORS.orange;
-  const embedUrl = `https://drive.google.com/embeddedfolderview?id=${folderId}#grid`;
-  const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
-  return (
-    <div className={`border ${c.border} ${c.bg} rounded-xl overflow-hidden`}>
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:opacity-80 transition-opacity"
-        data-testid={`btn-asset-folder-${folderId}`}>
-        <FolderOpen className={`w-4 h-4 ${c.text} flex-shrink-0`} />
-        <span className={`text-xs font-bold ${c.text} flex-1 text-left`}>{label}</span>
-        <div className="flex items-center gap-2">
-          <a href={folderUrl} target="_blank" rel="noopener noreferrer"
-            onClick={e => e.stopPropagation()}
-            className={`p-1.5 rounded-lg ${c.bg} border ${c.border} ${c.text} hover:opacity-80 transition-opacity`}>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-          <button onClick={e => { e.stopPropagation(); onUse(label); }}
-            className={`px-2 py-1 rounded-lg ${c.bg} border ${c.border} ${c.text} text-[10px] font-bold hover:opacity-80 transition-opacity flex items-center gap-1`}
-            data-testid={`btn-use-folder-${folderId}`}>
-            <Wand2 className="w-3 h-3" />Use with AI
-          </button>
-          {open ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-        </div>
-      </button>
-      {open && (
-        <div className="border-t border-white/5">
-          <p className="px-4 py-1.5 text-[10px] text-muted-foreground/70">Find a template you like, right-click it in Drive → Copy link, then paste the link into the AI chat below</p>
-          <iframe src={embedUrl} className="w-full border-0" style={{ height: "300px" }} title={label} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const { toast } = useToast();
@@ -424,7 +382,6 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
 
   // Template state
   const [showTemplates, setShowTemplates] = useState(false);
-  const [assetStudioOpen, setAssetStudioOpen] = useState(false);
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
   const [aiRecommended, setAiRecommended] = useState<{ id: string; rank: number; reason: string; customization: string }[]>([]);
   const [aiAvoid, setAiAvoid] = useState<string[]>([]);
@@ -769,41 +726,6 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 <p className="text-xs text-red-300">AI suggests avoiding: <span className="font-semibold">{TEMPLATES.filter(t => aiAvoid.includes(t.id)).map(t => t.name).join(", ")}</span> for your concept</p>
               </div>
             )}
-
-            {/* ── Asset Studio ──────────────────────────────────────────────── */}
-            <div className="border border-blue-400/20 bg-blue-500/5 rounded-2xl overflow-hidden">
-              <button onClick={() => setAssetStudioOpen(v => !v)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors"
-                data-testid="btn-asset-studio-toggle">
-                <div className="w-7 h-7 rounded-lg bg-blue-500/15 border border-blue-400/30 flex items-center justify-center flex-shrink-0">
-                  <Layers className="w-3.5 h-3.5 text-blue-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-xs font-bold text-blue-300">Asset Studio — Templates & Motivational Bundles</p>
-                  <p className="text-[10px] text-blue-400/70">Browse your Google Drive template folders — pick assets to apply frame by frame</p>
-                </div>
-                {assetStudioOpen ? <ChevronUp className="w-3.5 h-3.5 text-blue-400" /> : <ChevronDown className="w-3.5 h-3.5 text-blue-400" />}
-              </button>
-
-              {assetStudioOpen && (
-                <div className="border-t border-blue-400/15 p-4 space-y-4">
-                  <p className="text-[11px] text-blue-300/80 leading-relaxed">
-                    Browse your template folders below. Find an image or Canva template you like, copy its link, then paste it into the AI chat (e.g. "Apply this template to shot 3") — the AI will guide you through adapting it frame by frame.
-                  </p>
-                  {[
-                    { label: "Motivational Pics & Bundles", id: "1Jcd81EbO-9LqTCukQIb_e8cjRB3Uk3uR", color: "orange" },
-                    { label: "Canva Templates", id: "1DVr5_dYyfUXXdLTCQzxyApbaK8jTBavv", color: "pink" },
-                    { label: "Creative Asset Library", id: "1gsCp_NNNX9xj35JtaZaqioEl6jyzZlGo", color: "purple" },
-                  ].map(folder => (
-                    <AssetFolderPanel key={folder.id} label={folder.label} folderId={folder.id} color={folder.color}
-                      onUse={(label) => {
-                        setChatInput(`Use the "${label}" template folder for this project. Reference the assets from https://drive.google.com/drive/folders/${folder.id} and apply them to the appropriate frames in my video concept.`);
-                        toast({ title: `${label} loaded into AI chat — hit Send to activate` });
-                      }} />
-                  ))}
-                </div>
-              )}
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {TEMPLATES.map(t => {
