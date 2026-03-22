@@ -3640,7 +3640,7 @@ Return ONLY valid JSON:
     const data = encoder.encode(codeVerifier);
     crypto.subtle.digest("SHA-256", data).then(hash => {
       const challenge = Buffer.from(hash).toString("base64url");
-      const redirectUri = `${req.protocol}://${req.get("host")}/api/canva/oauth/callback`;
+      const redirectUri = `https://${req.get("host")}/api/canva/oauth/callback`;
       const params = new URLSearchParams({
         response_type: "code",
         client_id: CANVA_CLIENT_ID,
@@ -3664,7 +3664,7 @@ Return ONLY valid JSON:
       if (!storedState || state !== storedState) return res.redirect("/?canva=error&reason=state_mismatch");
       delete (req.session as any).canvaState;
       delete (req.session as any).canvaCodeVerifier;
-      const redirectUri = `${req.protocol}://${req.get("host")}/api/canva/oauth/callback`;
+      const redirectUri = `https://${req.get("host")}/api/canva/oauth/callback`;
       const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
       const tokenRes = await fetch(CANVA_TOKEN_URL, {
         method: "POST",
