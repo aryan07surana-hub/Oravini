@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
+import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -97,6 +98,66 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const hashed = await hashPassword(newPassword);
     await storage.updateUser(user.id, { password: hashed });
     res.json({ message: "Password updated" });
+  });
+
+  // ── Google OAuth ────────────────────────────────────────────────────────────
+  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+  app.get("/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/login?error=google_failed" }),
+    (req, res) => {
+      const user = req.user as any;
+      res.redirect(user?.role === "admin" ? "/admin" : "/dashboard");
+    }
+  );
+
+  // ── OTP ─────────────────────────────────────────────────────────────────────
+  const otpTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
+
+  app.post("/api/auth/otp/send", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.status(404).json({ message: "No account found with this email" });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await storage.createOtpCode(email, code, expiresAt);
+    try {
+      await otpTransporter.sendMail({
+        from: `"Brandverse" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Your Brandverse login code",
+        html: `
+          <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
+            <h2 style="color:#d4b461;margin-bottom:8px">Brandverse</h2>
+            <p style="color:#aaa;margin-bottom:24px">Your one-time login code:</p>
+            <div style="background:#222;border:1px solid #d4b46133;border-radius:8px;padding:24px;text-align:center;letter-spacing:12px;font-size:32px;font-weight:700;color:#d4b461">${code}</div>
+            <p style="color:#666;font-size:13px;margin-top:20px">This code expires in 10 minutes. Do not share it with anyone.</p>
+          </div>`,
+      });
+      res.json({ message: "OTP sent" });
+    } catch (err: any) {
+      console.error("OTP email error:", err);
+      res.status(500).json({ message: "Failed to send email. Check email config." });
+    }
+  });
+
+  app.post("/api/auth/otp/verify", async (req, res) => {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ message: "Email and code required" });
+    const otp = await storage.getValidOtpCode(email, code);
+    if (!otp) return res.status(400).json({ message: "Invalid or expired code" });
+    await storage.markOtpUsed(otp.id);
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    req.logIn(user, (err) => {
+      if (err) return res.status(500).json({ message: "Login failed" });
+      const { password, ...safeUser } = user as any;
+      res.json(safeUser);
+    });
   });
 
   // File upload endpoint (authenticated users)

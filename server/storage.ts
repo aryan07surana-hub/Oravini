@@ -4,7 +4,7 @@ import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
-  dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources,
+  dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -17,6 +17,7 @@ import {
   type InstagramProfileReport, type InsertInstagramProfileReport,
   type CanvaToken, type InsertCanvaToken,
   type VideoResource, type InsertVideoResource,
+  type OtpCode,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -38,6 +39,12 @@ export interface IStorage {
   createVideoResource(data: InsertVideoResource): Promise<VideoResource>;
   updateVideoResource(id: string, data: Partial<InsertVideoResource>): Promise<VideoResource | undefined>;
   deleteVideoResource(id: string): Promise<void>;
+
+  // OTP Codes
+  createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode>;
+  getValidOtpCode(email: string, code: string): Promise<OtpCode | undefined>;
+  markOtpUsed(id: string): Promise<void>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
 
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -128,6 +135,28 @@ export interface IStorage {
 }
 
 class DatabaseStorage implements IStorage {
+  async createOtpCode(email: string, code: string, expiresAt: Date): Promise<OtpCode> {
+    const [otp] = await db.insert(otpCodes).values({ email, code, expiresAt, used: false }).returning();
+    return otp;
+  }
+
+  async getValidOtpCode(email: string, code: string): Promise<OtpCode | undefined> {
+    const now = new Date();
+    const [otp] = await db.select().from(otpCodes).where(
+      and(eq(otpCodes.email, email), eq(otpCodes.code, code), eq(otpCodes.used, false), gte(otpCodes.expiresAt, now))
+    );
+    return otp;
+  }
+
+  async markOtpUsed(id: string): Promise<void> {
+    await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, id));
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
   async getUser(id: string) {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;

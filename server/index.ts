@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
@@ -60,6 +61,47 @@ passport.use(
     }
   })
 );
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+
+if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy(
+    {
+      clientID: GOOGLE_CLIENT_ID,
+      clientSecret: GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/auth/google/callback",
+      proxy: true,
+    },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        if (!email) return done(null, false);
+        let user = await storage.getUserByGoogleId(profile.id);
+        if (!user) {
+          user = await storage.getUserByEmail(email);
+          if (user) {
+            await storage.updateUser(user.id, { googleId: profile.id, avatar: user.avatar || profile.photos?.[0]?.value });
+            user = await storage.getUser(user.id);
+          }
+        }
+        if (!user) {
+          user = await storage.createUser({
+            email,
+            password: Math.random().toString(36),
+            name: profile.displayName || email.split("@")[0],
+            role: "client",
+            avatar: profile.photos?.[0]?.value,
+            googleId: profile.id,
+          });
+        }
+        return done(null, user);
+      } catch (err) {
+        return done(err as Error);
+      }
+    }
+  ));
+}
 
 passport.serializeUser((user: any, done) => done(null, user.id));
 passport.deserializeUser(async (id: string, done) => {

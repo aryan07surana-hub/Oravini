@@ -19,6 +19,7 @@ export const users = pgTable("users", {
   program: text("program"),
   nextCallDate: timestamp("next_call_date"),
   phone: text("phone"),
+  googleId: text("google_id").unique(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -303,3 +304,16 @@ export const canvaTokens = pgTable("canva_tokens", {
 export const insertCanvaTokenSchema = createInsertSchema(canvaTokens).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCanvaToken = z.infer<typeof insertCanvaTokenSchema>;
 export type CanvaToken = typeof canvaTokens.$inferSelect;
+
+export const otpCodes = pgTable("otp_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull(),
+  code: text("code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({ id: true, createdAt: true });
+export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
+export type OtpCode = typeof otpCodes.$inferSelect;
