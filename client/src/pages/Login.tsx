@@ -33,6 +33,20 @@ export default function Login() {
   }, [user, isLoading, navigate]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    const msg = params.get("msg");
+    if (error === "google_failed") {
+      toast({
+        title: "Google sign-in failed",
+        description: msg ? decodeURIComponent(msg) : "Could not sign in with Google. Check that this Google account is allowed.",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/login");
+    }
+  }, []);
+
+  useEffect(() => {
     if (countdown <= 0) return;
     const t = setTimeout(() => setCountdown(c => c - 1), 1000);
     return () => clearTimeout(t);

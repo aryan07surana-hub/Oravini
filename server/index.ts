@@ -65,18 +65,27 @@ passport.use(
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 
+const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
+const GOOGLE_CALLBACK_URL = replitDomain
+  ? `https://${replitDomain}/api/auth/google/callback`
+  : `http://localhost:5000/api/auth/google/callback`;
+
+console.log("[google-oauth] callbackURL:", GOOGLE_CALLBACK_URL);
+
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy(
     {
       clientID: GOOGLE_CLIENT_ID,
       clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
-      proxy: true,
+      callbackURL: GOOGLE_CALLBACK_URL,
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value;
-        if (!email) return done(null, false);
+        if (!email) {
+          console.error("[google-oauth] No email in profile");
+          return done(null, false);
+        }
         let user = await storage.getUserByGoogleId(profile.id);
         if (!user) {
           user = await storage.getUserByEmail(email);
@@ -95,8 +104,9 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             googleId: profile.id,
           });
         }
-        return done(null, user);
+        return done(null, user!);
       } catch (err) {
+        console.error("[google-oauth] strategy error:", err);
         return done(err as Error);
       }
     }
