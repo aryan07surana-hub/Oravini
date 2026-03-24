@@ -1248,6 +1248,12 @@ Return this exact JSON structure:
       const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts, scrapedPosts } = req.body;
       if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
 
+      const _u = req.user as any;
+      if (_u.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u.id, 2, "ai_ideas", "AI Content Ideas generation", _u.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+
       const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
       const goalLabel = goal || "growth and engagement";
       const audienceLabel = audience || "general audience";
@@ -1413,6 +1419,12 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
     try {
       const { title, concept, captionStarter, keyPoints, cta, platform, niche, goal, duration, formatType } = req.body;
       if (!title) return res.status(400).json({ message: "Title is required" });
+
+      const _u2 = req.user as any;
+      if (_u2.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u2.id, 2, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
 
       const isYt = platform === "youtube";
       const fmt = (formatType || "").toLowerCase();
@@ -1615,6 +1627,12 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
     try {
       const { posts, platform } = req.body;
       if (!posts || posts.length === 0) return res.status(400).json({ message: "No posts to analyze" });
+
+      const _u3 = req.user as any;
+      if (_u3.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u3.id, 5, "ai_report", "AI Content Report analysis", _u3.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
 
       const isYt = platform === "youtube";
       const totalViews = posts.reduce((s: number, p: any) => s + (p.views || 0), 0);
@@ -1875,6 +1893,12 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     try {
       const { clientUrl, competitorUrl, clientId } = req.body;
       if (!clientUrl || !competitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+
+      const _u4 = req.user as any;
+      if (_u4.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u4.id, 5, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
 
       const [clientItems, competitorItems] = await Promise.all([
         apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 30 }),
@@ -3915,7 +3939,57 @@ Return ONLY valid JSON:
     }
   });
 
-  // ── Sessions Hub ────────────────────────────────────────────────────────────
+  // ── Credits System ──────────────────────────────────────────────────────────
+  const FEATURE_COSTS: Record<string, number> = {
+    ai_ideas: 2,
+    ai_coach: 2,
+    ai_report: 5,
+    competitor: 5,
+    virality: 2,
+    hashtag: 1,
+  };
+
+  // GET /api/credits — get current user's credit balance
+  app.get("/api/credits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const balance = await storage.upsertCreditBalance(user.id, user.plan || "free");
+      const transactions = await storage.getCreditTransactions(user.id, 15);
+      return res.json({
+        balance,
+        transactions,
+        featureCosts: FEATURE_COSTS,
+        planAllowance: { free: 20, starter: 100, pro: 500 }[user.plan as string] ?? 20,
+        total: balance.monthlyCredits + balance.bonusCredits,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/credits/all — admin: all users' balances
+  app.get("/api/credits/all", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const balances = await storage.getAllCreditBalances();
+      return res.json(balances);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/credits/grant — admin grant bonus credits to a user
+  app.post("/api/credits/grant", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, amount, description } = req.body;
+      if (!userId || !amount || amount <= 0) return res.status(400).json({ message: "userId and positive amount required" });
+      const balance = await storage.addBonusCredits(userId, amount, description || `Admin grant: ${amount} credits`);
+      return res.json(balance);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sessions Hub ────────────────────────────────────────────────────────────
   const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2 };
 
   // GET /api/sessions — all published sessions the user's plan can see

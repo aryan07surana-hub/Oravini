@@ -30,6 +30,8 @@ import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import Sessions from "@/pages/client/Sessions";
 import AdminSessions from "@/pages/admin/AdminSessions";
+import Credits from "@/pages/client/Credits";
+import AdminCredits from "@/pages/admin/AdminCredits";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -118,6 +120,9 @@ function Router() {
       <Route path="/sessions">
         {() => <ProtectedRoute component={Sessions} />}
       </Route>
+      <Route path="/credits">
+        {() => <ProtectedRoute component={Credits} />}
+      </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
@@ -165,6 +170,9 @@ function Router() {
       </Route>
       <Route path="/admin/sessions">
         {() => <ProtectedRoute component={AdminSessions} adminOnly />}
+      </Route>
+      <Route path="/admin/credits">
+        {() => <ProtectedRoute component={AdminCredits} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>

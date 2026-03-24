@@ -5,7 +5,7 @@ import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
-  sessions, freeAiUsage,
+  sessions, freeAiUsage, creditBalances, creditTransactions,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -20,6 +20,7 @@ import {
   type VideoResource, type InsertVideoResource,
   type OtpCode,
   type Session, type InsertSession,
+  type CreditBalance, type CreditTransaction,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -47,6 +48,14 @@ export interface IStorage {
   getValidOtpCode(email: string, code: string): Promise<OtpCode | undefined>;
   markOtpUsed(id: string): Promise<void>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
+
+  // Credits
+  getCreditBalance(userId: string): Promise<CreditBalance | undefined>;
+  upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance>;
+  deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }>;
+  addBonusCredits(userId: string, amount: number, description: string): Promise<CreditBalance>;
+  getCreditTransactions(userId: string, limit?: number): Promise<CreditTransaction[]>;
+  getAllCreditBalances(): Promise<(CreditBalance & { userName?: string; userEmail?: string; userPlan?: string })[]>;
 
   // Sessions Hub
   getSessions(tierFilter?: string[]): Promise<Session[]>;
@@ -610,6 +619,99 @@ class DatabaseStorage implements IStorage {
 
   async deleteVideoResource(id: string): Promise<void> {
     await db.delete(videoResources).where(eq(videoResources.id, id));
+  }
+
+  // ── Credit system ──────────────────────────────────────────────────────────
+  private readonly PLAN_CREDITS: Record<string, number> = { free: 20, starter: 100, pro: 500 };
+
+  private currentMonth(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  async getCreditBalance(userId: string): Promise<CreditBalance | undefined> {
+    const [row] = await db.select().from(creditBalances).where(eq(creditBalances.userId, userId));
+    return row;
+  }
+
+  async upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance> {
+    const month = this.currentMonth();
+    const allowance = this.PLAN_CREDITS[plan] ?? 20;
+    const existing = await this.getCreditBalance(userId);
+    if (!existing) {
+      const [row] = await db.insert(creditBalances)
+        .values({ userId, monthlyCredits: allowance, bonusCredits: 0, lastResetMonth: month })
+        .returning();
+      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "monthly_reset", description: `Monthly credits for ${month} (${plan} plan)` });
+      return row;
+    }
+    if (existing.lastResetMonth !== month) {
+      const [row] = await db.update(creditBalances)
+        .set({ monthlyCredits: allowance, lastResetMonth: month })
+        .where(eq(creditBalances.userId, userId))
+        .returning();
+      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "monthly_reset", description: `Monthly credits for ${month} (${plan} plan)` });
+      return row;
+    }
+    return existing;
+  }
+
+  async deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }> {
+    const balance = await this.upsertCreditBalance(userId, plan);
+    const total = balance.monthlyCredits + balance.bonusCredits;
+    if (total < amount) {
+      return { success: false, balance, message: `Not enough credits. You need ${amount} but have ${total}.` };
+    }
+    let newMonthly = balance.monthlyCredits;
+    let newBonus = balance.bonusCredits;
+    let remaining = amount;
+    if (newBonus >= remaining) { newBonus -= remaining; remaining = 0; }
+    else { remaining -= newBonus; newBonus = 0; newMonthly -= remaining; }
+    const [updated] = await db.update(creditBalances)
+      .set({ monthlyCredits: newMonthly, bonusCredits: newBonus })
+      .where(eq(creditBalances.userId, userId))
+      .returning();
+    await db.insert(creditTransactions).values({ userId, amount: -amount, type, description });
+    return { success: true, balance: updated };
+  }
+
+  async addBonusCredits(userId: string, amount: number, description: string): Promise<CreditBalance> {
+    const existing = await this.getCreditBalance(userId);
+    if (!existing) {
+      const [row] = await db.insert(creditBalances)
+        .values({ userId, monthlyCredits: 0, bonusCredits: amount, lastResetMonth: this.currentMonth() })
+        .returning();
+      await db.insert(creditTransactions).values({ userId, amount, type: "bonus_added", description });
+      return row;
+    }
+    const [row] = await db.update(creditBalances)
+      .set({ bonusCredits: existing.bonusCredits + amount })
+      .where(eq(creditBalances.userId, userId))
+      .returning();
+    await db.insert(creditTransactions).values({ userId, amount, type: "bonus_added", description });
+    return row;
+  }
+
+  async getCreditTransactions(userId: string, limit = 20): Promise<CreditTransaction[]> {
+    return await db.select().from(creditTransactions)
+      .where(eq(creditTransactions.userId, userId))
+      .orderBy(desc(creditTransactions.createdAt))
+      .limit(limit);
+  }
+
+  async getAllCreditBalances(): Promise<(CreditBalance & { userName?: string; userEmail?: string; userPlan?: string })[]> {
+    const rows = await db.select({
+      id: creditBalances.id,
+      userId: creditBalances.userId,
+      monthlyCredits: creditBalances.monthlyCredits,
+      bonusCredits: creditBalances.bonusCredits,
+      lastResetMonth: creditBalances.lastResetMonth,
+      createdAt: creditBalances.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+      userPlan: users.plan,
+    }).from(creditBalances).leftJoin(users, eq(creditBalances.userId, users.id));
+    return rows as any;
   }
 
   async getSessions(tierFilter?: string[]): Promise<Session[]> {

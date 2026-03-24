@@ -51,6 +51,32 @@ export const freeAiUsage = pgTable("free_ai_usage", {
   count: integer("count").notNull().default(0),
 });
 
+export const creditBalances = pgTable("credit_balances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  monthlyCredits: integer("monthly_credits").notNull().default(20),
+  bonusCredits: integer("bonus_credits").notNull().default(0),
+  lastResetMonth: text("last_reset_month").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const creditTransactions = pgTable("credit_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  amount: integer("amount").notNull(),
+  type: text("type").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCreditBalanceSchema = createInsertSchema(creditBalances).omit({ id: true, createdAt: true });
+export type InsertCreditBalance = z.infer<typeof insertCreditBalanceSchema>;
+export type CreditBalance = typeof creditBalances.$inferSelect;
+
+export const insertCreditTransactionSchema = createInsertSchema(creditTransactions).omit({ id: true, createdAt: true });
+export type InsertCreditTransaction = z.infer<typeof insertCreditTransactionSchema>;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clientId: varchar("client_id").notNull().references(() => users.id),

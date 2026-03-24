@@ -12,9 +12,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard, Video
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard, Video, Zap
 } from "lucide-react";
 import { useState } from "react";
+
+function CreditWidget() {
+  const { data } = useQuery<any>({ queryKey: ["/api/credits"], staleTime: 60000 });
+  const total = data ? data.balance.monthlyCredits + data.balance.bonusCredits : null;
+  return (
+    <div className="px-4 pb-2">
+      <Link href="/credits">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 transition-colors cursor-pointer" data-testid="sidebar-credit-widget">
+          <Zap className="w-3.5 h-3.5 text-[#d4b461] flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-zinc-500 leading-none">Credits</p>
+            <p className="text-xs font-semibold text-white leading-none mt-0.5">
+              {total === null ? "—" : total} remaining
+            </p>
+          </div>
+          <ChevronRight className="w-3 h-3 text-zinc-600" />
+        </div>
+      </Link>
+    </div>
+  );
+}
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +48,7 @@ const mainNavItems = [
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
   { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
+  { href: "/credits", label: "Credits", icon: Zap },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -99,6 +121,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             );
           })}
         </nav>
+
+        <CreditWidget />
 
         <div className="px-4 pb-3">
           <a
