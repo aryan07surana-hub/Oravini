@@ -1,10 +1,11 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr } from "drizzle-orm";
+import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr, inArray } from "drizzle-orm";
 import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
+  sessions, freeAiUsage,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -18,6 +19,7 @@ import {
   type CanvaToken, type InsertCanvaToken,
   type VideoResource, type InsertVideoResource,
   type OtpCode,
+  type Session, type InsertSession,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -45,6 +47,17 @@ export interface IStorage {
   getValidOtpCode(email: string, code: string): Promise<OtpCode | undefined>;
   markOtpUsed(id: string): Promise<void>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
+
+  // Sessions Hub
+  getSessions(tierFilter?: string[]): Promise<Session[]>;
+  getSession(id: string): Promise<Session | undefined>;
+  createSession(data: InsertSession): Promise<Session>;
+  updateSession(id: string, data: Partial<InsertSession>): Promise<Session | undefined>;
+  deleteSession(id: string): Promise<void>;
+
+  // Free AI Usage
+  getFreeAiUsage(identifier: string, date: string): Promise<number>;
+  incrementFreeAiUsage(identifier: string, date: string): Promise<number>;
 
   // Users
   getUser(id: string): Promise<User | undefined>;
@@ -597,6 +610,54 @@ class DatabaseStorage implements IStorage {
 
   async deleteVideoResource(id: string): Promise<void> {
     await db.delete(videoResources).where(eq(videoResources.id, id));
+  }
+
+  async getSessions(tierFilter?: string[]): Promise<Session[]> {
+    if (tierFilter && tierFilter.length > 0) {
+      return await db.select().from(sessions)
+        .where(and(
+          eq(sessions.isPublished, true),
+          inArray(sessions.tierRequired, tierFilter as any[])
+        ))
+        .orderBy(desc(sessions.createdAt));
+    }
+    return await db.select().from(sessions).orderBy(desc(sessions.createdAt));
+  }
+
+  async getSession(id: string): Promise<Session | undefined> {
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, id));
+    return row;
+  }
+
+  async createSession(data: InsertSession): Promise<Session> {
+    const [row] = await db.insert(sessions).values(data).returning();
+    return row;
+  }
+
+  async updateSession(id: string, data: Partial<InsertSession>): Promise<Session | undefined> {
+    const [row] = await db.update(sessions).set(data).where(eq(sessions.id, id)).returning();
+    return row;
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    await db.delete(sessions).where(eq(sessions.id, id));
+  }
+
+  async getFreeAiUsage(identifier: string, date: string): Promise<number> {
+    const [row] = await db.select().from(freeAiUsage)
+      .where(and(eq(freeAiUsage.identifier, identifier), eq(freeAiUsage.date, date)));
+    return row?.count ?? 0;
+  }
+
+  async incrementFreeAiUsage(identifier: string, date: string): Promise<number> {
+    const [row] = await db.insert(freeAiUsage)
+      .values({ identifier, date, count: 1 })
+      .onConflictDoUpdate({
+        target: [freeAiUsage.identifier, freeAiUsage.date],
+        set: { count: sqlExpr`${freeAiUsage.count} + 1` },
+      })
+      .returning();
+    return row.count;
   }
 }
 

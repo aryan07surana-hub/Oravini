@@ -8,6 +8,9 @@ export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", 
 export const platformEnum = pgEnum("platform", ["instagram", "youtube"]);
 export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video"]);
 export const funnelStageEnum = pgEnum("funnel_stage", ["top", "middle", "bottom"]);
+export const planEnum = pgEnum("plan", ["free", "starter", "pro"]);
+export const sessionTypeEnum = pgEnum("session_type", ["recording", "live_qa", "workshop", "masterclass"]);
+export const sessionTierEnum = pgEnum("session_tier", ["free", "starter", "pro"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -20,7 +23,32 @@ export const users = pgTable("users", {
   nextCallDate: timestamp("next_call_date"),
   phone: text("phone"),
   googleId: text("google_id").unique(),
+  plan: planEnum("plan").notNull().default("free"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sessions = pgTable("sessions_hub", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: sessionTypeEnum("type").notNull().default("recording"),
+  videoUrl: text("video_url"),
+  thumbnailUrl: text("thumbnail_url"),
+  hostName: text("host_name"),
+  durationMinutes: integer("duration_minutes"),
+  scheduledAt: timestamp("scheduled_at"),
+  tierRequired: sessionTierEnum("tier_required").notNull().default("free"),
+  isPublished: boolean("is_published").notNull().default(false),
+  tags: text("tags").array(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const freeAiUsage = pgTable("free_ai_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  identifier: text("identifier").notNull(),
+  date: text("date").notNull(),
+  count: integer("count").notNull().default(0),
 });
 
 export const documents = pgTable("documents", {
@@ -304,6 +332,14 @@ export const canvaTokens = pgTable("canva_tokens", {
 export const insertCanvaTokenSchema = createInsertSchema(canvaTokens).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCanvaToken = z.infer<typeof insertCanvaTokenSchema>;
 export type CanvaToken = typeof canvaTokens.$inferSelect;
+
+export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdAt: true });
+export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type Session = typeof sessions.$inferSelect;
+
+export const insertFreeAiUsageSchema = createInsertSchema(freeAiUsage).omit({ id: true });
+export type InsertFreeAiUsage = z.infer<typeof insertFreeAiUsageSchema>;
+export type FreeAiUsage = typeof freeAiUsage.$inferSelect;
 
 export const otpCodes = pgTable("otp_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

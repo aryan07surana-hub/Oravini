@@ -12,12 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard, Video
 } from "lucide-react";
 import { useState } from "react";
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/sessions", label: "Sessions Hub", icon: Video },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/calls", label: "Call Feedback", icon: Phone },

@@ -28,6 +28,8 @@ import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
+import Sessions from "@/pages/client/Sessions";
+import AdminSessions from "@/pages/admin/AdminSessions";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -113,6 +115,9 @@ function Router() {
       <Route path="/video-editor">
         {() => <ProtectedRoute component={AIVideoEditor} />}
       </Route>
+      <Route path="/sessions">
+        {() => <ProtectedRoute component={Sessions} />}
+      </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
@@ -157,6 +162,9 @@ function Router() {
       </Route>
       <Route path="/admin/video-editor">
         {() => <ProtectedRoute component={AIVideoEditor} adminOnly useAdmin={true} />}
+      </Route>
+      <Route path="/admin/sessions">
+        {() => <ProtectedRoute component={AdminSessions} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>

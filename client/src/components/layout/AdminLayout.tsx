@@ -11,13 +11,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox, Clapperboard
+  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox, Clapperboard, Video
 } from "lucide-react";
 import { useState } from "react";
 
 const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/clients", label: "Clients", icon: Users },
+  { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/admin/competitor-study", label: "Competitor Study", icon: TrendingUp },
   { href: "/admin/dm-tracker", label: "DM Tracker", icon: Inbox },

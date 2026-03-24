@@ -3915,5 +3915,135 @@ Return ONLY valid JSON:
     }
   });
 
+  // ── Sessions Hub ────────────────────────────────────────────────────────────
+  const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2 };
+
+  // GET /api/sessions — all published sessions the user's plan can see
+  app.get("/api/sessions", async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const plan = user?.plan ?? "free";
+      const role = user?.role;
+      if (role === "admin") {
+        // admins see everything
+        const all = await storage.getSessions();
+        return res.json(all);
+      }
+      const allowedTiers = Object.keys(TIER_ORDER).filter(t => TIER_ORDER[t] <= TIER_ORDER[plan]);
+      const list = await storage.getSessions(allowedTiers);
+      return res.json(list);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/sessions/all — admin: all sessions (published + drafts)
+  app.get("/api/sessions/all", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const all = await storage.getSessions();
+      return res.json(all);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/sessions/:id
+  app.get("/api/sessions/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getSession(req.params.id);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const user = req.user as any;
+      if (user.role !== "admin") {
+        const plan = user.plan ?? "free";
+        if (TIER_ORDER[session.tierRequired] > TIER_ORDER[plan]) {
+          return res.status(403).json({ message: "Upgrade required" });
+        }
+      }
+      return res.json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/sessions — admin create
+  app.post("/api/sessions", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const session = await storage.createSession({ ...req.body, createdBy: user.id });
+      return res.status(201).json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/sessions/:id — admin update
+  app.patch("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const session = await storage.updateSession(req.params.id, req.body);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      return res.json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/sessions/:id — admin delete
+  app.delete("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteSession(req.params.id);
+      return res.json({ message: "Deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/admin/users/:id/plan — admin update user plan
+  app.patch("/api/admin/users/:id/plan", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { plan } = req.body;
+      if (!["free", "starter", "pro"].includes(plan)) {
+        return res.status(400).json({ message: "Invalid plan" });
+      }
+      const user = await storage.updateUser(req.params.id, { plan } as any);
+      return res.json(user);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/sessions/free-ai — free tier AI content ideas (3/day limit)
+  app.post("/api/sessions/free-ai", async (req: Request, res: Response) => {
+    try {
+      const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "unknown";
+      const user = req.user as any;
+      const identifier = user?.id || ip;
+      const today = new Date().toISOString().split("T")[0];
+      const FREE_DAILY_LIMIT = 3;
+      const usage = await storage.getFreeAiUsage(identifier, today);
+      if (usage >= FREE_DAILY_LIMIT) {
+        return res.status(429).json({ message: "Daily limit reached", limit: FREE_DAILY_LIMIT, used: usage });
+      }
+      const { niche, platform } = req.body;
+      if (!niche) return res.status(400).json({ message: "Niche is required" });
+
+      const Groq = (await import("groq-sdk")).default;
+      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const prompt = `Generate 3 creative content ideas for a ${platform || "social media"} creator in the ${niche} niche. For each idea give: a punchy title, a one-line hook, and the content format (reel, carousel, etc.). Keep it actionable and viral-focused. Format as JSON array: [{title, hook, format}]`;
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.85,
+        max_tokens: 600,
+      });
+      const text = completion.choices[0]?.message?.content || "[]";
+      let ideas: any[] = [];
+      try { ideas = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { ideas = []; }
+      const newCount = await storage.incrementFreeAiUsage(identifier, today);
+      return res.json({ ideas, used: newCount, limit: FREE_DAILY_LIMIT, remaining: FREE_DAILY_LIMIT - newCount });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }
