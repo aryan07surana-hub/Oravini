@@ -5,7 +5,7 @@ import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
-  sessions, freeAiUsage, creditBalances, creditTransactions,
+  sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -21,6 +21,7 @@ import {
   type OtpCode,
   type Session, type InsertSession,
   type CreditBalance, type CreditTransaction,
+  type LandingLead, type InsertLandingLead,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -56,6 +57,12 @@ export interface IStorage {
   addBonusCredits(userId: string, amount: number, description: string): Promise<CreditBalance>;
   getCreditTransactions(userId: string, limit?: number): Promise<CreditTransaction[]>;
   getAllCreditBalances(): Promise<(CreditBalance & { userName?: string; userEmail?: string; userPlan?: string })[]>;
+
+  // Landing Leads (CRM)
+  createLandingLead(data: InsertLandingLead): Promise<LandingLead>;
+  getLandingLeadByEmail(email: string): Promise<LandingLead | undefined>;
+  updateLandingLead(id: string, data: Partial<InsertLandingLead>): Promise<LandingLead | undefined>;
+  getAllLandingLeads(): Promise<LandingLead[]>;
 
   // Sessions Hub
   getSessions(tierFilter?: string[]): Promise<Session[]>;
@@ -621,8 +628,42 @@ class DatabaseStorage implements IStorage {
     await db.delete(videoResources).where(eq(videoResources.id, id));
   }
 
+  // ── Landing Leads (CRM) ────────────────────────────────────────────────────
+  async createLandingLead(data: InsertLandingLead): Promise<LandingLead> {
+    const [row] = await db.insert(landingLeads).values(data).returning();
+    return row;
+  }
+
+  async getLandingLeadByEmail(email: string): Promise<LandingLead | undefined> {
+    const [row] = await db.select().from(landingLeads).where(eq(landingLeads.email, email));
+    return row;
+  }
+
+  async updateLandingLead(id: string, data: Partial<InsertLandingLead>): Promise<LandingLead | undefined> {
+    const [row] = await db.update(landingLeads).set(data).where(eq(landingLeads.id, id)).returning();
+    return row;
+  }
+
+  async getAllLandingLeads(): Promise<LandingLead[]> {
+    return await db.select().from(landingLeads).orderBy(desc(landingLeads.createdAt));
+  }
+
   // ── Credit system ──────────────────────────────────────────────────────────
-  private readonly PLAN_CREDITS: Record<string, number> = { free: 20, starter: 100, pro: 500 };
+  // Free = 10/day, Starter = 20/week, Pro = 500/month
+  private readonly PLAN_CREDITS: Record<string, number> = { free: 10, starter: 20, pro: 500 };
+
+  private currentPeriodKey(plan: string): string {
+    const d = new Date();
+    if (plan === "free") {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    if (plan === "starter") {
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+      return `${d.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+    }
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
 
   private currentMonth(): string {
     const d = new Date();
@@ -635,22 +676,23 @@ class DatabaseStorage implements IStorage {
   }
 
   async upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance> {
-    const month = this.currentMonth();
-    const allowance = this.PLAN_CREDITS[plan] ?? 20;
+    const periodKey = this.currentPeriodKey(plan);
+    const allowance = this.PLAN_CREDITS[plan] ?? 10;
     const existing = await this.getCreditBalance(userId);
+    const periodLabel = plan === "free" ? "Daily" : plan === "starter" ? "Weekly" : "Monthly";
     if (!existing) {
       const [row] = await db.insert(creditBalances)
-        .values({ userId, monthlyCredits: allowance, bonusCredits: 0, lastResetMonth: month })
+        .values({ userId, monthlyCredits: allowance, bonusCredits: 0, lastResetMonth: periodKey })
         .returning();
-      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "monthly_reset", description: `Monthly credits for ${month} (${plan} plan)` });
+      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "period_reset", description: `${periodLabel} credits for ${periodKey} (${plan} plan)` });
       return row;
     }
-    if (existing.lastResetMonth !== month) {
+    if (existing.lastResetMonth !== periodKey) {
       const [row] = await db.update(creditBalances)
-        .set({ monthlyCredits: allowance, lastResetMonth: month })
+        .set({ monthlyCredits: allowance, lastResetMonth: periodKey })
         .where(eq(creditBalances.userId, userId))
         .returning();
-      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "monthly_reset", description: `Monthly credits for ${month} (${plan} plan)` });
+      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "period_reset", description: `${periodLabel} credits for ${periodKey} (${plan} plan)` });
       return row;
     }
     return existing;

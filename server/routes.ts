@@ -3994,6 +3994,89 @@ Return ONLY valid JSON:
     }
   });
 
+  // Landing Leads & CRM ────────────────────────────────────────────────────
+
+  // POST /api/leads/capture — public: capture email + name for lead magnet
+  app.post("/api/leads/capture", async (req: Request, res: Response) => {
+    try {
+      const { name, email } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const existing = await storage.getLandingLeadByEmail(email);
+      if (existing) return res.json({ message: "already_captured", lead: existing });
+      const lead = await storage.createLandingLead({ name, email, source: "email_capture" });
+      return res.json({ message: "captured", lead });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/leads/quiz — public: submit quiz answers + generate AI monetization report
+  app.post("/api/leads/quiz", async (req: Request, res: Response) => {
+    try {
+      const { name, email, creatorType, platform, biggestChallenge, postFrequency, monetizationGoal } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+
+      const quizAnswers = { creatorType, platform, biggestChallenge, postFrequency, monetizationGoal };
+
+      const sysPrompt = `You are a social media monetization expert. Generate a personalized monetization audit as a JSON object with these exact fields:
+{ "headline": "punchy title", "score": <0-100>, "scoreLabel": "Early Stage|Growth Ready|Monetization Ready", "topOpportunity": "one sentence", "quickWins": ["win1","win2","win3"], "roadmap": [{"phase":"Phase 1 (Now)","action":"...","timeframe":"0-30 days"},{"phase":"Phase 2 (Next)","action":"...","timeframe":"30-90 days"},{"phase":"Phase 3 (Later)","action":"...","timeframe":"90+ days"}], "platformTip": "one platform tip", "estimatedMonthlyRevenue": "e.g. $500-2K/mo" }`;
+      const userMsg = `Creator: stage=${creatorType}, platform=${platform}, challenge=${biggestChallenge}, frequency=${postFrequency}, goal=${monetizationGoal}. Be specific and actionable.`;
+
+      let reportData: any = null;
+      try {
+        const raw = await callGroqJson(sysPrompt, userMsg, 800);
+        reportData = JSON.parse(raw);
+      } catch (aiErr) {
+        reportData = {
+          headline: `${platform} Monetization Blueprint`,
+          score: 62,
+          scoreLabel: "Growth Ready",
+          topOpportunity: `Leverage your ${platform} presence to create digital products around ${monetizationGoal}`,
+          quickWins: ["Post consistently 4-5x/week", "Add a clear CTA to every post", "Build your email list with a lead magnet"],
+          roadmap: [
+            { phase: "Phase 1 (Now)", action: "Define your niche and create a content calendar", timeframe: "0-30 days" },
+            { phase: "Phase 2 (Next)", action: "Launch your first paid offer or lead magnet", timeframe: "30-90 days" },
+            { phase: "Phase 3 (Later)", action: "Scale with automation and multiple revenue streams", timeframe: "90+ days" },
+          ],
+          platformTip: `On ${platform}, consistency and hooks in the first 3 seconds are your biggest growth levers`,
+          estimatedMonthlyRevenue: "$500-2K/mo within 90 days",
+        };
+      }
+
+      // Upsert lead
+      const existing = await storage.getLandingLeadByEmail(email);
+      let lead;
+      if (existing) {
+        lead = await storage.updateLandingLead(existing.id, { name, creatorType, platform, biggestChallenge, postFrequency, monetizationGoal, quizAnswers, monetizationReport: reportData, source: "quiz" });
+      } else {
+        lead = await storage.createLandingLead({ name, email, source: "quiz", creatorType, platform, biggestChallenge, postFrequency, monetizationGoal, quizAnswers, monetizationReport: reportData });
+      }
+
+      return res.json({ report: reportData, lead });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/crm — admin: full CRM data
+  app.get("/api/admin/crm", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [clients, leads, creditBals] = await Promise.all([
+        storage.getAllClients(),
+        storage.getAllLandingLeads(),
+        storage.getAllCreditBalances(),
+      ]);
+      const creditMap = Object.fromEntries(creditBals.map((b: any) => [b.userId, b]));
+      const clientsWithCredits = clients.map((c: any) => ({
+        ...c,
+        credits: creditMap[c.id] || null,
+      }));
+      return res.json({ clients: clientsWithCredits, leads });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Sessions Hub ────────────────────────────────────────────────────────────
   const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2 };
 

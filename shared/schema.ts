@@ -379,3 +379,23 @@ export const otpCodes = pgTable("otp_codes", {
 export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({ id: true, createdAt: true });
 export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
 export type OtpCode = typeof otpCodes.$inferSelect;
+
+export const landingLeads = pgTable("landing_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  source: text("source").notNull().default("email_capture"),
+  creatorType: text("creator_type"),
+  platform: text("platform"),
+  biggestChallenge: text("biggest_challenge"),
+  postFrequency: text("post_frequency"),
+  monetizationGoal: text("monetization_goal"),
+  quizAnswers: jsonb("quiz_answers"),
+  monetizationReport: jsonb("monetization_report"),
+  creditsClaimed: boolean("credits_claimed").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLandingLeadSchema = createInsertSchema(landingLeads).omit({ id: true, createdAt: true });
+export type InsertLandingLead = z.infer<typeof insertLandingLeadSchema>;
+export type LandingLead = typeof landingLeads.$inferSelect;

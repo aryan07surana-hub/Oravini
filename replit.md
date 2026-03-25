@@ -11,6 +11,9 @@ The platform aims to enhance client-coach relationships by streamlining administ
 - **Advanced content tracking:** Detailed metrics and auto-sync features for Instagram and YouTube posts.
 - **AI-powered insights:** Report generation, content idea generation, video editing, and a sophisticated AI Content Coach.
 - **CRM for DMs:** A lead management system for Instagram DMs with pipeline views and quick replies.
+- **Landing page CRM:** Email capture popup, inline lead magnet strip, and 5-question AI-powered creator audit generating personalized monetization reports.
+- **Admin CRM dashboard:** Segment all clients by plan (Free/Starter/Pro) and view all email leads with quiz data and AI-generated reports.
+- **Revised plan tiers:** Free = 10 credits/day, Starter ($29) = 20 credits/week, Pro = 500 credits/month.
 - **Competitor analysis:** AI-driven comparison of Instagram profiles.
 - **Integrated scheduling:** Calendly webhook for booking management.
 - **Real-time communication:** WebSocket-based chat with file support.
