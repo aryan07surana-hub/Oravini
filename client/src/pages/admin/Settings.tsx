@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink } from "lucide-react";
+import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -21,6 +23,17 @@ export default function AdminSettings() {
   const [showNew, setShowNew] = useState(false);
   const [shortToken, setShortToken] = useState("");
   const [exchangedToken, setExchangedToken] = useState("");
+
+  // Add client form
+  const [clientForm, setClientForm] = useState({ name: "", email: "", password: "", plan: "free" });
+  const [showClientPw, setShowClientPw] = useState(false);
+  const [addedClient, setAddedClient] = useState<{ name: string; email: string; password: string } | null>(null);
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$";
+    const pw = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setClientForm(f => ({ ...f, password: pw }));
+  };
 
   const { data: metaAccount, isLoading: metaLoading, refetch: refetchMeta } = useQuery<any>({
     queryKey: ["/api/meta/account"],
@@ -77,6 +90,29 @@ export default function AdminSettings() {
     toast({ title: "Copied!", description: "Token copied to clipboard." });
   };
 
+  const addClient = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/clients", {
+      name: clientForm.name.trim(),
+      email: clientForm.email.trim(),
+      password: clientForm.password,
+      plan: clientForm.plan,
+    }),
+    onSuccess: (created: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      setAddedClient({ name: clientForm.name, email: clientForm.email, password: clientForm.password });
+      setClientForm({ name: "", email: "", password: "", plan: "free" });
+      toast({ title: "Client added!", description: `${created.name} can now log in.` });
+    },
+    onError: (err: any) => toast({ title: "Failed to add client", description: err.message, variant: "destructive" }),
+  });
+
+  const copyCredentials = () => {
+    if (!addedClient) return;
+    const text = `Login: ${addedClient.email}\nPassword: ${addedClient.password}\nPortal: ${window.location.origin}/login`;
+    navigator.clipboard.writeText(text);
+    toast({ title: "Credentials copied!", description: "Share these with your client." });
+  };
+
   return (
     <AdminLayout>
       <div className="p-6 lg:p-8 max-w-2xl mx-auto">
@@ -89,6 +125,123 @@ export default function AdminSettings() {
         </div>
 
         <div className="space-y-6">
+          {/* Add Client */}
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-primary" />
+                Add New Client
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="client-name">Full name</Label>
+                  <Input
+                    id="client-name"
+                    data-testid="input-client-name"
+                    placeholder="Jane Smith"
+                    value={clientForm.name}
+                    onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="client-email">Email address</Label>
+                  <Input
+                    id="client-email"
+                    data-testid="input-client-email"
+                    type="email"
+                    placeholder="jane@example.com"
+                    value={clientForm.email}
+                    onChange={e => setClientForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="client-password">Password</Label>
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        id="client-password"
+                        data-testid="input-client-password"
+                        type={showClientPw ? "text" : "password"}
+                        placeholder="Set a password"
+                        value={clientForm.password}
+                        onChange={e => setClientForm(f => ({ ...f, password: e.target.value }))}
+                        className="pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowClientPw(v => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showClientPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generatePassword}
+                      className="shrink-0 gap-1.5 text-xs border-zinc-700 text-zinc-300 hover:text-white"
+                      data-testid="button-generate-password"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Generate
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Plan</Label>
+                  <Select value={clientForm.plan} onValueChange={v => setClientForm(f => ({ ...f, plan: v }))}>
+                    <SelectTrigger data-testid="select-client-plan">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free">Free — 20 credits/mo</SelectItem>
+                      <SelectItem value="starter">Starter — 100 credits/mo</SelectItem>
+                      <SelectItem value="pro">Pro — 500 credits/mo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button
+                data-testid="button-add-client"
+                onClick={() => addClient.mutate()}
+                disabled={!clientForm.name.trim() || !clientForm.email.trim() || !clientForm.password || addClient.isPending}
+                className="gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                {addClient.isPending ? "Creating account…" : "Create Client Account"}
+              </Button>
+
+              {/* Success state — show credentials to copy */}
+              {addedClient && (
+                <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                    <p className="text-sm font-semibold text-green-400">Client account created!</p>
+                  </div>
+                  <div className="bg-zinc-900 rounded-md p-3 font-mono text-xs text-zinc-300 space-y-1">
+                    <p><span className="text-zinc-500">Name:</span> {addedClient.name}</p>
+                    <p><span className="text-zinc-500">Email:</span> {addedClient.email}</p>
+                    <p><span className="text-zinc-500">Password:</span> {addedClient.password}</p>
+                    <p><span className="text-zinc-500">Portal:</span> {window.location.origin}/login</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={copyCredentials} className="gap-1.5 text-xs border-zinc-600 text-zinc-300 hover:text-white" data-testid="button-copy-credentials">
+                      <Copy className="w-3.5 h-3.5" /> Copy credentials
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setAddedClient(null)} className="text-xs text-zinc-500 hover:text-white">
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Meta / Instagram Connection */}
           <Card className="border border-card-border">
             <CardHeader className="pb-4">
