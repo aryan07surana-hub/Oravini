@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound } from "lucide-react";
+import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound, Users, RotateCcw, ChevronDown, ChevronUp, Trash2, Crown, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -34,6 +35,65 @@ export default function AdminSettings() {
     const pw = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
     setClientForm(f => ({ ...f, password: pw }));
   };
+
+  // Client list state
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [showResetPw, setShowResetPw] = useState<Record<string, boolean>>({});
+  const [justReset, setJustReset] = useState<Record<string, string>>({}); // clientId → new password shown
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const generateResetPw = (clientId: string) => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$";
+    const pw = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setResetPasswords(p => ({ ...p, [clientId]: pw }));
+  };
+
+  // Queries
+  const { data: clients = [], isLoading: clientsLoading } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+  });
+
+  const { data: creditBalances = [] } = useQuery<any[]>({
+    queryKey: ["/api/credits/all"],
+  });
+
+  const creditMap = creditBalances.reduce((acc: any, b: any) => {
+    acc[b.userId] = b;
+    return acc;
+  }, {} as Record<string, any>);
+
+  // Mutations
+  const resetPassword = useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) =>
+      apiRequest("PATCH", `/api/clients/${id}/reset-password`, { newPassword }),
+    onSuccess: (_data, { id, newPassword }) => {
+      setJustReset(p => ({ ...p, [id]: newPassword }));
+      setResetPasswords(p => ({ ...p, [id]: "" }));
+      toast({ title: "Password reset!", description: "The new password is shown below." });
+    },
+    onError: (err: any) => toast({ title: "Reset failed", description: err.message, variant: "destructive" }),
+  });
+
+  const updatePlan = useMutation({
+    mutationFn: ({ id, plan }: { id: string; plan: string }) =>
+      apiRequest("PATCH", `/api/clients/${id}`, { plan }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "Plan updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteClient = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/clients/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      setConfirmDelete(null);
+      toast({ title: "Client deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
   const { data: metaAccount, isLoading: metaLoading, refetch: refetchMeta } = useQuery<any>({
     queryKey: ["/api/meta/account"],
@@ -237,6 +297,215 @@ export default function AdminSettings() {
                       Dismiss
                     </Button>
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Client Accounts */}
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" />
+                Client Accounts
+                <Badge variant="outline" className="ml-auto text-xs">{clients.length} clients</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {clientsLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  {[1, 2, 3].map(i => <div key={i} className="h-14 bg-zinc-800 rounded-lg" />)}
+                </div>
+              ) : clients.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No clients yet. Add one above.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clients.map((client: any) => {
+                    const initials = client.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+                    const isExpanded = expandedClient === client.id;
+                    const credits = creditMap[client.id];
+                    const totalCredits = credits ? credits.monthlyCredits + credits.bonusCredits : null;
+                    const planColors: Record<string, string> = {
+                      free: "border-zinc-600 text-zinc-400",
+                      starter: "border-blue-500/40 text-blue-400",
+                      pro: "border-[#d4b461]/40 text-[#d4b461]",
+                    };
+
+                    return (
+                      <div key={client.id} className="rounded-lg border border-zinc-800 overflow-hidden" data-testid={`client-row-${client.id}`}>
+                        {/* Main row */}
+                        <div
+                          className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/40 transition-colors"
+                          onClick={() => setExpandedClient(isExpanded ? null : client.id)}
+                        >
+                          <Avatar className="w-9 h-9 shrink-0">
+                            <AvatarFallback className="bg-zinc-700 text-white text-xs font-bold">{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{client.name}</p>
+                            <p className="text-xs text-zinc-500 truncate">{client.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="outline" className={`text-xs ${planColors[client.plan || "free"]}`}>
+                              {client.plan === "pro" && <Crown className="w-2.5 h-2.5 mr-1" />}
+                              {client.plan || "free"}
+                            </Badge>
+                            {totalCredits !== null && (
+                              <span className="text-xs text-zinc-500 flex items-center gap-1">
+                                <Zap className="w-3 h-3 text-[#d4b461]" />{totalCredits}
+                              </span>
+                            )}
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
+                          </div>
+                        </div>
+
+                        {/* Expanded panel */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 pt-1 border-t border-zinc-800 space-y-4 bg-zinc-900/50">
+                            {/* Info row */}
+                            <div className="grid grid-cols-3 gap-3 text-xs pt-2">
+                              <div>
+                                <p className="text-zinc-500 mb-0.5">Email</p>
+                                <p className="text-zinc-200 break-all">{client.email}</p>
+                              </div>
+                              <div>
+                                <p className="text-zinc-500 mb-0.5">Credits</p>
+                                <p className="text-zinc-200">{totalCredits !== null ? `${totalCredits} total` : "Not initialized"}</p>
+                              </div>
+                              <div>
+                                <p className="text-zinc-500 mb-0.5">Joined</p>
+                                <p className="text-zinc-200">{client.createdAt ? new Date(client.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</p>
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-800" />
+
+                            {/* Update Plan */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Change Plan</p>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  defaultValue={client.plan || "free"}
+                                  onValueChange={(v) => updatePlan.mutate({ id: client.id, plan: v })}
+                                >
+                                  <SelectTrigger className="h-8 text-xs w-44" data-testid={`select-plan-${client.id}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="free">Free — 20 credits/mo</SelectItem>
+                                    <SelectItem value="starter">Starter — 100 credits/mo</SelectItem>
+                                    <SelectItem value="pro">Pro — 500 credits/mo</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {updatePlan.isPending && <span className="text-xs text-zinc-500 animate-pulse">Saving…</span>}
+                              </div>
+                            </div>
+
+                            <Separator className="bg-zinc-800" />
+
+                            {/* Reset Password */}
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Reset Password</p>
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <Input
+                                    type={showResetPw[client.id] ? "text" : "password"}
+                                    placeholder="New password"
+                                    value={resetPasswords[client.id] || ""}
+                                    onChange={e => setResetPasswords(p => ({ ...p, [client.id]: e.target.value }))}
+                                    className="h-8 text-xs pr-9 bg-zinc-800 border-zinc-700"
+                                    data-testid={`input-reset-pw-${client.id}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowResetPw(p => ({ ...p, [client.id]: !p[client.id] }))}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200"
+                                  >
+                                    {showResetPw[client.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => generateResetPw(client.id)}
+                                  className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-white px-2 gap-1"
+                                  data-testid={`button-gen-reset-${client.id}`}
+                                >
+                                  <KeyRound className="w-3 h-3" /> Generate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    const pw = resetPasswords[client.id];
+                                    if (!pw || pw.length < 6) return toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+                                    resetPassword.mutate({ id: client.id, newPassword: pw });
+                                  }}
+                                  disabled={resetPassword.isPending}
+                                  className="h-8 text-xs bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-1"
+                                  data-testid={`button-reset-pw-${client.id}`}
+                                >
+                                  <RotateCcw className="w-3 h-3" /> Reset
+                                </Button>
+                              </div>
+
+                              {/* Show new password after reset */}
+                              {justReset[client.id] && (
+                                <div className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] text-zinc-500 mb-0.5">New password set</p>
+                                    <p className="text-sm font-mono text-white">{justReset[client.id]}</p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`Email: ${client.email}\nPassword: ${justReset[client.id]}\nPortal: ${window.location.origin}/login`);
+                                      toast({ title: "Credentials copied!" });
+                                    }}
+                                    className="h-7 text-xs text-zinc-400 hover:text-white gap-1"
+                                    data-testid={`button-copy-reset-${client.id}`}
+                                  >
+                                    <Copy className="w-3 h-3" /> Copy all
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+
+                            <Separator className="bg-zinc-800" />
+
+                            {/* Delete */}
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-zinc-600">Permanently removes account and all data</p>
+                              {confirmDelete === client.id ? (
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(null)} className="h-7 text-xs text-zinc-400">Cancel</Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => deleteClient.mutate(client.id)}
+                                    disabled={deleteClient.isPending}
+                                    className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white"
+                                    data-testid={`button-confirm-delete-${client.id}`}
+                                  >
+                                    {deleteClient.isPending ? "Deleting…" : "Yes, delete"}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setConfirmDelete(client.id)}
+                                  className="h-7 text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 hover:text-red-300 gap-1"
+                                  data-testid={`button-delete-${client.id}`}
+                                >
+                                  <Trash2 className="w-3 h-3" /> Delete client
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
