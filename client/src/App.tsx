@@ -14,6 +14,7 @@ import ClientCalls from "@/pages/client/Calls";
 import { TrackingHome, ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
 import ContentCalendar from "@/pages/client/ContentCalendar";
 import AIIdeas from "@/pages/client/AIIdeas";
+import CarouselStudio from "@/pages/client/CarouselStudio";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
@@ -93,6 +94,9 @@ function Router() {
       </Route>
       <Route path="/ai-ideas">
         {() => <ProtectedRoute component={AIIdeas} />}
+      </Route>
+      <Route path="/carousel-studio">
+        {() => <ProtectedRoute component={CarouselStudio} />}
       </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}
