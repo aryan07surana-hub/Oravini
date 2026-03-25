@@ -4,7 +4,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
+import CreditErrorBanner from "@/components/CreditErrorBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2104,6 +2105,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [clientUrl, setClientUrl] = useState("");
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creditError, setCreditError] = useState<string | null>(null);
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -2123,7 +2125,13 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       setCompetitorUrl("");
       toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      if (e instanceof ApiError && e.status === 402) {
+        setCreditError(e.message);
+      } else {
+        toast({ title: "Error", description: e.message, variant: "destructive" });
+      }
+    },
   });
 
   const deleteAnalysis = useMutation({
@@ -2139,6 +2147,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
 
   return (
     <div className="space-y-6">
+      {creditError && <CreditErrorBanner message={creditError} />}
       {/* Input form */}
       <Card className="border border-card-border">
         <CardContent className="p-5 space-y-4">

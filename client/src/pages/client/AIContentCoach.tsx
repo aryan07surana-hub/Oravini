@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
+import CreditErrorBanner from "@/components/CreditErrorBanner";
 import {
   Sparkles, Zap, Wand2, RefreshCw, Target, TrendingUp, AlertTriangle,
   CheckCircle2, ChevronDown, ChevronUp, Copy, Check, Send, Instagram,
@@ -496,6 +497,7 @@ export default function AIContentCoach() {
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [hasGreeted, setHasGreeted] = useState(false);
   const [showTones, setShowTones] = useState(false);
+  const [creditError, setCreditError] = useState<string | null>(null);
 
   // Brand builder state
   const [brandForm, setBrandForm] = useState({ niche: "", target: "", goal: "", currentBio: "", handle: "" });
@@ -534,7 +536,14 @@ export default function AIContentCoach() {
       const data = await apiRequest("POST","/api/coach/chat",{ message:userMsg||"Analyze this script",script:scriptToAnalyze||(userMsg.length>40?userMsg:undefined),mode,goal,history });
       setMood(data.mood==="strong"?"strong":data.mood==="weak"?"weak":"decent");
       addCoachMsg(data.reply||"Let me check that out…",{ analysis:data.analysis||null });
-    } catch(e:any) { toast({ title:"Coach is down",description:e.message,variant:"destructive" }); setMood("idle"); }
+    } catch(e:any) {
+      if (e instanceof ApiError && e.status === 402) {
+        setCreditError(e.message);
+      } else {
+        toast({ title:"Coach is down",description:e.message,variant:"destructive" });
+      }
+      setMood("idle");
+    }
     finally { setThinking(false); }
   };
 
@@ -678,6 +687,12 @@ export default function AIContentCoach() {
             ))}
           </div>
         </div>
+
+        {creditError && (
+          <div className="px-6 py-3 shrink-0">
+            <CreditErrorBanner message={creditError} />
+          </div>
+        )}
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* ── Left Sidebar ── */}

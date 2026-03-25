@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
+import CreditErrorBanner from "@/components/CreditErrorBanner";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
@@ -366,6 +367,7 @@ export default function AIIdeas() {
   const [scriptLoading, setScriptLoading] = useState(false);
   const [scriptDuration, setScriptDuration] = useState<string>("");
   const [ytVideoDuration, setYtVideoDuration] = useState<string>("");
+  const [creditError, setCreditError] = useState<string | null>(null);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
 
@@ -411,8 +413,13 @@ export default function AIIdeas() {
       });
       setScriptContent(data.script || "");
     } catch (err: any) {
-      toast({ title: "Script generation failed", description: err.message, variant: "destructive" });
-      setScriptIdea(null);
+      if (err instanceof ApiError && err.status === 402) {
+        setCreditError(err.message);
+        setScriptIdea(null);
+      } else {
+        toast({ title: "Script generation failed", description: err.message, variant: "destructive" });
+        setScriptIdea(null);
+      }
     } finally {
       setScriptLoading(false);
     }
@@ -477,8 +484,11 @@ export default function AIIdeas() {
         toast({ title: `Ideas based on ${scrapedPosts.length} real posts`, description: "Your actual Instagram content was analysed to make these ideas personal." });
       }
     } catch (err: any) {
-      const msg: string = err.message || "Failed to generate ideas";
-      toast({ title: "Generation failed", description: msg, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 402) {
+        setCreditError(err.message);
+      } else {
+        toast({ title: "Generation failed", description: err.message || "Failed to generate ideas", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -498,6 +508,8 @@ export default function AIIdeas() {
             <p className="text-xs text-muted-foreground">Personalized ideas powered by AI — the more context you give, the smarter the ideas</p>
           </div>
         </div>
+
+        {creditError && <CreditErrorBanner message={creditError} />}
 
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>

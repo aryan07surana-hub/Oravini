@@ -2822,6 +2822,11 @@ Scoring rules: hook is 25% of score, pacing 20%, emotion 15%, retention 15%, cla
   app.post("/api/coach/chat", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message, script, mode, goal, history = [] } = req.body;
+      const _uc = req.user as any;
+      if (_uc.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uc.id, 1, "ai_coach", "AI Content Coach chat", _uc.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
       const content = script || message;
       const hasScript = content && content.trim().length > 20;
 
