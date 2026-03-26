@@ -969,6 +969,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq JSON generation failed: ${lastError}`);
   }
 
+  // ── Oravini CRM sync helper ───────────────────────────────────────────────
+  async function syncToOraviniCRM(payload: Record<string, any>): Promise<void> {
+    const key = process.env.ORAVINI_CRM_KEY;
+    if (!key || !payload.email) return;
+    try {
+      await fetch("https://oravinicrm.replit.app/api/integration/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": key },
+        body: JSON.stringify({ source: "brandverse", ...payload }),
+      });
+    } catch (_) { /* fire-and-forget — never block main response */ }
+  }
+
   // ── Anthropic helper (deep analysis — Claude 4 models) ───────────────────
   async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
     const apiKey = process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
@@ -4004,6 +4017,7 @@ Return ONLY valid JSON:
       const existing = await storage.getLandingLeadByEmail(email);
       if (existing) return res.json({ message: "already_captured", lead: existing });
       const lead = await storage.createLandingLead({ name, email, source: "email_capture" });
+      syncToOraviniCRM({ email, name, source: "email_capture" });
       return res.json({ message: "captured", lead });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4052,6 +4066,7 @@ Return ONLY valid JSON:
         lead = await storage.createLandingLead({ name, email, source: "quiz", creatorType, platform, biggestChallenge, postFrequency, monetizationGoal, quizAnswers, monetizationReport: reportData });
       }
 
+      syncToOraviniCRM({ email, name, source: "quiz", platform, creatorType, monetizationGoal });
       return res.json({ report: reportData, lead });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4196,7 +4211,24 @@ Generate their personalised audit. Be specific to their situation.`;
         locked: ["gaps", "contentStrategy", "monetisationPath", "competitiveEdge", "90DayRoadmap", "platformSpecificTip"],
       };
 
+      syncToOraviniCRM({ email, name, source: "audit", platform, niche, targetAudience, goals, instagramUrl, auditScore: partialReport.overallScore });
       return res.json({ report: partialReport, leadId: lead?.id });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/crm/sync — admin: bulk push all leads + clients to Oravini CRM
+  app.post("/api/admin/crm/sync", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [clients, leads] = await Promise.all([storage.getAllClients(), storage.getAllLandingLeads()]);
+      let synced = 0;
+      await Promise.allSettled([
+        ...leads.map((l: any) => syncToOraviniCRM({ email: l.email, name: l.name, source: l.source || "lead", platform: l.platform, niche: l.niche })),
+        ...clients.map((c: any) => syncToOraviniCRM({ email: c.email, name: c.name, source: "client", plan: c.plan, role: c.role })),
+      ]);
+      synced = leads.length + clients.length;
+      return res.json({ synced, message: `${synced} records pushed to Oravini CRM` });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
