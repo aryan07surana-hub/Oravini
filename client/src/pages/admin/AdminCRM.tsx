@@ -1,11 +1,13 @@
 import { useState } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Users, Mail, Zap, Crown, TrendingUp, Search, FileText, ChevronDown, ChevronUp, ClipboardCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, Mail, Zap, Crown, TrendingUp, Search, FileText, ChevronDown, ChevronUp, ClipboardCheck, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { apiRequest } from "@/lib/queryClient";
 
 const PLAN_COLORS: Record<string, string> = {
   free:    "border-zinc-600 text-zinc-400",
@@ -44,9 +46,15 @@ export default function AdminCRM() {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<{ synced: number } | null>(null);
 
   const { data, isLoading } = useQuery<{ clients: any[]; leads: any[] }>({
     queryKey: ["/api/admin/crm"],
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/crm/sync"),
+    onSuccess: (res: any) => { setSyncResult({ synced: res.synced }); setTimeout(() => setSyncResult(null), 5000); },
   });
 
   const clients = data?.clients ?? [];
@@ -81,6 +89,25 @@ export default function AdminCRM() {
           <div>
             <h1 className="text-2xl font-bold text-white">CRM</h1>
             <p className="text-sm text-zinc-500 mt-0.5">Leads, clients, and plan segmentation · Auto-synced to Oravini CRM</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {syncResult && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium" data-testid="text-sync-result">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {syncResult.synced} records synced
+              </span>
+            )}
+            <Button
+              data-testid="button-sync-stats"
+              variant="outline"
+              size="sm"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 gap-2 text-xs"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+              {syncMutation.isPending ? "Syncing…" : "Sync Stats"}
+            </Button>
           </div>
         </div>
 
