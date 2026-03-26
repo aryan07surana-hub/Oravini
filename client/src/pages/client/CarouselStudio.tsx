@@ -4,258 +4,276 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Trash2, Download, ImagePlus, ChevronLeft, ChevronRight,
-  Palette, Layers, MoveUp, MoveDown, ChevronDown, Sparkles, X, Upload
+  Sparkles, Layers, ChevronDown, ChevronLeft, ChevronRight,
+  Download, ImagePlus, RefreshCw, Upload, Check, Palette,
+  LayoutTemplate, Wand2, Play, ArrowRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
-interface Slide {
-  id: string;
-  headline: string;
-  body: string;
-  imageUrl: string | null;
-  layout: "full" | "split" | "text";
-}
+// ── Types ────────────────────────────────────────────────────────────────────
+interface AiSlide { role: string; headline: string; body: string; }
+interface DesignSlide extends AiSlide { imageUrl: string | null; layout: "full" | "split" | "text"; }
 
-type ThemeKey = "brandverse" | "minimal" | "navy" | "coral";
+type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral";
+type Step = 1 | 2 | 3 | 4;
 
+// ── Themes ───────────────────────────────────────────────────────────────────
 const THEMES: Record<ThemeKey, { name: string; bg: string; overlay: string; headline: string; body: string; accent: string; accentText: string }> = {
-  brandverse: { name: "Brandverse Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.55)", headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
-  minimal: { name: "Clean White", bg: "#ffffff", overlay: "rgba(255,255,255,0.7)", headline: "#111111", body: "#444444", accent: "#111111", accentText: "#ffffff" },
-  navy: { name: "Midnight Blue", bg: "#0f172a", overlay: "rgba(15,23,42,0.65)", headline: "#818cf8", body: "#e2e8f0", accent: "#818cf8", accentText: "#0f172a" },
-  coral: { name: "Bold Coral", bg: "#1a1a1a", overlay: "rgba(0,0,0,0.5)", headline: "#ff6b6b", body: "#ffffff", accent: "#ff6b6b", accentText: "#000000" },
+  brandverse: { name: "Brandverse Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.58)", headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
+  minimal:    { name: "Clean White",     bg: "#ffffff",  overlay: "rgba(255,255,255,0.72)", headline: "#111111", body: "#444444", accent: "#111111", accentText: "#ffffff" },
+  navy:       { name: "Midnight Blue",   bg: "#0f172a",  overlay: "rgba(15,23,42,0.68)",   headline: "#818cf8", body: "#e2e8f0", accent: "#818cf8", accentText: "#0f172a" },
+  coral:      { name: "Bold Coral",      bg: "#1a1a1a",  overlay: "rgba(0,0,0,0.52)",      headline: "#ff6b6b", body: "#ffffff", accent: "#ff6b6b", accentText: "#000000" },
+  viral:      { name: "Viral Dark",      bg: "#0d0d0d",  overlay: "rgba(0,0,0,0.60)",      headline: "#ffffff", body: "#cccccc", accent: "#ff3b8e", accentText: "#ffffff" },
 };
 
-const LAYOUTS = [
-  { key: "full", label: "Full Bleed" },
-  { key: "split", label: "Split" },
-  { key: "text", label: "Text Only" },
-] as const;
+const TONES = ["Engaging & Educational", "Bold & Direct", "Motivational", "Storytelling", "Data-Driven", "Conversational"];
+const SLIDE_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10];
+const ROLE_COLORS: Record<string, string> = { Hook: "#d4b461", Problem: "#f87171", Insight: "#818cf8", Solution: "#34d399", CTA: "#fb923c", Benefit: "#38bdf8", Step: "#a78bfa" };
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
-  const words = text.split(" ");
-  let line = "";
-  let currentY = y;
-  for (const word of words) {
-    const testLine = line + word + " ";
-    if (ctx.measureText(testLine).width > maxWidth && line !== "") {
-      ctx.fillText(line.trim(), x, currentY);
-      line = word + " ";
-      currentY += lineHeight;
-    } else { line = testLine; }
+// ── Canvas renderer ───────────────────────────────────────────────────────────
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number) {
+  const words = text.split(" "); let line = ""; let cy = y;
+  for (const w of words) {
+    const test = line + w + " ";
+    if (ctx.measureText(test).width > maxW && line !== "") { ctx.fillText(line.trim(), x, cy); line = w + " "; cy += lh; }
+    else line = test;
   }
-  ctx.fillText(line.trim(), x, currentY);
-  return currentY;
+  ctx.fillText(line.trim(), x, cy); return cy;
 }
-
-async function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
+async function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 }
-
-async function renderSlideToCanvas(slide: Slide, theme: ThemeKey, slideNum: number, total: number): Promise<string> {
-  const SIZE = 1080;
-  const canvas = document.createElement("canvas");
-  canvas.width = SIZE; canvas.height = SIZE;
-  const ctx = canvas.getContext("2d")!;
-  const t = THEMES[theme];
-
+async function renderSlide(slide: DesignSlide, theme: ThemeKey, num: number, total: number): Promise<string> {
+  const S = 1080; const canvas = document.createElement("canvas"); canvas.width = S; canvas.height = S;
+  const ctx = canvas.getContext("2d")!; const t = THEMES[theme];
   if (slide.layout === "split" && slide.imageUrl) {
-    const IMG_W = SIZE / 2;
-    const img = await loadImage(slide.imageUrl);
-    const scale = Math.max(IMG_W / img.width, SIZE / img.height);
-    const dw = img.width * scale; const dh = img.height * scale;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, IMG_W, SIZE); ctx.clip();
-    ctx.drawImage(img, (IMG_W - dw) / 2, (SIZE - dh) / 2, dw, dh); ctx.restore();
-    ctx.fillStyle = t.bg; ctx.fillRect(IMG_W, 0, IMG_W, SIZE);
-    ctx.fillStyle = t.accent; ctx.fillRect(IMG_W, 0, 6, SIZE);
-    const textX = IMG_W + 60; const textW = IMG_W - 100;
-    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(textX, 80, 60, 32, 8); ctx.fill();
-    ctx.fillStyle = t.accentText; ctx.font = "bold 18px Inter, Arial, sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(`${slideNum}/${total}`, textX + 30, 102);
-    ctx.fillStyle = t.headline; ctx.font = "bold 62px Inter, Arial, sans-serif"; ctx.textAlign = "left";
-    const headY = wrapText(ctx, slide.headline || "Your Headline", textX, 200, textW, 74);
-    ctx.fillStyle = t.accent; ctx.fillRect(textX, headY + 30, 60, 4);
-    ctx.fillStyle = t.body; ctx.font = "36px Inter, Arial, sans-serif";
-    wrapText(ctx, slide.body || "", textX, headY + 70, textW, 50);
+    const W = S / 2; const img = await loadImg(slide.imageUrl);
+    const sc = Math.max(W / img.width, S / img.height); const dw = img.width * sc; const dh = img.height * sc;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, S); ctx.clip(); ctx.drawImage(img, (W-dw)/2, (S-dh)/2, dw, dh); ctx.restore();
+    ctx.fillStyle = t.bg; ctx.fillRect(W, 0, W, S);
+    ctx.fillStyle = t.accent; ctx.fillRect(W, 0, 6, S);
+    const tx = W + 60; const tw = W - 100;
+    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(tx, 80, 70, 32, 8); ctx.fill();
+    ctx.fillStyle = t.accentText; ctx.font = "bold 17px Inter,Arial,sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`${num}/${total}`, tx + 35, 102);
+    ctx.fillStyle = t.headline; ctx.font = "bold 58px Inter,Arial,sans-serif"; ctx.textAlign = "left";
+    const hy = wrapText(ctx, slide.headline || "Your Headline", tx, 200, tw, 68);
+    ctx.fillStyle = t.accent; ctx.fillRect(tx, hy + 28, 60, 4);
+    ctx.fillStyle = t.body; ctx.font = "34px Inter,Arial,sans-serif"; wrapText(ctx, slide.body || "", tx, hy + 68, tw, 48);
   } else {
     if (slide.imageUrl && slide.layout !== "text") {
-      const img = await loadImage(slide.imageUrl);
-      const scale = Math.max(SIZE / img.width, SIZE / img.height);
-      const dw = img.width * scale; const dh = img.height * scale;
-      ctx.drawImage(img, (SIZE - dw) / 2, (SIZE - dh) / 2, dw, dh);
-      ctx.fillStyle = t.overlay; ctx.fillRect(0, 0, SIZE, SIZE);
-    } else { ctx.fillStyle = t.bg; ctx.fillRect(0, 0, SIZE, SIZE); }
-    ctx.fillStyle = t.accent; ctx.fillRect(0, 0, SIZE, 8);
-    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(SIZE / 2 - 35, 50, 70, 36, 10); ctx.fill();
-    ctx.fillStyle = t.accentText; ctx.font = "bold 20px Inter, Arial, sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(`${slideNum} / ${total}`, SIZE / 2, 74);
-    ctx.fillStyle = t.headline; ctx.font = "bold 78px Inter, Arial, sans-serif"; ctx.textAlign = "center";
-    const headEndY = wrapText(ctx, slide.headline || "Your Headline", SIZE / 2, 220, SIZE - 120, 90);
-    ctx.fillStyle = t.accent; ctx.fillRect(SIZE / 2 - 60, headEndY + 30, 120, 5);
-    ctx.fillStyle = t.body; ctx.font = "38px Inter, Arial, sans-serif"; ctx.textAlign = "center";
-    wrapText(ctx, slide.body || "", SIZE / 2, headEndY + 80, SIZE - 160, 52);
+      const img = await loadImg(slide.imageUrl); const sc = Math.max(S/img.width, S/img.height);
+      ctx.drawImage(img, (S-img.width*sc)/2, (S-img.height*sc)/2, img.width*sc, img.height*sc);
+      ctx.fillStyle = t.overlay; ctx.fillRect(0,0,S,S);
+    } else { ctx.fillStyle = t.bg; ctx.fillRect(0,0,S,S); }
+    ctx.fillStyle = t.accent; ctx.fillRect(0,0,S,8);
+    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(S/2-36,50,72,36,10); ctx.fill();
+    ctx.fillStyle = t.accentText; ctx.font = "bold 19px Inter,Arial,sans-serif"; ctx.textAlign = "center"; ctx.fillText(`${num} / ${total}`, S/2, 74);
+    ctx.fillStyle = t.headline; ctx.font = "bold 72px Inter,Arial,sans-serif"; ctx.textAlign = "center";
+    const hy = wrapText(ctx, slide.headline || "Your Headline", S/2, 220, S-130, 86);
+    ctx.fillStyle = t.accent; ctx.fillRect(S/2-60, hy+28, 120, 5);
+    ctx.fillStyle = t.body; ctx.font = "36px Inter,Arial,sans-serif"; ctx.textAlign = "center";
+    wrapText(ctx, slide.body || "", S/2, hy+76, S-170, 50);
   }
-  ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = "22px Inter, Arial, sans-serif";
-  ctx.textAlign = "right"; ctx.fillText("brandversee", SIZE - 40, SIZE - 30);
-  ctx.fillStyle = t.accent; ctx.fillRect(0, SIZE - 8, SIZE, 8);
+  ctx.fillStyle = "rgba(255,255,255,0.22)"; ctx.font = "20px Inter,Arial,sans-serif"; ctx.textAlign = "right";
+  ctx.fillText("brandversee", S-36, S-28);
+  ctx.fillStyle = t.accent; ctx.fillRect(0, S-8, S, 8);
   return canvas.toDataURL("image/png");
 }
 
-function SlidePreview({ slide, theme: t, slideNum, total, mini = false }: { slide: Slide; theme: (typeof THEMES)[ThemeKey]; slideNum: number; total: number; mini?: boolean }) {
-  const headSize = mini ? "7px" : "22px";
-  const bodySize = mini ? "4px" : "13px";
-  const badgeSize = mini ? "4px" : "10px";
-  const pad = mini ? "3px" : "20px";
-
-  if (slide.layout === "split" && slide.imageUrl) {
-    return (
-      <div className="w-full h-full flex" style={{ background: t.bg }}>
-        <div className="w-1/2 h-full relative overflow-hidden">
-          <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
-        </div>
-        <div style={{ width: "4px", background: t.accent, flexShrink: 0 }} />
-        <div className="flex-1 flex flex-col justify-center" style={{ padding: pad }}>
-          <div style={{ background: t.accent, color: t.accentText, fontSize: badgeSize, borderRadius: "4px", padding: "2px 6px", display: "inline-block", marginBottom: "8px", fontWeight: 700, alignSelf: "flex-start" }}>{slideNum}/{total}</div>
-          <div style={{ color: t.headline, fontSize: headSize, fontWeight: 800, lineHeight: 1.2, marginBottom: "8px" }}>{slide.headline || <span style={{ opacity: 0.3 }}>Headline…</span>}</div>
-          <div style={{ color: t.body, fontSize: bodySize, lineHeight: 1.5, opacity: 0.9 }}>{slide.body}</div>
-        </div>
+// ── Slide Preview Component ───────────────────────────────────────────────────
+function SlidePreview({ slide, theme: t, num, total, mini = false }: { slide: DesignSlide; theme: typeof THEMES[ThemeKey]; num: number; total: number; mini?: boolean }) {
+  const hs = mini ? "7px" : "20px"; const bs = mini ? "4px" : "12px"; const pad = mini ? "3px" : "18px"; const bads = mini ? "4px" : "10px";
+  if (slide.layout === "split" && slide.imageUrl) return (
+    <div className="w-full h-full flex" style={{ background: t.bg }}>
+      <div className="w-1/2 h-full overflow-hidden"><img src={slide.imageUrl} alt="" className="w-full h-full object-cover" /></div>
+      <div style={{ width: "4px", background: t.accent, flexShrink: 0 }} />
+      <div className="flex-1 flex flex-col justify-center" style={{ padding: pad }}>
+        <div style={{ background: t.accent, color: t.accentText, fontSize: bads, borderRadius: 4, padding: "2px 6px", display: "inline-block", marginBottom: 8, fontWeight: 700, alignSelf: "flex-start" }}>{num}/{total}</div>
+        <div style={{ color: t.headline, fontSize: hs, fontWeight: 800, lineHeight: 1.2, marginBottom: 8 }}>{slide.headline || <span style={{ opacity: 0.3 }}>Headline…</span>}</div>
+        <div style={{ color: t.body, fontSize: bs, lineHeight: 1.5, opacity: 0.9 }}>{slide.body}</div>
       </div>
-    );
-  }
+    </div>
+  );
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative" style={{ background: slide.imageUrl && slide.layout !== "text" ? undefined : t.bg, overflow: "hidden" }}>
-      {slide.imageUrl && slide.layout !== "text" && (
-        <>
-          <img src={slide.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: t.overlay }} />
-        </>
-      )}
+      {slide.imageUrl && slide.layout !== "text" && (<><img src={slide.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" /><div className="absolute inset-0" style={{ background: t.overlay }} /></>)}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: mini ? "2px" : "8px", background: t.accent }} />
       <div style={{ position: "relative", zIndex: 1, textAlign: "center", padding: pad }}>
-        <div style={{ background: t.accent, color: t.accentText, fontSize: badgeSize, borderRadius: "4px", padding: "2px 8px", display: "inline-block", marginBottom: "10px", fontWeight: 700 }}>{slideNum}/{total}</div>
-        <div style={{ color: t.headline, fontSize: headSize, fontWeight: 800, lineHeight: 1.2, marginBottom: "8px" }}>{slide.headline || <span style={{ opacity: 0.3 }}>Headline…</span>}</div>
-        {!mini && <div style={{ width: "40px", height: "3px", background: t.accent, margin: "0 auto 10px" }} />}
-        <div style={{ color: t.body, fontSize: bodySize, lineHeight: 1.5, opacity: 0.9 }}>{slide.body}</div>
+        <div style={{ background: t.accent, color: t.accentText, fontSize: bads, borderRadius: 4, padding: "2px 8px", display: "inline-block", marginBottom: 10, fontWeight: 700 }}>{num}/{total}</div>
+        <div style={{ color: t.headline, fontSize: hs, fontWeight: 800, lineHeight: 1.2, marginBottom: 8 }}>{slide.headline || <span style={{ opacity: 0.3 }}>Headline…</span>}</div>
+        {!mini && <div style={{ width: 40, height: 3, background: t.accent, margin: "0 auto 8px" }} />}
+        <div style={{ color: t.body, fontSize: bs, lineHeight: 1.5, opacity: 0.9 }}>{slide.body}</div>
       </div>
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: mini ? "2px" : "8px", background: t.accent }} />
     </div>
   );
 }
 
-export default function CarouselStudio() {
-  const [open, setOpen] = useState(false);
-  const [slides, setSlides] = useState<Slide[]>([
-    { id: genId(), headline: "", body: "", imageUrl: null, layout: "full" },
-    { id: genId(), headline: "", body: "", imageUrl: null, layout: "full" },
-    { id: genId(), headline: "", body: "", imageUrl: null, layout: "full" },
-  ]);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [theme, setTheme] = useState<ThemeKey>("brandverse");
-  const [exporting, setExporting] = useState(false);
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const globalImageRef = useRef<HTMLInputElement>(null);
-  const importRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+// ── Step indicator ────────────────────────────────────────────────────────────
+const STEPS = ["Setup", "Edit Text", "Design", "Preview & Export"];
+function StepBar({ step }: { step: Step }) {
+  return (
+    <div className="flex items-center gap-1 mb-8">
+      {STEPS.map((label, i) => {
+        const n = (i + 1) as Step; const done = step > n; const active = step === n;
+        return (
+          <div key={n} className="flex items-center gap-1 flex-1">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 transition-all"
+                style={{ background: done ? "#d4b461" : active ? "rgba(212,180,97,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${done || active ? "#d4b461" : "rgba(255,255,255,0.1)"}`, color: done ? "#000" : active ? "#d4b461" : "rgba(255,255,255,0.35)" }}>
+                {done ? <Check className="w-3 h-3" /> : n}
+              </div>
+              <span className="text-xs font-medium hidden sm:block" style={{ color: active ? "#d4b461" : done ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>{label}</span>
+            </div>
+            {i < STEPS.length - 1 && <div className="flex-1 h-px mx-1" style={{ background: step > n ? "rgba(212,180,97,0.5)" : "rgba(255,255,255,0.08)" }} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-  const activeSlide = slides[activeIdx];
+// ── Main Component ────────────────────────────────────────────────────────────
+export default function CarouselStudio() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>(1);
+
+  // Step 1 state
+  const [topic, setTopic] = useState("");
+  const [tone, setTone] = useState(TONES[0]);
+  const [slideCount, setSlideCount] = useState(6);
+  const [generating, setGenerating] = useState(false);
+
+  // Step 2 state
+  const [slides, setSlides] = useState<DesignSlide[]>([]);
+  const [regenIdx, setRegenIdx] = useState<number | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  // Step 3 state
+  const [theme, setTheme] = useState<ThemeKey>("brandverse");
+  const [applyToAll, setApplyToAll] = useState(true);
+  const [globalImage, setGlobalImage] = useState<string | null>(null);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+
+  // Step 4 state
+  const [exporting, setExporting] = useState(false);
+
+  const fileRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const globalRef = useRef<HTMLInputElement>(null);
+  const multiRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+
   const t = THEMES[theme];
 
-  function updateSlide(id: string, updates: Partial<Slide>) {
-    setSlides(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function readFile(file: File): Promise<string> {
+    return new Promise(r => { const fr = new FileReader(); fr.onload = e => r(e.target!.result as string); fr.readAsDataURL(file); });
   }
 
-  function addSlide() {
-    if (slides.length >= 10) { toast({ title: "Max 10 slides", variant: "destructive" }); return; }
-    const newSlide: Slide = { id: genId(), headline: "", body: "", imageUrl: null, layout: activeSlide?.layout || "full" };
-    setSlides(prev => [...prev, newSlide]);
-    setActiveIdx(slides.length);
+  function updateSlide(idx: number, updates: Partial<DesignSlide>) {
+    setSlides(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s));
   }
 
-  function removeSlide(idx: number) {
-    if (slides.length === 1) return;
-    const updated = slides.filter((_, i) => i !== idx);
-    setSlides(updated);
-    setActiveIdx(Math.min(idx, updated.length - 1));
+  // ── Step 1 → Generate text ─────────────────────────────────────────────────
+  async function generateText() {
+    if (!topic.trim()) { toast({ title: "Enter a topic first", variant: "destructive" }); return; }
+    setGenerating(true);
+    try {
+      const data = await apiRequest("POST", "/api/carousel/generate-text", { topic: topic.trim(), tone, slideCount });
+      const designed: DesignSlide[] = (data.slides as AiSlide[]).map(s => ({ ...s, imageUrl: null, layout: "full" as const }));
+      setSlides(designed);
+      setActiveIdx(0);
+      setStep(2);
+      toast({ title: `${designed.length} slides generated!`, description: `3 credits used · ${data.balance} remaining` });
+    } catch (err: any) {
+      if (err.message?.includes("402") || err.insufficientCredits) {
+        toast({ title: "Not enough credits", description: "Upgrade your plan to generate more carousels.", variant: "destructive" });
+      } else {
+        toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      }
+    } finally { setGenerating(false); }
   }
 
-  function moveSlide(idx: number, dir: -1 | 1) {
-    const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= slides.length) return;
-    const updated = [...slides];
-    [updated[idx], updated[newIdx]] = [updated[newIdx], updated[idx]];
-    setSlides(updated);
-    setActiveIdx(newIdx);
+  // ── Regenerate single slide ────────────────────────────────────────────────
+  async function regenerateSlide(idx: number) {
+    setRegenIdx(idx);
+    try {
+      const s = slides[idx];
+      const data = await apiRequest("POST", "/api/carousel/regenerate-slide", { topic, tone, role: s.role, slideNum: idx + 1, totalSlides: slides.length });
+      updateSlide(idx, { headline: data.headline, body: data.body });
+      toast({ title: `Slide ${idx + 1} regenerated` });
+    } catch (err: any) {
+      toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+    } finally { setRegenIdx(null); }
   }
 
-  function handleImageUpload(id: string, file: File) {
-    const reader = new FileReader();
-    reader.onload = e => updateSlide(id, { imageUrl: e.target?.result as string });
-    reader.readAsDataURL(file);
+  // ── Step 3 image handling ──────────────────────────────────────────────────
+  async function handleGlobalImage(file: File) {
+    const url = await readFile(file);
+    setGlobalImage(url);
+    if (applyToAll) setSlides(prev => prev.map(s => s.layout !== "text" ? { ...s, imageUrl: url } : s));
+    toast({ title: "Design image applied" });
   }
 
-  function handleGlobalImage(file: File) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const url = e.target?.result as string;
-      setSlides(prev => prev.map(s => s.layout !== "text" ? { ...s, imageUrl: url } : s));
-      toast({ title: "Design image applied to all slides" });
-    };
-    reader.readAsDataURL(file);
+  async function handleMultiUpload(files: FileList) {
+    const urls: string[] = [];
+    for (let i = 0; i < Math.min(files.length, 10); i++) urls.push(await readFile(files[i]));
+    setUploadedImages(prev => [...prev, ...urls].slice(0, 10));
+    toast({ title: `${urls.length} image${urls.length > 1 ? "s" : ""} uploaded` });
   }
 
-  function handleImport(file: File) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        if (data.slides && Array.isArray(data.slides)) {
-          setSlides(data.slides);
-          if (data.theme) setTheme(data.theme);
-          setActiveIdx(0);
-          toast({ title: "Carousel imported!" });
-        }
-      } catch { toast({ title: "Invalid file", variant: "destructive" }); }
-    };
-    reader.readAsText(file);
+  function assignImageToSlide(slideIdx: number, imgUrl: string) {
+    updateSlide(slideIdx, { imageUrl: imgUrl, layout: "full" });
   }
 
-  function exportProject() {
-    const data = JSON.stringify({ slides, theme }, null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url; link.download = "carousel-project.json"; link.click();
-    URL.revokeObjectURL(url);
+  function applyAllSameImage() {
+    if (!globalImage) { toast({ title: "Upload a design image first", variant: "destructive" }); return; }
+    setSlides(prev => prev.map(s => s.layout !== "text" ? { ...s, imageUrl: globalImage } : s));
+    toast({ title: "Applied to all slides" });
   }
 
+  // ── Export ─────────────────────────────────────────────────────────────────
   async function downloadAll() {
     setExporting(true);
     try {
       for (let i = 0; i < slides.length; i++) {
-        const dataUrl = await renderSlideToCanvas(slides[i], theme, i + 1, slides.length);
-        const link = document.createElement("a");
-        link.href = dataUrl; link.download = `carousel-slide-${i + 1}.png`; link.click();
-        await new Promise(r => setTimeout(r, 200));
+        const url = await renderSlide(slides[i], theme, i + 1, slides.length);
+        const a = document.createElement("a"); a.href = url; a.download = `slide-${i + 1}.png`; a.click();
+        await new Promise(r => setTimeout(r, 220));
       }
       toast({ title: `${slides.length} slides downloaded!` });
     } catch { toast({ title: "Export failed", variant: "destructive" }); }
     finally { setExporting(false); }
   }
 
-  async function downloadSingle(idx: number) {
+  async function downloadOne(idx: number) {
     try {
-      const dataUrl = await renderSlideToCanvas(slides[idx], theme, idx + 1, slides.length);
-      const link = document.createElement("a");
-      link.href = dataUrl; link.download = `carousel-slide-${idx + 1}.png`; link.click();
+      const url = await renderSlide(slides[idx], theme, idx + 1, slides.length);
+      const a = document.createElement("a"); a.href = url; a.download = `slide-${idx + 1}.png`; a.click();
     } catch { toast({ title: "Export failed", variant: "destructive" }); }
+  }
+
+  function saveProject() {
+    const blob = new Blob([JSON.stringify({ slides, theme, topic, tone }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "carousel-project.json"; a.click();
+  }
+
+  function loadProject(file: File) {
+    const fr = new FileReader();
+    fr.onload = e => {
+      try {
+        const d = JSON.parse(e.target!.result as string);
+        if (d.slides) { setSlides(d.slides); if (d.theme) setTheme(d.theme); if (d.topic) setTopic(d.topic); if (d.tone) setTone(d.tone); setStep(2); setActiveIdx(0); toast({ title: "Project loaded!" }); }
+      } catch { toast({ title: "Invalid file", variant: "destructive" }); }
+    };
+    fr.readAsText(file);
   }
 
   return (
@@ -273,17 +291,12 @@ export default function CarouselStudio() {
           </div>
         </div>
 
-        {/* Square subsection card — Carousel Generator */}
+        {/* Square subsection card */}
         <div
           onClick={() => setOpen(v => !v)}
           data-testid="carousel-card-toggle"
           className="rounded-2xl p-6 cursor-pointer transition-all duration-200 hover:scale-[1.005] active:scale-[0.995] select-none mb-4"
-          style={{
-            background: open ? "rgba(212,180,97,0.06)" : "rgba(255,255,255,0.02)",
-            border: `1px solid ${open ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)"}`,
-            boxShadow: open ? "0 0 40px rgba(212,180,97,0.08)" : "none",
-          }}
-        >
+          style={{ background: open ? "rgba(212,180,97,0.06)" : "rgba(255,255,255,0.02)", border: `1px solid ${open ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)"}`, boxShadow: open ? "0 0 40px rgba(212,180,97,0.07)" : "none" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.25)" }}>
@@ -291,11 +304,11 @@ export default function CarouselStudio() {
               </div>
               <div>
                 <p className="text-base font-black text-white">Carousel Generator</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Design up to 10 slides · add images · export as PNG</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(212,180,97,0.12)", color: "#d4b461" }}>Up to 10 slides</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>Image upload</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>PNG export</span>
+                <p className="text-xs text-muted-foreground mt-0.5">AI writes your slides · add your designs · export as PNG</p>
+                <div className="flex gap-2 mt-1.5 flex-wrap">
+                  {["AI text generation", "Up to 10 slides", "Image upload", "PNG export"].map(t => (
+                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" }}>{t}</span>
+                  ))}
                 </div>
               </div>
             </div>
@@ -303,206 +316,340 @@ export default function CarouselStudio() {
           </div>
         </div>
 
-        {/* Expanded carousel editor */}
+        {/* Expanded content */}
         {open && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-5">
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-6">
 
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Theme picker */}
-              <div className="flex gap-1.5 flex-wrap">
-                {(Object.keys(THEMES) as ThemeKey[]).map(key => (
-                  <button key={key} onClick={() => setTheme(key)} data-testid={`theme-${key}`}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${theme === key ? "border-[#d4b461] text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/30"}`}>
-                    {THEMES[key].name}
-                  </button>
-                ))}
-              </div>
-              <div className="flex-1" />
-              {/* Global image */}
-              <input ref={globalImageRef} type="file" accept="image/*" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleGlobalImage(f); e.target.value = ""; }} />
-              <button onClick={() => globalImageRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:border-white/25 hover:text-white transition-all">
-                <ImagePlus className="w-3.5 h-3.5" /> Apply Design Image to All
+            {/* Import / Save project toolbar */}
+            <div className="flex items-center gap-2 justify-end">
+              <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) loadProject(f); e.target.value = ""; }} />
+              <button onClick={() => importRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+                <Upload className="w-3 h-3" /> Import Project
               </button>
-              {/* Import */}
-              <input ref={importRef} type="file" accept=".json" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
-              <button onClick={() => importRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:border-white/25 hover:text-white transition-all">
-                <Upload className="w-3.5 h-3.5" /> Import
-              </button>
-              {/* Export project */}
-              <button onClick={exportProject}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:border-white/25 hover:text-white transition-all">
-                <Download className="w-3.5 h-3.5" /> Save Project
-              </button>
-              {/* Download all */}
-              <Button onClick={downloadAll} disabled={exporting}
-                className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-1.5 text-xs h-8"
-                data-testid="button-download-all">
-                <Download className="w-3.5 h-3.5" />
-                {exporting ? "Exporting…" : `Download All (${slides.length})`}
-              </Button>
-            </div>
-
-            {/* Slide tabs row */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {slides.map((s, i) => (
-                <button key={s.id} onClick={() => setActiveIdx(i)} data-testid={`slide-tab-${i + 1}`}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${i === activeIdx ? "bg-[#d4b461] text-black" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}>
-                  Slide {i + 1}
+              {slides.length > 0 && (
+                <button onClick={saveProject} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+                  <Download className="w-3 h-3" /> Save Project
                 </button>
-              ))}
-              <button onClick={addSlide} data-testid="button-add-slide"
-                className="px-3 py-1 rounded-lg text-xs bg-white/5 text-muted-foreground hover:bg-white/10 flex items-center gap-1">
-                <Plus className="w-3 h-3" /> Add Slide
-              </button>
-              <span className="text-xs text-muted-foreground ml-auto">{slides.length}/10 slides</span>
+              )}
             </div>
 
-            {/* Editor + preview */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <StepBar step={step} />
 
-              {/* Left: All slides text input list */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Slide Content</p>
-                {slides.map((slide, i) => (
-                  <div key={slide.id}
-                    className={`rounded-xl border p-4 space-y-3 transition-all cursor-pointer ${i === activeIdx ? "border-[#d4b461]/50 bg-[#d4b461]/04" : "border-white/08 bg-white/02 hover:border-white/15"}`}
-                    onClick={() => setActiveIdx(i)}
-                    style={{ background: i === activeIdx ? "rgba(212,180,97,0.04)" : "rgba(255,255,255,0.02)", borderColor: i === activeIdx ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)" }}>
+            {/* ── STEP 1: Setup ──────────────────────────────────────────── */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <div className="rounded-2xl p-6 space-y-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-2 block">What's your carousel about? <span className="text-[#d4b461]">*</span></Label>
+                    <Input
+                      value={topic}
+                      onChange={e => setTopic(e.target.value)}
+                      placeholder="e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"
+                      className="bg-white/5 border-white/10 text-sm h-12"
+                      data-testid="input-topic"
+                      onKeyDown={e => e.key === "Enter" && generateText()}
+                    />
+                  </div>
 
-                    {/* Slide header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold" style={{ background: i === activeIdx ? "rgba(212,180,97,0.2)" : "rgba(255,255,255,0.06)", color: i === activeIdx ? "#d4b461" : "rgba(255,255,255,0.4)" }}>
-                          {i + 1}
-                        </div>
-                        <span className="text-xs font-semibold text-white">Slide {i + 1}</span>
-                      </div>
-                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => moveSlide(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-white/08 text-muted-foreground disabled:opacity-30 transition-colors">
-                          <MoveUp className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => moveSlide(i, 1)} disabled={i === slides.length - 1} className="p-1 rounded hover:bg-white/08 text-muted-foreground disabled:opacity-30 transition-colors">
-                          <MoveDown className="w-3 h-3" />
-                        </button>
-                        <button onClick={() => removeSlide(i)} disabled={slides.length === 1} className="p-1 rounded hover:bg-white/08 text-red-400/70 disabled:opacity-30 transition-colors">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inputs — always visible */}
-                    <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                      <Input
-                        value={slide.headline}
-                        onChange={e => updateSlide(slide.id, { headline: e.target.value })}
-                        placeholder={`Slide ${i + 1} headline / hook…`}
-                        className="bg-white/5 border-white/10 text-sm h-9"
-                        data-testid={`input-headline-${i + 1}`}
-                      />
-                      <Textarea
-                        value={slide.body}
-                        onChange={e => updateSlide(slide.id, { body: e.target.value })}
-                        placeholder={`Slide ${i + 1} body text — keep it to 2-3 lines…`}
-                        className="bg-white/5 border-white/10 text-xs resize-none min-h-[72px]"
-                        data-testid={`textarea-body-${i + 1}`}
-                      />
-
-                      {/* Layout + image on same row */}
-                      <div className="flex items-center gap-2">
-                        {LAYOUTS.map(l => (
-                          <button key={l.key} onClick={() => updateSlide(slide.id, { layout: l.key })}
-                            className={`flex-1 py-1 rounded text-[10px] font-medium border transition-all ${slide.layout === l.key ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/08" : "border-white/08 text-muted-foreground hover:border-white/20"}`}>
-                            {l.label}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-2 block">Tone</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {TONES.map(t => (
+                          <button key={t} onClick={() => setTone(t)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${tone === t ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
+                            {t}
                           </button>
                         ))}
                       </div>
-
-                      {/* Image upload per slide */}
-                      {slide.layout !== "text" && (
-                        <>
-                          <input ref={el => { fileRefs.current[slide.id] = el; }} type="file" accept="image/*" className="hidden"
-                            onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(slide.id, f); e.target.value = ""; }}
-                            data-testid={`input-image-${i + 1}`} />
-                          {slide.imageUrl ? (
-                            <div className="relative rounded-lg overflow-hidden h-24">
-                              <img src={slide.imageUrl} alt="slide" className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                                <button onClick={() => fileRefs.current[slide.id]?.click()} className="px-2 py-1 bg-white/20 rounded text-white text-xs font-medium">Change</button>
-                                <button onClick={() => updateSlide(slide.id, { imageUrl: null })} className="px-2 py-1 bg-red-500/40 rounded text-white text-xs font-medium">Remove</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button onClick={() => fileRefs.current[slide.id]?.click()}
-                              className="w-full h-16 rounded-lg border border-dashed border-white/15 flex items-center justify-center gap-2 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all text-xs">
-                              <ImagePlus className="w-3.5 h-3.5" /> Upload photo for slide {i + 1}
-                            </button>
-                          )}
-                        </>
-                      )}
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground mb-2 block">Number of slides</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {SLIDE_COUNTS.map(n => (
+                          <button key={n} onClick={() => setSlideCount(n)}
+                            className={`w-10 h-10 rounded-lg text-sm font-bold border transition-all ${slideCount === n ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                ))}
+                </div>
+
+                <Button onClick={generateText} disabled={generating || !topic.trim()}
+                  className="w-full h-13 font-bold text-base gap-3 bg-[#d4b461] hover:bg-[#c4a451] text-black"
+                  data-testid="button-generate-text">
+                  {generating ? (
+                    <><RefreshCw className="w-5 h-5 animate-spin" /> Generating {slideCount} slides…</>
+                  ) : (
+                    <><Wand2 className="w-5 h-5" /> Generate Carousel Text with AI <ArrowRight className="w-4 h-4" /></>
+                  )}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
               </div>
+            )}
 
-              {/* Right: Live preview */}
-              <div className="space-y-4 lg:sticky lg:top-6 self-start">
+            {/* ── STEP 2: Edit Text ──────────────────────────────────────── */}
+            {step === 2 && slides.length > 0 && (
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</p>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))} disabled={activeIdx === 0}
-                      className="p-1 rounded hover:bg-white/08 text-muted-foreground disabled:opacity-30 transition-colors">
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs text-muted-foreground">{activeIdx + 1}/{slides.length}</span>
-                    <button onClick={() => setActiveIdx(Math.min(slides.length - 1, activeIdx + 1))} disabled={activeIdx === slides.length - 1}
-                      className="p-1 rounded hover:bg-white/08 text-muted-foreground disabled:opacity-30 transition-colors">
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Review & Edit Your Slides</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">AI has written all {slides.length} slides — edit any text or regenerate individual slides</p>
                   </div>
+                  <Button onClick={() => setStep(3)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm" data-testid="button-next-design">
+                    Next: Design <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
 
-                <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: t.bg, position: "relative" }} data-testid="slide-preview">
-                  {activeSlide && <SlidePreview slide={activeSlide} theme={t} slideNum={activeIdx + 1} total={slides.length} />}
-                </div>
-
-                <button onClick={() => downloadSingle(activeIdx)}
-                  className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:border-white/25 hover:text-white transition-all flex items-center justify-center gap-2"
-                  data-testid="button-download-slide">
-                  <Download className="w-3.5 h-3.5" /> Download this slide
-                </button>
-
-                {/* Thumbnail strip */}
-                {slides.length > 1 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {slides.map((s, i) => (
-                      <button key={s.id} onClick={() => setActiveIdx(i)} data-testid={`slide-thumb-${i + 1}`}
-                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${i === activeIdx ? "border-[#d4b461]" : "border-white/10 hover:border-white/30"}`}
-                        style={{ background: t.bg }}>
-                        <div className="w-full h-full" style={{ transform: "scale(0.2)", transformOrigin: "top left", width: "500%", height: "500%" }}>
-                          <SlidePreview slide={s} theme={t} slideNum={i + 1} total={slides.length} mini />
+                <div className="flex flex-col gap-3">
+                  {slides.map((slide, i) => (
+                    <div key={i} onClick={() => setActiveIdx(i)}
+                      className="rounded-xl border p-4 space-y-3 transition-all cursor-pointer"
+                      style={{ background: i === activeIdx ? "rgba(212,180,97,0.04)" : "rgba(255,255,255,0.02)", borderColor: i === activeIdx ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)" }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
+                            style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}>{i + 1}</div>
+                          <Badge className="text-[10px] h-4 px-2 border-0 font-semibold"
+                            style={{ background: `${ROLE_COLORS[slide.role] || "#d4b461"}18`, color: ROLE_COLORS[slide.role] || "#d4b461" }}>
+                            {slide.role}
+                          </Badge>
                         </div>
+                        <button onClick={e => { e.stopPropagation(); regenerateSlide(i); }} disabled={regenIdx === i}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-50"
+                          data-testid={`regen-slide-${i + 1}`}>
+                          <RefreshCw className={`w-3 h-3 ${regenIdx === i ? "animate-spin" : ""}`} />
+                          {regenIdx === i ? "Regenerating…" : "Regenerate"}
+                        </button>
+                      </div>
+                      <div className="space-y-2" onClick={e => e.stopPropagation()}>
+                        <Input value={slide.headline} onChange={e => updateSlide(i, { headline: e.target.value })}
+                          placeholder="Headline…" className="bg-white/5 border-white/10 text-sm font-semibold h-9"
+                          data-testid={`input-headline-${i + 1}`} />
+                        <Textarea value={slide.body} onChange={e => updateSlide(i, { body: e.target.value })}
+                          placeholder="Body text…" className="bg-white/5 border-white/10 text-xs resize-none min-h-[64px]"
+                          data-testid={`textarea-body-${i + 1}`} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between pt-2">
+                  <button onClick={() => setStep(1)} className="text-xs text-muted-foreground hover:text-white transition-colors flex items-center gap-1">
+                    <ChevronLeft className="w-3 h-3" /> Back to Setup
+                  </button>
+                  <Button onClick={() => setStep(3)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm">
+                    Next: Design <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: Design ────────────────────────────────────────── */}
+            {step === 3 && slides.length > 0 && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Choose Your Design</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Pick a template and upload your images</p>
+                  </div>
+                  <Button onClick={() => setStep(4)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm" data-testid="button-next-preview">
+                    <Play className="w-3.5 h-3.5" /> Preview Carousel
+                  </Button>
+                </div>
+
+                {/* Template picker */}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-3 flex items-center gap-1"><LayoutTemplate className="w-3 h-3" /> Template</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(THEMES) as ThemeKey[]).map(key => (
+                      <button key={key} onClick={() => setTheme(key)} data-testid={`theme-${key}`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all ${theme === key ? "border-[#d4b461]/70 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
+                        <div className="w-3 h-3 rounded-full" style={{ background: THEMES[key].accent }} />
+                        {THEMES[key].name}
                       </button>
                     ))}
                   </div>
-                )}
+                </div>
 
-                {/* Tips */}
-                <div className="rounded-xl p-4" style={{ background: "rgba(212,180,97,0.05)", border: "1px solid rgba(212,180,97,0.15)" }}>
-                  <p className="text-xs font-semibold text-[#d4b461] mb-2">Carousel Tips</p>
-                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Slide 1 = hook — make it impossible to scroll past</li>
-                    <li>2–3 lines max per slide body</li>
-                    <li>Last slide = CTA — "DM me [word]"</li>
-                    <li>Use "Apply Design Image to All" for brand consistency</li>
-                  </ul>
+                {/* Image upload section */}
+                <div className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><ImagePlus className="w-3 h-3" /> Upload Images</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Apply same image to all</span>
+                      <button onClick={() => setApplyToAll(v => !v)}
+                        className="w-9 h-5 rounded-full transition-all relative"
+                        style={{ background: applyToAll ? "#d4b461" : "rgba(255,255,255,0.1)" }}>
+                        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                          style={{ left: applyToAll ? "calc(100% - 18px)" : "2px" }} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Global image upload */}
+                  <input ref={globalRef} type="file" accept="image/*" className="hidden"
+                    onChange={async e => { const f = e.target.files?.[0]; if (f) { await handleGlobalImage(f); } e.target.value = ""; }} />
+                  {globalImage ? (
+                    <div className="relative rounded-xl overflow-hidden h-28">
+                      <img src={globalImage} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity">
+                        <button onClick={() => globalRef.current?.click()} className="px-3 py-1.5 bg-white/20 rounded-lg text-white text-xs font-medium">Change</button>
+                        <button onClick={() => { setGlobalImage(null); if (applyToAll) setSlides(prev => prev.map(s => ({ ...s, imageUrl: null }))); }} className="px-3 py-1.5 bg-red-500/40 rounded-lg text-white text-xs font-medium">Remove</button>
+                      </div>
+                      {applyToAll && <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#d4b461] text-black">Applied to all slides</div>}
+                    </div>
+                  ) : (
+                    <button onClick={() => globalRef.current?.click()}
+                      className="w-full h-24 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all">
+                      <ImagePlus className="w-5 h-5" />
+                      <span className="text-xs font-medium">{applyToAll ? "Upload design image → applied to all slides" : "Upload brand design image"}</span>
+                    </button>
+                  )}
+
+                  {/* Multiple images upload + per-slide assignment */}
+                  {!applyToAll && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Upload multiple images → assign to slides</span>
+                        <input ref={multiRef} type="file" accept="image/*" multiple className="hidden"
+                          onChange={e => { if (e.target.files?.length) handleMultiUpload(e.target.files); e.target.value = ""; }} />
+                        <button onClick={() => multiRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+                          <Upload className="w-3 h-3" /> Upload images
+                        </button>
+                      </div>
+                      {uploadedImages.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {uploadedImages.map((img, ii) => (
+                            <div key={ii} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                              <img src={img} alt="" className="w-full h-full object-cover" />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-[9px] text-center text-white py-0.5">Img {ii + 1}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Per-slide assignment */}
+                      {uploadedImages.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">Assign images to slides:</p>
+                          {slides.map((slide, si) => (
+                            <div key={si} className="flex items-center gap-3 py-2 px-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+                              <span className="text-xs font-medium text-white w-14">Slide {si + 1}</span>
+                              <Badge className="text-[10px] border-0 mr-auto" style={{ background: `${ROLE_COLORS[slide.role] || "#d4b461"}18`, color: ROLE_COLORS[slide.role] || "#d4b461" }}>{slide.role}</Badge>
+                              <div className="flex gap-1.5 flex-wrap">
+                                <button onClick={() => updateSlide(si, { imageUrl: null })}
+                                  className={`px-2 py-1 rounded text-[10px] font-medium border transition-all ${!slide.imageUrl ? "border-[#d4b461]/50 text-[#d4b461] bg-[#d4b461]/08" : "border-white/08 text-muted-foreground hover:border-white/20"}`}>
+                                  None
+                                </button>
+                                {uploadedImages.map((img, ii) => (
+                                  <button key={ii} onClick={() => assignImageToSlide(si, img)}
+                                    className={`w-7 h-7 rounded overflow-hidden border-2 transition-all ${slide.imageUrl === img ? "border-[#d4b461]" : "border-white/15 hover:border-white/35"}`}>
+                                    <img src={img} alt="" className="w-full h-full object-cover" />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between pt-1">
+                  <button onClick={() => setStep(2)} className="text-xs text-muted-foreground hover:text-white transition-colors flex items-center gap-1">
+                    <ChevronLeft className="w-3 h-3" /> Back to Text
+                  </button>
+                  <Button onClick={() => setStep(4)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm">
+                    <Play className="w-3.5 h-3.5" /> Preview Carousel
+                  </Button>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* ── STEP 4: Preview & Export ──────────────────────────────── */}
+            {step === 4 && slides.length > 0 && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Preview & Export</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{slides.length} slides ready · 1080×1080 PNG</p>
+                  </div>
+                  <Button onClick={downloadAll} disabled={exporting} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-bold gap-2 h-10" data-testid="button-download-all">
+                    <Download className="w-4 h-4" />
+                    {exporting ? "Downloading…" : `Download All (${slides.length})`}
+                  </Button>
+                </div>
+
+                {/* Slide tabs */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  {slides.map((s, i) => (
+                    <button key={i} onClick={() => setActiveIdx(i)} data-testid={`slide-tab-${i + 1}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${i === activeIdx ? "bg-[#d4b461] text-black" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}>
+                      <span>{i + 1}</span>
+                      <span className="hidden sm:inline" style={{ color: i === activeIdx ? "rgba(0,0,0,0.7)" : ROLE_COLORS[s.role] || "inherit" }}>{s.role}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Preview */}
+                  <div className="space-y-3">
+                    <div className="w-full rounded-2xl overflow-hidden" style={{ aspectRatio: "1/1", background: t.bg, position: "relative" }} data-testid="slide-preview">
+                      <SlidePreview slide={slides[activeIdx]} theme={t} num={activeIdx + 1} total={slides.length} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setActiveIdx(i => Math.max(0, i - 1))} disabled={activeIdx === 0}
+                        className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <div className="flex-1 text-center">
+                        <p className="text-xs font-semibold text-white">{slides[activeIdx]?.role}</p>
+                        <p className="text-[10px] text-muted-foreground">Slide {activeIdx + 1} of {slides.length}</p>
+                      </div>
+                      <button onClick={() => setActiveIdx(i => Math.min(slides.length - 1, i + 1))} disabled={activeIdx === slides.length - 1}
+                        className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button onClick={() => downloadOne(activeIdx)}
+                      className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2"
+                      data-testid="button-download-slide">
+                      <Download className="w-3.5 h-3.5" /> Download this slide
+                    </button>
+                  </div>
+
+                  {/* All slides grid */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">All Slides</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {slides.map((s, i) => (
+                        <div key={i} className="space-y-1 cursor-pointer" onClick={() => setActiveIdx(i)}>
+                          <div className={`rounded-lg overflow-hidden border-2 transition-all ${i === activeIdx ? "border-[#d4b461]" : "border-white/10 hover:border-white/25"}`} style={{ aspectRatio: "1/1", background: t.bg }}>
+                            <SlidePreview slide={s} theme={t} num={i + 1} total={slides.length} mini />
+                          </div>
+                          <p className="text-[9px] text-center font-medium" style={{ color: ROLE_COLORS[s.role] || "#d4b461" }}>{s.role}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-2 space-y-2">
+                      <button onClick={() => setStep(3)} className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2">
+                        <Palette className="w-3.5 h-3.5" /> Change Design
+                      </button>
+                      <button onClick={() => setStep(2)} className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2">
+                        Edit Text
+                      </button>
+                      <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <span className="text-[10px] text-muted-foreground">🚧</span>
+                        <span className="text-[10px] text-muted-foreground font-medium">Auto-post to Instagram — Coming Soon</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

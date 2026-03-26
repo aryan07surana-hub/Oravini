@@ -1671,6 +1671,73 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
     }
   });
 
+  // ── AI Carousel Text Generator ────────────────────────────────────────────
+  app.post("/api/carousel/generate-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, slideCount } = req.body;
+      if (!topic) return res.status(400).json({ message: "Topic is required" });
+      const count = Math.min(Math.max(Number(slideCount) || 6, 2), 10);
+      const toneStr = tone || "engaging and educational";
+
+      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "AI Carousel text generation", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
+      const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
+Tone: ${toneStr}
+
+Return a JSON object with this EXACT structure:
+{
+  "slides": [
+    { "role": "Hook", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" },
+    { "role": "Problem", "headline": "...", "body": "..." },
+    ...more slides...
+    { "role": "CTA", "headline": "call to action headline", "body": "clear single action for audience to take" }
+  ]
+}
+
+Rules:
+- Slide 1 is always the HOOK — make it impossible to scroll past, use a bold claim or question
+- Middle slides = value/insight/steps — each self-contained
+- Last slide is always the CTA — one clear action (Follow, DM [word], Save this, etc.)
+- Headlines: max 8 words, punchy, no punctuation at end
+- Body: max 30 words, concrete not vague
+- Vary the roles: Hook → Problem → Insight → Solution/Steps → Benefit → CTA
+- Write for viral reach, not corporate speak`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 3, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Generation failed" });
+    }
+  });
+
+  // ── Regenerate single carousel slide ─────────────────────────────────────
+  app.post("/api/carousel/regenerate-slide", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, role, slideNum, totalSlides } = req.body;
+      if (!topic || !role) return res.status(400).json({ message: "Topic and role required" });
+
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Return ONLY valid JSON.`;
+      const userPrompt = `Regenerate slide ${slideNum} of ${totalSlides} for a carousel about: "${topic}"
+Tone: ${tone || "engaging"}
+This slide's role: "${role}"
+
+Return JSON:
+{ "headline": "short bold headline max 8 words", "body": "2-3 punchy lines max 30 words" }`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 400);
+      const parsed = JSON.parse(raw);
+      res.json({ headline: parsed.headline || "", body: parsed.body || "" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Regeneration failed" });
+    }
+  });
+
   // ── AI Content Report (OpenRouter — smart reasoning) ─────────────────────
   app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
     try {
