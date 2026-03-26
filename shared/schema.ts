@@ -405,3 +405,30 @@ export const landingLeads = pgTable("landing_leads", {
 export const insertLandingLeadSchema = createInsertSchema(landingLeads).omit({ id: true, createdAt: true });
 export type InsertLandingLead = z.infer<typeof insertLandingLeadSchema>;
 export type LandingLead = typeof landingLeads.$inferSelect;
+
+export const twitterTokens = pgTable("twitter_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  twitterUserId: text("twitter_user_id"),
+  twitterHandle: text("twitter_handle"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type TwitterToken = typeof twitterTokens.$inferSelect;
+
+export const scheduledTweets = pgTable("scheduled_tweets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  mediaUrls: text("media_urls").array(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: text("status").notNull().default("pending"),
+  tweetId: text("tweet_id"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertScheduledTweetSchema = createInsertSchema(scheduledTweets).omit({ id: true, createdAt: true, tweetId: true, errorMessage: true });
+export type InsertScheduledTweet = z.infer<typeof insertScheduledTweetSchema>;
+export type ScheduledTweet = typeof scheduledTweets.$inferSelect;

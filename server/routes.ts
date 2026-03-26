@@ -4582,5 +4582,155 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // ── Twitter / X Integration ──────────────────────────────────────────────────
+  const { TwitterApi } = await import("twitter-api-v2");
+
+  function getTwitterClient() {
+    return new TwitterApi({
+      clientId: process.env.TWITTER_CLIENT_ID!,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+    });
+  }
+
+  async function getAuthedTwitterClient(userId: string) {
+    const token = await storage.getTwitterToken(userId);
+    if (!token) throw new Error("Twitter not connected");
+    const client = getTwitterClient();
+    if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
+      if (!token.refreshToken) throw new Error("Twitter token expired, please reconnect");
+      const { accessToken, refreshToken, expiresIn } = await client.refreshOAuth2Token(token.refreshToken);
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      await storage.upsertTwitterToken(userId, {
+        accessToken,
+        refreshToken: refreshToken ?? token.refreshToken,
+        expiresAt,
+        twitterUserId: token.twitterUserId,
+        twitterHandle: token.twitterHandle,
+      });
+      return new TwitterApi(accessToken);
+    }
+    return new TwitterApi(token.accessToken);
+  }
+
+  const TWITTER_CALLBACK = process.env.NODE_ENV === "production"
+    ? "https://admin-control-hub-aryan07surana.replit.app/api/twitter/callback"
+    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/twitter/callback`;
+
+  const twitterCodeVerifiers = new Map<string, { codeVerifier: string; userId: string }>();
+
+  app.get("/api/twitter/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const token = await storage.getTwitterToken(userId);
+      return res.json({ connected: !!token, handle: token?.twitterHandle ?? null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/connect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const client = getTwitterClient();
+      const { url, codeVerifier, state } = client.generateOAuth2AuthLink(TWITTER_CALLBACK, {
+        scope: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+      });
+      twitterCodeVerifiers.set(state, { codeVerifier, userId });
+      return res.json({ url });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query as { code: string; state: string };
+      const stored = twitterCodeVerifiers.get(state);
+      if (!stored) return res.status(400).send("Invalid state — please try connecting again.");
+      twitterCodeVerifiers.delete(state);
+
+      const client = getTwitterClient();
+      const { client: authedClient, accessToken, refreshToken, expiresIn } = await client.loginWithOAuth2({
+        code,
+        codeVerifier: stored.codeVerifier,
+        redirectUri: TWITTER_CALLBACK,
+      });
+
+      const me = await authedClient.v2.me();
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      await storage.upsertTwitterToken(stored.userId, {
+        accessToken,
+        refreshToken: refreshToken ?? null,
+        expiresAt,
+        twitterUserId: me.data.id,
+        twitterHandle: me.data.username,
+      });
+
+      return res.redirect("/twitter-scheduler?connected=1");
+    } catch (err: any) {
+      return res.redirect("/twitter-scheduler?error=auth_failed");
+    }
+  });
+
+  app.delete("/api/twitter/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteTwitterToken(userId);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/twitter/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Tweet content is required" });
+      if (content.length > 280) return res.status(400).json({ message: "Tweet exceeds 280 characters" });
+      const client = await getAuthedTwitterClient(userId);
+      const tweet = await client.v2.tweet(content.trim());
+      return res.json({ success: true, tweetId: tweet.data.id });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const tweets = await storage.getScheduledTweets(userId);
+      return res.json(tweets);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/twitter/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content, scheduledFor } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Tweet content is required" });
+      if (content.length > 280) return res.status(400).json({ message: "Tweet exceeds 280 characters" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const tweet = await storage.createScheduledTweet({ userId, content: content.trim(), scheduledFor: schedDate, status: "pending" });
+      return res.json(tweet);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/twitter/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteScheduledTweet(req.params.id, userId);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

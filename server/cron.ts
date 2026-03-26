@@ -138,6 +138,47 @@ async function syncYouTubePosts() {
   log(`Auto-sync YouTube: completed — ${synced}/${posts.length} posts synced`, "cron");
 }
 
+export async function processScheduledTweets() {
+  try {
+    const dueTweets = await storage.getPendingDueTweets();
+    if (dueTweets.length === 0) return;
+    const { TwitterApi } = await import("twitter-api-v2");
+    log(`Scheduled tweets: processing ${dueTweets.length} due tweet(s)`, "cron");
+    for (const tweet of dueTweets) {
+      try {
+        const token = await storage.getTwitterToken(tweet.userId);
+        if (!token) {
+          await storage.updateScheduledTweet(tweet.id, { status: "failed", errorMessage: "Twitter not connected" });
+          continue;
+        }
+        let accessToken = token.accessToken;
+        if (token.expiresAt && new Date(token.expiresAt) < new Date() && token.refreshToken) {
+          const baseClient = new TwitterApi({ clientId: process.env.TWITTER_CLIENT_ID!, clientSecret: process.env.TWITTER_CLIENT_SECRET! });
+          const refreshed = await baseClient.refreshOAuth2Token(token.refreshToken);
+          accessToken = refreshed.accessToken;
+          const expiresAt = refreshed.expiresIn ? new Date(Date.now() + refreshed.expiresIn * 1000) : null;
+          await storage.upsertTwitterToken(tweet.userId, {
+            accessToken,
+            refreshToken: refreshed.refreshToken ?? token.refreshToken,
+            expiresAt,
+            twitterUserId: token.twitterUserId,
+            twitterHandle: token.twitterHandle,
+          });
+        }
+        const client = new TwitterApi(accessToken);
+        const posted = await client.v2.tweet(tweet.content);
+        await storage.updateScheduledTweet(tweet.id, { status: "posted", tweetId: posted.data.id });
+        log(`Scheduled tweet posted: ${posted.data.id}`, "cron");
+      } catch (e: any) {
+        await storage.updateScheduledTweet(tweet.id, { status: "failed", errorMessage: e.message });
+        log(`Scheduled tweet failed for ${tweet.id}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`Scheduled tweets error: ${e.message}`, "cron");
+  }
+}
+
 export async function runAutoSync() {
   try {
     await syncInstagramPosts();
@@ -149,5 +190,6 @@ export async function runAutoSync() {
 
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
-  log("Cron jobs scheduled — auto-sync runs daily at 3:00 AM UTC", "cron");
+  cron.schedule("*/5 * * * *", processScheduledTweets);
+  log("Cron jobs scheduled — auto-sync runs daily at 3:00 AM UTC; tweet scheduler runs every 5 minutes", "cron");
 }

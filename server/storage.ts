@@ -6,6 +6,8 @@ import {
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
+  twitterTokens, scheduledTweets,
+  type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -809,6 +811,47 @@ class DatabaseStorage implements IStorage {
       })
       .returning();
     return row.count;
+  }
+
+  async getTwitterToken(userId: string): Promise<TwitterToken | null> {
+    const [row] = await db.select().from(twitterTokens).where(eq(twitterTokens.userId, userId));
+    return row ?? null;
+  }
+
+  async upsertTwitterToken(userId: string, data: Omit<TwitterToken, "id" | "userId" | "createdAt">): Promise<TwitterToken> {
+    const existing = await this.getTwitterToken(userId);
+    if (existing) {
+      const [row] = await db.update(twitterTokens).set(data).where(eq(twitterTokens.userId, userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(twitterTokens).values({ userId, ...data }).returning();
+    return row;
+  }
+
+  async deleteTwitterToken(userId: string): Promise<void> {
+    await db.delete(twitterTokens).where(eq(twitterTokens.userId, userId));
+  }
+
+  async getScheduledTweets(userId: string): Promise<ScheduledTweet[]> {
+    return db.select().from(scheduledTweets).where(eq(scheduledTweets.userId, userId)).orderBy(desc(scheduledTweets.scheduledFor));
+  }
+
+  async getPendingDueTweets(): Promise<ScheduledTweet[]> {
+    return db.select().from(scheduledTweets)
+      .where(and(eq(scheduledTweets.status, "pending"), lte(scheduledTweets.scheduledFor, new Date())));
+  }
+
+  async createScheduledTweet(data: InsertScheduledTweet): Promise<ScheduledTweet> {
+    const [row] = await db.insert(scheduledTweets).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledTweet(id: string, data: Partial<ScheduledTweet>): Promise<void> {
+    await db.update(scheduledTweets).set(data).where(eq(scheduledTweets.id, id));
+  }
+
+  async deleteScheduledTweet(id: string, userId: string): Promise<void> {
+    await db.delete(scheduledTweets).where(and(eq(scheduledTweets.id, id), eq(scheduledTweets.userId, userId)));
   }
 }
 

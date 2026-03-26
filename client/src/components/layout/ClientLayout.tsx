@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, Twitter
 } from "lucide-react";
 import { useState } from "react";
 
@@ -47,6 +47,7 @@ const mainNavItems = [
   { href: "/carousel-studio", label: "AI Design", icon: Layers },
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
   { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
+  { href: "/twitter-scheduler", label: "X / Twitter", icon: Twitter },
   { href: "/credits", label: "Credits", icon: Zap },
   { href: "/settings/plan", label: "Your Settings", icon: Settings },
 ];
