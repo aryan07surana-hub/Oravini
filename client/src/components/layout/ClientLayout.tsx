@@ -44,7 +44,7 @@ const mainNavItems = [
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
-  { href: "/carousel-studio", label: "Carousel Studio", icon: Layers },
+  { href: "/carousel-studio", label: "AI Design", icon: Layers },
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
   { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
   { href: "/credits", label: "Credits", icon: Zap },
@@ -124,22 +124,24 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
         <CreditWidget />
 
-        <div className="px-4 pb-3">
-          <a
-            href="https://calendly.com/brandversee/30min"
-            target="_blank"
-            rel="noreferrer"
-            data-testid="sidebar-book-call"
-            className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
-          >
-            <CalendarPlus className="w-4 h-4 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold leading-tight">Book a Call</p>
-              <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-          </a>
-        </div>
+        {(user as any)?.plan === "elite" && (
+          <div className="px-4 pb-3">
+            <a
+              href="https://calendly.com/brandversee/30min"
+              target="_blank"
+              rel="noreferrer"
+              data-testid="sidebar-book-call"
+              className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
+            >
+              <CalendarPlus className="w-4 h-4 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold leading-tight">Book a Call</p>
+                <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+            </a>
+          </div>
+        )}
 
         <div className="p-4 border-t border-sidebar-border space-y-2">
           {/* User info row */}
