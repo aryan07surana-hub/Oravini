@@ -66,9 +66,12 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 
 const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-const GOOGLE_CALLBACK_URL = replitDomain
-  ? `https://${replitDomain}/api/auth/google/callback`
-  : `http://localhost:5000/api/auth/google/callback`;
+const appUrl = process.env.APP_URL; // Override with your own domain e.g. https://yourdomain.com
+const GOOGLE_CALLBACK_URL = appUrl
+  ? `${appUrl}/api/auth/google/callback`
+  : replitDomain
+    ? `https://${replitDomain}/api/auth/google/callback`
+    : `http://localhost:5000/api/auth/google/callback`;
 
 console.log("[google-oauth] callbackURL:", GOOGLE_CALLBACK_URL);
 
