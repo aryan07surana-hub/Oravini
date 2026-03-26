@@ -13,6 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -41,7 +45,6 @@ export default function AdminSettings() {
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
   const [showResetPw, setShowResetPw] = useState<Record<string, boolean>>({});
   const [justReset, setJustReset] = useState<Record<string, string>>({}); // clientId → new password shown
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const generateResetPw = (clientId: string) => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$";
@@ -89,7 +92,6 @@ export default function AdminSettings() {
     mutationFn: (id: string) => apiRequest("DELETE", `/api/clients/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
-      setConfirmDelete(null);
       toast({ title: "Client deleted" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -482,30 +484,36 @@ export default function AdminSettings() {
                             {/* Delete */}
                             <div className="flex items-center justify-between">
                               <p className="text-xs text-zinc-600">Permanently removes account and all data</p>
-                              {confirmDelete === client.id ? (
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(null)} className="h-7 text-xs text-zinc-400">Cancel</Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
                                   <Button
                                     size="sm"
-                                    onClick={() => deleteClient.mutate(client.id)}
-                                    disabled={deleteClient.isPending}
-                                    className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white"
-                                    data-testid={`button-confirm-delete-${client.id}`}
+                                    variant="outline"
+                                    className="h-7 text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 hover:text-red-300 gap-1"
+                                    data-testid={`button-delete-${client.id}`}
                                   >
-                                    {deleteClient.isPending ? "Deleting…" : "Yes, delete"}
+                                    <Trash2 className="w-3 h-3" /> Delete client
                                   </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setConfirmDelete(client.id)}
-                                  className="h-7 text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 hover:text-red-300 gap-1"
-                                  data-testid={`button-delete-${client.id}`}
-                                >
-                                  <Trash2 className="w-3 h-3" /> Delete client
-                                </Button>
-                              )}
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Remove {client.name}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete their account and all associated data. This cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      data-testid={`button-confirm-delete-${client.id}`}
+                                      className="bg-red-600 hover:bg-red-700 text-white"
+                                      onClick={() => deleteClient.mutate(client.id)}
+                                    >
+                                      {deleteClient.isPending ? "Deleting…" : "Yes, remove client"}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                         )}
