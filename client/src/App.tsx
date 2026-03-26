@@ -37,6 +37,8 @@ import AdminCRM from "@/pages/admin/AdminCRM";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
+import Apply from "@/pages/Apply";
+import Audit from "@/pages/Audit";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -77,6 +79,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/apply" component={Apply} />
+      <Route path="/audit" component={Audit} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={ClientDashboard} />}
       </Route>

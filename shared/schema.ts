@@ -390,8 +390,13 @@ export const landingLeads = pgTable("landing_leads", {
   biggestChallenge: text("biggest_challenge"),
   postFrequency: text("post_frequency"),
   monetizationGoal: text("monetization_goal"),
+  niche: text("niche"),
+  targetAudience: text("target_audience"),
+  goals: text("goals"),
+  instagramUrl: text("instagram_url"),
   quizAnswers: jsonb("quiz_answers"),
   monetizationReport: jsonb("monetization_report"),
+  auditData: jsonb("audit_data"),
   creditsClaimed: boolean("credits_claimed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });

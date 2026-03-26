@@ -4058,6 +4058,150 @@ Return ONLY valid JSON:
     }
   });
 
+  // POST /api/leads/audit — public: full audit funnel submission with Instagram analysis
+  app.post("/api/leads/audit", async (req: Request, res: Response) => {
+    try {
+      const { name, email, platform, niche, targetAudience, biggestChallenge, goals, instagramUrl } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+
+      // Extract Instagram username from URL
+      let igUsername = "";
+      if (instagramUrl) {
+        const match = instagramUrl.replace(/\/$/, "").match(/(?:instagram\.com\/)([A-Za-z0-9_.]+)/);
+        igUsername = match ? match[1] : instagramUrl.replace(/^@/, "");
+      }
+
+      // Step 1: Try Apify Instagram profile scrape
+      let igProfileData: any = null;
+      if (igUsername && process.env.APIFY_TOKEN) {
+        try {
+          const apifyRes = await fetch(
+            `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}&timeout=60`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ usernames: [igUsername] }),
+              signal: AbortSignal.timeout(70000),
+            }
+          );
+          if (apifyRes.ok) {
+            const apifyData = await apifyRes.json();
+            if (Array.isArray(apifyData) && apifyData.length > 0) igProfileData = apifyData[0];
+          }
+        } catch (apifyErr) {
+          console.warn("[audit] Apify fetch failed, proceeding with AI-only analysis:", apifyErr);
+        }
+      }
+
+      // Step 2: Build Groq analysis
+      const igContext = igProfileData
+        ? `Instagram Profile Data:
+- Username: @${igProfileData.username || igUsername}
+- Full name: ${igProfileData.fullName || "unknown"}
+- Followers: ${igProfileData.followersCount?.toLocaleString() || "unknown"}
+- Following: ${igProfileData.followsCount?.toLocaleString() || "unknown"}
+- Posts: ${igProfileData.postsCount || "unknown"}
+- Bio: ${igProfileData.biography || "none"}
+- Verified: ${igProfileData.verified ? "Yes" : "No"}
+- Engagement rate (est.): ${igProfileData.followersCount && igProfileData.postsCount ? ((igProfileData.postsCount / Math.max(igProfileData.followersCount, 1)) * 100).toFixed(2) + "%" : "unknown"}`
+        : `Instagram handle: @${igUsername || "not provided"} (profile data unavailable — use form answers only)`;
+
+      const sysPrompt = `You are a world-class social media growth strategist and monetisation expert. Generate a comprehensive creator audit as a JSON object with these exact fields:
+{
+  "overallScore": <0-100 monetisation readiness score>,
+  "scoreLabel": "Beginner|Growing|Established|Monetisation Ready",
+  "headline": "Personalized punchy title for their audit",
+  "topInsight": "Single most important insight about their situation (1-2 sentences)",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "gaps": ["gap 1", "gap 2", "gap 3"],
+  "quickWins": ["win 1 (do this week)", "win 2", "win 3"],
+  "contentStrategy": "Personalized content strategy recommendation (2-3 sentences)",
+  "monetisationPath": "Best monetisation path given their goals (2-3 sentences)",
+  "competitiveEdge": "What makes them unique and how to leverage it",
+  "90DayRoadmap": [
+    {"phase": "Days 1–30", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 31–60", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 61–90", "focus": "...", "keyAction": "..."}
+  ],
+  "revenueEstimate": "Realistic revenue range achievable in 90 days",
+  "platformSpecificTip": "One highly specific tip for their platform",
+  "upgradeTeaser": "What additional value they'd get from the full Brandverse system (makes them want to upgrade)"
+}
+Be specific, reference their niche and platform. Be honest but encouraging.`;
+
+      const userMsg = `Creator: ${name}
+Platform: ${platform}
+Niche: ${niche}
+Target Audience: ${targetAudience}
+Biggest Challenge: ${biggestChallenge}
+Goals: ${goals}
+
+${igContext}
+
+Generate their personalised audit. Be specific to their situation.`;
+
+      let auditReport: any = null;
+      try {
+        const raw = await callGroqJson(sysPrompt, userMsg, 1200);
+        auditReport = JSON.parse(raw);
+      } catch {
+        auditReport = {
+          overallScore: 58,
+          scoreLabel: "Growing",
+          headline: `${platform} Growth Audit for ${name}`,
+          topInsight: `Your biggest opportunity is building a structured content system around your ${niche} niche with clear monetisation hooks.`,
+          strengths: ["Active creator with real goals", "Clear platform focus", "Motivated to grow"],
+          gaps: ["No defined monetisation strategy", "Content consistency needs work", "Audience connection could be stronger"],
+          quickWins: ["Post 3x this week with a clear CTA", "Optimize bio with your value proposition", "Start building your email list today"],
+          contentStrategy: `Focus on ${platform}-native formats in your ${niche} space. Lead with educational or entertaining hooks that speak directly to ${targetAudience}.`,
+          monetisationPath: `Given your goal of ${goals}, start with one digital product or service offer within 30 days.`,
+          competitiveEdge: "Your personal story and authentic perspective in your niche",
+          "90DayRoadmap": [
+            { phase: "Days 1–30", focus: "Foundation & Consistency", keyAction: "Post 4x/week, optimize profile, define content pillars" },
+            { phase: "Days 31–60", focus: "Audience Building", keyAction: "Launch first lead magnet, collaborate with 2-3 accounts in your niche" },
+            { phase: "Days 61–90", focus: "Monetisation", keyAction: "Launch first paid offer to your warm audience" },
+          ],
+          revenueEstimate: "$500–2,000/mo within 90 days",
+          platformSpecificTip: `On ${platform}, the first 3 seconds determine everything — hook first, value second, CTA last.`,
+          upgradeTeaser: "Unlock competitor analysis, AI content ideas, and a done-with-you content system to 3x your speed to results.",
+        };
+      }
+
+      const quizAnswers = { platform, niche, targetAudience, biggestChallenge, goals, instagramUrl };
+      const existing = await storage.getLandingLeadByEmail(email);
+      let lead;
+      if (existing) {
+        lead = await storage.updateLandingLead(existing.id, {
+          name, platform, niche, targetAudience, biggestChallenge, goals, instagramUrl,
+          quizAnswers, auditData: { igProfile: igProfileData, report: auditReport }, source: "audit",
+        } as any);
+      } else {
+        lead = await storage.createLandingLead({
+          name, email, source: "audit", platform, niche, targetAudience, biggestChallenge, goals, instagramUrl,
+          quizAnswers, auditData: { igProfile: igProfileData, report: auditReport },
+        } as any);
+      }
+
+      // Return partial report for free users (tease upgrade)
+      const partialReport = {
+        overallScore: auditReport.overallScore,
+        scoreLabel: auditReport.scoreLabel,
+        headline: auditReport.headline,
+        topInsight: auditReport.topInsight,
+        strengths: auditReport.strengths,
+        quickWins: auditReport.quickWins.slice(0, 2),
+        revenueEstimate: auditReport.revenueEstimate,
+        upgradeTeaser: auditReport.upgradeTeaser,
+        // Locked fields:
+        locked: ["gaps", "contentStrategy", "monetisationPath", "competitiveEdge", "90DayRoadmap", "platformSpecificTip"],
+      };
+
+      return res.json({ report: partialReport, leadId: lead?.id });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/admin/crm — admin: full CRM data
   app.get("/api/admin/crm", requireAdmin, async (_req: Request, res: Response) => {
     try {

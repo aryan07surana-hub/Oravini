@@ -48,28 +48,36 @@ function Navbar() {
       transition: "all 0.3s ease",
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${GOLD} 0%, #b8962e 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: "#000" }}>B</div>
-          <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Brandverse</span>
-        </div>
+        {/* Left: Logo + Apply link */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          {[["#how", "How It Works"], ["#inside", "What's Inside"], ["#audit", "Free Audit"], ["#pricing", "Pricing"]].map(([href, label]) => (
-            <a key={href} href={href} style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 500, textDecoration: "none", transition: "color 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
-              onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}>
-              {label}
-            </a>
-          ))}
+          <Link href="/">
+            <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${GOLD} 0%, #b8962e 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: "#000" }}>B</div>
+              <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Brandverse</span>
+            </div>
+          </Link>
+          <Link href="/apply">
+            <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "color 0.2s", display: "none" }}
+              className="nav-apply-link">
+              Apply to Work with Brandverse
+            </span>
+          </Link>
+        </div>
+        {/* Right: Login + Sign Up */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Link href="/apply">
+            <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Apply to Work with Brandverse</span>
+          </Link>
           <Link href="/login">
             <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Log in</span>
           </Link>
-          <a href={CALENDLY} target="_blank" rel="noopener noreferrer">
+          <Link href="/audit">
             <span style={{ background: GOLD, color: "#000", fontSize: 13, fontWeight: 700, padding: "9px 20px", borderRadius: 8, cursor: "pointer", display: "inline-block", transition: "opacity 0.2s" }}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
-              Book a Call
+              Sign Up Free
             </span>
-          </a>
+          </Link>
         </div>
       </div>
     </nav>
@@ -221,324 +229,85 @@ function EmailCaptureStrip({ onCapture }: { onCapture: () => void }) {
   );
 }
 
-// ── Lead Capture Popup ────────────────────────────────────────────────────────
-function LeadCapturePopup({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({ name: "", email: "" });
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-
-  const submit = async () => {
-    if (!form.name || !form.email) return;
-    setStatus("loading");
-    try {
-      await fetch("/api/leads/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      setStatus("done");
-      setTimeout(onClose, 2800);
-    } catch {
-      setStatus("error");
-    }
-  };
-
+// ── Audit Popup ────────────────────────────────────────────────────────────────
+function AuditPopup({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(8px)" }} />
       <div style={{ position: "relative", zIndex: 1, background: "#0f0f0f", border: `1px solid ${GOLD}30`, borderRadius: 20, padding: "40px 36px", maxWidth: 460, width: "100%", boxShadow: `0 0 80px ${GOLD}18` }}>
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", cursor: "pointer", fontSize: 22 }}>✕</button>
-
-        {status === "done" ? (
-          <div style={{ textAlign: "center", padding: "12px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
-            <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 10 }}>You're in!</h3>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
-              Your <strong style={{ color: GOLD }}>10 free credits</strong> will be waiting when you join Brandverse. Check your email for next steps.
-            </p>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 44, marginBottom: 16 }}>🔍</div>
+          <div style={{ display: "inline-block", background: `${GOLD}18`, border: `1px solid ${GOLD}30`, borderRadius: 100, padding: "5px 14px", marginBottom: 16 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>Free · No Card Required</span>
           </div>
-        ) : (
-          <>
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-              <div style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}30`, borderRadius: 100, padding: "5px 14px" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>🎁 Free Gift for You</span>
+          <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", marginBottom: 10, lineHeight: 1.2 }}>
+            Get Your Free<br /><span style={{ color: GOLD }}>AI Monetisation Audit</span>
+          </h3>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 26, lineHeight: 1.65 }}>
+            Answer 6 quick questions, add your Instagram URL, and our AI builds a personalised growth + monetisation report — in seconds.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 10, textAlign: "left", marginBottom: 26 }}>
+            {["Your personalised growth score", "Top quick wins for this week", "90-day revenue roadmap preview", "Personalised platform strategy tip"].map(item => (
+              <div key={item} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ color: GOLD, fontSize: 13, flexShrink: 0 }}>✓</span>
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.65)" }}>{item}</span>
               </div>
-            </div>
-            <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", textAlign: "center", marginBottom: 8, lineHeight: 1.2 }}>
-              Get 10 Free Credits<br />
-              <span style={{ color: GOLD }}>On Us</span>
-            </h3>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", textAlign: "center", marginBottom: 26, lineHeight: 1.6 }}>
-              Drop your name and email — we'll add 10 bonus credits to your account the moment you join. No card required.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
-              <input
-                type="text"
-                placeholder="Your name"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 14, outline: "none" }}
-              />
-              <input
-                type="email"
-                placeholder="Your email address"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 14, outline: "none" }}
-              />
-              <button
-                onClick={submit}
-                disabled={status === "loading" || !form.name || !form.email}
-                style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", opacity: status === "loading" ? 0.7 : 1 }}
-              >
-                {status === "loading" ? "Claiming…" : "Claim My 10 Free Credits →"}
-              </button>
-            </div>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center", marginTop: 14 }}>No spam, ever. Unsubscribe anytime.</p>
-          </>
-        )}
+            ))}
+          </div>
+          <Link href="/audit">
+            <span onClick={onClose} style={{ display: "block", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "13px", borderRadius: 10, cursor: "pointer" }}>
+              Start My Free Audit →
+            </span>
+          </Link>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Takes 3 minutes · No spam · Ever.</p>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Quiz Section ─────────────────────────────────────────────────────────────
-const QUIZ_QUESTIONS = [
-  {
-    id: "creatorType",
-    question: "Where are you right now as a creator?",
-    options: ["Just starting out (0–1K followers)", "Growing (1K–10K followers)", "Established (10K+ followers)", "I'm a brand or business"],
-  },
-  {
-    id: "platform",
-    question: "What's your main platform?",
-    options: ["Instagram", "YouTube", "TikTok", "LinkedIn", "Multiple platforms"],
-  },
-  {
-    id: "biggestChallenge",
-    question: "What's your biggest challenge right now?",
-    options: ["Don't know what to post", "Low engagement or views", "No monetization strategy", "Content burnout", "Growing my audience"],
-  },
-  {
-    id: "postFrequency",
-    question: "How often do you currently post?",
-    options: ["Rarely (0–1x/week)", "Sometimes (2–3x/week)", "Consistently (4–6x/week)", "Daily"],
-  },
-  {
-    id: "monetizationGoal",
-    question: "What's your primary monetization goal?",
-    options: ["Brand deals & sponsorships", "Digital products / courses", "Coaching & services", "Affiliate marketing", "All of the above"],
-  },
-];
-
-function QuizSection() {
-  const [step, setStep] = useState<"intro" | number | "details" | "loading" | "report">("intro");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [details, setDetails] = useState({ name: "", email: "" });
-  const [report, setReport] = useState<any>(null);
-  const [error, setError] = useState("");
-
-  const selectOption = (questionId: string, option: string) => {
-    setAnswers(a => ({ ...a, [questionId]: option }));
-    if (typeof step === "number") {
-      if (step < QUIZ_QUESTIONS.length - 1) setStep(step + 1);
-      else setStep("details");
-    }
-  };
-
-  const submitQuiz = async () => {
-    if (!details.name || !details.email) { setError("Please enter your name and email."); return; }
-    setError("");
-    setStep("loading");
-    try {
-      const res = await fetch("/api/leads/quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...details, ...answers }),
-      });
-      const data = await res.json();
-      if (data.report) { setReport(data.report); setStep("report"); }
-      else setStep("details");
-    } catch {
-      setStep("details");
-      setError("Something went wrong. Please try again.");
-    }
-  };
-
-  const progress = typeof step === "number" ? ((step + 1) / QUIZ_QUESTIONS.length) * 100 : step === "details" ? 100 : 0;
-
-  return (
-    <section id="audit" style={{ padding: "100px 24px", background: "rgba(255,255,255,0.012)", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        <FadeIn>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <SectionLabel>Free Creator Audit</SectionLabel>
-            <h2 style={{ fontSize: "clamp(26px, 4vw, 48px)", fontWeight: 900, letterSpacing: "-0.035em", color: "#fff", lineHeight: 1.1, marginBottom: 14 }}>
-              Take a 60-Second Quiz.<br />
-              <span className="gold-text">Get Your Free Monetization Report.</span>
+// ── Audit CTA Section ────────────────────────────────────────────────────────
+  function AuditCTASection() {
+    return (
+      <section id="audit" style={{ padding: "110px 24px", background: "rgba(255,255,255,0.012)", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+          <FadeIn>
+            <SectionLabel>Free Audit</SectionLabel>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 54px)", fontWeight: 900, letterSpacing: "-0.04em", color: "#fff", lineHeight: 1.08, marginBottom: 20 }}>
+              Get Your Free<br />
+              <span className="gold-text">AI Monetisation Audit</span>
             </h2>
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", maxWidth: 480, margin: "0 auto" }}>
-              Answer 5 quick questions and we'll generate a personalised monetization audit — completely free.
+            <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.7, maxWidth: 560, margin: "0 auto 40px" }}>
+              Answer 6 quick questions about your content, add your Instagram URL, and our AI generates a personalised growth + revenue report in seconds.
             </p>
-          </div>
-        </FadeIn>
-
-        <div style={{ background: "rgba(255,255,255,0.025)", border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 20, overflow: "hidden" }}>
-          {/* Progress bar */}
-          {(typeof step === "number" || step === "details") && (
-            <div style={{ height: 3, background: "rgba(255,255,255,0.06)" }}>
-              <div style={{ height: "100%", width: `${progress}%`, background: GOLD, transition: "width 0.4s ease" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, maxWidth: 680, margin: "0 auto 44px" }}>
+              {[
+                { icon: "📊", label: "Growth Score" },
+                { icon: "⚡", label: "Quick Wins" },
+                { icon: "🗺️", label: "90-Day Roadmap" },
+                { icon: "💰", label: "Revenue Estimate" },
+              ].map(({ icon, label }) => (
+                <div key={label} style={{ background: GOLD + "08", border: "1px solid " + GOLD + "25", borderRadius: 12, padding: "16px 12px" }}>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{label}</div>
+                </div>
+              ))}
             </div>
-          )}
-
-          <div style={{ padding: "40px 36px" }}>
-            {step === "intro" && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 56, marginBottom: 20 }}>🎯</div>
-                <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 12 }}>Find Out Exactly How to Monetise Your Content</h3>
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 28, lineHeight: 1.7 }}>
-                  This AI-powered audit analyses your situation and gives you a step-by-step roadmap to turning your content into consistent revenue. Takes 60 seconds.
-                </p>
-                <div style={{ display: "flex", gap: 20, justifyContent: "center", marginBottom: 28, flexWrap: "wrap" as const }}>
-                  {["📊 Personalised to your stage", "⚡ AI-generated in seconds", "💰 Revenue roadmap included"].map(t => (
-                    <div key={t} style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 6 }}>{t}</div>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setStep(0)}
-                  style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px 36px", borderRadius: 10, border: "none", cursor: "pointer" }}
-                >
-                  Start Free Audit →
-                </button>
-              </div>
-            )}
-
-            {typeof step === "number" && (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontWeight: 600 }}>Question {step + 1} of {QUIZ_QUESTIONS.length}</span>
-                  {step > 0 && (
-                    <button onClick={() => setStep(step - 1)} style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer" }}>← Back</button>
-                  )}
-                </div>
-                <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 24 }}>{QUIZ_QUESTIONS[step].question}</h3>
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-                  {QUIZ_QUESTIONS[step].options.map(option => (
-                    <button
-                      key={option}
-                      onClick={() => selectOption(QUIZ_QUESTIONS[step].id, option)}
-                      style={{
-                        background: answers[QUIZ_QUESTIONS[step].id] === option ? `${GOLD}18` : "rgba(255,255,255,0.03)",
-                        border: `1px solid ${answers[QUIZ_QUESTIONS[step].id] === option ? GOLD : "rgba(255,255,255,0.08)"}`,
-                        borderRadius: 12, padding: "14px 20px", color: "#fff", fontSize: 14, textAlign: "left" as const,
-                        cursor: "pointer", fontWeight: 500, transition: "all 0.15s ease",
-                      }}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {step === "details" && (
-              <div>
-                <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Almost there! Where should we send your report?</h3>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 24 }}>We'll generate it instantly — no spam, ever.</p>
-                {error && <p style={{ fontSize: 13, color: "#ef4444", marginBottom: 12 }}>{error}</p>}
-                <div style={{ display: "flex", flexDirection: "column" as const, gap: 12, marginBottom: 20 }}>
-                  <input type="text" placeholder="Your name" value={details.name} onChange={e => setDetails(d => ({ ...d, name: e.target.value }))}
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
-                  <input type="email" placeholder="Your email" value={details.email} onChange={e => setDetails(d => ({ ...d, email: e.target.value }))}
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
-                </div>
-                <button onClick={submitQuiz} style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, padding: "13px 32px", borderRadius: 10, border: "none", cursor: "pointer", width: "100%" }}>
-                  Generate My Free Report →
-                </button>
-              </div>
-            )}
-
-            {step === "loading" && (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
-                <div style={{ fontSize: 48, marginBottom: 16, animation: "float-up 2s ease infinite" }}>🧠</div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 8 }}>Analysing your profile…</h3>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Our AI is building your personalised monetization audit</p>
-                <div style={{ marginTop: 20, display: "flex", gap: 6, justifyContent: "center" }}>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: GOLD, opacity: 0.5, animation: `pulse-glow 1.2s ease infinite ${i * 0.2}s` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {step === "report" && report && (
-              <div>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 20 }}>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.06em", textTransform: "uppercase" as const, marginBottom: 6 }}>Your Monetization Audit</div>
-                    <h3 style={{ fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.2 }}>{report.headline}</h3>
-                  </div>
-                  <div style={{ textAlign: "center", flexShrink: 0 }}>
-                    <div style={{ fontSize: 36, fontWeight: 900, color: GOLD, lineHeight: 1 }}>{report.score}</div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>{report.scoreLabel}</div>
-                  </div>
-                </div>
-
-                <div style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}25`, borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, margin: 0 }}>
-                    <strong style={{ color: GOLD }}>Top Opportunity: </strong>{report.topOpportunity}
-                  </p>
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.07em", textTransform: "uppercase" as const, marginBottom: 12 }}>Your Quick Wins</p>
-                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-                    {(report.quickWins || []).map((win: string, i: number) => (
-                      <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                        <span style={{ color: GOLD, fontWeight: 700, flexShrink: 0 }}>✓</span>
-                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{win}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.07em", textTransform: "uppercase" as const, marginBottom: 12 }}>Your 90-Day Roadmap</p>
-                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
-                    {(report.roadmap || []).map((r: any, i: number) => (
-                      <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                        <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${GOLD}20`, border: `1px solid ${GOLD}40`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 10, fontWeight: 700, color: GOLD }}>{i + 1}</div>
-                        <div>
-                          <p style={{ fontSize: 11, fontWeight: 700, color: GOLD, marginBottom: 2 }}>{r.phase} · {r.timeframe}</p>
-                          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{r.action}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 10, padding: "12px 16px", marginBottom: 24 }}>
-                  <p style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, margin: 0 }}>💰 Estimated potential: {report.estimatedMonthlyRevenue}</p>
-                </div>
-
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 }}>Ready to turn this plan into reality?</p>
-                  <a href={WHOP_LINK} target="_blank" rel="noopener noreferrer">
-                    <button style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, padding: "13px 32px", borderRadius: 10, border: "none", cursor: "pointer" }}>
-                      Join Brandverse Free →
-                    </button>
-                  </a>
-                </div>
-              </div>
-            )}
-          </div>
+            <Link href="/audit">
+              <span className="cta-gold" style={{ display: "inline-block", background: GOLD, color: "#000", fontWeight: 800, fontSize: 16, padding: "16px 40px", borderRadius: 10, cursor: "pointer", letterSpacing: "-0.01em" }}>
+                Start My Free Audit →
+              </span>
+            </Link>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Takes 3 minutes · No credit card · 100% free</p>
+          </FadeIn>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
+    );
+  }
 
-// ── Pricing Section ───────────────────────────────────────────────────────────
+  // ── Pricing Section ───────────────────────────────────────────────────────────
 function PricingSection() {
   const PLANS = [
     {
@@ -546,66 +315,70 @@ function PricingSection() {
       price: "Free",
       period: "",
       tag: "Get Started",
-      color: "rgba(255,255,255,0.06)",
-      border: "rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.04)",
+      border: "rgba(255,255,255,0.08)",
       highlight: false,
       credits: "10 credits / day",
-      features: [
-        "Access to group chat community",
-        "Free resources & lead magnets",
-        "10 AI credits per day",
-        "Basic content ideas",
-        "Brandverse watermark on exports",
-        "Limited AI processing speed",
-      ],
-      limitations: ["Watermark on all AI exports", "Slower processing queue"],
-      cta: "Join for Free",
+      features: ["Group chat community access", "Free resources & lead magnets", "10 AI credits per day", "Basic content ideas", "Partial audit preview"],
+      limitations: ["Watermark on exports", "Slower processing"],
+      cta: "Join Free",
       link: WHOP_LINK,
     },
     {
       name: "Starter",
       price: "$29",
       period: "/mo",
-      tag: "Most Popular",
-      color: `rgba(99,102,241,0.08)`,
-      border: "rgba(99,102,241,0.35)",
+      tag: "Popular",
+      color: "rgba(99,102,241,0.07)",
+      border: "rgba(99,102,241,0.28)",
       highlight: false,
       credits: "20 credits / week",
-      features: [
-        "Everything in Free Community",
-        "20 AI credits per week",
-        "AI Content Ideas (limited)",
-        "Caption Studio access",
-        "Competitor Intelligence (limited)",
-        "Brandverse watermark on exports",
-      ],
-      limitations: ["Watermark on exports", "5 competitor reports/month"],
+      features: ["Everything in Free", "20 AI credits per week", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio"],
+      limitations: ["Watermark on exports"],
       cta: "Get Starter",
       link: WHOP_LINK,
     },
     {
-      name: "Pro",
-      price: "$99",
+      name: "Growth",
+      price: "$59",
       period: "/mo",
-      tag: "Full Access",
+      tag: "Best Value",
       color: `${GOLD}0a`,
       border: `${GOLD}45`,
       highlight: true,
+      credits: "200 credits / month",
+      features: ["Everything in Starter", "200 AI credits/month", "No watermarks", "Advanced analytics insights", "Priority processing", "Competitor Intelligence"],
+      limitations: [],
+      cta: "Get Growth",
+      link: WHOP_LINK,
+    },
+    {
+      name: "Pro",
+      price: "$79",
+      period: "/mo",
+      tag: "Full Access",
+      color: "rgba(52,211,153,0.06)",
+      border: "rgba(52,211,153,0.25)",
+      highlight: false,
       credits: "500 credits / month",
-      features: [
-        "Everything in Starter",
-        "500 AI credits per month",
-        "No watermarks on any export",
-        "Full AI Content Coach",
-        "Unlimited competitor reports",
-        "Priority processing",
-        "AI Video Editor",
-        "Direct messaging with the team",
-        "1-on-1 strategy call",
-      ],
+      features: ["Everything in Growth", "500 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "Direct team messaging"],
       limitations: [],
       cta: "Go Pro",
       link: WHOP_LINK,
+    },
+    {
+      name: "Brandverse Elite",
+      price: "Apply",
+      period: "",
+      tag: "🔴 Application Only",
+      color: "rgba(239,68,68,0.05)",
+      border: "rgba(239,68,68,0.2)",
+      highlight: false,
+      credits: "Unlimited (fair use)",
+      features: ["Unlimited AI usage", "Done-with-you strategy", "Direct team collaboration", "Priority 1-on-1 support", "Full system access", "High-level growth guidance"],
+      limitations: [],
+      cta: "Apply Now",
+      link: CALENDLY,
     },
   ];
 
@@ -702,13 +475,19 @@ function PricingSection() {
 }
 
 export default function Landing() {
-  const [showLeadPopup, setShowLeadPopup] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [popupDismissed, setPopupDismissed] = useState(false);
 
   useEffect(() => {
     if (popupDismissed) return;
-    const timer = setTimeout(() => setShowLeadPopup(true), 4000);
-    return () => clearTimeout(timer);
+    // Show after 2 minutes OR when user scrolls 65% of the page
+    const timer = setTimeout(() => { if (!popupDismissed) setShowPopup(true); }, 120000);
+    const onScroll = () => {
+      const scrollPct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+      if (scrollPct >= 0.65 && !popupDismissed) { setShowPopup(true); window.removeEventListener("scroll", onScroll); }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { clearTimeout(timer); window.removeEventListener("scroll", onScroll); };
   }, [popupDismissed]);
 
   return (
@@ -737,8 +516,8 @@ export default function Landing() {
         .cta-outline:hover { background: rgba(255,255,255,0.07) !important; transform: translateY(-2px); }
       `}</style>
 
-      {showLeadPopup && (
-        <LeadCapturePopup onClose={() => { setShowLeadPopup(false); setPopupDismissed(true); }} />
+      {showPopup && (
+        <AuditPopup onClose={() => { setShowPopup(false); setPopupDismissed(true); }} />
       )}
 
       <Navbar />
@@ -770,16 +549,16 @@ export default function Landing() {
           </p>
 
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-            <a href="#audit">
+            <Link href="/audit">
               <span className="cta-gold" style={{ display: "inline-block", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "15px 34px", borderRadius: 10, cursor: "pointer", letterSpacing: "-0.01em" }}>
                 Get My Free Audit →
               </span>
-            </a>
-            <a href={CALENDLY} target="_blank" rel="noopener noreferrer">
+            </Link>
+            <Link href="/apply">
               <span className="cta-outline" style={{ display: "inline-block", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 15, padding: "15px 34px", borderRadius: 10, cursor: "pointer" }}>
-                Book a Strategy Call
+                Apply to Work With Us
               </span>
-            </a>
+            </Link>
           </div>
 
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 18 }}>Free audit · No card required · Real strategy, not a pitch</p>
@@ -885,8 +664,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── QUIZ / AUDIT ────────────────────────────────────────────────────────── */}
-      <QuizSection />
+      {/* ── AUDIT CTA ────────────────────────────────────────────────────────── */}
+      <AuditCTASection />
 
       {/* ── PRICING ──────────────────────────────────────────────────────────── */}
       <PricingSection />

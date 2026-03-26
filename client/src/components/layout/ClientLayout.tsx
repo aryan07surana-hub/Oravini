@@ -11,8 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  LayoutDashboard, FileText, MessageSquare, TrendingUp, Phone,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Inbox, Bot, Clapperboard, Video, Zap, Layers
+  LayoutDashboard, FileText, MessageSquare,
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers
 } from "lucide-react";
 import { useState } from "react";
 
@@ -39,10 +39,8 @@ function CreditWidget() {
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/sessions", label: "Sessions Hub", icon: Video },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/calls", label: "Call Feedback", icon: Phone },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
