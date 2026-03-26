@@ -1,3 +1,4 @@
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -137,6 +138,7 @@ export default function ClientDocuments() {
                   <div>
                     <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
                     <Textarea placeholder="Brief description" className="mt-1.5" value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} />
+                    <AiRefineButton text={form.description || ""} onAccept={v => setForm(p => ({ ...p, description: v }))} context="document description" />
                   </div>
                   <div>
                     <Label>Document Type</Label>

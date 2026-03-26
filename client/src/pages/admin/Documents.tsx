@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -211,6 +212,7 @@ export default function AdminDocuments() {
                   <div>
                     <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
                     <Textarea placeholder="Brief description" className="mt-1.5" value={form.description} onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))} />
+                    <AiRefineButton text={form.description || ""} onAccept={v => setForm(p => ({ ...p, description: v }))} context="document description" />
                   </div>
                   <div>
                     <Label>Document Type</Label>
@@ -266,6 +268,7 @@ export default function AdminDocuments() {
                   <div>
                     <Label>Description <span className="text-muted-foreground text-xs">(optional)</span></Label>
                     <Textarea placeholder="Brief description" className="mt-1.5" value={matForm.description} onChange={(e) => setMatForm(p => ({ ...p, description: e.target.value }))} />
+                    <AiRefineButton text={matForm.description || ""} onAccept={v => setMatForm(p => ({ ...p, description: v }))} context="training material description" />
                   </div>
                   <div>
                     <Label>Upload Method</Label>

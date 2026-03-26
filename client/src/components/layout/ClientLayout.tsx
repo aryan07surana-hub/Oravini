@@ -48,7 +48,7 @@ const mainNavItems = [
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
   { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
   { href: "/credits", label: "Credits", icon: Zap },
-  { href: "/settings/plan", label: "Settings", icon: Settings },
+  { href: "/settings/plan", label: "Your Settings", icon: Settings },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -207,6 +208,7 @@ function AddEditLeadDialog({
           <div>
             <Label className="text-xs text-muted-foreground">Notes</Label>
             <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Conversation notes, objections, interests..." rows={3} className="mt-1 resize-none" data-testid="input-lead-notes" />
+            <AiRefineButton text={form.notes || ""} onAccept={v => setForm(f => ({ ...f, notes: v }))} context="lead conversation notes" />
           </div>
         </div>
         <DialogFooter>
@@ -258,6 +260,7 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
         <p className="text-xs font-semibold text-primary uppercase tracking-wide">New Template</p>
         <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Template name (e.g. Opening DM)" data-testid="input-template-title" />
         <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Write your reply template here..." rows={4} className="resize-none" data-testid="input-template-content" />
+        <AiRefineButton text={content} onAccept={setContent} context="DM reply template message" />
         <Button onClick={() => { if (!title.trim() || !content.trim()) return; createMutation.mutate({ title: title.trim(), content: content.trim(), clientId }); }} disabled={!title || !content || createMutation.isPending} className="w-full gap-2" data-testid="button-save-template">
           <Zap className="w-3.5 h-3.5" />{createMutation.isPending ? "Saving..." : "Save Template"}
         </Button>

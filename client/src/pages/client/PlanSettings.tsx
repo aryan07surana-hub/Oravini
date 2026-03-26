@@ -97,7 +97,7 @@ export default function PlanSettings() {
             <Settings className="w-4 h-4" style={{ color: "#d4b461" }} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">Settings</h1>
+            <h1 className="text-xl font-bold text-white">Your Settings</h1>
             <p className="text-xs text-muted-foreground">Manage your account and subscription</p>
           </div>
         </div>

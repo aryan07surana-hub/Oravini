@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import {
   Sparkles, Zap, Wand2, RefreshCw, Target, TrendingUp, AlertTriangle,
   CheckCircle2, ChevronDown, ChevronUp, Copy, Check, Send, Instagram,
@@ -796,6 +797,7 @@ export default function AIContentCoach() {
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Your Script / Hook / Idea</label>
                   <Textarea value={script} onChange={e=>setScript(e.target.value)} placeholder="Paste your script, hook, or content idea here…" className="min-h-20 text-sm bg-zinc-900/80 border-zinc-700/60 resize-none" data-testid="textarea-script"/>
+                  <AiRefineButton text={script} onAccept={setScript} context="social media script or hook" />
                   <Button onClick={()=>{ if(!script.trim()){toast({title:"Add your script first!"});return;} sendToCoach("Analyze my content",script); }} disabled={thinking||!script.trim()} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-analyze-script">
                     {thinking?<Loader2 className="w-4 h-4 animate-spin mr-2"/>:<Brain className="w-4 h-4 mr-2"/>}
                     {mode==="pre-post"?"Pre-Post Check":"Analyze My Content"}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -251,6 +252,7 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
                 className="min-h-[140px] bg-zinc-900 border-zinc-700 text-zinc-200 placeholder:text-zinc-600 text-sm resize-none"
                 data-testid="textarea-script"
               />
+              <AiRefineButton text={script} onAccept={setScript} context="social media script, hook, or reel idea" />
             </div>
           ) : (
             <div className="space-y-4">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -832,6 +833,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                 <Textarea data-testid="input-concept" value={concept} onChange={e => setConcept(e.target.value)}
                   placeholder='e.g. "I want to make a 30-second reel about why most people fail at dieting, targeting busy professionals. Make it high energy like Alex Hormozi."'
                   className="bg-background border-border text-sm min-h-[110px] resize-none" />
+                <AiRefineButton text={concept} onAccept={setConcept} context="video concept description for a social media reel or video" />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Platform</p>

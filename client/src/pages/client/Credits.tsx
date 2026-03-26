@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   Zap, TrendingUp, Star, ShoppingCart, ArrowDownCircle, ArrowUpCircle,
-  Sparkles, Brain, Target, Video, RefreshCw, Crown
+  Sparkles, Brain, Target, Video, RefreshCw, Crown, ArrowLeft
 } from "lucide-react";
+import { useLocation } from "wouter";
 
 const WHOP_LINKS = {
   starter: "https://whop.com/brandversee",
@@ -71,6 +72,7 @@ const CREDIT_PACKAGES = [
 export default function Credits() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const plan = (user as any)?.plan || "free";
 
   const { data, isLoading } = useQuery<any>({
@@ -119,9 +121,18 @@ export default function Credits() {
     <div className="p-6 space-y-8 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Credits</h1>
-          <p className="text-zinc-400 text-sm mt-1">Manage your AI feature credits and purchase top-ups</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/dashboard")}
+            data-testid="button-credits-back"
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors border border-zinc-700"
+          >
+            <ArrowLeft className="w-4 h-4 text-zinc-300" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Credits</h1>
+            <p className="text-zinc-400 text-sm mt-1">Manage your AI feature credits and purchase top-ups</p>
+          </div>
         </div>
         <Badge
           className={`text-sm px-3 py-1 ${plan === "pro" ? "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40" : plan === "starter" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-700/50 text-zinc-300 border border-zinc-600"}`}

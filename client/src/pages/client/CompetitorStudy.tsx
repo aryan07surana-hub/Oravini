@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import ViralityTester from "@/pages/client/ViralityTester";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -3543,6 +3544,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
                   className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
                   data-testid="textarea-tool-content"
                 />
+                <AiRefineButton text={toolContent} onAccept={setToolContent} context="social media content for competitor analysis" />
               ) : (
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground">Enter an Instagram Reel URL — AI will fetch the caption and load it for analysis</p>

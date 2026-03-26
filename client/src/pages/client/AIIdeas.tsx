@@ -14,10 +14,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
-  FileText, Wand2, Hash, Plus, X, Clock
+  FileText, Wand2, Hash, Plus, X, Clock, Linkedin, Twitter
 } from "lucide-react";
 
 // ─── AI hashtag suggestions hook ───────────────────────────────────────────────
@@ -64,6 +65,8 @@ interface ContentIdea {
   whyItWorks?: string;
   cta?: string;
   keyPoints?: string[];
+  threadOutline?: string[];
+  linkedinStructure?: string[];
 }
 
 interface ContentMix {
@@ -87,6 +90,23 @@ const YT_CONTENT_TYPES = [
   { value: "Value Based (educational breakdowns, framework explanations, strategy videos)", label: "Value Based — Education & Frameworks" },
   { value: "VSL Style (problem-solution videos, authority videos, story-based persuasion)", label: "VSL Style — Sales & Authority" },
   { value: "mix of all YouTube formats", label: "Mix of all formats" },
+];
+
+const LI_CONTENT_TYPES = [
+  { value: "Thought Leadership post", label: "Thought Leadership" },
+  { value: "List post (numbered insights)", label: "List Post — Numbered Insights" },
+  { value: "Personal story post", label: "Personal Story" },
+  { value: "How-to carousel post", label: "How-To Carousel" },
+  { value: "Controversial opinion post", label: "Controversial Opinion / Hot Take" },
+  { value: "mix of all LinkedIn formats", label: "Mix of all formats" },
+];
+
+const TW_CONTENT_TYPES = [
+  { value: "Twitter thread (multi-tweet educational breakdown)", label: "Twitter Thread" },
+  { value: "Single tweet hot take or opinion", label: "Single Tweet — Hot Take" },
+  { value: "Quote thread (series of powerful one-liners)", label: "Quote Thread" },
+  { value: "Poll tweet with engagement question", label: "Poll Tweet" },
+  { value: "mix of threads and single tweets", label: "Mix of all formats" },
 ];
 
 const GOALS = [
@@ -136,8 +156,26 @@ const YT_LOADING_STEPS = [
   { icon: "🚀", text: "Finalising your YouTube content calendar…" },
 ];
 
+const LI_LOADING_STEPS = [
+  { icon: "🔍", text: "Scanning LinkedIn algorithm patterns and trending topics…" },
+  { icon: "📊", text: "Analysing top-performing posts in your niche…" },
+  { icon: "🎯", text: "Identifying thought leadership opportunities…" },
+  { icon: "✍️", text: "Crafting professional posts with high engagement potential…" },
+  { icon: "🚀", text: "Writing your post openers and structures…" },
+  { icon: "✨", text: "Finalising your LinkedIn content strategy…" },
+];
+
+const TW_LOADING_STEPS = [
+  { icon: "🔍", text: "Scanning viral X/Twitter trends in your niche…" },
+  { icon: "📊", text: "Analysing top threads and hot takes that exploded…" },
+  { icon: "🎯", text: "Identifying untapped angles for viral content…" },
+  { icon: "✍️", text: "Crafting punchy hooks and thread structures…" },
+  { icon: "🚀", text: "Writing your tweet hooks and thread outlines…" },
+  { icon: "✨", text: "Finalising your X/Twitter content strategy…" },
+];
+
 function AILoadingState({ platform }: { platform: string }) {
-  const steps = platform === "youtube" ? YT_LOADING_STEPS : IG_LOADING_STEPS;
+  const steps = platform === "youtube" ? YT_LOADING_STEPS : platform === "linkedin" ? LI_LOADING_STEPS : platform === "twitter" ? TW_LOADING_STEPS : IG_LOADING_STEPS;
   const [stepIdx, setStepIdx] = useState(0);
   const [progress, setProgress] = useState(0);
 
@@ -208,6 +246,9 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
   const [expanded, setExpanded] = useState(true);
   const { toast } = useToast();
   const isYoutube = platform === "youtube";
+  const isLinkedIn = platform === "linkedin";
+  const isTwitter = platform === "twitter";
+  const captionLabel = isLinkedIn ? "Post Opener" : isTwitter ? "Tweet Hook" : "Caption / Script Opener";
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -269,23 +310,25 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
                   </div>
                 )}
 
-                <div className="bg-card border border-card-border rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <MessageSquare className="w-3 h-3 text-primary" />
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Caption / Script Opener</span>
+                {idea.captionStarter && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <MessageSquare className="w-3 h-3 text-primary" />
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{captionLabel}</span>
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(idea.captionStarter, captionLabel)}
+                        data-testid={`copy-caption-${index}`}
+                        className="text-muted-foreground hover:text-primary transition-colors"
+                        title={`Copy ${captionLabel}`}
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => copyToClipboard(idea.captionStarter, "Caption")}
-                      data-testid={`copy-caption-${index}`}
-                      className="text-muted-foreground hover:text-primary transition-colors"
-                      title="Copy caption"
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
+                    <p className="text-xs text-foreground italic leading-relaxed">"{idea.captionStarter}"</p>
                   </div>
-                  <p className="text-xs text-foreground italic leading-relaxed">"{idea.captionStarter}"</p>
-                </div>
+                )}
 
                 {idea.cta && (
                   <div className="flex items-center justify-between gap-2 bg-primary/5 border border-primary/15 rounded-xl p-3">
@@ -319,6 +362,40 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
                   </div>
                 )}
 
+                {idea.threadOutline && idea.threadOutline.length > 0 && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Twitter className="w-3 h-3 text-zinc-400" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Thread Outline — First 3 Tweets</span>
+                    </div>
+                    <ol className="space-y-2">
+                      {idea.threadOutline.map((tweet, i) => (
+                        <li key={i} className="text-xs text-muted-foreground leading-relaxed bg-zinc-900/40 rounded-lg p-2.5 flex gap-2">
+                          <span className="text-zinc-500 font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
+                          <span>{tweet}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {idea.linkedinStructure && idea.linkedinStructure.length > 0 && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Linkedin className="w-3 h-3 text-blue-400" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Post Structure</span>
+                    </div>
+                    <ol className="space-y-1.5">
+                      {idea.linkedinStructure.map((point, i) => (
+                        <li key={i} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                          <span className="text-blue-400 font-bold flex-shrink-0 mt-0.5">·</span>
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
                 {(idea.tip && !idea.whyItWorks) && (
                   <div className="flex items-start gap-2 bg-primary/5 border border-primary/10 rounded-xl p-3">
                     <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
@@ -329,7 +406,7 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
                   </div>
                 )}
 
-                {onGetScript && (
+                {onGetScript && !isLinkedIn && !isTwitter && (
                   <button
                     onClick={() => onGetScript(idea)}
                     data-testid={`get-script-${index}`}
@@ -351,7 +428,7 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
 
 export default function AIIdeas() {
   const { toast } = useToast();
-  const [platform, setPlatform] = useState<"instagram" | "youtube">("instagram");
+  const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">("instagram");
   const [profileUrl, setProfileUrl] = useState("");
   const [niche, setNiche] = useState("");
   const [contentType, setContentType] = useState("");
@@ -437,7 +514,8 @@ export default function AIIdeas() {
 
   const { suggestions: suggestedHashtags, loading: hashtagsLoading } = useHashtagSuggestions(niche);
 
-  const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : YT_CONTENT_TYPES;
+  const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : platform === "youtube" ? YT_CONTENT_TYPES : platform === "linkedin" ? LI_CONTENT_TYPES : TW_CONTENT_TYPES;
+  const showProfileUrl = platform === "instagram" || platform === "youtube";
 
   const detectedHandle = useMemo(() => extractHandle(profileUrl, platform), [profileUrl, platform]);
 
@@ -513,35 +591,65 @@ export default function AIIdeas() {
 
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <button
               onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
               data-testid="platform-instagram"
-              className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
+              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
                 platform === "instagram"
                   ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
                   : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
               }`}
             >
-              <Instagram className="w-4 h-4" />
-              Instagram
+              <Instagram className="w-5 h-5" />
+              <span>Instagram</span>
               {loadLiked("instagram").length > 0 && (
-                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("instagram").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("instagram").length} saved</Badge>
               )}
             </button>
             <button
               onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
               data-testid="platform-youtube"
-              className={`flex items-center justify-center gap-2.5 py-3 rounded-xl border text-sm font-medium transition-all ${
+              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
                 platform === "youtube"
                   ? "bg-red-500/10 border-red-500/40 text-red-400"
                   : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
               }`}
             >
-              <Youtube className="w-4 h-4" />
-              YouTube
+              <Youtube className="w-5 h-5" />
+              <span>YouTube</span>
               {loadLiked("youtube").length > 0 && (
-                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length} saved</Badge>
+              )}
+            </button>
+            <button
+              onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-linkedin"
+              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
+                platform === "linkedin"
+                  ? "bg-blue-600/10 border-blue-600/40 text-blue-400"
+                  : "border-border text-muted-foreground hover:border-blue-600/30 hover:text-blue-400"
+              }`}
+            >
+              <Linkedin className="w-5 h-5" />
+              <span>LinkedIn</span>
+              {loadLiked("linkedin").length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length} saved</Badge>
+              )}
+            </button>
+            <button
+              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-twitter"
+              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
+                platform === "twitter"
+                  ? "bg-zinc-100/10 border-zinc-400/40 text-zinc-300"
+                  : "border-border text-muted-foreground hover:border-zinc-400/30 hover:text-zinc-300"
+              }`}
+            >
+              <Twitter className="w-5 h-5" />
+              <span>X / Twitter</span>
+              {loadLiked("twitter").length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length} saved</Badge>
               )}
             </button>
           </div>
@@ -625,49 +733,51 @@ export default function AIIdeas() {
           <TabsContent value="generate" className="space-y-6 mt-0">
         <Card className="border border-card-border">
           <CardContent className="p-6 space-y-5">
-            <div className="space-y-1.5">
-              <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Link className="w-3 h-3" />
-                {platform === "instagram" ? "Instagram Profile Link" : "YouTube Channel Link"}
-                <span className="text-muted-foreground font-normal normal-case">(optional — helps personalise ideas)</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="profileUrl"
-                  value={profileUrl}
-                  onChange={e => setProfileUrl(e.target.value)}
-                  placeholder={platform === "instagram"
-                    ? "https://instagram.com/yourhandle  or  @yourhandle"
-                    : "https://youtube.com/@yourchannel  or  @yourchannel"}
-                  data-testid="input-profile-url"
-                  className={`bg-card border-card-border pr-10 transition-colors ${isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""}`}
-                />
-                {isProfileLinked && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <CheckCircle2 className="w-4 h-4 text-green-400" />
-                  </div>
-                )}
-              </div>
-              {isProfileLinked && (
-                <div className="flex items-center gap-2 pt-0.5">
-                  <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30 border">
-                    {platform === "instagram" ? <Instagram className="w-2.5 h-2.5 mr-1" /> : <Youtube className="w-2.5 h-2.5 mr-1" />}
-                    {detectedHandle} detected
-                  </Badge>
-                  {platformPosts.length > 0 && (
-                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
-                      <Sparkles className="w-2.5 h-2.5 mr-1" />
-                      {platformPosts.length} logged posts will be used as context
-                    </Badge>
+            {showProfileUrl && (
+              <div className="space-y-1.5">
+                <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Link className="w-3 h-3" />
+                  {platform === "instagram" ? "Instagram Profile Link" : "YouTube Channel Link"}
+                  <span className="text-muted-foreground font-normal normal-case">(optional — helps personalise ideas)</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="profileUrl"
+                    value={profileUrl}
+                    onChange={e => setProfileUrl(e.target.value)}
+                    placeholder={platform === "instagram"
+                      ? "https://instagram.com/yourhandle  or  @yourhandle"
+                      : "https://youtube.com/@yourchannel  or  @yourchannel"}
+                    data-testid="input-profile-url"
+                    className={`bg-card border-card-border pr-10 transition-colors ${isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""}`}
+                  />
+                  {isProfileLinked && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    </div>
                   )}
                 </div>
-              )}
-              {!isProfileLinked && platformPosts.length > 0 && (
-                <p className="text-[11px] text-muted-foreground">
-                  Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to generate smarter, personalised ideas.
-                </p>
-              )}
-            </div>
+                {isProfileLinked && (
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30 border">
+                      {platform === "instagram" ? <Instagram className="w-2.5 h-2.5 mr-1" /> : <Youtube className="w-2.5 h-2.5 mr-1" />}
+                      {detectedHandle} detected
+                    </Badge>
+                    {platformPosts.length > 0 && (
+                      <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                        <Sparkles className="w-2.5 h-2.5 mr-1" />
+                        {platformPosts.length} logged posts will be used as context
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {!isProfileLinked && platformPosts.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to generate smarter, personalised ideas.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -841,6 +951,7 @@ export default function AIIdeas() {
                 data-testid="textarea-context"
                 className="bg-card border-card-border resize-none h-20"
               />
+              <AiRefineButton text={additionalContext} onAccept={setAdditionalContext} context="additional context for content idea generation" />
             </div>
 
             <Button

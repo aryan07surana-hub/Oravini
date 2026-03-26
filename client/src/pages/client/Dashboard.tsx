@@ -296,6 +296,8 @@ export default function ClientDashboard() {
   const totalContentViews = (contentPosts || []).reduce((s: number, p: any) => s + p.views, 0);
   const totalFollowers = (contentPosts || []).reduce((s: number, p: any) => s + p.followersGained + p.subscribersGained, 0);
 
+  const isElite = (user as any)?.plan === "elite";
+
   const dailyQuote = getDailyQuote();
   const showGoalDialog = !goalLoading && goal === null && !!user?.id;
 
@@ -363,136 +365,144 @@ export default function ClientDashboard() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={TrendingUp} label="Overall Progress" value={`${avgProgress}%`} sub="Across all tracks" color="bg-primary/10 text-primary" />
-          <StatCard icon={CheckCircle2} label="Tasks Done" value={completedTasks} sub={`${pendingTasks} pending`} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
+        {/* Stats — Elite gets Progress/Tasks, everyone gets Content Views + Followers */}
+        <div className={`grid gap-4 ${isElite ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2"}`}>
+          {isElite && (
+            <>
+              <StatCard icon={TrendingUp} label="Overall Progress" value={`${avgProgress}%`} sub="Across all tracks" color="bg-primary/10 text-primary" />
+              <StatCard icon={CheckCircle2} label="Tasks Done" value={completedTasks} sub={`${pendingTasks} pending`} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
+            </>
+          )}
           <StatCard icon={Eye} label="Content Views" value={totalContentViews.toLocaleString()} sub={`${(contentPosts || []).length} posts`} color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
           <StatCard icon={Users} label="Followers Gained" value={`+${totalFollowers}`} sub="Total growth" color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
         </div>
 
-        {/* Calendly Booking Banner */}
-        <a
-          href="https://calendly.com/brandversee/30min"
-          target="_blank"
-          rel="noreferrer"
-          data-testid="book-a-call-banner"
-          className="flex items-center gap-5 p-5 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 transition-all duration-200 group shadow-sm"
-        >
-          <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
-            <CalendarPlus className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-base text-white">Whenever you want to book a call, book it here</p>
-            <p className="text-sm text-white/70 mt-0.5">30-minute strategy session · calendly.com/brandversee</p>
-          </div>
-          <div className="flex items-center gap-2 bg-white/15 rounded-lg px-4 py-2 flex-shrink-0 group-hover:bg-white/25 transition-colors">
-            <span className="text-sm font-semibold text-white">Book Now</span>
-            <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </a>
+        {/* Calendly Booking Banner — Elite only */}
+        {isElite && (
+          <a
+            href="https://calendly.com/brandversee/30min"
+            target="_blank"
+            rel="noreferrer"
+            data-testid="book-a-call-banner"
+            className="flex items-center gap-5 p-5 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 transition-all duration-200 group shadow-sm"
+          >
+            <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <CalendarPlus className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-base text-white">Whenever you want to book a call, book it here</p>
+              <p className="text-sm text-white/70 mt-0.5">30-minute strategy session · calendly.com/brandversee</p>
+            </div>
+            <div className="flex items-center gap-2 bg-white/15 rounded-lg px-4 py-2 flex-shrink-0 group-hover:bg-white/25 transition-colors">
+              <span className="text-sm font-semibold text-white">Book Now</span>
+              <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </a>
+        )}
 
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Progress */}
-          <Card className="lg:col-span-2 border border-card-border">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">Program Progress</CardTitle>
-                <Link href="/progress" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
-                  View details <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {progLoading ? (
-                Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-              ) : prog ? (
-                [
-                  { label: "Offer Creation", value: prog.offerCreation },
-                  { label: "Funnel Progress", value: prog.funnelProgress },
-                  { label: "Content Progress", value: prog.contentProgress },
-                  { label: "Monetization", value: prog.monetizationProgress },
-                ].map(({ label, value }) => (
-                  <div key={label} data-testid={`progress-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">{label}</span>
-                      <span className="text-sm font-bold text-primary">{value}%</span>
-                    </div>
-                    <Progress value={value} className="h-2" />
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">Progress not set yet</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Notifications */}
-          <Card className="border border-card-border">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Bell className="w-4 h-4" />
-                  Notifications
-                  {unreadNotifs.length > 0 && (
-                    <Badge className="bg-primary text-primary-foreground text-[10px] h-5 px-1.5 border-0">{unreadNotifs.length}</Badge>
-                  )}
-                </CardTitle>
-                {unreadNotifs.length > 0 && (
-                  <button onClick={() => markAllRead.mutate()} className="text-xs text-primary hover:underline" data-testid="mark-all-read">
-                    Mark all read
-                  </button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2.5">
-              {notifsLoading ? (
-                Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
-              ) : (notifications || []).length === 0 ? (
-                <div className="text-center py-6">
-                  <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-                  <p className="text-sm text-muted-foreground">No notifications</p>
+        {/* Program Progress + Notifications — Elite only */}
+        {isElite && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Progress */}
+            <Card className="lg:col-span-2 border border-card-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">Program Progress</CardTitle>
+                  <Link href="/progress" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+                    View details <ArrowRight className="w-3 h-3" />
+                  </Link>
                 </div>
-              ) : (
-                (notifications || []).slice(0, 8).map((n: any) => (
-                  <div
-                    key={n.id}
-                    data-testid={`notification-${n.id}`}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${!n.read ? "bg-primary/5 border-primary/20" : "bg-card border-card-border"}`}
-                  >
-                    <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${!n.read ? "text-primary" : "text-muted-foreground"}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(n.createdAt), "MMM d, h:mm a")}</p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {progLoading ? (
+                  Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
+                ) : prog ? (
+                  [
+                    { label: "Offer Creation", value: prog.offerCreation },
+                    { label: "Funnel Progress", value: prog.funnelProgress },
+                    { label: "Content Progress", value: prog.contentProgress },
+                    { label: "Monetization", value: prog.monetizationProgress },
+                  ].map(({ label, value }) => (
+                    <div key={label} data-testid={`progress-${label.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-foreground">{label}</span>
+                        <span className="text-sm font-bold text-primary">{value}%</span>
+                      </div>
+                      <Progress value={value} className="h-2" />
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {!n.read && (
-                        <button
-                          onClick={() => markOneRead.mutate(n.id)}
-                          data-testid={`mark-read-${n.id}`}
-                          className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                          title="Mark as read"
-                        >
-                          <Check className="w-3 h-3" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteNotif.mutate(n.id)}
-                        data-testid={`delete-notif-${n.id}`}
-                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete notification"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      {!n.read && <div className="w-1.5 h-1.5 bg-primary rounded-full ml-0.5 flex-shrink-0" />}
-                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">Progress not set yet</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Notifications */}
+            <Card className="border border-card-border">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Bell className="w-4 h-4" />
+                    Notifications
+                    {unreadNotifs.length > 0 && (
+                      <Badge className="bg-primary text-primary-foreground text-[10px] h-5 px-1.5 border-0">{unreadNotifs.length}</Badge>
+                    )}
+                  </CardTitle>
+                  {unreadNotifs.length > 0 && (
+                    <button onClick={() => markAllRead.mutate()} className="text-xs text-primary hover:underline" data-testid="mark-all-read">
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {notifsLoading ? (
+                  Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)
+                ) : (notifications || []).length === 0 ? (
+                  <div className="text-center py-6">
+                    <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+                    <p className="text-sm text-muted-foreground">No notifications</p>
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                ) : (
+                  (notifications || []).slice(0, 8).map((n: any) => (
+                    <div
+                      key={n.id}
+                      data-testid={`notification-${n.id}`}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${!n.read ? "bg-primary/5 border-primary/20" : "bg-card border-card-border"}`}
+                    >
+                      <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${!n.read ? "text-primary" : "text-muted-foreground"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-foreground leading-relaxed">{n.message}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(n.createdAt), "MMM d, h:mm a")}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {!n.read && (
+                          <button
+                            onClick={() => markOneRead.mutate(n.id)}
+                            data-testid={`mark-read-${n.id}`}
+                            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                            title="Mark as read"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNotif.mutate(n.id)}
+                          data-testid={`delete-notif-${n.id}`}
+                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete notification"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        {!n.read && <div className="w-1.5 h-1.5 bg-primary rounded-full ml-0.5 flex-shrink-0" />}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Content Summary */}
         {(contentPosts || []).length > 0 && (
@@ -524,87 +534,92 @@ export default function ClientDashboard() {
           </Card>
         )}
 
-        {/* Tasks */}
-        <Card className="border border-card-border">
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold">Action Items</CardTitle>
-              <Badge variant="secondary">{pendingTasks} pending</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {tasksLoading ? (
-              Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-12 w-full mb-2" />)
-            ) : (tasks || []).length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-                <p className="text-sm text-muted-foreground">No tasks assigned yet</p>
+        {/* Action Items — Elite only */}
+        {isElite && (
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">Action Items</CardTitle>
+                <Badge variant="secondary">{pendingTasks} pending</Badge>
               </div>
-            ) : (
-              <div className="space-y-2.5">
-                {(tasks || []).map((task: any) => (
-                  <div
-                    key={task.id}
-                    data-testid={`task-${task.id}`}
-                    className={`flex items-start gap-3 p-3.5 rounded-lg border transition-all ${task.completed ? "opacity-60 bg-muted/30 border-border" : "bg-card border-card-border hover:border-primary/30"}`}
-                  >
-                    <button onClick={() => toggleTask.mutate({ id: task.id, completed: !task.completed })} data-testid={`toggle-task-${task.id}`} className="mt-0.5 flex-shrink-0">
-                      {task.completed
-                        ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
-                      }
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
-                      {task.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{task.description}</p>}
-                    </div>
-                    {task.dueDate && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Clock className="w-3 h-3 text-muted-foreground" />
-                        <span className={`text-xs ${isAfter(new Date(), new Date(task.dueDate)) && !task.completed ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                          {format(new Date(task.dueDate), "MMM d")}
-                        </span>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-12 w-full mb-2" />)
+              ) : (tasks || []).length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-sm text-muted-foreground">No tasks assigned yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {(tasks || []).map((task: any) => (
+                    <div
+                      key={task.id}
+                      data-testid={`task-${task.id}`}
+                      className={`flex items-start gap-3 p-3.5 rounded-lg border transition-all ${task.completed ? "opacity-60 bg-muted/30 border-border" : "bg-card border-card-border hover:border-primary/30"}`}
+                    >
+                      <button onClick={() => toggleTask.mutate({ id: task.id, completed: !task.completed })} data-testid={`toggle-task-${task.id}`} className="mt-0.5 flex-shrink-0">
+                        {task.completed
+                          ? <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          : <Circle className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
+                        }
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
+                        {task.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{task.description}</p>}
                       </div>
-                    )}
+                      {task.dueDate && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                          <span className={`text-xs ${isAfter(new Date(), new Date(task.dueDate)) && !task.completed ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                            {format(new Date(task.dueDate), "MMM d")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Course Modules — Elite only */}
+        {isElite && (
+          <Card className="border border-card-border">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-primary" /> Course Modules
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {[
+                  { title: "Brand Foundation", desc: "Define your brand identity and positioning", icon: "🎯" },
+                  { title: "Content Mastery", desc: "Create high-converting content consistently", icon: "📱" },
+                  { title: "Audience Growth", desc: "Proven strategies to grow your audience", icon: "📈" },
+                ].map(({ title, desc, icon }) => (
+                  <div key={title} className="relative p-4 rounded-xl border border-dashed border-border bg-card/50 overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-start gap-3">
+                      <span className="text-xl flex-shrink-0">{icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                      </div>
+                      <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border border-card-border">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-primary" /> Course Modules
-            </CardTitle>
-            <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {[
-              { title: "Brand Foundation", desc: "Define your brand identity and positioning", icon: "🎯" },
-              { title: "Content Mastery", desc: "Create high-converting content consistently", icon: "📱" },
-              { title: "Audience Growth", desc: "Proven strategies to grow your audience", icon: "📈" },
-            ].map(({ title, desc, icon }) => (
-              <div key={title} className="relative p-4 rounded-xl border border-dashed border-border bg-card/50 overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="flex items-start gap-3">
-                  <span className="text-xl flex-shrink-0">{icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-                  </div>
-                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground text-center mt-4 pb-1">Course content will be available soon. Stay tuned!</p>
-        </CardContent>
-      </Card>
+              <p className="text-xs text-muted-foreground text-center mt-4 pb-1">Course content will be available soon. Stay tuned!</p>
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </ClientLayout>

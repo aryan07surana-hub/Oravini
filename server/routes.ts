@@ -1303,7 +1303,8 @@ Return this exact JSON structure:
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
-      const platformLabel = platform === "instagram" ? "Instagram" : "YouTube";
+      const platformMap: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", linkedin: "LinkedIn", twitter: "X/Twitter" };
+      const platformLabel = platformMap[platform] || platform;
       const goalLabel = goal || "growth and engagement";
       const audienceLabel = audience || "general audience";
 
@@ -1327,50 +1328,75 @@ Return this exact JSON structure:
         const topPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
         const recentTitles = posts.slice(0, 10).map((p: any) => p.title).filter(Boolean);
         const isRealData = scrapedPosts && Array.isArray(scrapedPosts) && scrapedPosts.length > 0;
-        existingContentSection = `\n${isRealData ? "REAL Instagram profile analysis" : "Existing content analysis"} (use this to craft ideas that fill gaps and beat their best performers):
-- Total posts analysed: ${posts.length}${isRealData ? " (real scraped data)" : ""}
+        existingContentSection = `\n${isRealData ? "REAL profile analysis" : "Existing content analysis"} (craft ideas that fill gaps and beat best performers):
+- Total posts analysed: ${posts.length}${isRealData ? " (real data)" : ""}
 - Avg views: ${avgViews.toLocaleString()} | Avg likes: ${avgLikes.toLocaleString()}
 - Most-used format: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
-- Best performing post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views / ${(topPost?.likes || 0).toLocaleString()} likes
-- Recent post titles (DO NOT repeat these topics verbatim): ${recentTitles.map((t: string) => `"${t}"`).join(", ")}
+- Best performing post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views
+- Recent post titles (DO NOT repeat verbatim): ${recentTitles.map((t: string) => `"${t}"`).join(", ")}
 Generate ideas that are FRESH, fill clear content gaps, and strategically build on what's already working.\n`;
       }
 
-      const ytFormatSection = platform === "youtube" ? `
+      const isYouTube = platform === "youtube";
+      const isLinkedIn = platform === "linkedin";
+      const isTwitter = platform === "twitter";
+
+      const platformFormatSection = isYouTube ? `
 YouTube format options (match the selected content type):
 - Short Form: YouTube Shorts, quick tips, viral hooks, micro lessons
 - Long Form: Deep educational videos, tutorials, case studies, step-by-step guides
 - Value Based: Educational breakdowns, framework explanations, strategy videos
 - VSL Style: Problem–solution videos, authority videos, offer explanation, story-based persuasion
+` : isLinkedIn ? `
+LinkedIn content formats:
+- Thought Leadership: Personal insights, industry opinions, lessons learned, controversial takes
+- List Posts: "5 things I wish I knew...", "3 mistakes most [role] make", numbered insight posts
+- Story Posts: Personal career stories, failures, wins, transformation arcs — 1st person storytelling
+- How-To Carousel: Step-by-step professional advice, frameworks, systems in carousel format
+- Newsletter Snippets: Long-form insights styled for LinkedIn's algorithm — 1300 char sweet spot
+LinkedIn algorithm rules: hook line (first 1-2 lines before "...see more"), no links in post, high personal = high reach, end with strong engagement question.
+` : isTwitter ? `
+X/Twitter content formats:
+- Thread: Multi-tweet educational breakdown (opener hook + 8-15 numbered tweets + CTA)
+- Single Tweet: Punchy hot take, controversial opinion, or insight under 280 chars
+- Quote Thread: Series of powerful one-liners or facts
+- Poll Thread: Engagement-first tweet + poll question
+X/Twitter algorithm rules: hooks must hook in first 10 words, threads outperform singles for reach, reply baiting = algorithm boost, avoid external links in main tweet.
 ` : "";
 
-      const isYouTube = platform === "youtube";
+      const defaultContentType = isYouTube ? "Mix of Long Form, Value-Based, and Short Form videos" : isLinkedIn ? "Mix of thought leadership, list posts, and story posts" : isTwitter ? "Mix of threads, hot takes, and single tweets" : "Mix of Reels, Carousels, Posts";
 
-      const systemPrompt = `You are an elite social media content strategist and YouTube/Instagram expert. You generate scroll-stopping, viral-worthy content ideas that are deeply specific, strategic, and actionable. You NEVER give generic ideas. Every idea is tailored to the exact niche, audience, and platform algorithm. For YouTube content, when you create list-style videos (e.g. "5 Ways to...", "7 Mistakes...", "3 Secrets..."), you MUST provide the actual numbered points in full detail — not placeholders.`;
+      const systemPrompt = `You are an elite social media content strategist specialized in ${platformLabel}. You generate scroll-stopping, high-performing content ideas that are deeply specific, strategic, and platform-optimized. You NEVER give generic ideas. Every idea is tailored to the exact niche, audience, and ${platformLabel} algorithm.${isLinkedIn ? " For LinkedIn, you write in a professional-yet-personal tone that builds authority while driving engagement." : ""}${isTwitter ? " For X/Twitter, you optimize for virality with punchy hooks and thread structures that get massive impressions." : ""}${isYouTube ? " For YouTube, when you create list-style videos (e.g. '5 Ways to...'), you MUST provide all numbered points in full detail." : ""}`;
 
       const { hashtags } = req.body;
       const hashtagSection = (Array.isArray(hashtags) && hashtags.length > 0)
-        ? `\nPopular hashtags in this niche (use these to shape the ideas — topics that perform under these tags): ${hashtags.join(" ")}\n`
+        ? `\nPopular hashtags/topics in this niche: ${hashtags.join(" ")}\n`
         : "";
+
+      const captionLabel = "captionStarter";
+      const captionDesc = isLinkedIn ? "First 1-2 lines of the LinkedIn post (before 'see more' cutoff) — must stop the scroll and spark curiosity" : isTwitter ? "The opening tweet or hook that makes people click 'show thread' or engage immediately — punchy, under 200 chars" : "An attention-grabbing opening line for the caption or script hook they can copy directly";
+      const formatDesc = isYouTube ? ' (e.g. "Long-form Tutorial", "YouTube Short", "VSL", "Educational Breakdown")' : isLinkedIn ? ' (e.g. "Thought Leadership Post", "List Post", "Story Post", "Carousel", "Newsletter")' : isTwitter ? ' (e.g. "Twitter Thread", "Single Tweet Hot Take", "Quote Thread", "Poll Thread")' : ' (e.g. "Instagram Reel", "Carousel", "Static Post", "Story")';
 
       const userPrompt = `${profileSection}Generate 6 powerful content ideas for a ${platformLabel} creator.
 
 Niche: ${niche}
-Content type: ${contentType || (platform === "instagram" ? "Mix of Reels, Carousels, Posts" : "Mix of Long Form, Value-Based, and Short Form videos")}
+Content type: ${contentType || defaultContentType}
 Goal: ${goalLabel}
 Target audience: ${audienceLabel}
 ${additionalContext ? `Extra context: ${additionalContext}` : ""}
-${hashtagSection}${existingContentSection}${ytFormatSection}
+${hashtagSection}${existingContentSection}${platformFormatSection}
 For each idea provide ALL of these fields:
-1. title — A specific, scroll-stopping hook (max 12 words). NOT generic. ${isYouTube ? 'Use formats like "5 Ways to...", "Why Most [audience] Fail At...", "The Truth About...", "How I [result] in [timeframe]"' : 'Example: "3 Instagram mistakes keeping coaches stuck under 10k followers"'}
-2. concept — 2-3 sentences explaining exactly what the content covers and why it will perform
-3. formatType — The exact format${isYouTube ? ' (e.g. "Long-form Tutorial", "YouTube Short", "VSL", "Educational Breakdown", "Value Video", "Story-based Video")' : ' (e.g. "Instagram Reel", "Carousel", "Static Post")'}
-4. whyItWorks — 1-2 sentences on the viral potential, algorithm advantage, and conversion power of this idea
-5. cta — A specific, compelling call-to-action tailored to this piece of content
-6. captionStarter — An attention-grabbing opening line for the caption or script hook they can copy directly${isYouTube ? `
-7. keyPoints — REQUIRED for YouTube: If the title includes a number (e.g. "5 Ways to..."), list every single numbered point in detail as an array of strings. Each point must be a complete, actionable sentence (not a vague placeholder). Example: ["1. Optimise your thumbnail with high-contrast text and a clear emotion — viewers decide in 0.4 seconds", "2. ..."]` : ""}
+1. title — A specific, scroll-stopping hook (max 12 words). NOT generic.
+2. concept — 2-3 sentences explaining exactly what the content covers and why it will perform on ${platformLabel}
+3. formatType — The exact format${formatDesc}
+4. whyItWorks — 1-2 sentences on the ${platformLabel} algorithm advantage and engagement potential of this idea
+5. cta — A specific, compelling call-to-action tailored to ${platformLabel} (${isTwitter ? "e.g. 'Retweet if you agree', 'Reply with your #1 lesson'" : isLinkedIn ? "e.g. 'What do you think? Drop your take below', 'Tag a colleague who needs to see this'" : "e.g. 'Follow for more', 'Save this for later', 'DM me [word]'"})
+6. ${captionLabel} — ${captionDesc}${isYouTube ? `
+7. keyPoints — REQUIRED for YouTube: If the title includes a number, list every single numbered point in full detail as an array of strings.` : isTwitter ? `
+7. threadOutline — For thread ideas: provide the first 3 tweet texts in full as an array of strings (opener + tweet 2 + tweet 3). For single tweets: leave as [].` : isLinkedIn ? `
+7. linkedinStructure — The post structure in 3-4 bullet points (e.g. ["Hook: ...", "Problem: ...", "Solution: ...", "CTA: ..."])` : ""}
 
-Also add a contentMix suggestion at the end as a separate JSON object (not inside ideas array).
+Also add a contentMix suggestion at the end as a separate JSON object.
 
 Return ONLY valid JSON in this exact format (no markdown, no extra text):
 {
@@ -1381,15 +1407,17 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
       "formatType": "...",
       "whyItWorks": "...",
       "cta": "...",
-      "captionStarter": "..."${isYouTube ? `,
-      "keyPoints": ["1. detailed point...", "2. detailed point...", "3. ..."]` : ""}
+      "${captionLabel}": "..."${isYouTube ? `,
+      "keyPoints": ["1. detailed point...", "2. detailed point..."]` : isTwitter ? `,
+      "threadOutline": ["tweet 1 text...", "tweet 2 text...", "tweet 3 text..."]` : isLinkedIn ? `,
+      "linkedinStructure": ["Hook: ...", "Problem: ...", "Solution/insight: ...", "CTA: ..."]` : ""}
     }
   ],
   "contentMix": {
     "growth": 40,
     "value": 40,
     "conversion": 20,
-    "suggestion": "One sentence on ideal posting mix for this niche and goal"
+    "suggestion": "One sentence on ideal posting mix for this niche and goal on ${platformLabel}"
   }
 }`;
 
