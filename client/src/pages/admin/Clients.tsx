@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Users, Plus, Search, ChevronRight, Calendar, Mail, Phone } from "lucide-react";
+import { Users, Plus, Search, ChevronRight, Calendar, Mail, Phone, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,6 +48,17 @@ export default function AdminClients() {
 
   const { data: clients, isLoading } = useQuery<any[]>({
     queryKey: ["/api/clients"],
+  });
+
+  const deleteClient = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/clients/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clients"] });
+      toast({ title: "Client removed", description: "The client account has been deleted." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const addClient = useMutation({
@@ -220,7 +235,40 @@ export default function AdminClients() {
                               )}
                             </div>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  data-testid={`button-delete-client-${client.id}`}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-600 hover:text-red-400 hover:bg-red-400/10"
+                                  onClick={(e) => e.preventDefault()}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remove {client.name}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete their account and all associated data. This cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    data-testid={`button-confirm-delete-${client.id}`}
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={(e) => { e.preventDefault(); deleteClient.mutate(client.id); }}
+                                  >
+                                    Yes, remove client
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
