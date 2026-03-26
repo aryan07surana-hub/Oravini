@@ -21,6 +21,7 @@ export default function Login() {
 
   const [tab, setTab] = useState<Tab>("login");
   const [otpMode, setOtpMode] = useState<OtpMode | null>(null);
+  const [googleHint, setGoogleHint] = useState(false);
 
   // Login fields
   const [email, setEmail] = useState("");
@@ -84,6 +85,13 @@ export default function Login() {
           description: "We couldn't find an account with that email. Please create one below.",
           variant: "destructive",
         });
+      } else if (err.message === "GOOGLE_ACCOUNT") {
+        setGoogleHint(true);
+        toast({
+          title: "This account uses Google sign-in",
+          description: "You registered with Google — please click 'Continue with Google' to log in.",
+          variant: "destructive",
+        });
       } else {
         toast({ title: "Login failed", description: err.message, variant: "destructive" });
       }
@@ -139,16 +147,28 @@ export default function Login() {
   );
 
   const googleBtn = (
-    <a href="/api/auth/google" data-testid="button-google-login">
-      <Button
-        type="button"
-        className="w-full h-11 font-medium gap-2 border border-white/10 bg-white/5 hover:bg-white/10 text-white"
-        style={{ color: "rgba(255,255,255,0.85)" }}
-      >
-        <SiGoogle className="w-4 h-4" />
-        Continue with Google
-      </Button>
-    </a>
+    <div>
+      <a href="/api/auth/google" data-testid="button-google-login">
+        <Button
+          type="button"
+          className="w-full h-11 font-medium gap-2 text-white transition-all duration-300"
+          style={{
+            border: googleHint ? "1.5px solid #d4b461" : "1px solid rgba(255,255,255,0.1)",
+            background: googleHint ? "rgba(212,180,97,0.12)" : "rgba(255,255,255,0.05)",
+            color: googleHint ? "#d4b461" : "rgba(255,255,255,0.85)",
+            boxShadow: googleHint ? "0 0 18px rgba(212,180,97,0.25)" : "none",
+          }}
+        >
+          <SiGoogle className="w-4 h-4" />
+          Continue with Google
+        </Button>
+      </a>
+      {googleHint && (
+        <p style={{ fontSize: 12, color: "#d4b461", textAlign: "center", marginTop: 8, fontWeight: 500 }}>
+          ↑ Your account was created with Google — sign in above
+        </p>
+      )}
+    </div>
   );
 
   // OTP screens
@@ -237,7 +257,7 @@ export default function Login() {
           <div className="flex rounded-xl p-1 mb-8" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
             <button
               data-testid="tab-login"
-              onClick={() => setTab("login")}
+              onClick={() => { setTab("login"); setGoogleHint(false); }}
               className="flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200"
               style={{
                 background: tab === "login" ? "rgba(212,180,97,0.12)" : "transparent",
@@ -277,7 +297,7 @@ export default function Login() {
                   <Label style={{ color: "rgba(255,255,255,0.6)" }}>Email address</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input id="email" type="email" data-testid="input-email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-[#d4b461]/50" autoComplete="email" />
+                    <Input id="email" type="email" data-testid="input-email" placeholder="you@example.com" value={email} onChange={e => { setEmail(e.target.value); setGoogleHint(false); }} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20 focus:border-[#d4b461]/50" autoComplete="email" />
                   </div>
                 </div>
                 <div className="space-y-2">

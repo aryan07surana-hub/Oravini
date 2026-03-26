@@ -53,7 +53,11 @@ passport.use(
     try {
       const user = await storage.getUserByEmail(email);
       if (!user) return done(null, false, { message: "NO_ACCOUNT" });
-      const valid = await comparePassword(password, user.password);
+      // Google-only accounts have no real password — direct them to Google sign-in
+      if (user.googleId && !user.password) return done(null, false, { message: "GOOGLE_ACCOUNT" });
+      const valid = await comparePassword(password, user.password || "");
+      // If password fails and they have a googleId, their account is Google-linked
+      if (!valid && user.googleId) return done(null, false, { message: "GOOGLE_ACCOUNT" });
       if (!valid) return done(null, false, { message: "Invalid email or password" });
       return done(null, user);
     } catch (err) {
