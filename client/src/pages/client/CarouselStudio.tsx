@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Sparkles, Layers, ChevronDown, ChevronLeft, ChevronRight,
   Download, ImagePlus, RefreshCw, Upload, Check, Palette,
-  LayoutTemplate, Wand2, Play, ArrowRight
+  LayoutTemplate, Wand2, Play, ArrowRight, Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -161,6 +161,7 @@ export default function CarouselStudio() {
   const [applyToAll, setApplyToAll] = useState(true);
   const [globalImage, setGlobalImage] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [generatingImageIdx, setGeneratingImageIdx] = useState<number | "all" | null>(null);
 
   // Step 4 state
   const [exporting, setExporting] = useState(false);
@@ -231,6 +232,40 @@ export default function CarouselStudio() {
 
   function assignImageToSlide(slideIdx: number, imgUrl: string) {
     updateSlide(slideIdx, { imageUrl: imgUrl, layout: "full" });
+  }
+
+  // ── AI Image Generation ────────────────────────────────────────────────────
+  async function generateAiImageForSlide(idx: number) {
+    const slide = slides[idx];
+    const prompt = `${slide.role} slide background for an Instagram carousel. Topic: "${topic}". Visual concept: ${slide.headline}. Style: cinematic, professional, no text, vibrant lighting, editorial photography, 1:1 square format, clean background, high contrast, modern aesthetic`;
+    setGeneratingImageIdx(idx);
+    try {
+      const data = await apiRequest("POST", "/api/carousel/generate-image", { prompt });
+      const imgUrl = data.imageBase64 || data.url;
+      if (imgUrl) {
+        updateSlide(idx, { imageUrl: imgUrl, layout: "full" });
+        toast({ title: `AI image generated for slide ${idx + 1}!`, description: `Powered by ${data.provider === "google" ? "Google Imagen" : "Runware AI"}` });
+      }
+    } catch (err: any) {
+      toast({ title: "Image generation failed", description: err.message, variant: "destructive" });
+    } finally { setGeneratingImageIdx(null); }
+  }
+
+  async function generateAiImagesForAll() {
+    setGeneratingImageIdx("all");
+    let success = 0;
+    for (let i = 0; i < slides.length; i++) {
+      const slide = slides[i];
+      const prompt = `${slide.role} slide background for an Instagram carousel. Topic: "${topic}". Visual concept: ${slide.headline}. Style: cinematic, professional, no text, vibrant, editorial photography, 1:1 format, modern`;
+      try {
+        const data = await apiRequest("POST", "/api/carousel/generate-image", { prompt });
+        const imgUrl = data.imageBase64 || data.url;
+        if (imgUrl) { setSlides(prev => prev.map((s, si) => si === i ? { ...s, imageUrl: imgUrl, layout: "full" } : s)); success++; }
+      } catch { /* continue to next */ }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    setGeneratingImageIdx(null);
+    toast({ title: `AI images generated for ${success}/${slides.length} slides!` });
   }
 
   function applyAllSameImage() {
@@ -474,19 +509,84 @@ export default function CarouselStudio() {
                   </div>
                 </div>
 
-                {/* Image upload section */}
+                {/* Image section */}
                 <div className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><ImagePlus className="w-3 h-3" /> Upload Images</Label>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><ImagePlus className="w-3 h-3" /> Slide Images</Label>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Same image for all</span>
+                        <button onClick={() => setApplyToAll(v => !v)}
+                          className="w-9 h-5 rounded-full transition-all relative"
+                          style={{ background: applyToAll ? "#d4b461" : "rgba(255,255,255,0.1)" }}>
+                          <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                            style={{ left: applyToAll ? "calc(100% - 18px)" : "2px" }} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Generate Images - primary action */}
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Apply same image to all</span>
-                      <button onClick={() => setApplyToAll(v => !v)}
-                        className="w-9 h-5 rounded-full transition-all relative"
-                        style={{ background: applyToAll ? "#d4b461" : "rgba(255,255,255,0.1)" }}>
-                        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
-                          style={{ left: applyToAll ? "calc(100% - 18px)" : "2px" }} />
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: "#d4b461" }} />
+                      <span className="text-xs font-semibold" style={{ color: "#d4b461" }}>Generate AI Images</span>
+                      <span className="text-[10px] text-muted-foreground ml-1">Powered by Google Imagen</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">AI creates unique backgrounds for each slide based on your content — cinematic, professional, no text overlays.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={generateAiImagesForAll} disabled={generatingImageIdx !== null} data-testid="button-ai-images-all"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+                        style={{ background: "#d4b461", color: "#000" }}>
+                        {generatingImageIdx === "all" ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating all slides…</> : <><Zap className="w-4 h-4" /> Generate All {slides.length} Slides</>}
                       </button>
                     </div>
+                    {generatingImageIdx !== null && generatingImageIdx !== "all" && (
+                      <p className="text-xs" style={{ color: "#d4b461" }}><RefreshCw className="w-3 h-3 inline animate-spin mr-1" />Generating image for slide {(generatingImageIdx as number) + 1}…</p>
+                    )}
+
+                    {/* Per-slide generate buttons */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                      {slides.map((slide, si) => (
+                        <div key={si} className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          {slide.imageUrl ? (
+                            <>
+                              <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5 opacity-0 hover:opacity-100 transition-opacity">
+                                <button onClick={() => generateAiImageForSlide(si)} disabled={generatingImageIdx !== null}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#d4b461] text-black disabled:opacity-50"
+                                  data-testid={`button-ai-image-${si + 1}`}>
+                                  <RefreshCw className="w-3 h-3" /> Regenerate
+                                </button>
+                                <button onClick={() => updateSlide(si, { imageUrl: null })}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-red-500/40 text-white">
+                                  Remove
+                                </button>
+                              </div>
+                              <div className="absolute bottom-0 left-0 right-0 py-1 px-1.5 text-center text-[9px] font-semibold bg-black/70 text-white truncate">{slide.role}</div>
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-2">
+                              <span className="text-[9px] font-semibold text-center" style={{ color: ROLE_COLORS[slide.role] || "#d4b461" }}>{slide.role}</span>
+                              <span className="text-[8px] text-muted-foreground text-center leading-tight line-clamp-2">{slide.headline}</span>
+                              <button onClick={() => generateAiImageForSlide(si)} disabled={generatingImageIdx !== null}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all mt-1 disabled:opacity-50"
+                                style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.3)" }}
+                                data-testid={`button-ai-image-slide-${si + 1}`}>
+                                {generatingImageIdx === si ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
+                                {generatingImageIdx === si ? "…" : "Generate"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
+                    <span className="text-[10px] text-muted-foreground px-2">or upload your own</span>
+                    <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
                   </div>
 
                   {/* Global image upload */}

@@ -1715,6 +1715,68 @@ Rules:
     }
   });
 
+  // ── AI Carousel Image Generator (Google Imagen + Runware fallback) ────────
+  app.post("/api/carousel/generate-image", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt) return res.status(400).json({ message: "Prompt required" });
+
+      const gKey = process.env.GOOGLE__API_KEYIMAGE;
+      let imageBase64: string | null = null;
+
+      if (gKey) {
+        try {
+          const gResp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${gKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                instances: [{ prompt }],
+                parameters: { sampleCount: 1, aspectRatio: "1:1", safetySetting: "block_some", negativePrompt: "text overlay, watermarks, faces, people, logos, blurry" }
+              })
+            }
+          );
+          if (gResp.ok) {
+            const gData = await gResp.json();
+            const b64 = gData.predictions?.[0]?.bytesBase64Encoded;
+            if (b64) imageBase64 = `data:image/png;base64,${b64}`;
+          }
+        } catch { /* fall through to Runware */ }
+      }
+
+      if (!imageBase64) {
+        const runwareKey = process.env.RUNWARE_API_KEY;
+        if (!runwareKey) return res.status(500).json({ message: "No image generation service configured" });
+        const images = await runwareGenerate(runwareKey, [{
+          taskType: "imageInference", taskUUID: `carousel-${Date.now()}`,
+          positivePrompt: prompt, negativePrompt: "text overlay, watermarks, faces, blurry, low quality",
+          model: "runware:100@1", width: 1024, height: 1024, numberResults: 1, outputType: "URL", outputFormat: "WEBP"
+        }]);
+        if (images[0]?.url) return res.json({ url: images[0].url, provider: "runware" });
+        return res.status(500).json({ message: "Image generation failed" });
+      }
+
+      res.json({ imageBase64, provider: "google" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Image generation failed" });
+    }
+  });
+
+  // ── AI Text Refine (Groq — improve message quality) ───────────────────────
+  app.post("/api/ai/refine-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text || text.trim().length < 3) return res.status(400).json({ message: "Text too short" });
+      const systemPrompt = `You are an expert copywriter and communication coach. Rewrite the given message to be clearer, more professional, and more compelling — keeping the exact same meaning and intent. Do not add new information. Return ONLY the improved text, nothing else.`;
+      const userPrompt = `Improve this${context ? ` (context: ${context})` : ""}: "${text.trim()}"`;
+      const refined = await callGroq(systemPrompt, userPrompt, 500);
+      res.json({ refined: refined.trim().replace(/^["']|["']$/g, "") });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Refinement failed" });
+    }
+  });
+
   // ── Regenerate single carousel slide ─────────────────────────────────────
   app.post("/api/carousel/regenerate-slide", requireAuth, async (req: Request, res: Response) => {
     try {

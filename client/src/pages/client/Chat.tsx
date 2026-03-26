@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Send, MessageSquare, Zap, Pencil, Trash2, Check, X, Paperclip, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { AiRefineButton } from "@/components/ui/AiRefineButton";
 
 export default function ClientChat() {
   const { user } = useAuth();
@@ -244,7 +245,8 @@ export default function ClientChat() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-border px-6 py-4 bg-background flex-shrink-0">
+        <div className="border-t border-border px-6 py-3 bg-background flex-shrink-0 space-y-2">
+          <AiRefineButton text={message} onAccept={setMessage} context="chat message to a branding agency" />
           <form onSubmit={handleSend} className="flex gap-2 items-center">
             <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" className="hidden" onChange={handleFileUpload} data-testid="client-file-input" />
             <Button type="button" variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => fileInputRef.current?.click()} disabled={uploading || !adminId} data-testid="client-button-attach">
