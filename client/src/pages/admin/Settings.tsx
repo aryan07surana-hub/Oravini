@@ -259,9 +259,11 @@ export default function AdminSettings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="free">Free — 20 credits/mo</SelectItem>
-                      <SelectItem value="starter">Starter — 100 credits/mo</SelectItem>
-                      <SelectItem value="pro">Pro — 500 credits/mo</SelectItem>
+                      <SelectItem value="free">Tier 1 — Free (10/day)</SelectItem>
+                      <SelectItem value="starter">Tier 2 — $29 (50/week)</SelectItem>
+                      <SelectItem value="growth">Tier 3 — $59 (200/mo)</SelectItem>
+                      <SelectItem value="pro">Tier 4 — $79 (500/mo)</SelectItem>
+                      <SelectItem value="elite">Tier 5 — Elite (unlimited)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -326,9 +328,11 @@ export default function AdminSettings() {
                     const credits = creditMap[client.id];
                     const totalCredits = credits ? credits.monthlyCredits + credits.bonusCredits : null;
                     const planColors: Record<string, string> = {
-                      free: "border-zinc-600 text-zinc-400",
+                      free:    "border-zinc-600 text-zinc-400",
                       starter: "border-blue-500/40 text-blue-400",
-                      pro: "border-[#d4b461]/40 text-[#d4b461]",
+                      growth:  "border-violet-500/40 text-violet-400",
+                      pro:     "border-emerald-500/40 text-emerald-400",
+                      elite:   "border-[#d4b461]/60 text-[#d4b461]",
                     };
 
                     return (
@@ -392,9 +396,11 @@ export default function AdminSettings() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="free">Free — 20 credits/mo</SelectItem>
-                                    <SelectItem value="starter">Starter — 100 credits/mo</SelectItem>
-                                    <SelectItem value="pro">Pro — 500 credits/mo</SelectItem>
+                                    <SelectItem value="free">Tier 1 — Free (10/day)</SelectItem>
+                                    <SelectItem value="starter">Tier 2 — $29 (50/wk)</SelectItem>
+                                    <SelectItem value="growth">Tier 3 — $59 (200/mo)</SelectItem>
+                                    <SelectItem value="pro">Tier 4 — $79 (500/mo)</SelectItem>
+                                    <SelectItem value="elite">Tier 5 — Elite (∞)</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 {updatePlan.isPending && <span className="text-xs text-zinc-500 animate-pulse">Saving…</span>}

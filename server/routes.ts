@@ -212,6 +212,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const hashed = await hashPassword(parsed.data.password);
     const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client" });
     await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
+    const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
+    syncToOraviniCRM({ email: user.email, name: user.name, source: "client_signup", plan: user.plan, tierLabel: tierNames[user.plan || "free"] || user.plan, event: "new_signup" });
     const { password, ...safe } = user;
     res.json(safe);
   });
@@ -3977,7 +3979,7 @@ Return ONLY valid JSON:
         balance,
         transactions,
         featureCosts: FEATURE_COSTS,
-        planAllowance: { free: 20, starter: 100, pro: 500 }[user.plan as string] ?? 20,
+        planAllowance: ({ free: 10, starter: 50, growth: 200, pro: 500, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 10,
         total: balance.monthlyCredits + balance.bonusCredits,
       });
     } catch (err: any) {
@@ -4339,10 +4341,16 @@ Generate their personalised audit. Be specific to their situation.`;
   app.patch("/api/admin/users/:id/plan", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { plan } = req.body;
-      if (!["free", "starter", "pro"].includes(plan)) {
+      if (!["free", "starter", "growth", "pro", "elite"].includes(plan)) {
         return res.status(400).json({ message: "Invalid plan" });
       }
+      const existing = await storage.getUser(req.params.id);
       const user = await storage.updateUser(req.params.id, { plan } as any);
+      // Sync upgrade event to Oravini CRM
+      if (existing && existing.plan !== plan) {
+        const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
+        syncToOraviniCRM({ email: user.email, name: user.name, source: "plan_upgrade", previousPlan: existing.plan, newPlan: plan, tierLabel: tierNames[plan] || plan, event: "upgraded" });
+      }
       return res.json(user);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });

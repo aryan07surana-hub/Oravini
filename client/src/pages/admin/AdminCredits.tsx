@@ -10,9 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Zap, Plus, TrendingUp, Users } from "lucide-react";
 
 const PLAN_COLORS: Record<string, string> = {
-  free: "bg-zinc-700 text-zinc-300",
+  free:    "bg-zinc-700 text-zinc-300",
   starter: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
-  pro: "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40",
+  growth:  "bg-violet-500/20 text-violet-400 border border-violet-500/30",
+  pro:     "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+  elite:   "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40",
+};
+
+const PLAN_LABEL: Record<string, string> = {
+  free: "Tier 1", starter: "Tier 2", growth: "Tier 3", pro: "Tier 4", elite: "Tier 5",
 };
 
 export default function AdminCredits() {
@@ -162,7 +168,7 @@ export default function AdminCredits() {
                     </div>
                     <div className="flex items-center gap-4">
                       <Badge className={`text-xs ${PLAN_COLORS[b.userPlan || "free"]}`}>
-                        {b.userPlan || "free"}
+                        {PLAN_LABEL[b.userPlan || "free"] || b.userPlan || "free"}
                       </Badge>
                       <div className="text-right">
                         <p className="text-white text-sm font-semibold">

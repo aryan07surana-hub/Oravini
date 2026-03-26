@@ -25,8 +25,8 @@ import { format } from "date-fns";
 const GOLD = "#d4b461";
 
 const SESSION_TYPES = ["recording", "live_qa", "workshop", "masterclass"];
-const SESSION_TIERS = ["free", "starter", "pro"];
-const PLANS = ["free", "starter", "pro"];
+const SESSION_TIERS = ["free", "starter", "growth", "pro", "elite"];
+const PLANS = ["free", "starter", "growth", "pro", "elite"];
 
 const sessionSchema = z.object({
   title: z.string().min(1, "Title required"),
@@ -37,7 +37,7 @@ const sessionSchema = z.object({
   hostName: z.string().optional(),
   durationMinutes: z.coerce.number().optional(),
   scheduledAt: z.string().optional(),
-  tierRequired: z.enum(["free", "starter", "pro"]),
+  tierRequired: z.enum(["free", "starter", "growth", "pro", "elite"]),
   isPublished: z.boolean().default(false),
   tags: z.string().optional(),
 });
@@ -299,9 +299,11 @@ export default function AdminSessions() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="free">Free</SelectItem>
-                      <SelectItem value="starter">Starter</SelectItem>
-                      <SelectItem value="pro">Pro</SelectItem>
+                      <SelectItem value="free">Tier 1 — Free</SelectItem>
+                      <SelectItem value="starter">Tier 2 — $29</SelectItem>
+                      <SelectItem value="growth">Tier 3 — $59</SelectItem>
+                      <SelectItem value="pro">Tier 4 — $79</SelectItem>
+                      <SelectItem value="elite">Tier 5 — Elite</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -349,9 +351,11 @@ export default function AdminSessions() {
                     <Select value={field.value} onValueChange={field.onChange}>
                       <SelectTrigger data-testid="select-session-tier"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="free">Free</SelectItem>
-                        <SelectItem value="starter">Starter</SelectItem>
-                        <SelectItem value="pro">Pro</SelectItem>
+                        <SelectItem value="free">Tier 1 — Free</SelectItem>
+                        <SelectItem value="starter">Tier 2 — $29</SelectItem>
+                        <SelectItem value="growth">Tier 3 — $59</SelectItem>
+                        <SelectItem value="pro">Tier 4 — $79</SelectItem>
+                        <SelectItem value="elite">Tier 5 — Elite</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

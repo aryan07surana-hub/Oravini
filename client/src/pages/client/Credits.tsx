@@ -34,8 +34,8 @@ const FEATURE_LABELS: Record<string, string> = {
   hashtag: "Hashtag Suggestions",
 };
 
-const PLAN_LABELS: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro" };
-const PLAN_COLORS: Record<string, string> = { free: "text-zinc-400", starter: "text-blue-400", pro: "text-[#d4b461]" };
+const PLAN_LABELS: Record<string, string> = { free: "Tier 1 — Free", starter: "Tier 2 — $29", growth: "Tier 3 — $59", pro: "Tier 4 — $79", elite: "Tier 5 — Elite" };
+const PLAN_COLORS: Record<string, string> = { free: "text-zinc-400", starter: "text-blue-400", growth: "text-violet-400", pro: "text-emerald-400", elite: "text-[#d4b461]" };
 
 const CREDIT_PACKAGES = [
   {

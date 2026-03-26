@@ -311,7 +311,8 @@ function AuditPopup({ onClose }: { onClose: () => void }) {
 function PricingSection() {
   const PLANS = [
     {
-      name: "Free Community",
+      name: "Tier 1",
+      subtitle: "Free Community",
       price: "Free",
       period: "",
       tag: "Get Started",
@@ -325,21 +326,23 @@ function PricingSection() {
       link: WHOP_LINK,
     },
     {
-      name: "Starter",
+      name: "Tier 2",
+      subtitle: "Starter",
       price: "$29",
       period: "/mo",
       tag: "Popular",
       color: "rgba(99,102,241,0.07)",
       border: "rgba(99,102,241,0.28)",
       highlight: false,
-      credits: "20 credits / week",
-      features: ["Everything in Free", "20 AI credits per week", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio"],
+      credits: "50 credits / week",
+      features: ["Everything in Tier 1", "50 AI credits per week", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio"],
       limitations: ["Watermark on exports"],
-      cta: "Get Starter",
+      cta: "Get Tier 2",
       link: WHOP_LINK,
     },
     {
-      name: "Growth",
+      name: "Tier 3",
+      subtitle: "Growth",
       price: "$59",
       period: "/mo",
       tag: "Best Value",
@@ -347,13 +350,14 @@ function PricingSection() {
       border: `${GOLD}45`,
       highlight: true,
       credits: "200 credits / month",
-      features: ["Everything in Starter", "200 AI credits/month", "No watermarks", "Advanced analytics insights", "Priority processing", "Competitor Intelligence"],
+      features: ["Everything in Tier 2", "200 AI credits/month", "No watermarks", "Advanced analytics insights", "Priority processing", "Competitor Intelligence"],
       limitations: [],
-      cta: "Get Growth",
+      cta: "Get Tier 3",
       link: WHOP_LINK,
     },
     {
-      name: "Pro",
+      name: "Tier 4",
+      subtitle: "Pro",
       price: "$79",
       period: "/mo",
       tag: "Full Access",
@@ -361,24 +365,25 @@ function PricingSection() {
       border: "rgba(52,211,153,0.25)",
       highlight: false,
       credits: "500 credits / month",
-      features: ["Everything in Growth", "500 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "Direct team messaging"],
+      features: ["Everything in Tier 3", "500 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "Direct team messaging"],
       limitations: [],
-      cta: "Go Pro",
+      cta: "Get Tier 4",
       link: WHOP_LINK,
     },
     {
-      name: "Brandverse Elite",
+      name: "Tier 5",
+      subtitle: "Work With Us",
       price: "Apply",
       period: "",
-      tag: "🔴 Application Only",
-      color: "rgba(239,68,68,0.05)",
-      border: "rgba(239,68,68,0.2)",
+      tag: "Unlimited Credits",
+      color: "rgba(212,180,97,0.07)",
+      border: "rgba(212,180,97,0.35)",
       highlight: false,
-      credits: "Unlimited (fair use)",
-      features: ["Unlimited AI usage", "Done-with-you strategy", "Direct team collaboration", "Priority 1-on-1 support", "Full system access", "High-level growth guidance"],
+      credits: "Unlimited",
+      features: ["Unlimited AI credits", "Done-with-you strategy", "Direct team collaboration", "Priority 1-on-1 support", "Full system access", "High-level growth guidance"],
       limitations: [],
       cta: "Apply Now",
-      link: CALENDLY,
+      link: "/apply",
     },
   ];
 
@@ -421,7 +426,8 @@ function PricingSection() {
                   <div style={{ display: "inline-block", background: "rgba(255,255,255,0.06)", borderRadius: 100, padding: "3px 10px", marginBottom: 12 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.07em", textTransform: "uppercase" as const }}>{plan.tag}</span>
                   </div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{plan.name}</h3>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 2 }}>{plan.name}</h3>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>{(plan as any).subtitle}</p>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                     <span style={{ fontSize: 42, fontWeight: 900, color: plan.highlight ? GOLD : "#fff", letterSpacing: "-0.03em" }}>{plan.price}</span>
                     <span style={{ fontSize: 14, color: "rgba(255,255,255,0.4)" }}>{plan.period}</span>
@@ -446,19 +452,21 @@ function PricingSection() {
                   ))}
                 </div>
 
-                <a href={plan.link} target="_blank" rel="noopener noreferrer">
-                  <button style={{
-                    width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14,
-                    background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)",
-                    color: plan.highlight ? "#000" : "#fff",
-                    transition: "opacity 0.2s",
-                  }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                  >
-                    {plan.cta} →
-                  </button>
-                </a>
+                {plan.link.startsWith("/") ? (
+                  <Link href={plan.link}>
+                    <button style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s" }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                    >{plan.cta} →</button>
+                  </Link>
+                ) : (
+                  <a href={plan.link} target="_blank" rel="noopener noreferrer">
+                    <button style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s" }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                    >{plan.cta} →</button>
+                  </a>
+                )}
               </div>
             </FadeIn>
           ))}

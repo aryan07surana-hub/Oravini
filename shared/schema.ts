@@ -8,9 +8,9 @@ export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", 
 export const platformEnum = pgEnum("platform", ["instagram", "youtube"]);
 export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video"]);
 export const funnelStageEnum = pgEnum("funnel_stage", ["top", "middle", "bottom"]);
-export const planEnum = pgEnum("plan", ["free", "starter", "pro"]);
+export const planEnum = pgEnum("plan", ["free", "starter", "growth", "pro", "elite"]);
 export const sessionTypeEnum = pgEnum("session_type", ["recording", "live_qa", "workshop", "masterclass"]);
-export const sessionTierEnum = pgEnum("session_tier", ["free", "starter", "pro"]);
+export const sessionTierEnum = pgEnum("session_tier", ["free", "starter", "growth", "pro", "elite"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

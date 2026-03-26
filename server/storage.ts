@@ -649,8 +649,9 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── Credit system ──────────────────────────────────────────────────────────
-  // Free = 10/day, Starter = 20/week, Pro = 500/month
-  private readonly PLAN_CREDITS: Record<string, number> = { free: 10, starter: 20, pro: 500 };
+  // Tier 1 (free)=10/day, Tier 2 (starter)=50/week, Tier 3 (growth)=200/month
+  // Tier 4 (pro)=500/month, Tier 5 (elite)=unlimited (bypass all checks)
+  private readonly PLAN_CREDITS: Record<string, number> = { free: 10, starter: 50, growth: 200, pro: 500, elite: 99999 };
 
   private currentPeriodKey(plan: string): string {
     const d = new Date();
@@ -680,6 +681,7 @@ class DatabaseStorage implements IStorage {
     const allowance = this.PLAN_CREDITS[plan] ?? 10;
     const existing = await this.getCreditBalance(userId);
     const periodLabel = plan === "free" ? "Daily" : plan === "starter" ? "Weekly" : "Monthly";
+    // Elite tier: always return a very large balance without resetting (unlimited)
     if (!existing) {
       const [row] = await db.insert(creditBalances)
         .values({ userId, monthlyCredits: allowance, bonusCredits: 0, lastResetMonth: periodKey })
@@ -699,6 +701,11 @@ class DatabaseStorage implements IStorage {
   }
 
   async deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }> {
+    // Tier 5 (elite) = unlimited credits — skip deduction entirely
+    if (plan === "elite") {
+      const balance = await this.getCreditBalance(userId) ?? { userId, monthlyCredits: 99999, bonusCredits: 0, lastResetMonth: "", id: 0 } as any;
+      return { success: true, balance };
+    }
     const balance = await this.upsertCreditBalance(userId, plan);
     const total = balance.monthlyCredits + balance.bonusCredits;
     if (total < amount) {

@@ -10,15 +10,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
 
 const PLAN_COLORS: Record<string, string> = {
-  free: "border-zinc-600 text-zinc-400",
+  free:    "border-zinc-600 text-zinc-400",
   starter: "border-blue-500/40 text-blue-400",
-  pro: "border-[#d4b461]/40 text-[#d4b461]",
+  growth:  "border-violet-500/40 text-violet-400",
+  pro:     "border-emerald-500/40 text-emerald-400",
+  elite:   "border-[#d4b461]/60 text-[#d4b461]",
 };
 
 const PLAN_LABEL: Record<string, string> = {
-  free: "Free Community",
-  starter: "Starter ($29)",
-  pro: "Pro",
+  free:    "Tier 1 — Free",
+  starter: "Tier 2 — $29",
+  growth:  "Tier 3 — $59",
+  pro:     "Tier 4 — $79",
+  elite:   "Tier 5 — Elite",
 };
 
 function ScoreGauge({ score }: { score: number }) {
@@ -71,9 +75,11 @@ export default function AdminCRM() {
     : 0;
 
   const clientsByPlan = {
-    free: clients.filter(c => c.plan === "free").length,
+    free:    clients.filter(c => c.plan === "free").length,
     starter: clients.filter(c => c.plan === "starter").length,
-    pro: clients.filter(c => c.plan === "pro").length,
+    growth:  clients.filter(c => c.plan === "growth").length,
+    pro:     clients.filter(c => c.plan === "pro").length,
+    elite:   clients.filter(c => c.plan === "elite").length,
   };
 
   return (
@@ -106,38 +112,47 @@ export default function AdminCRM() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Card className="border border-card-border col-span-2 md:col-span-1">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Total Leads</p>
+              <p className="text-xs text-zinc-500 mb-1">Leads</p>
               <p className="text-2xl font-bold text-white">{leads.length}</p>
               <p className="text-xs text-zinc-600 mt-0.5">email list</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Free</p>
+              <p className="text-xs text-zinc-500 mb-1">Tier 1</p>
               <p className="text-2xl font-bold text-zinc-400">{clientsByPlan.free}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">Free</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Starter</p>
+              <p className="text-xs text-zinc-500 mb-1">Tier 2</p>
               <p className="text-2xl font-bold text-blue-400">{clientsByPlan.starter}</p>
               <p className="text-xs text-zinc-600 mt-0.5">$29/mo</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Pro</p>
-              <p className="text-2xl font-bold text-[#d4b461]">{clientsByPlan.pro}</p>
+              <p className="text-xs text-zinc-500 mb-1">Tier 3</p>
+              <p className="text-2xl font-bold text-violet-400">{clientsByPlan.growth}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">$59/mo</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Conversion</p>
-              <p className="text-2xl font-bold text-white">{conversionRate}%</p>
-              <p className="text-xs text-zinc-600 mt-0.5">leads → clients</p>
+              <p className="text-xs text-zinc-500 mb-1">Tier 4</p>
+              <p className="text-2xl font-bold text-emerald-400">{clientsByPlan.pro}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">$79/mo</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-card-border">
+            <CardContent className="p-4">
+              <p className="text-xs text-zinc-500 mb-1">Tier 5</p>
+              <p className="text-2xl font-bold text-[#d4b461]">{clientsByPlan.elite}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">Elite ∞</p>
             </CardContent>
           </Card>
         </div>
@@ -168,14 +183,14 @@ export default function AdminCRM() {
           </div>
           {activeTab === "clients" && (
             <div className="flex gap-1.5">
-              {["all", "free", "starter", "pro"].map(p => (
+              {["all", "free", "starter", "growth", "pro", "elite"].map(p => (
                 <button
                   key={p}
                   onClick={() => setPlanFilter(p)}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${planFilter === p ? "border-[#d4b461] text-[#d4b461] bg-[#d4b461]/10" : "border-zinc-800 text-zinc-500 hover:text-white"}`}
                   data-testid={`filter-plan-${p}`}
                 >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {p === "all" ? "All" : p === "free" ? "T1" : p === "starter" ? "T2" : p === "growth" ? "T3" : p === "pro" ? "T4" : "T5"}
                 </button>
               ))}
             </div>
@@ -215,7 +230,7 @@ export default function AdminCRM() {
                           </p>
                         </div>
                         <Badge variant="outline" className={`text-xs shrink-0 ${PLAN_COLORS[client.plan || "free"]}`}>
-                          {client.plan === "pro" && <Crown className="w-2.5 h-2.5 mr-1" />}
+                          {client.plan === "elite" && <Crown className="w-2.5 h-2.5 mr-1" />}
                           {PLAN_LABEL[client.plan || "free"]}
                         </Badge>
                         <div className="flex items-center gap-1 shrink-0 text-xs text-zinc-500">
