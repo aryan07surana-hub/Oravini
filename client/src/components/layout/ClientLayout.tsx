@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight
 } from "lucide-react";
 import { useState } from "react";
 
@@ -48,6 +48,7 @@ const mainNavItems = [
   { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
   { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
   { href: "/credits", label: "Credits", icon: Zap },
+  { href: "/settings/plan", label: "Settings", icon: Settings },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -140,31 +141,49 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           </a>
         </div>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button data-testid="user-menu" className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 text-left min-w-0">
-                  <p className="text-xs font-semibold text-sidebar-foreground truncate">{user?.name}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-                </div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                data-testid="logout-button"
-                onClick={() => logout.mutate()}
-                className="text-destructive focus:text-destructive"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="p-4 border-t border-sidebar-border space-y-2">
+          {/* User info row */}
+          <div className="flex items-center gap-3 px-2 py-1">
+            <Avatar className="w-8 h-8 flex-shrink-0">
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white truncate" data-testid="sidebar-user-name">{user?.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+            </div>
+          </div>
+
+          {/* Upgrade + Sign out row */}
+          <div className="flex items-center gap-2">
+            <Link href="/settings/plan" className="flex-1" data-testid="sidebar-upgrade-btn">
+              <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.02]"
+                style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: "#d4b461" }}>
+                <ArrowUpRight className="w-3 h-3" />
+                Upgrade Plan
+              </div>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  data-testid="user-menu"
+                  className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-sidebar-accent transition-colors flex-shrink-0"
+                  style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+                >
+                  <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  data-testid="logout-button"
+                  onClick={() => logout.mutate()}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </aside>
 

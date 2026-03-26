@@ -39,6 +39,7 @@ import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
+import PlanSettings from "@/pages/client/PlanSettings";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -135,6 +136,9 @@ function Router() {
       </Route>
       <Route path="/credits">
         {() => <ProtectedRoute component={Credits} />}
+      </Route>
+      <Route path="/settings/plan">
+        {() => <ProtectedRoute component={PlanSettings} />}
       </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
