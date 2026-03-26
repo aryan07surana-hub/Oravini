@@ -66,7 +66,9 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 
 const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-const appUrl = process.env.APP_URL; // Override with your own domain e.g. https://yourdomain.com
+// APP_URL is only respected in production — in dev always use the actual Replit domain
+const isProduction = process.env.NODE_ENV === "production";
+const appUrl = isProduction ? process.env.APP_URL : null;
 const GOOGLE_CALLBACK_URL = appUrl
   ? `${appUrl}/api/auth/google/callback`
   : replitDomain
