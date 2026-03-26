@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const WHOP_LINK = "https://whop.com/brandversee";
 
@@ -309,6 +311,29 @@ function AuditPopup({ onClose }: { onClose: () => void }) {
 
   // ── Pricing Section ───────────────────────────────────────────────────────────
 function PricingSection() {
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const PLAN_SLUG: Record<string, string> = {
+    "Tier 1": "free", "Tier 2": "starter", "Tier 3": "growth", "Tier 4": "pro", "Tier 5": "elite",
+  };
+
+  const handlePlanClick = async (planName: string, defaultLink: string, e: React.MouseEvent) => {
+    if (user && !user.planConfirmed && planName !== "Tier 5") {
+      e.preventDefault();
+      const slug = PLAN_SLUG[planName] || "free";
+      setConfirming(planName);
+      try {
+        const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: slug });
+        queryClient.setQueryData(["/api/auth/me"], updated);
+        navigate("/dashboard");
+      } catch {
+        setConfirming(null);
+      }
+    }
+  };
+
   const PLANS = [
     {
       name: "Tier 1",
@@ -454,17 +479,23 @@ function PricingSection() {
 
                 {plan.link.startsWith("/") ? (
                   <Link href={plan.link}>
-                    <button style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s" }}
+                    <button
+                      onClick={e => handlePlanClick(plan.name, plan.link, e)}
+                      disabled={confirming === plan.name}
+                      style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s", opacity: confirming === plan.name ? 0.7 : 1 }}
                       onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-                      onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                    >{plan.cta} →</button>
+                      onMouseLeave={e => (e.currentTarget.style.opacity = confirming === plan.name ? "0.7" : "1")}
+                    >{confirming === plan.name ? "Confirming…" : `${plan.cta} →`}</button>
                   </Link>
                 ) : (
-                  <a href={plan.link} target="_blank" rel="noopener noreferrer">
-                    <button style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s" }}
+                  <a href={plan.link} target={plan.link.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
+                    <button
+                      onClick={e => handlePlanClick(plan.name, plan.link, e)}
+                      disabled={confirming === plan.name}
+                      style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 14, background: plan.highlight ? GOLD : "rgba(255,255,255,0.08)", color: plan.highlight ? "#000" : "#fff", transition: "opacity 0.2s", opacity: confirming === plan.name ? 0.7 : 1 }}
                       onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-                      onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                    >{plan.cta} →</button>
+                      onMouseLeave={e => (e.currentTarget.style.opacity = confirming === plan.name ? "0.7" : "1")}
+                    >{confirming === plan.name ? "Confirming…" : `${plan.cta} →`}</button>
                   </a>
                 )}
               </div>

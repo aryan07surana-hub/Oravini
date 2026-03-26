@@ -67,6 +67,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }
 
   // Auth
+  // ── Public self-registration ─────────────────────────────────────────────
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { name, email, password } = req.body;
+      if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
+      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(400).json({ message: "An account with this email already exists" });
+      const hashed = await hashPassword(password);
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false });
+      syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
+      req.logIn(user, (err) => {
+        if (err) return res.status(500).json({ message: "Login after register failed" });
+        const { password: _, ...safe } = user;
+        return res.json(safe);
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Registration failed" });
+    }
+  });
+
+  // ── Confirm plan (mark user as onboarded after choosing a plan) ──────────
+  app.post("/api/auth/confirm-plan", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const { plan } = req.body;
+    const update: any = { planConfirmed: true };
+    if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
+    await storage.updateUser(userId, update);
+    const updated = await storage.getUser(userId);
+    const { password: _, ...safe } = updated!;
+    res.json(safe);
+  });
+
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
@@ -119,7 +152,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error("[google-oauth] login error:", loginErr);
             return res.redirect("/login?error=google_failed");
           }
-          return res.redirect(user.role === "admin" ? "/admin" : "/dashboard");
+          const dest = user.role === "admin" ? "/admin" : user.planConfirmed ? "/dashboard" : "/";
+          return res.redirect(dest);
         });
       })(req, res, next);
     }
@@ -210,7 +244,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const parsed = insertUserSchema.safeParse({ ...req.body, role: "client" });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const hashed = await hashPassword(parsed.data.password);
-    const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client" });
+    const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client", planConfirmed: true });
     await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
     const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
     syncToOraviniCRM({ email: user.email, name: user.name, source: "client_signup", plan: user.plan, tierLabel: tierNames[user.plan || "free"] || user.plan, event: "new_signup" });

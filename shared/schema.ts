@@ -24,6 +24,7 @@ export const users = pgTable("users", {
   phone: text("phone"),
   googleId: text("google_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
+  planConfirmed: boolean("plan_confirmed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
