@@ -52,7 +52,7 @@ passport.use(
   new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
     try {
       const user = await storage.getUserByEmail(email);
-      if (!user) return done(null, false, { message: "Invalid email or password" });
+      if (!user) return done(null, false, { message: "NO_ACCOUNT" });
       const valid = await comparePassword(password, user.password);
       if (!valid) return done(null, false, { message: "Invalid email or password" });
       return done(null, user);

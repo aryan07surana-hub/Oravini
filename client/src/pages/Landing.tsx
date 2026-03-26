@@ -514,6 +514,8 @@ function PricingSection() {
 }
 
 export default function Landing() {
+  const { user } = useAuth();
+  const needsPlan = user && !user.planConfirmed && user.role !== "admin";
   const [showPopup, setShowPopup] = useState(false);
   const [popupDismissed, setPopupDismissed] = useState(false);
 
@@ -560,6 +562,21 @@ export default function Landing() {
       )}
 
       <Navbar />
+
+      {/* ── Plan Required Banner ─────────────────────────────────────────────── */}
+      {needsPlan && (
+        <div style={{ position: "sticky", top: 0, zIndex: 200, background: `linear-gradient(90deg, ${GOLD}22, ${GOLD}14)`, borderBottom: `1px solid ${GOLD}40`, padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, backdropFilter: "blur(12px)" }}>
+          <span style={{ fontSize: 18 }}>👋</span>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>
+            Hey <span style={{ color: GOLD }}>{user?.name?.split(" ")[0]}</span> — you're signed in! Pick a plan below to unlock your portal.
+          </p>
+          <a href="#pricing" style={{ textDecoration: "none" }}>
+            <span style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 12, padding: "6px 16px", borderRadius: 100, cursor: "pointer", whiteSpace: "nowrap" as const }}>
+              Choose Plan ↓
+            </span>
+          </a>
+        </div>
+      )}
 
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section style={{ position: "relative", paddingTop: 170, paddingBottom: 120, overflow: "hidden" }}>

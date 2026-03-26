@@ -75,7 +75,19 @@ export default function Login() {
   const login = useMutation({
     mutationFn: () => apiRequest("POST", "/api/auth/login", { email, password }),
     onSuccess: redirectAfterAuth,
-    onError: (err: any) => toast({ title: "Login failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => {
+      if (err.message === "NO_ACCOUNT") {
+        setTab("register");
+        setRegEmail(email);
+        toast({
+          title: "No account found",
+          description: "We couldn't find an account with that email. Please create one below.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Login failed", description: err.message, variant: "destructive" });
+      }
+    },
   });
 
   const register = useMutation({

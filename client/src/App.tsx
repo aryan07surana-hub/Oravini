@@ -56,6 +56,8 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
 
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
+  // Block clients who haven't selected a plan yet
+  if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/" />;
 
   return <Component {...props} />;
 }
@@ -69,6 +71,8 @@ function HomeRedirect() {
   );
   if (!user) return <Landing />;
   if (user.role === "admin") return <Redirect to="/admin" />;
+  // Client logged in but hasn't chosen a plan yet — show landing so they can pick one
+  if (!user.planConfirmed) return <Landing />;
   return <Redirect to="/dashboard" />;
 }
 
