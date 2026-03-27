@@ -348,41 +348,46 @@ export default function ClientDashboard() {
         {/* Focus Music Banner */}
         <div
           data-testid="focus-music-banner"
-          className="relative overflow-hidden rounded-2xl px-5 py-4 flex items-center gap-4"
+          className="relative overflow-hidden rounded-2xl px-5 py-4"
           style={{
-            background: "linear-gradient(135deg, rgba(15,10,30,0.95) 0%, rgba(18,14,35,0.95) 100%)",
-            border: "1px solid rgba(212,180,97,0.15)",
+            background: "linear-gradient(135deg, rgba(12,10,22,0.97) 0%, rgba(16,12,28,0.97) 100%)",
+            border: "1px solid rgba(212,180,97,0.14)",
           }}
         >
           <div className="absolute inset-0 pointer-events-none" style={{
-            background: "radial-gradient(ellipse at 10% 50%, rgba(212,180,97,0.06) 0%, transparent 60%)",
+            background: "radial-gradient(ellipse at 5% 50%, rgba(212,180,97,0.05) 0%, transparent 55%)",
           }} />
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}
-          >
-            <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
+          <div className="flex items-center gap-4 mb-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}
+            >
+              <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Focus Music — 15 channels</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Music, nature sounds &amp; focus noise — plays non-stop across all pages. Look bottom-right ↘
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-white">Focus Music — now live</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Lo-fi · Deep Ambient · Space Station · Deep House · Zen Flow — pick your vibe from the player in the bottom right.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { emoji: "☕", color: "#a78bfa" },
-              { emoji: "🌌", color: "#60a5fa" },
-              { emoji: "🚀", color: "#34d399" },
-              { emoji: "🎹", color: "#f472b6" },
-              { emoji: "🌊", color: "#fb923c" },
-            ].map(({ emoji, color }) => (
+              { label: "Music", items: ["☕ Lo-fi", "🌌 Deep Focus", "🚀 Space", "🎹 Deep House", "✨ New Age", "🎷 Jazz", "🎻 Classical"], color: "#a78bfa" },
+              { label: "Nature", items: ["🌧️ Rain", "⛈️ Thunderstorm", "🌊 Ocean Waves", "🌿 Forest & Birds", "🔥 Fireplace"], color: "#34d399" },
+              { label: "Focus", items: ["🤍 White Noise", "🟤 Brown Noise"], color: "#60a5fa" },
+            ].map(({ label, items, color }) => (
               <div
-                key={emoji}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                style={{ background: `${color}15`, border: `1px solid ${color}25` }}
+                key={label}
+                className="rounded-xl p-3"
+                style={{ background: `${color}09`, border: `1px solid ${color}18` }}
               >
-                {emoji}
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
+                <div className="space-y-1">
+                  {items.map(item => (
+                    <p key={item} className="text-[10px] text-zinc-500 leading-none">{item}</p>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
