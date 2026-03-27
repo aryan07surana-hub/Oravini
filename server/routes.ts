@@ -5665,5 +5665,159 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
     }
   });
 
+  // ── ICP Builder ──────────────────────────────────────────────────────────────
+  app.post("/api/ai/icp/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessName, whatYouSell, targetAudience, coreTransformation, priceRange } = req.body;
+      const systemPrompt = `You are a world-class customer research strategist, behavioral psychologist, and direct response marketer. Build deeply researched Ideal Customer Profiles with extreme precision and real-world applicability. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Build a complete, deeply researched Ideal Customer Profile (ICP) for this business.
+
+BUSINESS CONTEXT:
+- Business Name: ${businessName || "Not specified"}
+- What They Sell: ${whatYouSell}
+- Who They Think Their Audience Is: ${targetAudience}
+- Core Transformation / Outcome: ${coreTransformation || "Not specified"}
+- Price Range: ${priceRange}
+
+Go deep. Be specific. Use real-world, human language. Avoid generic advice. Think like a strategist who deeply understands human behaviour, emotional drivers, and buying psychology.
+
+Return EXACTLY this JSON structure:
+{
+  "businessSummary": {
+    "sharperDescription": "A sharper, more compelling version of what they sell — 2-3 sentences, outcome-driven",
+    "refinedTargetAudience": "The most specific and valuable target audience — avoid being broad",
+    "coreTransformation": "The core transformation in a powerful, vivid, outcome-driven way",
+    "positioningStatement": "A strong differentiating positioning statement — 1-2 sentences that makes this stand out"
+  },
+  "demographics": {
+    "ageRange": "Specific age range",
+    "gender": "Gender breakdown if relevant, or 'All genders'",
+    "location": "Primary locations/markets",
+    "incomeLevel": "Income level range",
+    "profession": "Specific profession/industry",
+    "educationLevel": "Education level"
+  },
+  "psychographics": {
+    "beliefs": "Their core beliefs about money, success, growth and opportunity — be specific and real",
+    "coreValues": "What they deeply value in life and business",
+    "aspirations": "Who they want to become in the next 1-3 years — make it vivid and emotional",
+    "deepFears": "What they are secretly afraid of becoming or failing at — go deep here"
+  },
+  "currentSituation": {
+    "dailyLife": "What their day actually looks like — specific and realistic",
+    "alreadyTried": ["Specific thing they tried", "Another thing", "Third attempt"],
+    "whyFailed": "Why those attempts failed — be specific about the root cause",
+    "repeatedFrustrations": "What frustrates them every single week — make it visceral"
+  },
+  "painPoints": [
+    {
+      "title": "Short, punchy pain point title",
+      "situation": "Describe the specific situation that causes this pain in detail",
+      "emotionalFeel": "Exactly how this feels emotionally — write in first person as if they are feeling it",
+      "cost": "What this pain costs them in time, money, identity, confidence or relationships"
+    },
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."}
+  ],
+  "desiredOutcomes": {
+    "dreamOutcome": "Their dream outcome — make it specific, vivid and emotionally charged",
+    "shortTermDesires": "What they want in the next 30-90 days",
+    "longTermDesires": "What they want in 1-3 years",
+    "successDefinition": "What 'success' looks like in their mind — socially, financially, personally"
+  }
+}
+
+CRITICAL: Return exactly 5 pain points. Be extremely specific — avoid generic advice. Use real human language.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse ICP response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Audience Psychology Map ──────────────────────────────────────────────────
+  app.post("/api/ai/audience-psychology/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessDescription, targetAudienceDescription, icpSummary } = req.body;
+      const systemPrompt = `You are a world-class behavioral psychologist, direct response marketer, and audience strategist. Map audience psychology with extreme depth — buying behaviour, identity, emotions, beliefs, messaging, and content strategy. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Generate a complete Audience Psychology Map for this business.
+
+BUSINESS CONTEXT:
+- Business Description: ${businessDescription}
+- Target Audience: ${targetAudienceDescription || "Not specified — infer from business description"}
+- ICP Summary (if provided): ${icpSummary || "Not provided"}
+
+Go extremely deep into psychology, emotions, and behaviour. Use real human language. Make it actionable and specific.
+
+Return EXACTLY this JSON structure:
+{
+  "buyerClarity": {
+    "awarenessStage": "Are they problem-aware, solution-aware, or product-aware? Explain their current state",
+    "triggerToSearch": "What specific event or moment triggers them to start searching for a solution?",
+    "whatMakesThemSayYes": "What specifically makes them say yes to a product — be precise",
+    "trustBuilders": "What builds trust for this specific audience — authority, relatability, proof, simplicity?",
+    "proofNeeded": "What kind of proof they need — case studies, testimonials, logical breakdowns, emotional resonance?",
+    "objections": [
+      {"title": "Objection title", "type": "visible", "description": "Detailed explanation of this objection and how they express it"},
+      {"title": "...", "type": "visible", "description": "..."},
+      {"title": "...", "type": "hidden", "description": "Hidden objection they won't say out loud — their internal resistance"},
+      {"title": "...", "type": "hidden", "description": "..."},
+      {"title": "...", "type": "visible", "description": "..."}
+    ],
+    "internalDialogue": "Write their exact internal dialogue before buying — the thoughts running through their head. Write it as real thoughts, first person.",
+    "emotionalTriggers": ["fear", "ambition", "status", "relief", "urgency", "identity"],
+    "externalTriggers": ["deadline", "pain spike", "competitor success", "social proof moment", "opportunity window"]
+  },
+  "psychologyMap": {
+    "currentSelfImage": "How they see themselves right now — be honest and specific",
+    "desiredPublicImage": "How they want to be seen by others — their social identity aspiration",
+    "identityShiftNeeded": "The exact identity shift they need to make to achieve success — make this powerful",
+    "coreEmotions": ["frustrated", "overwhelmed", "stuck", "hopeful", "uncertain"],
+    "emotionalHighs": "What makes them feel excited and motivated — when do they feel on top of the world?",
+    "emotionalLows": "What brings them down — their darkest moments in this journey",
+    "whatKeepsThemStuck": "The psychological patterns, habits and thought loops that keep them from moving forward",
+    "limitingBeliefs": ["I am not consistent enough", "Growing takes too long", "I don't have enough followers to monetize"],
+    "empoweringBeliefs": ["Systems can make consistency automatic", "One viral post can change everything", "I can learn this"],
+    "falseAssumptions": ["You need millions of followers to make money", "Viral content is random and uncontrollable", "You need to post every day to grow"],
+    "exactPhrases": ["I don't know what to post", "I post and get zero engagement", "I see others growing and wonder what I'm doing wrong"],
+    "frustrationExpressions": ["I've tried everything and nothing works", "I spend hours creating content that nobody sees", "I feel like I'm talking to a wall"],
+    "emotionalKeywords": ["consistent", "growth", "stuck", "visibility", "monetize", "burnout", "algorithm"]
+  },
+  "messagingInsights": {
+    "resonantAngles": ["Angle 1 that resonates", "Angle 2", "Angle 3", "Angle 4", "Angle 5"],
+    "immediateAttentionAngle": "The single angle that would stop their scroll and grab attention immediately",
+    "doNotSay": ["Phrase or positioning that turns them off", "Another one", "Third one"],
+    "mostCompellingPromise": "The most compelling, specific promise you can make to this audience — make it visceral and real"
+  },
+  "contentDirection": {
+    "contentIdeas": ["Content idea 1 tailored to their psychology", "Idea 2", "Idea 3", "Idea 4", "Idea 5"],
+    "offerAngles": ["Offer angle 1 that would convert", "Angle 2", "Angle 3"],
+    "scrollStoppingHooks": ["Hook 1", "Hook 2", "Hook 3", "Hook 4", "Hook 5"],
+    "positioningSuggestions": ["Positioning suggestion 1", "Suggestion 2", "Suggestion 3"]
+  }
+}
+
+CRITICAL: Be specific and human. Avoid generic advice. Write as if you truly understand this person better than they understand themselves.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse psychology map response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }
