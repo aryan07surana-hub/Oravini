@@ -5692,57 +5692,85 @@ BUSINESS CONTEXT:
 - Core Transformation / Outcome: ${coreTransformation || "Not specified"}
 - Price Range: ${priceRange}
 
-Go deep. Be specific. Use real-world, human language. Avoid generic advice. Think like a strategist who deeply understands human behaviour, emotional drivers, and buying psychology.
+Go extremely deep. Be hyper-specific. Use real-world, human language. Avoid generic advice. Think like a world-class strategist who deeply understands human behaviour, emotional drivers, and buying psychology. Every section should feel like you truly know this person.
 
 Return EXACTLY this JSON structure:
 {
   "businessSummary": {
-    "sharperDescription": "A sharper, more compelling version of what they sell — 2-3 sentences, outcome-driven",
-    "refinedTargetAudience": "The most specific and valuable target audience — avoid being broad",
-    "coreTransformation": "The core transformation in a powerful, vivid, outcome-driven way",
-    "positioningStatement": "A strong differentiating positioning statement — 1-2 sentences that makes this stand out"
+    "sharperDescription": "A sharper, more compelling version of what they sell — 2-3 sentences, outcome-driven and specific",
+    "refinedTargetAudience": "The most specific and valuable target audience segment — avoid being broad, name the exact type of person",
+    "coreTransformation": "The core transformation in a powerful, vivid, outcome-driven way — before state vs after state",
+    "positioningStatement": "A strong, differentiated positioning statement — 1-2 sentences that makes this business impossible to ignore",
+    "unfairAdvantage": "What unique advantage does this business have that competitors cannot easily copy",
+    "marketSophistication": "How aware and sophisticated is this market? What level of proof/credibility do they need?"
   },
   "demographics": {
-    "ageRange": "Specific age range",
-    "gender": "Gender breakdown if relevant, or 'All genders'",
-    "location": "Primary locations/markets",
-    "incomeLevel": "Income level range",
-    "profession": "Specific profession/industry",
-    "educationLevel": "Education level"
+    "ageRange": "Specific age range with peak demographic",
+    "gender": "Gender breakdown with percentages if relevant",
+    "location": "Primary locations/markets — countries, regions, urban vs rural",
+    "incomeLevel": "Specific income level range with spending capacity notes",
+    "profession": "Specific profession, industry and seniority level",
+    "educationLevel": "Education level and how it affects their decision-making",
+    "deviceUsage": "Primary devices and platforms they use daily",
+    "purchasingBehaviour": "How they typically research, evaluate and buy — online vs offline, impulse vs deliberate"
   },
   "psychographics": {
-    "beliefs": "Their core beliefs about money, success, growth and opportunity — be specific and real",
-    "coreValues": "What they deeply value in life and business",
-    "aspirations": "Who they want to become in the next 1-3 years — make it vivid and emotional",
-    "deepFears": "What they are secretly afraid of becoming or failing at — go deep here"
+    "beliefs": "Their core beliefs about money, success, growth and opportunity — be specific and emotionally real",
+    "coreValues": "What they deeply value in life, business and relationships — their non-negotiables",
+    "aspirations": "Who they want to become in the next 1-3 years — make it vivid, emotional and personal",
+    "deepFears": "What they are secretly afraid of becoming or failing at — their darkest concern",
+    "worldview": "How they see the world, their industry, and their role in it — their operating lens",
+    "selfPerception": "How they see themselves right now — their internal narrative and identity"
   },
   "currentSituation": {
-    "dailyLife": "What their day actually looks like — specific and realistic",
-    "alreadyTried": ["Specific thing they tried", "Another thing", "Third attempt"],
-    "whyFailed": "Why those attempts failed — be specific about the root cause",
-    "repeatedFrustrations": "What frustrates them every single week — make it visceral"
+    "dailyLife": "What their day actually looks like — specific, realistic and relatable",
+    "alreadyTried": ["Specific thing they tried", "Another failed attempt", "Third approach that disappointed them", "A tool or program that overpromised"],
+    "whyFailed": "Why those attempts failed — specific root cause, not surface-level",
+    "repeatedFrustrations": "What frustrates them every single week — make it visceral and specific",
+    "currentWorkarounds": "What are they doing right now to cope — their imperfect solution",
+    "informationSources": "Where do they currently learn and research — YouTube, podcasts, Instagram, forums, courses?"
   },
   "painPoints": [
     {
       "title": "Short, punchy pain point title",
-      "situation": "Describe the specific situation that causes this pain in detail",
-      "emotionalFeel": "Exactly how this feels emotionally — write in first person as if they are feeling it",
-      "cost": "What this pain costs them in time, money, identity, confidence or relationships"
+      "situation": "Describe the specific situation that triggers this pain in vivid detail — set the scene",
+      "emotionalFeel": "Exactly how this feels emotionally — write in first person as if they are feeling it right now",
+      "cost": "What this pain costs them in time, money, identity, confidence, relationships or opportunity",
+      "severity": 9,
+      "urgency": 8,
+      "frequency": 7
     },
-    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
-    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
-    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."},
-    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "..."}
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 8, "urgency": 7, "frequency": 9},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 7, "urgency": 8, "frequency": 6},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 8, "urgency": 6, "frequency": 8},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 6, "urgency": 7, "frequency": 7}
   ],
   "desiredOutcomes": {
-    "dreamOutcome": "Their dream outcome — make it specific, vivid and emotionally charged",
-    "shortTermDesires": "What they want in the next 30-90 days",
-    "longTermDesires": "What they want in 1-3 years",
-    "successDefinition": "What 'success' looks like in their mind — socially, financially, personally"
+    "dreamOutcome": "Their dream outcome — specific, vivid and emotionally charged — what does winning look like?",
+    "shortTermDesires": "What they want in the next 30-90 days — the quick wins they're after",
+    "longTermDesires": "What they want in 1-3 years — the deeper transformation",
+    "successDefinition": "What 'success' looks like in their mind — socially, financially, personally, and emotionally",
+    "lifeAfterSolution": "What their life looks like after your offer works — paint a vivid picture of the after state"
+  },
+  "buyingTriggers": {
+    "momentOfDecision": "The specific moment or event that pushes them from consideration to buying",
+    "emotionalDrivers": ["Primary emotional driver", "Secondary driver", "Third driver"],
+    "logicalJustifications": ["How they justify the purchase logically to themselves", "Second justification", "Third"],
+    "socialProofType": "What type of social proof converts them — testimonials, case studies, follower counts, expert authority?",
+    "priceAnchoring": "How they think about price — what makes it feel worth it or too expensive?"
+  },
+  "insights": {
+    "marketAwarenessScore": 6,
+    "painIntensity": 8,
+    "buyingReadiness": 5,
+    "desireStrength": 7,
+    "trustDeficit": 6,
+    "priceResistance": 5,
+    "insightNotes": "Brief explanation of the above scores and what they mean for marketing strategy"
   }
 }
 
-CRITICAL: Return exactly 5 pain points. Be extremely specific — avoid generic advice. Use real human language.`;
+CRITICAL: Return exactly 5 pain points with real severity/urgency/frequency scores (1-10). Be hyper-specific — this should read like a deep dossier on a real person, not a generic persona. Every insight should be actionable.`;
 
       const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
       let result: any;
@@ -5768,57 +5796,72 @@ BUSINESS CONTEXT:
 - Target Audience: ${targetAudienceDescription || "Not specified — infer from business description"}
 - ICP Summary (if provided): ${icpSummary || "Not provided"}
 
-Go extremely deep into psychology, emotions, and behaviour. Use real human language. Make it actionable and specific.
+Go to the deepest level of psychology, emotions, and behaviour. Use real human language. Make every insight feel like you truly understand this person. Be specific, actionable, and emotionally intelligent.
 
 Return EXACTLY this JSON structure:
 {
   "buyerClarity": {
-    "awarenessStage": "Are they problem-aware, solution-aware, or product-aware? Explain their current state",
-    "triggerToSearch": "What specific event or moment triggers them to start searching for a solution?",
-    "whatMakesThemSayYes": "What specifically makes them say yes to a product — be precise",
-    "trustBuilders": "What builds trust for this specific audience — authority, relatability, proof, simplicity?",
-    "proofNeeded": "What kind of proof they need — case studies, testimonials, logical breakdowns, emotional resonance?",
+    "awarenessStage": "Are they problem-aware, solution-aware, or product-aware? Explain their current state in detail and what that means for marketing",
+    "triggerToSearch": "What specific event, moment or breaking point triggers them to actively search for a solution?",
+    "whatMakesThemSayYes": "What specifically makes them say yes — be precise about the combination of factors",
+    "trustBuilders": "What builds trust for this specific audience — authority, relatability, social proof, simplicity, certifications?",
+    "proofNeeded": "What kind of proof converts them — case studies, before/after, testimonials, logical breakdown, credentials?",
+    "decisionTimeline": "How long does it typically take them to make a buying decision and what happens during that time?",
     "objections": [
-      {"title": "Objection title", "type": "visible", "description": "Detailed explanation of this objection and how they express it"},
+      {"title": "Objection title", "type": "visible", "description": "Detailed explanation of this objection, how they express it, and what fear drives it"},
       {"title": "...", "type": "visible", "description": "..."},
-      {"title": "...", "type": "hidden", "description": "Hidden objection they won't say out loud — their internal resistance"},
+      {"title": "...", "type": "hidden", "description": "Hidden objection they won't say out loud — their deep internal resistance"},
       {"title": "...", "type": "hidden", "description": "..."},
-      {"title": "...", "type": "visible", "description": "..."}
+      {"title": "...", "type": "visible", "description": "..."},
+      {"title": "...", "type": "hidden", "description": "..."}
     ],
-    "internalDialogue": "Write their exact internal dialogue before buying — the thoughts running through their head. Write it as real thoughts, first person.",
-    "emotionalTriggers": ["fear", "ambition", "status", "relief", "urgency", "identity"],
-    "externalTriggers": ["deadline", "pain spike", "competitor success", "social proof moment", "opportunity window"]
+    "internalDialogue": "Write their exact internal dialogue before buying — the thoughts running through their head. Write it as real thoughts, first person, stream of consciousness.",
+    "emotionalTriggers": ["fear", "ambition", "status", "relief", "urgency", "identity", "belonging"],
+    "externalTriggers": ["deadline", "pain spike", "competitor success", "social proof moment", "opportunity window", "life event"]
   },
   "psychologyMap": {
-    "currentSelfImage": "How they see themselves right now — be honest and specific",
-    "desiredPublicImage": "How they want to be seen by others — their social identity aspiration",
-    "identityShiftNeeded": "The exact identity shift they need to make to achieve success — make this powerful",
-    "coreEmotions": ["frustrated", "overwhelmed", "stuck", "hopeful", "uncertain"],
-    "emotionalHighs": "What makes them feel excited and motivated — when do they feel on top of the world?",
-    "emotionalLows": "What brings them down — their darkest moments in this journey",
-    "whatKeepsThemStuck": "The psychological patterns, habits and thought loops that keep them from moving forward",
-    "limitingBeliefs": ["I am not consistent enough", "Growing takes too long", "I don't have enough followers to monetize"],
-    "empoweringBeliefs": ["Systems can make consistency automatic", "One viral post can change everything", "I can learn this"],
-    "falseAssumptions": ["You need millions of followers to make money", "Viral content is random and uncontrollable", "You need to post every day to grow"],
-    "exactPhrases": ["I don't know what to post", "I post and get zero engagement", "I see others growing and wonder what I'm doing wrong"],
-    "frustrationExpressions": ["I've tried everything and nothing works", "I spend hours creating content that nobody sees", "I feel like I'm talking to a wall"],
-    "emotionalKeywords": ["consistent", "growth", "stuck", "visibility", "monetize", "burnout", "algorithm"]
+    "currentSelfImage": "How they see themselves right now — their honest internal narrative and self-assessment",
+    "desiredPublicImage": "How they want to be seen by others — their social identity aspiration and personal brand",
+    "identityShiftNeeded": "The exact identity shift they need to make — make this powerful and transformational",
+    "coreEmotions": ["frustrated", "overwhelmed", "stuck", "hopeful", "uncertain", "embarrassed", "determined"],
+    "emotionalHighs": "What makes them feel excited, confident and motivated — when do they feel on top of the world?",
+    "emotionalLows": "What brings them down — their darkest moments, their shame and their deepest doubts",
+    "whatKeepsThemStuck": "The psychological patterns, habits, thought loops and environment that prevent them from moving forward",
+    "limitingBeliefs": ["Specific limiting belief they hold", "Another deeply held belief blocking them", "Third belief keeping them small", "Fourth false belief about the market or themselves", "Fifth belief about their own capability"],
+    "empoweringBeliefs": ["Empowering belief after transformation", "Second empowering belief", "Third", "Fourth", "Fifth"],
+    "falseAssumptions": ["False assumption about what success requires", "False assumption about the market", "False assumption about themselves", "False assumption about timing", "False assumption about the solution"],
+    "exactPhrases": ["Exact phrase they say or think", "Second phrase", "Third", "Fourth", "Fifth", "Sixth"],
+    "frustrationExpressions": ["Frustration expression 1", "Expression 2", "Expression 3", "Expression 4", "Expression 5"],
+    "emotionalKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8"]
   },
   "messagingInsights": {
-    "resonantAngles": ["Angle 1 that resonates", "Angle 2", "Angle 3", "Angle 4", "Angle 5"],
-    "immediateAttentionAngle": "The single angle that would stop their scroll and grab attention immediately",
-    "doNotSay": ["Phrase or positioning that turns them off", "Another one", "Third one"],
-    "mostCompellingPromise": "The most compelling, specific promise you can make to this audience — make it visceral and real"
+    "resonantAngles": ["Angle 1 that deeply resonates", "Angle 2", "Angle 3", "Angle 4", "Angle 5", "Angle 6", "Angle 7"],
+    "immediateAttentionAngle": "The single angle that would stop their scroll and grab their full attention immediately",
+    "doNotSay": ["Phrase or positioning that turns them off and why", "Second repellent phrase", "Third", "Fourth"],
+    "mostCompellingPromise": "The most compelling, specific promise you can make — visceral, real, and undeniable",
+    "headlineFormulas": ["Headline formula 1 that would convert for this audience", "Formula 2", "Formula 3"],
+    "ctaApproach": "What type of CTA works best for this audience — soft, hard, curiosity-based, value-first?"
   },
   "contentDirection": {
-    "contentIdeas": ["Content idea 1 tailored to their psychology", "Idea 2", "Idea 3", "Idea 4", "Idea 5"],
-    "offerAngles": ["Offer angle 1 that would convert", "Angle 2", "Angle 3"],
-    "scrollStoppingHooks": ["Hook 1", "Hook 2", "Hook 3", "Hook 4", "Hook 5"],
-    "positioningSuggestions": ["Positioning suggestion 1", "Suggestion 2", "Suggestion 3"]
+    "contentIdeas": ["Specific content idea 1 tailored to their exact psychology", "Idea 2", "Idea 3", "Idea 4", "Idea 5", "Idea 6", "Idea 7", "Idea 8", "Idea 9", "Idea 10"],
+    "offerAngles": ["Offer angle that would convert for this audience", "Angle 2", "Angle 3", "Angle 4", "Angle 5"],
+    "scrollStoppingHooks": ["Hook 1", "Hook 2", "Hook 3", "Hook 4", "Hook 5", "Hook 6", "Hook 7", "Hook 8"],
+    "positioningSuggestions": ["Positioning suggestion 1", "Suggestion 2", "Suggestion 3", "Suggestion 4"],
+    "platformStrategy": "Which platforms are best for this audience and what type of content performs on each?"
+  },
+  "scores": {
+    "buyerReadiness": 5,
+    "emotionalIntensity": 8,
+    "resistanceLevel": 6,
+    "identityGapSize": 7,
+    "messagingResonance": 6,
+    "purchaseUrgency": 5,
+    "trustRequired": 7,
+    "scoreNotes": "Brief explanation of these scores and what they mean for the marketing approach"
   }
 }
 
-CRITICAL: Be specific and human. Avoid generic advice. Write as if you truly understand this person better than they understand themselves.`;
+CRITICAL: Be hyper-specific and deeply human. Avoid generic advice entirely. Write as if you have studied this person for years and understand them better than they understand themselves. Every insight must be immediately actionable.`;
 
       const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
       let result: any;

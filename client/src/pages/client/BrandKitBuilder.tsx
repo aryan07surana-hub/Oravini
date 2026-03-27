@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest, queryClient as qcGlobal } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -90,7 +91,8 @@ function Pill({ text, variant = "default" }: { text: string; variant?: "default"
   return <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${cls}`}>{text}</span>;
 }
 
-export default function BrandKitBuilder() {
+export default function BrandKitBuilder({ embedded = false }: { embedded?: boolean }) {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [kit, setKit] = useState<BrandKit | null>(null);
