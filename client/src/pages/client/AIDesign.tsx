@@ -3,59 +3,42 @@ import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
 import {
-  Layers, Wand2, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft,
+  Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft,
 } from "lucide-react";
 
-interface DesignTool {
-  id: string;
-  label: string;
-  description: string;
-  icon: React.ElementType;
-  badge?: string;
-  available: boolean;
-}
-
-const TOOLS: DesignTool[] = [
+const MAIN_TOOLS = [
   {
     id: "carousel",
     label: "Carousel Generator",
     description: "Build stunning multi-slide carousels with AI-written copy and custom branding.",
     icon: Layers,
-    available: true,
+    route: null, // embedded
   },
   {
-    id: "thumbnail",
-    label: "Thumbnail Maker",
-    description: "Generate eye-catching thumbnails for YouTube, Instagram & more.",
-    icon: Image,
-    badge: "Coming Soon",
-    available: false,
+    id: "lead-magnet",
+    label: "Lead Magnet Generator",
+    description: "Create high-converting guides, checklists & eBooks — fully designed and export-ready as PDF.",
+    icon: FileText,
+    route: "/lead-magnet",
   },
-  {
-    id: "brand-kit",
-    label: "Brand Kit Builder",
-    description: "Create a consistent visual identity: colors, fonts, and style guides.",
-    icon: Palette,
-    badge: "Coming Soon",
-    available: false,
-  },
-  {
-    id: "short-cover",
-    label: "Short-form Cover Art",
-    description: "Design covers and overlays optimised for Reels, TikTok and YouTube Shorts.",
-    icon: Video,
-    badge: "Coming Soon",
-    available: false,
-  },
+];
+
+const COMING_SOON = [
+  { id: "thumbnail", label: "Thumbnail Maker", description: "Eye-catching thumbnails for YouTube, Instagram & more.", icon: Image },
+  { id: "brand-kit", label: "Brand Kit Builder", description: "Consistent visual identity: colours, fonts, and style guides.", icon: Palette },
+  { id: "short-cover", label: "Short-form Cover Art", description: "Covers optimised for Reels, TikTok and YouTube Shorts.", icon: Video },
 ];
 
 export default function AIDesign() {
   const [active, setActive] = useState<string | null>(null);
   const [, navigate] = useLocation();
 
-  const handleSelect = (tool: DesignTool) => {
-    if (!tool.available) return;
-    setActive(tool.id);
+  const handleSelect = (tool: typeof MAIN_TOOLS[0]) => {
+    if (tool.route) {
+      navigate(tool.route);
+    } else {
+      setActive(tool.id);
+    }
   };
 
   if (active === "carousel") {
@@ -77,9 +60,9 @@ export default function AIDesign() {
   return (
     <ClientLayout>
       <div className="min-h-screen bg-background">
-        <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="max-w-4xl mx-auto px-6 py-12">
 
-          {/* ── Header ── */}
+          {/* Header */}
           <div className="mb-12 text-center">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-4">
               <Sparkles className="w-3.5 h-3.5" />
@@ -93,60 +76,60 @@ export default function AIDesign() {
             </p>
           </div>
 
-          {/* ── Tool Grid ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {TOOLS.map((tool) => {
+          {/* Main Tools — two large squares */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-10">
+            {MAIN_TOOLS.map((tool) => {
               const Icon = tool.icon;
-              const isDisabled = !tool.available;
               return (
                 <button
                   key={tool.id}
                   data-testid={`design-tool-${tool.id}`}
                   onClick={() => handleSelect(tool)}
-                  disabled={isDisabled}
-                  className={[
-                    "group relative flex flex-col items-center justify-center gap-4 rounded-2xl border p-6 aspect-square text-center transition-all duration-200 outline-none",
-                    isDisabled
-                      ? "border-zinc-800 bg-zinc-900/20 opacity-50 cursor-not-allowed"
-                      : "border-zinc-700 bg-zinc-900/60 hover:border-primary/60 hover:bg-zinc-900 hover:shadow-[0_0_24px_rgba(212,180,97,0.12)] cursor-pointer active:scale-95",
-                  ].join(" ")}
+                  className="group relative flex flex-col items-center justify-center gap-5 rounded-2xl border border-zinc-700 bg-zinc-900/60 hover:border-primary/60 hover:bg-zinc-900 hover:shadow-[0_0_32px_rgba(212,180,97,0.14)] cursor-pointer active:scale-95 transition-all duration-200 outline-none p-8 aspect-square text-center"
                 >
-                  {/* Badge */}
-                  {tool.badge && (
-                    <span className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
-                      {tool.badge}
-                    </span>
-                  )}
-
                   {/* Icon */}
-                  <div className={[
-                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors",
-                    isDisabled ? "bg-zinc-800" : "bg-primary/10 group-hover:bg-primary/20",
-                  ].join(" ")}>
-                    <Icon className={["w-7 h-7 transition-colors", isDisabled ? "text-zinc-600" : "text-primary"].join(" ")} />
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Icon className="w-8 h-8 text-primary" />
                   </div>
 
                   {/* Label */}
                   <div>
-                    <p className={["text-sm font-bold leading-snug", isDisabled ? "text-zinc-600" : "text-white"].join(" ")}>
-                      {tool.label}
-                    </p>
-                    <p className="text-[11px] text-zinc-500 mt-1 leading-snug px-1">
-                      {tool.description}
-                    </p>
+                    <p className="text-base font-bold text-white leading-snug mb-1.5">{tool.label}</p>
+                    <p className="text-xs text-zinc-500 leading-snug px-2">{tool.description}</p>
                   </div>
 
-                  {/* Arrow hint on hover */}
-                  {!isDisabled && (
-                    <ChevronRight className="absolute bottom-3 right-3 w-4 h-4 text-primary/0 group-hover:text-primary/50 transition-colors" />
-                  )}
+                  {/* Arrow */}
+                  <ChevronRight className="absolute bottom-4 right-4 w-4 h-4 text-primary/0 group-hover:text-primary/60 transition-colors" />
                 </button>
               );
             })}
           </div>
 
-          {/* ── Footer note ── */}
-          <p className="text-center text-xs text-zinc-600 mt-10">
+          {/* Coming Soon */}
+          <div>
+            <p className="text-xs font-semibold text-zinc-600 uppercase tracking-widest mb-4 text-center">Coming Soon</p>
+            <div className="grid grid-cols-3 gap-4">
+              {COMING_SOON.map((tool) => {
+                const Icon = tool.icon;
+                return (
+                  <div
+                    key={tool.id}
+                    className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/20 opacity-50 cursor-not-allowed p-6 aspect-square text-center"
+                  >
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
+                      Coming Soon
+                    </span>
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-zinc-800">
+                      <Icon className="w-6 h-6 text-zinc-600" />
+                    </div>
+                    <p className="text-xs font-bold text-zinc-600 leading-snug">{tool.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-zinc-700 mt-10">
             More design tools are being added every sprint.
           </p>
         </div>

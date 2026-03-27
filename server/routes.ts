@@ -5141,5 +5141,114 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // ── Lead Magnet Generator ─────────────────────────────────────────────────
+  app.post("/api/ai/lead-magnet/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, type, topic, audience, goal } = req.body;
+      if (!topic?.trim()) return res.status(400).json({ message: "Topic is required" });
+
+      const systemPrompt = `You are an expert lead magnet strategist and copywriter. You create high-converting, premium-quality lead magnets with detailed, actionable content. Always respond with valid JSON only — no markdown, no code fences.`;
+
+      const userPrompt = `Create a complete, detailed lead magnet with the following details:
+NICHE: ${niche || "Business / Marketing"}
+TYPE: ${type || "Guide"}
+TOPIC: ${topic}
+AUDIENCE: ${audience || "Entrepreneurs and small business owners"}
+GOAL: ${goal || "Grow their audience and generate leads"}
+
+Return a JSON object with EXACTLY this structure:
+{
+  "titleOptions": [5 compelling, curiosity-driven title variations as strings],
+  "selectedTitle": "the best title from the 5 options",
+  "hookLine": "a short powerful hook sentence for page 1",
+  "pages": [
+    {
+      "id": "page-0",
+      "type": "cover",
+      "title": "main title text",
+      "subtitle": "compelling subtitle",
+      "hook": "one punchy hook line"
+    },
+    {
+      "id": "page-1",
+      "type": "problem",
+      "heading": "The Problem",
+      "body": "3-4 sentences describing the painful problem the audience faces. Be specific.",
+      "emphasis": "one bold key insight or stat"
+    },
+    {
+      "id": "page-2",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed, actionable sentences",
+      "bullets": ["specific actionable point 1", "specific actionable point 2", "specific actionable point 3", "specific actionable point 4"]
+    },
+    {
+      "id": "page-3",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed, actionable sentences",
+      "bullets": ["point 1", "point 2", "point 3", "point 4"]
+    },
+    {
+      "id": "page-4",
+      "type": "checklist",
+      "heading": "Your Action Checklist",
+      "items": ["at least 6 specific, actionable checklist items"]
+    },
+    {
+      "id": "page-5",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed sentences",
+      "bullets": ["point 1", "point 2", "point 3"]
+    },
+    {
+      "id": "page-6",
+      "type": "tips",
+      "heading": "Pro Tips",
+      "tips": [
+        {"number": "01", "title": "tip title", "body": "2 sentence tip explanation"},
+        {"number": "02", "title": "tip title", "body": "2 sentence tip explanation"},
+        {"number": "03", "title": "tip title", "body": "2 sentence tip explanation"}
+      ]
+    },
+    {
+      "id": "page-7",
+      "type": "cta",
+      "headline": "compelling CTA headline",
+      "body": "2-3 sentences reinforcing value and next step",
+      "cta": "specific action CTA (e.g. DM me GROWTH, Book a free call, etc.)"
+    }
+  ],
+  "ctas": [
+    "CTA variation 1 — action-focused",
+    "CTA variation 2 — urgency-focused",
+    "CTA variation 3 — value-focused"
+  ],
+  "repurpose": {
+    "carousel": ["slide 1 text (hook)", "slide 2 text", "slide 3 text", "slide 4 text", "slide 5 text (CTA)"],
+    "linkedin": "full LinkedIn post (150-200 words) based on the lead magnet content",
+    "caption": "Instagram caption with hashtags"
+  }
+}
+
+Make the content specific, detailed, and actionable — not generic. Tailor it precisely to the niche and audience.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 8000);
+      let result: any;
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("Failed to parse AI response");
+        result = JSON.parse(match[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

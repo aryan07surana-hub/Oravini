@@ -44,6 +44,7 @@ import Landing from "@/pages/Landing";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import PlanSettings from "@/pages/client/PlanSettings";
+import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -113,6 +114,9 @@ function Router() {
       </Route>
       <Route path="/ai-design">
         {() => <ProtectedRoute component={AIDesign} />}
+      </Route>
+      <Route path="/lead-magnet">
+        {() => <ProtectedRoute component={LeadMagnetGenerator} />}
       </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}
