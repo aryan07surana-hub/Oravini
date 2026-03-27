@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Instagram, Sparkles, Wand2, Clock, Bookmark, Trash2,
-  X, ChevronLeft, ChevronRight, Palette, LayoutTemplate,
+  X, ChevronLeft, ChevronRight, Palette,
   Zap, Copy, Check, Film, AlignLeft, ImageIcon, Layers,
+  Upload, Download, Camera, ArrowRight, CheckCircle2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -88,70 +89,353 @@ const STYLE_THEMES: Record<string, { bg: string; text: string; accent: string; s
   casual:    { bg: "#f0f9ff", text: "#1e3a5f", accent: "#06b6d4", sub: "#64748b" },
 };
 
+// ─── Canvas Export ─────────────────────────────────────────────────────────────
+function downloadSlide(slide: StorySlide, photo: string | null, style: string, count: number, index: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext("2d")!;
+  const t = STYLE_THEMES[style] || STYLE_THEMES.minimal;
+  const tc = SLIDE_TYPE_COLORS[slide.slideType] || SLIDE_TYPE_COLORS["Value"];
+
+  const drawContent = () => {
+    if (photo) {
+      const grad = ctx.createLinearGradient(0, 0, 0, 1920);
+      grad.addColorStop(0, "rgba(0,0,0,0.25)");
+      grad.addColorStop(0.5, "rgba(0,0,0,0.45)");
+      grad.addColorStop(1, "rgba(0,0,0,0.70)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1080, 1920);
+    }
+    // Progress bars
+    const total = count;
+    const barAreaW = 1000;
+    const barW = (barAreaW - (total - 1) * 8) / total;
+    for (let i = 0; i < total; i++) {
+      ctx.fillStyle = i < slide.slideNumber ? t.accent : t.accent + "35";
+      ctx.beginPath();
+      const bx = 40 + i * (barW + 8);
+      if ((ctx as any).roundRect) (ctx as any).roundRect(bx, 110, barW, 10, 5);
+      else ctx.rect(bx, 110, barW, 10);
+      ctx.fill();
+    }
+    // Badge
+    const badgeText = slide.slideType.toUpperCase();
+    ctx.font = "bold 28px Inter, system-ui, sans-serif";
+    const badgeW = ctx.measureText(badgeText).width + 64;
+    ctx.fillStyle = tc.bg;
+    ctx.beginPath();
+    if ((ctx as any).roundRect) (ctx as any).roundRect(40, 160, badgeW, 56, 28);
+    else ctx.rect(40, 160, badgeW, 56);
+    ctx.fill();
+    ctx.fillStyle = tc.text;
+    ctx.fillText(badgeText, 72, 198);
+    // Headline (word-wrap)
+    const textColor = photo ? "#ffffff" : t.text;
+    ctx.fillStyle = textColor;
+    ctx.font = "bold 84px Inter, system-ui, sans-serif";
+    const maxW = 1000;
+    const words = slide.headline.split(" ");
+    let line = "";
+    const lines: string[] = [];
+    for (const w of words) {
+      const test = line + w + " ";
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line.trim()); line = w + " "; }
+      else line = test;
+    }
+    if (line) lines.push(line.trim());
+    const lineH = 105;
+    let ty = 1920 / 2 - (lines.length * lineH) / 2;
+    for (const l of lines) { ctx.fillText(l, 40, ty); ty += lineH; }
+    // Subtext
+    if (slide.subtext) {
+      ctx.fillStyle = photo ? "rgba(255,255,255,0.78)" : t.sub;
+      ctx.font = "42px Inter, system-ui, sans-serif";
+      const subWords = slide.subtext.split(" ");
+      let sl = "";
+      const sLines: string[] = [];
+      for (const w of subWords) {
+        const test = sl + w + " ";
+        if (ctx.measureText(test).width > maxW && sl) { sLines.push(sl.trim()); sl = w + " "; }
+        else sl = test;
+      }
+      if (sl) sLines.push(sl.trim());
+      for (const l of sLines.slice(0, 2)) { ctx.fillText(l, 40, ty + 24); ty += 58; }
+    }
+    // Bottom bar
+    const barGrad = ctx.createLinearGradient(0, 0, 1080, 0);
+    barGrad.addColorStop(0, t.accent);
+    barGrad.addColorStop(1, t.accent + "50");
+    ctx.fillStyle = barGrad;
+    ctx.fillRect(0, 1920 - 14, 1080, 14);
+    // Download
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `story-slide-${index + 1}.png`;
+    a.click();
+  };
+
+  if (photo) {
+    const img = new Image();
+    img.onload = () => {
+      const imgAR = img.width / img.height;
+      const canAR = 1080 / 1920;
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+      if (imgAR > canAR) { sw = img.height * canAR; sx = (img.width - sw) / 2; }
+      else { sh = img.width / canAR; sy = (img.height - sh) / 2; }
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, 1080, 1920);
+      drawContent();
+    };
+    img.src = photo;
+  } else {
+    const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
+    grad.addColorStop(0, t.bg);
+    grad.addColorStop(1, t.accent + "18");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1920);
+    drawContent();
+  }
+}
+
 // ─── Story Slide Card ─────────────────────────────────────────────────────────
-function StorySlideCard({ slide, style, count, small = false }: {
-  slide: StorySlide; style: string; count: number; small?: boolean;
+function StorySlideCard({ slide, style, count, small = false, photo = null }: {
+  slide: StorySlide; style: string; count: number; small?: boolean; photo?: string | null;
 }) {
   const t = STYLE_THEMES[style] || STYLE_THEMES.minimal;
   const tc = SLIDE_TYPE_COLORS[slide.slideType] || SLIDE_TYPE_COLORS["Value"];
   const fs = small ? 0.6 : 1;
+  const hasPhoto = !!photo;
+  const textColor = hasPhoto ? "#ffffff" : t.text;
+  const subColor = hasPhoto ? "rgba(255,255,255,0.78)" : t.sub;
+
   return (
     <div style={{
       width: "100%", aspectRatio: "9/16",
-      background: t.bg === "#0c0c0c" || t.bg === "#000000" || t.bg === "#0f172a"
-        ? `linear-gradient(160deg, ${t.bg} 60%, ${t.accent}18 100%)`
-        : `linear-gradient(160deg, ${t.bg} 80%, ${t.accent}14 100%)`,
+      background: !hasPhoto
+        ? (t.bg === "#0c0c0c" || t.bg === "#000000" || t.bg === "#0f172a"
+          ? `linear-gradient(160deg, ${t.bg} 60%, ${t.accent}18 100%)`
+          : `linear-gradient(160deg, ${t.bg} 80%, ${t.accent}14 100%)`)
+        : "transparent",
+      backgroundImage: hasPhoto ? `url(${photo})` : undefined,
+      backgroundSize: hasPhoto ? "cover" : undefined,
+      backgroundPosition: hasPhoto ? "center" : undefined,
       borderRadius: small ? 8 : 16,
       overflow: "hidden", position: "relative",
       display: "flex", flexDirection: "column",
       fontFamily: "Inter, system-ui, sans-serif",
     }}>
-      {/* Story progress bars */}
-      <div style={{ display: "flex", gap: 2, padding: `${8 * fs}px ${10 * fs}px ${4 * fs}px`, flexShrink: 0 }}>
-        {Array.from({ length: count }).map((_, i) => (
-          <div key={i} style={{
-            flex: 1, height: small ? 1.5 : 2.5, borderRadius: 2,
-            background: i < slide.slideNumber ? t.accent : `${t.accent}35`,
-          }} />
-        ))}
-      </div>
-      {/* Profile row */}
-      {!small && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 6px", flexShrink: 0 }}>
-          <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${t.accent}30`, border: `1.5px solid ${t.accent}` }} />
-          <div style={{ fontSize: 9, fontWeight: 600, color: t.text, opacity: 0.7 }}>your_handle</div>
-        </div>
+      {/* Photo overlay */}
+      {hasPhoto && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.42) 50%, rgba(0,0,0,0.72) 100%)",
+          zIndex: 0,
+        }} />
       )}
-      {/* Type badge */}
-      <div style={{ padding: `${small ? 3 : 8}px ${small ? 7 : 12}px`, flexShrink: 0 }}>
-        <span style={{ display: "inline-block", background: tc.bg, color: tc.text, borderRadius: 20, padding: `${small ? 1 : 2}px ${small ? 6 : 8}px`, fontSize: small ? 7 : 9, fontWeight: 700, letterSpacing: "0.03em" }}>
-          {slide.slideType}
-        </span>
-      </div>
-      {/* Main content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: small ? "6px 9px" : "14px 14px", gap: 8 }}>
-        <div style={{ fontSize: small ? 10 : 18, fontWeight: 900, color: t.text, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
-          {slide.headline}
+      {/* Content */}
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Progress bars */}
+        <div style={{ display: "flex", gap: 2, padding: `${8 * fs}px ${10 * fs}px ${4 * fs}px`, flexShrink: 0 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i} style={{
+              flex: 1, height: small ? 1.5 : 2.5, borderRadius: 2,
+              background: i < slide.slideNumber ? t.accent : `${t.accent}35`,
+            }} />
+          ))}
         </div>
-        {!small && slide.subtext && (
-          <div style={{ fontSize: 10.5, color: t.sub, lineHeight: 1.5 }}>{slide.subtext}</div>
-        )}
-      </div>
-      {/* Interaction element */}
-      {!small && slide.interaction?.type && (
-        <div style={{ padding: "6px 12px 10px", flexShrink: 0 }}>
-          <div style={{ background: `${t.accent}18`, border: `1px solid ${t.accent}40`, borderRadius: 8, padding: "5px 10px", fontSize: 9, color: t.accent, fontWeight: 600 }}>
-            {slide.interaction.type === "Poll" && "📊 "}
-            {slide.interaction.type === "Question" && "❓ "}
-            {slide.interaction.type === "Slider" && "❤️ "}
-            {slide.interaction.type === "Tap" && "👆 "}
-            {slide.interaction.content}
+        {/* Profile row */}
+        {!small && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 6px", flexShrink: 0 }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${t.accent}30`, border: `1.5px solid ${t.accent}` }} />
+            <div style={{ fontSize: 9, fontWeight: 600, color: textColor, opacity: 0.7 }}>your_handle</div>
           </div>
+        )}
+        {/* Type badge */}
+        <div style={{ padding: `${small ? 3 : 8}px ${small ? 7 : 12}px`, flexShrink: 0 }}>
+          <span style={{ display: "inline-block", background: tc.bg, color: tc.text, borderRadius: 20, padding: `${small ? 1 : 2}px ${small ? 6 : 8}px`, fontSize: small ? 7 : 9, fontWeight: 700, letterSpacing: "0.03em" }}>
+            {slide.slideType}
+          </span>
         </div>
-      )}
-      {/* Bottom accent bar */}
-      <div style={{ height: small ? 2 : 3, background: `linear-gradient(90deg, ${t.accent}, ${t.accent}50)`, flexShrink: 0 }} />
+        {/* Main content */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: small ? "6px 9px" : "14px 14px", gap: 8 }}>
+          <div style={{ fontSize: small ? 10 : 18, fontWeight: 900, color: textColor, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+            {slide.headline}
+          </div>
+          {!small && slide.subtext && (
+            <div style={{ fontSize: 10.5, color: subColor, lineHeight: 1.5 }}>{slide.subtext}</div>
+          )}
+        </div>
+        {/* Interaction element */}
+        {!small && slide.interaction?.type && (
+          <div style={{ padding: "6px 12px 10px", flexShrink: 0 }}>
+            <div style={{ background: `${t.accent}18`, border: `1px solid ${t.accent}40`, borderRadius: 8, padding: "5px 10px", fontSize: 9, color: t.accent, fontWeight: 600 }}>
+              {slide.interaction.type === "Poll" && "📊 "}
+              {slide.interaction.type === "Question" && "❓ "}
+              {slide.interaction.type === "Slider" && "❤️ "}
+              {slide.interaction.type === "Tap" && "👆 "}
+              {slide.interaction.content}
+            </div>
+          </div>
+        )}
+        {/* Bottom accent bar */}
+        <div style={{ height: small ? 2 : 3, background: `linear-gradient(90deg, ${t.accent}, ${t.accent}50)`, flexShrink: 0 }} />
+      </div>
     </div>
+  );
+}
+
+// ─── Photo Upload Step ────────────────────────────────────────────────────────
+function PhotoUploadStep({ slides, photos, onPhotoChange, onComplete, onBack }: {
+  slides: StorySlide[];
+  photos: (string | null)[];
+  onPhotoChange: (i: number, url: string) => void;
+  onComplete: () => void;
+  onBack: () => void;
+}) {
+  const uploadedCount = photos.filter(Boolean).length;
+  const allUploaded = uploadedCount === slides.length;
+
+  const handleFile = (i: number, file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (e.target?.result) onPhotoChange(i, e.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <ClientLayout>
+      <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+            <Camera className="w-3.5 h-3.5" />Photo Designer
+          </div>
+          <h2 className="text-2xl font-black text-white">
+            Upload a photo for <span className="text-primary">every slide</span>
+          </h2>
+          <p className="text-zinc-400 text-sm max-w-md mx-auto">
+            Your photo becomes the background. The AI-generated text overlays on top — every slide needs exactly one photo before you can open the designer.
+          </p>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 bg-zinc-800 rounded-full h-2 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${(uploadedCount / slides.length) * 100}%`, background: allUploaded ? "#22c55e" : "#d4b461" }}
+            />
+          </div>
+          <span className="text-xs font-semibold text-zinc-400 flex-shrink-0">
+            {uploadedCount} / {slides.length} photos
+          </span>
+          {allUploaded && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
+        </div>
+
+        {/* Slide grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {slides.map((slide, i) => {
+            const photo = photos[i];
+            const tc = SLIDE_TYPE_COLORS[slide.slideType] || SLIDE_TYPE_COLORS["Value"];
+            return (
+              <label key={i} className="cursor-pointer group" data-testid={`photo-upload-${i}`}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => handleFile(i, e.target.files?.[0])}
+                />
+                <div
+                  className={`relative rounded-xl overflow-hidden border-2 transition-all ${photo ? "border-green-500/60 hover:border-green-400" : "border-zinc-700 hover:border-primary/60"}`}
+                  style={{
+                    aspectRatio: "9/16",
+                    backgroundImage: photo ? `url(${photo})` : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    background: photo ? undefined : "#18181b",
+                  }}
+                >
+                  {/* Dark overlay on photo */}
+                  {photo && <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/65" />}
+
+                  {/* Slide type badge */}
+                  <div className="absolute top-2 left-2 z-10">
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: tc.bg, color: tc.text }}>
+                      {slide.slideType}
+                    </span>
+                  </div>
+
+                  {/* Slide number */}
+                  <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-zinc-900/80 flex items-center justify-center text-[9px] text-zinc-300 font-bold">
+                    {i + 1}
+                  </div>
+
+                  {/* Uploaded state — hover shows change icon */}
+                  {photo ? (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all bg-black/30">
+                      <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-[10px] font-semibold text-white">Change photo</span>
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 group-hover:bg-primary/5 transition-all">
+                      <div className="w-10 h-10 rounded-full border-2 border-dashed border-zinc-600 group-hover:border-primary flex items-center justify-center transition-colors">
+                        <Upload className="w-4.5 h-4.5 text-zinc-600 group-hover:text-primary transition-colors" />
+                      </div>
+                      <span className="text-[10px] text-zinc-600 group-hover:text-primary transition-colors font-medium">Upload photo</span>
+                      <span className="text-[9px] text-zinc-700">Required</span>
+                    </div>
+                  )}
+
+                  {/* Uploaded checkmark overlay */}
+                  {photo && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none group-hover:opacity-0 transition-all">
+                      <div className="w-8 h-8 rounded-full bg-green-500/90 flex items-center justify-center">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Headline text at bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 z-10 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                    <p className="text-white text-[9px] font-bold leading-tight line-clamp-2">{slide.headline}</p>
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+
+        {/* Warning if not all uploaded */}
+        {!allUploaded && (
+          <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-xl px-4 py-3">
+            <Camera className="w-4 h-4 flex-shrink-0" />
+            <span>Upload photos for all {slides.length} slides to continue. Each slide needs its own image.</span>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-3 pb-8">
+          <Button variant="outline" onClick={onBack} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
+            <ChevronLeft className="w-4 h-4 mr-1" />Back
+          </Button>
+          <Button
+            onClick={onComplete}
+            disabled={!allUploaded}
+            className="flex-1 h-11 font-bold bg-primary hover:bg-primary/90 text-black disabled:opacity-40 disabled:cursor-not-allowed"
+            data-testid="btn-open-designer"
+          >
+            {allUploaded
+              ? <><ArrowRight className="w-4 h-4 mr-2" />Open Designer</>
+              : <><Camera className="w-4 h-4 mr-2" />{slides.length - uploadedCount} more photo{slides.length - uploadedCount !== 1 ? "s" : ""} needed</>
+            }
+          </Button>
+        </div>
+      </div>
+    </ClientLayout>
   );
 }
 
@@ -213,10 +497,11 @@ function HistoryPanel({ onLoad, onClose }: { onLoad: (entry: any) => void; onClo
 export default function InstagramStoryGenerator() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [step, setStep] = useState<"config" | "editor">("config");
+  const [step, setStep] = useState<"config" | "photos" | "editor">("config");
   const [generating, setGenerating] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [result, setResult] = useState<StoryResult | null>(null);
+  const [slidePhotos, setSlidePhotos] = useState<(string | null)[]>([]);
   const [selectedSlideIdx, setSelectedSlideIdx] = useState(0);
   const [rightTab, setRightTab] = useState<"details" | "design" | "cta" | "variations">("details");
   const [nicheInput, setNicheInput] = useState("");
@@ -224,7 +509,6 @@ export default function InstagramStoryGenerator() {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedInspo, setSelectedInspo] = useState<string | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const thumbRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<StoryForm>({
     goal: "", goalCustom: "", topic: "", niche: "",
@@ -241,14 +525,9 @@ export default function InstagramStoryGenerator() {
 
   const applyInspo = (ins: typeof INSPIRATIONS[0]) => {
     setSelectedInspo(ins.id);
-    setF("goal", ins.goal);
-    setF("topic", ins.topic);
-    setF("niche", ins.niche);
-    setNicheInput(ins.niche);
-    setF("targetAudience", ins.targetAudience);
-    setF("ctaType", ins.ctaType);
-    setF("slidesCount", ins.slidesCount);
-    setF("style", ins.style);
+    setF("goal", ins.goal); setF("topic", ins.topic); setF("niche", ins.niche);
+    setNicheInput(ins.niche); setF("targetAudience", ins.targetAudience);
+    setF("ctaType", ins.ctaType); setF("slidesCount", ins.slidesCount); setF("style", ins.style);
   };
 
   const handleGenerate = async () => {
@@ -266,8 +545,9 @@ export default function InstagramStoryGenerator() {
         slidesCount: form.slidesCount, style: form.style,
       });
       setResult(data);
+      // Initialize photos array with nulls
+      setSlidePhotos(Array(data.slides?.length || form.slidesCount).fill(null));
       setApiDone(true);
-      // Save to history
       saveMut.mutate({
         tool: "story-generator",
         title: form.topic.slice(0, 60),
@@ -280,24 +560,42 @@ export default function InstagramStoryGenerator() {
     }
   };
 
+  // Called by GeneratingScreen when min time + API are both done
   const handleDoneGenerating = () => {
     setGenerating(false);
-    setStep("editor");
+    setStep("photos"); // go to photo upload step first
     setSelectedSlideIdx(0);
     setRightTab("details");
   };
 
+  const handlePhotosComplete = () => {
+    setStep("editor");
+  };
+
+  const handlePhotoChange = (i: number, url: string) => {
+    setSlidePhotos(prev => { const n = [...prev]; n[i] = url; return n; });
+  };
+
+  // Change photo from editor thumbnail strip
+  const handleThumbPhotoChange = useCallback((i: number, file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      if (e.target?.result) handlePhotoChange(i, e.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
   const handleLoadHistory = (entry: any) => {
     if (entry.output) {
       setResult(entry.output);
+      setSlidePhotos(Array((entry.output.slides?.length) || 7).fill(null));
       if (entry.inputs) {
-        setF("niche", entry.inputs.niche || "");
-        setNicheInput(entry.inputs.niche || "");
+        setF("niche", entry.inputs.niche || ""); setNicheInput(entry.inputs.niche || "");
         setF("slidesCount", entry.inputs.slidesCount || 7);
-        setF("style", entry.inputs.style || "minimal");
-        setF("goal", entry.inputs.goal || "");
+        setF("style", entry.inputs.style || "minimal"); setF("goal", entry.inputs.goal || "");
       }
-      setStep("editor");
+      setStep("photos"); // go to photo upload after loading history
       setSelectedSlideIdx(0);
       setShowHistory(false);
     }
@@ -312,11 +610,11 @@ export default function InstagramStoryGenerator() {
   const slides = result?.slides || [];
   const activeSlide = slides[selectedSlideIdx];
 
-  // ── Generating screen ─────────────────────────────────────────────────────
+  // ── Generating screen ──────────────────────────────────────────────────────
   if (generating) {
     return (
       <GeneratingScreen
-        title="Generating your story sequence…"
+        label="Crafting your story sequence…"
         steps={[
           "Analysing your goal and niche",
           "Crafting slide-by-slide breakdown",
@@ -324,13 +622,13 @@ export default function InstagramStoryGenerator() {
           "Building design system",
           "Writing variation ideas",
         ]}
-        apiDone={apiDone}
-        onDone={handleDoneGenerating}
+        isComplete={apiDone}
+        onReady={handleDoneGenerating}
       />
     );
   }
 
-  // ── Config step ───────────────────────────────────────────────────────────
+  // ── Config step ────────────────────────────────────────────────────────────
   if (step === "config") {
     return (
       <ClientLayout>
@@ -345,7 +643,7 @@ export default function InstagramStoryGenerator() {
                 Build a <span className="text-primary">High-Converting</span> Story Sequence
               </h1>
               <p className="text-zinc-400 text-sm max-w-md mx-auto">
-                AI generates a slide-by-slide Instagram story — with hooks, design system, CTA, and variation ideas.
+                AI generates a slide-by-slide Instagram story — then you upload your own photos and the text overlays automatically.
               </p>
             </div>
 
@@ -453,10 +751,9 @@ export default function InstagramStoryGenerator() {
               )}
             </div>
 
-            {/* Design — slides + style */}
+            {/* Design */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Story Design</div>
-              {/* Slide count */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-zinc-400">Number of slides</label>
@@ -465,17 +762,13 @@ export default function InstagramStoryGenerator() {
                 <input type="range" min={3} max={15} value={form.slidesCount} onChange={e => setF("slidesCount", Number(e.target.value))} className="w-full accent-primary" data-testid="slider-slides" />
                 <div className="flex justify-between text-[10px] text-zinc-600"><span>3</span><span>15</span></div>
               </div>
-              {/* Style picker */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400">Style</label>
                 <div className="grid grid-cols-3 gap-2">
                   {STYLE_OPTIONS.map(s => (
                     <button key={s.id} onClick={() => setF("style", s.id)}
                       className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${form.style === s.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
-                      <div className="w-6 h-4 rounded" style={{
-                        background: STYLE_THEMES[s.id]?.bg || "#fff",
-                        border: `2px solid ${STYLE_THEMES[s.id]?.accent || "#d4b461"}`,
-                      }} />
+                      <div className="w-6 h-4 rounded" style={{ background: STYLE_THEMES[s.id]?.bg || "#fff", border: `2px solid ${STYLE_THEMES[s.id]?.accent || "#d4b461"}` }} />
                       <span className={`text-[10px] font-semibold ${form.style === s.id ? "text-primary" : "text-zinc-400"}`}>{s.label}</span>
                       <span className="text-[9px] text-zinc-600">{s.desc}</span>
                     </button>
@@ -484,14 +777,21 @@ export default function InstagramStoryGenerator() {
               </div>
             </div>
 
-            {/* Generate button */}
+            {/* Photo upload notice */}
+            <div className="flex items-start gap-3 bg-primary/8 border border-primary/20 rounded-xl px-4 py-3">
+              <Camera className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-primary">Photos required after generation</p>
+                <p className="text-[11px] text-zinc-400 mt-0.5">You'll upload {form.slidesCount} photos (one per slide) before opening the designer. Your photos become the background with text overlaid on top.</p>
+              </div>
+            </div>
+
             <Button onClick={handleGenerate} disabled={!form.goal || !form.topic.trim()}
               className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl" data-testid="btn-generate-story">
               <Wand2 className="w-4 h-4 mr-2" />Generate Story Sequence ({form.slidesCount} slides)
             </Button>
           </div>
 
-          {/* History overlay */}
           {showHistory && (
             <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
               <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden" style={{ height: 500 }}>
@@ -504,7 +804,20 @@ export default function InstagramStoryGenerator() {
     );
   }
 
-  // ── Editor step ───────────────────────────────────────────────────────────
+  // ── Photo upload step ──────────────────────────────────────────────────────
+  if (step === "photos") {
+    return (
+      <PhotoUploadStep
+        slides={slides}
+        photos={slidePhotos}
+        onPhotoChange={handlePhotoChange}
+        onComplete={handlePhotosComplete}
+        onBack={() => setStep("config")}
+      />
+    );
+  }
+
+  // ── Editor / Designer step ─────────────────────────────────────────────────
   if (!result) return null;
 
   return (
@@ -513,8 +826,8 @@ export default function InstagramStoryGenerator() {
         {/* Top bar */}
         <div className="flex-shrink-0 h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950">
           <div className="flex items-center gap-3">
-            <button onClick={() => setStep("config")} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors" data-testid="btn-back-config">
-              <ChevronLeft className="w-4 h-4" />Back
+            <button onClick={() => setStep("photos")} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors" data-testid="btn-back-photos">
+              <ChevronLeft className="w-4 h-4" />Photos
             </button>
             <div className="w-px h-4 bg-zinc-700" />
             <div className="flex items-center gap-2">
@@ -525,6 +838,15 @@ export default function InstagramStoryGenerator() {
           <div className="flex items-center gap-2">
             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">{slides.length} slides</Badge>
             <Badge className="bg-zinc-800 text-zinc-400 border-0 text-xs capitalize">{form.style}</Badge>
+            <button
+              onClick={() => {
+                slides.forEach((sl, i) => downloadSlide(sl, slidePhotos[i] || null, form.style, slides.length, i));
+              }}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-2 py-1 rounded border border-zinc-800 hover:border-primary/30"
+              data-testid="btn-download-all"
+            >
+              <Download className="w-3.5 h-3.5" />Download All
+            </button>
             <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-2 py-1 rounded border border-zinc-800 hover:border-primary/30">
               <Clock className="w-3.5 h-3.5" />History
             </button>
@@ -533,19 +855,31 @@ export default function InstagramStoryGenerator() {
 
         {/* 3-panel body */}
         <div className="flex flex-1 overflow-hidden">
-          {/* Left — slide strip */}
-          <div ref={thumbRef} className="w-28 flex-shrink-0 bg-zinc-950 border-r border-zinc-800 overflow-y-auto py-3 space-y-2 px-2">
-            {slides.map((slide, i) => (
-              <button key={i} onClick={() => setSelectedSlideIdx(i)}
-                className={`w-full rounded-lg overflow-hidden border transition-all ${selectedSlideIdx === i ? "border-primary ring-1 ring-primary/40" : "border-zinc-800 hover:border-zinc-600"}`}
-                data-testid={`thumb-slide-${i}`}>
-                <StorySlideCard slide={slide} style={form.style} count={slides.length} small />
-                <div className="text-center text-[9px] font-semibold py-1 bg-zinc-900 text-zinc-500">{i + 1}</div>
-              </button>
-            ))}
+          {/* Left — slide strip with photo change */}
+          <div className="w-28 flex-shrink-0 bg-zinc-950 border-r border-zinc-800 overflow-y-auto py-3 space-y-2 px-2">
+            {slides.map((slide, i) => {
+              const photo = slidePhotos[i] || null;
+              return (
+                <div key={i} className="relative group">
+                  <button onClick={() => setSelectedSlideIdx(i)}
+                    className={`w-full rounded-lg overflow-hidden border transition-all ${selectedSlideIdx === i ? "border-primary ring-1 ring-primary/40" : "border-zinc-800 hover:border-zinc-600"}`}
+                    data-testid={`thumb-slide-${i}`}>
+                    <StorySlideCard slide={slide} style={form.style} count={slides.length} small photo={photo} />
+                    <div className="text-center text-[9px] font-semibold py-1 bg-zinc-900 text-zinc-500">{i + 1}</div>
+                  </button>
+                  {/* Change photo overlay */}
+                  <label className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10 bg-black/40 rounded-lg" title="Change photo">
+                    <input type="file" accept="image/*" className="hidden" onChange={e => handleThumbPhotoChange(i, e.target.files?.[0])} />
+                    <div className="w-7 h-7 rounded-full bg-primary/90 flex items-center justify-center shadow-lg">
+                      <Camera className="w-3.5 h-3.5 text-black" />
+                    </div>
+                  </label>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Center — preview */}
+          {/* Center — designer preview */}
           <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900/40 overflow-y-auto p-6 gap-4">
             {/* Nav arrows */}
             <div className="flex items-center gap-4">
@@ -559,13 +893,32 @@ export default function InstagramStoryGenerator() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
-            {/* Main story card */}
+
+            {/* Main story designer card */}
             {activeSlide && (
-              <div style={{ width: "min(280px, 90%)" }}>
-                <StorySlideCard slide={activeSlide} style={form.style} count={slides.length} />
+              <div className="flex flex-col items-center gap-3 w-full max-w-[280px]">
+                <div className="w-full relative group">
+                  <StorySlideCard slide={activeSlide} style={form.style} count={slides.length} photo={slidePhotos[selectedSlideIdx] || null} />
+                  {/* Change photo overlay on the main card */}
+                  <label className="absolute inset-0 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10">
+                    <input type="file" accept="image/*" className="hidden" onChange={e => handleThumbPhotoChange(selectedSlideIdx, e.target.files?.[0])} />
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/20 text-white text-[11px] font-semibold">
+                      <Camera className="w-3 h-3" />Change Photo
+                    </div>
+                  </label>
+                </div>
+                {/* Per-slide download */}
+                <button
+                  onClick={() => downloadSlide(activeSlide, slidePhotos[selectedSlideIdx] || null, form.style, slides.length, selectedSlideIdx)}
+                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-primary transition-colors"
+                  data-testid="btn-download-slide"
+                >
+                  <Download className="w-3.5 h-3.5" />Download slide {selectedSlideIdx + 1}
+                </button>
               </div>
             )}
-            {/* Story flow strategy pill */}
+
+            {/* Story flow strategy */}
             {result.flowStrategy && (
               <div className="max-w-sm w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-primary"><Zap className="w-3.5 h-3.5" />Story Strategy</div>
@@ -577,7 +930,6 @@ export default function InstagramStoryGenerator() {
 
           {/* Right — details panel */}
           <div className="w-80 flex-shrink-0 bg-zinc-950 border-l border-zinc-800 flex flex-col">
-            {/* Right panel tabs */}
             <div className="flex border-b border-zinc-800 flex-shrink-0">
               {([
                 { id: "details", label: "Slide", icon: AlignLeft },
@@ -699,18 +1051,10 @@ export default function InstagramStoryGenerator() {
                       <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Image Usage Plan</div>
                       <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
                         <div>
-                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Slides with uploaded images</div>
+                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Slides with images</div>
                           <div className="flex flex-wrap gap-1.5">
                             {(result.imageUsagePlan.slidesWithImages || []).map(n => (
                               <span key={n} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">Slide {n}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Text-heavy slides</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(result.imageUsagePlan.textHeavySlides || []).map(n => (
-                              <span key={n} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-semibold">Slide {n}</span>
                             ))}
                           </div>
                         </div>

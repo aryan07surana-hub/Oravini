@@ -425,16 +425,6 @@ export default function BrandKitBuilder() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Award className="w-3 h-3" />Brand hero / inspiration</label>
-              <Input
-                value={form.brandHero}
-                onChange={e => setF("brandHero", e.target.value)}
-                placeholder="e.g. @garyvee, Apple, MrBeast…"
-                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
-                data-testid="input-brand-hero-2"
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Users className="w-3 h-3" />Main competitor</label>
               <Input
                 value={form.mainCompetitor}
