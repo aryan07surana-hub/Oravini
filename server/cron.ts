@@ -188,8 +188,55 @@ export async function runAutoSync() {
   }
 }
 
+export async function processScheduledLinkedinPosts() {
+  try {
+    const duePosts = await storage.getPendingDueLinkedinPosts();
+    if (duePosts.length === 0) return;
+    log(`Scheduled LinkedIn posts: processing ${duePosts.length}`, "cron");
+    for (const post of duePosts) {
+      try {
+        const token = await storage.getLinkedinToken(post.userId);
+        if (!token || !token.linkedinUserId) {
+          await storage.updateScheduledLinkedinPost(post.id, { status: "failed", errorMessage: "LinkedIn not connected" });
+          continue;
+        }
+        const body = {
+          author: `urn:li:person:${token.linkedinUserId}`,
+          lifecycleState: "PUBLISHED",
+          specificContent: {
+            "com.linkedin.ugc.ShareContent": {
+              shareCommentary: { text: post.content },
+              shareMediaCategory: "NONE",
+            },
+          },
+          visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+        };
+        const resp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token.accessToken}`,
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
+          },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        const data: any = await resp.json();
+        await storage.updateScheduledLinkedinPost(post.id, { status: "posted", postId: data.id ?? "" });
+        log(`LinkedIn post published: ${data.id}`, "cron");
+      } catch (e: any) {
+        await storage.updateScheduledLinkedinPost(post.id, { status: "failed", errorMessage: e.message });
+        log(`LinkedIn post failed for ${post.id}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`LinkedIn scheduler error: ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
-  log("Cron jobs scheduled — auto-sync runs daily at 3:00 AM UTC; tweet scheduler runs every 5 minutes", "cron");
+  cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; Twitter + LinkedIn schedulers every 5 minutes", "cron");
 }

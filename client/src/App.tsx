@@ -30,6 +30,7 @@ import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
+import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
 import Sessions from "@/pages/client/Sessions";
 import AdminSessions from "@/pages/admin/AdminSessions";
 import Credits from "@/pages/client/Credits";
@@ -137,6 +138,9 @@ function Router() {
       </Route>
       <Route path="/twitter-scheduler">
         {() => <ProtectedRoute component={TwitterScheduler} />}
+      </Route>
+      <Route path="/linkedin-scheduler">
+        {() => <ProtectedRoute component={LinkedInScheduler} />}
       </Route>
       <Route path="/credits">
         {() => <ProtectedRoute component={Credits} />}

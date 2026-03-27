@@ -432,3 +432,29 @@ export const scheduledTweets = pgTable("scheduled_tweets", {
 export const insertScheduledTweetSchema = createInsertSchema(scheduledTweets).omit({ id: true, createdAt: true, tweetId: true, errorMessage: true });
 export type InsertScheduledTweet = z.infer<typeof insertScheduledTweetSchema>;
 export type ScheduledTweet = typeof scheduledTweets.$inferSelect;
+
+export const linkedinTokens = pgTable("linkedin_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  linkedinUserId: text("linkedin_user_id"),
+  linkedinName: text("linkedin_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type LinkedinToken = typeof linkedinTokens.$inferSelect;
+
+export const scheduledLinkedinPosts = pgTable("scheduled_linkedin_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: text("status").notNull().default("pending"),
+  postId: text("post_id"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertScheduledLinkedinPostSchema = createInsertSchema(scheduledLinkedinPosts).omit({ id: true, createdAt: true, postId: true, errorMessage: true });
+export type InsertScheduledLinkedinPost = z.infer<typeof insertScheduledLinkedinPostSchema>;
+export type ScheduledLinkedinPost = typeof scheduledLinkedinPosts.$inferSelect;

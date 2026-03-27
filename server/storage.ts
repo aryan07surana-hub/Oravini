@@ -6,8 +6,9 @@ import {
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
-  twitterTokens, scheduledTweets,
+  twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
+  type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -852,6 +853,47 @@ class DatabaseStorage implements IStorage {
 
   async deleteScheduledTweet(id: string, userId: string): Promise<void> {
     await db.delete(scheduledTweets).where(and(eq(scheduledTweets.id, id), eq(scheduledTweets.userId, userId)));
+  }
+
+  async getLinkedinToken(userId: string): Promise<LinkedinToken | null> {
+    const [row] = await db.select().from(linkedinTokens).where(eq(linkedinTokens.userId, userId));
+    return row ?? null;
+  }
+
+  async upsertLinkedinToken(userId: string, data: Omit<LinkedinToken, "id" | "userId" | "createdAt">): Promise<LinkedinToken> {
+    const existing = await this.getLinkedinToken(userId);
+    if (existing) {
+      const [row] = await db.update(linkedinTokens).set(data).where(eq(linkedinTokens.userId, userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(linkedinTokens).values({ userId, ...data }).returning();
+    return row;
+  }
+
+  async deleteLinkedinToken(userId: string): Promise<void> {
+    await db.delete(linkedinTokens).where(eq(linkedinTokens.userId, userId));
+  }
+
+  async getScheduledLinkedinPosts(userId: string): Promise<ScheduledLinkedinPost[]> {
+    return db.select().from(scheduledLinkedinPosts).where(eq(scheduledLinkedinPosts.userId, userId)).orderBy(desc(scheduledLinkedinPosts.scheduledFor));
+  }
+
+  async getPendingDueLinkedinPosts(): Promise<ScheduledLinkedinPost[]> {
+    return db.select().from(scheduledLinkedinPosts)
+      .where(and(eq(scheduledLinkedinPosts.status, "pending"), lte(scheduledLinkedinPosts.scheduledFor, new Date())));
+  }
+
+  async createScheduledLinkedinPost(data: InsertScheduledLinkedinPost): Promise<ScheduledLinkedinPost> {
+    const [row] = await db.insert(scheduledLinkedinPosts).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledLinkedinPost(id: string, data: Partial<ScheduledLinkedinPost>): Promise<void> {
+    await db.update(scheduledLinkedinPosts).set(data).where(eq(scheduledLinkedinPosts.id, id));
+  }
+
+  async deleteScheduledLinkedinPost(id: string, userId: string): Promise<void> {
+    await db.delete(scheduledLinkedinPosts).where(and(eq(scheduledLinkedinPosts.id, id), eq(scheduledLinkedinPosts.userId, userId)));
   }
 }
 

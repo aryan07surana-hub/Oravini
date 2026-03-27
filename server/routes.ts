@@ -4582,6 +4582,173 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // ── LinkedIn Integration ─────────────────────────────────────────────────────
+  const LINKEDIN_CALLBACK = process.env.NODE_ENV === "production"
+    ? "https://admin-control-hub-aryan07surana.replit.app/api/linkedin/callback"
+    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/linkedin/callback`;
+
+  const linkedinStates = new Map<string, string>(); // state -> userId
+
+  function linkedinAuthUrl(state: string): string {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: process.env.LINKEDIN_CLIENT_ID!,
+      redirect_uri: LINKEDIN_CALLBACK,
+      scope: "openid profile email w_member_social",
+      state,
+    });
+    return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
+  }
+
+  async function linkedinExchangeCode(code: string): Promise<{ access_token: string; expires_in: number; refresh_token?: string }> {
+    const resp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: LINKEDIN_CALLBACK,
+        client_id: process.env.LINKEDIN_CLIENT_ID!,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+      }),
+    });
+    if (!resp.ok) throw new Error(`LinkedIn token exchange failed: ${await resp.text()}`);
+    return resp.json();
+  }
+
+  async function linkedinMe(accessToken: string): Promise<{ sub: string; name: string; email?: string }> {
+    const resp = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!resp.ok) throw new Error("Failed to fetch LinkedIn profile");
+    return resp.json();
+  }
+
+  async function linkedinPost(accessToken: string, linkedinUserId: string, content: string): Promise<string> {
+    const body = {
+      author: `urn:li:person:${linkedinUserId}`,
+      lifecycleState: "PUBLISHED",
+      specificContent: {
+        "com.linkedin.ugc.ShareContent": {
+          shareCommentary: { text: content },
+          shareMediaCategory: "NONE",
+        },
+      },
+      visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+    };
+    const resp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`LinkedIn post failed: ${await resp.text()}`);
+    const data: any = await resp.json();
+    return data.id ?? "";
+  }
+
+  app.get("/api/linkedin/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const token = await storage.getLinkedinToken(userId);
+      return res.json({ connected: !!token, name: token?.linkedinName ?? null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/connect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const state = Math.random().toString(36).slice(2);
+      linkedinStates.set(state, userId);
+      return res.json({ url: linkedinAuthUrl(state) });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query as { code: string; state: string };
+      const userId = linkedinStates.get(state);
+      if (!userId) return res.status(400).send("Invalid state — please try connecting again.");
+      linkedinStates.delete(state);
+      const tokens = await linkedinExchangeCode(code);
+      const profile = await linkedinMe(tokens.access_token);
+      const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
+      await storage.upsertLinkedinToken(userId, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt,
+        linkedinUserId: profile.sub,
+        linkedinName: profile.name,
+      });
+      return res.redirect("/linkedin-scheduler?connected=1");
+    } catch (err: any) {
+      return res.redirect("/linkedin-scheduler?error=auth_failed");
+    }
+  });
+
+  app.delete("/api/linkedin/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteLinkedinToken((req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/linkedin/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Post content is required" });
+      const token = await storage.getLinkedinToken(userId);
+      if (!token) return res.status(400).json({ message: "LinkedIn not connected" });
+      const postId = await linkedinPost(token.accessToken, token.linkedinUserId!, content.trim());
+      return res.json({ success: true, postId });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const posts = await storage.getScheduledLinkedinPosts((req.user as any).id);
+      return res.json(posts);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/linkedin/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content, scheduledFor } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Post content is required" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const post = await storage.createScheduledLinkedinPost({ userId, content: content.trim(), scheduledFor: schedDate, status: "pending" });
+      return res.json(post);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/linkedin/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduledLinkedinPost(req.params.id, (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── Twitter / X Integration ──────────────────────────────────────────────────
   const { TwitterApi } = await import("twitter-api-v2");
 
