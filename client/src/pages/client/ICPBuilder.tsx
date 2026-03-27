@@ -4,12 +4,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
+import WriteWithAI from "@/components/ui/WriteWithAI";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Users, Sparkles, Wand2, Clock, Bookmark, Trash2, X,
   ChevronLeft, Target, Brain, TrendingUp, AlertCircle,
-  CheckCircle2, DollarSign, Heart, Zap, Copy, Check,
+  DollarSign, Heart, Zap, Copy, Check, RefreshCw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,10 +69,34 @@ const PRICE_OPTIONS = [
   { id: "high-ticket", label: "High-ticket", sub: "$1k+ / engagement", color: "#f97316" },
 ];
 
-// ─── History Panel ────────────────────────────────────────────────────────────
-function HistoryPanel({ onLoad, onClose }: { onLoad: (e: any) => void; onClose: () => void }) {
+const INSPIRATIONS = [
+  {
+    label: "Online Coaching",
+    whatYouSell: "A 1:1 online coaching program helping ambitious professionals build a personal brand and land high-paying clients through LinkedIn content, positioning, and outreach systems.",
+    targetAudience: "Mid-career professionals aged 28–42 who are experts in their field but invisible online. They want to attract clients instead of chasing them.",
+    coreTransformation: "From anonymous expert → to recognized authority with an inbound lead system generating 5–10 qualified leads per week.",
+    priceRange: "high-ticket",
+  },
+  {
+    label: "Content SaaS",
+    whatYouSell: "An AI-powered content platform that helps creators generate, plan, and automate content across Instagram, YouTube, and LinkedIn — including AI content ideas, competitor analysis, and posting automation.",
+    targetAudience: "Content creators, personal brand builders, and online coaches aged 22–38 who want to grow on social media but struggle with consistency and knowing what to post.",
+    coreTransformation: "From inconsistent, confused poster → to a structured content system with consistent growth, engagement, and monetization on autopilot.",
+    priceRange: "mid",
+  },
+  {
+    label: "E-Commerce Brand",
+    whatYouSell: "A premium skincare brand using science-backed formulations and clean ingredients to help people achieve healthy, glowing skin without harsh chemicals or complicated routines.",
+    targetAudience: "Health-conscious women aged 25–40 who have tried countless products, are frustrated with broken promises, and want a simple routine that actually works.",
+    coreTransformation: "From overwhelmed, skeptical skincare consumer → to confident, radiant person with a 3-step routine that delivers visible results in 30 days.",
+    priceRange: "premium",
+  },
+];
+
+// ─── Right-side history panel ─────────────────────────────────────────────────
+function HistorySidePanel({ onLoad }: { onLoad: (e: any) => void }) {
   const qc = useQueryClient();
-  const { data: history = [], isLoading } = useQuery({
+  const { data: history = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/history", "icp-builder"],
     queryFn: () => apiRequest("GET", "/api/ai/history?tool=icp-builder"),
   });
@@ -80,41 +105,50 @@ function HistoryPanel({ onLoad, onClose }: { onLoad: (e: any) => void; onClose: 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "icp-builder"] }),
   });
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden flex flex-col" style={{ height: 500 }}>
-        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-white">Saved ICPs</span>
-            <Badge className="bg-primary/10 text-primary border-0 text-xs">{(history as any[]).length}</Badge>
+    <div
+      className="rounded-2xl flex flex-col overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", minHeight: 320 }}
+    >
+      <div className="px-4 py-3 border-b flex items-center gap-2 flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <Clock className="w-3.5 h-3.5 text-primary" />
+        <span className="text-xs font-bold text-white">Saved ICPs</span>
+        <Badge className="ml-auto bg-primary/10 text-primary border-0 text-[10px]">{(history as any[]).length}</Badge>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {isLoading && (
+          <div className="flex justify-center py-10">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {isLoading && <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
-          {!isLoading && (history as any[]).length === 0 && (
-            <div className="text-center py-16">
-              <Bookmark className="w-9 h-9 text-zinc-700 mx-auto mb-3" />
-              <p className="text-sm text-zinc-500">No saved ICPs yet</p>
-              <p className="text-xs text-zinc-600 mt-1">Generate one and it saves automatically</p>
+        )}
+        {!isLoading && (history as any[]).length === 0 && (
+          <div className="text-center py-12 px-3">
+            <Bookmark className="w-7 h-7 text-zinc-700 mx-auto mb-2" />
+            <p className="text-xs text-zinc-500 font-medium">No saved ICPs yet</p>
+            <p className="text-[10px] text-zinc-600 mt-1">Generate one and it saves automatically</p>
+          </div>
+        )}
+        {(history as any[]).map((e: any) => (
+          <div
+            key={e.id}
+            className="rounded-xl p-3 group transition-all cursor-pointer"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+            onClick={() => onLoad(e)}
+          >
+            <p className="text-xs font-semibold text-white truncate">{e.title || "Untitled ICP"}</p>
+            {e.inputs?.priceRange && (
+              <Badge className="mt-1 bg-zinc-800 text-zinc-400 border-0 text-[10px] capitalize">{e.inputs.priceRange}</Badge>
+            )}
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-[10px] text-zinc-600">{e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</p>
+              <button
+                onClick={ev => { ev.stopPropagation(); del.mutate(e.id); }}
+                className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             </div>
-          )}
-          {(history as any[]).map((e: any) => (
-            <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-start justify-between gap-3 hover:border-zinc-600 group transition-all">
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">{e.title || "Untitled ICP"}</p>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  {e.inputs?.priceRange && <Badge className="bg-zinc-800 text-zinc-400 border-0 text-[10px] capitalize">{e.inputs.priceRange}</Badge>}
-                </div>
-                <p className="text-[10px] text-zinc-600 mt-1">{e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button size="sm" onClick={() => onLoad(e)} className="h-7 text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">Load</Button>
-                <button onClick={() => del.mutate(e.id)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -129,7 +163,6 @@ export default function ICPBuilder() {
   const [apiDone, setApiDone] = useState(false);
   const [result, setResult] = useState<ICPResult | null>(null);
   const [activeTab, setActiveTab] = useState<"business" | "profile" | "pains" | "outcomes">("business");
-  const [showHistory, setShowHistory] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
   const [form, setForm] = useState<ICPForm>({
@@ -148,9 +181,11 @@ export default function ICPBuilder() {
 
   const handleGenerate = async () => {
     if (!form.whatYouSell.trim() || !form.targetAudience.trim()) {
-      toast({ title: "Fill in required fields", description: "Tell us what you sell and who your audience is.", variant: "destructive" }); return;
+      toast({ title: "Fill in required fields", description: "Tell us what you sell and who your audience is.", variant: "destructive" });
+      return;
     }
-    setGenerating(true); setApiDone(false);
+    setGenerating(true);
+    setApiDone(false);
     try {
       const data: ICPResult = await apiRequest("POST", "/api/ai/icp/generate", {
         businessName: form.businessName,
@@ -176,7 +211,17 @@ export default function ICPBuilder() {
   const handleDone = () => { setGenerating(false); setStep("results"); setActiveTab("business"); };
 
   const handleLoadHistory = (e: any) => {
-    if (e.output) { setResult(e.output); setStep("results"); setActiveTab("business"); setShowHistory(false); }
+    if (e.output) { setResult(e.output); setStep("results"); setActiveTab("business"); }
+  };
+
+  const applyInspiration = (ins: typeof INSPIRATIONS[0]) => {
+    setForm(f => ({
+      ...f,
+      whatYouSell: ins.whatYouSell,
+      targetAudience: ins.targetAudience,
+      coreTransformation: ins.coreTransformation,
+      priceRange: ins.priceRange,
+    }));
   };
 
   const copyText = (text: string, key: string) => {
@@ -184,7 +229,7 @@ export default function ICPBuilder() {
     setCopied(key); setTimeout(() => setCopied(null), 1500);
   };
 
-  // ── Generating ──
+  // ── Generating Screen ──
   if (generating) {
     return (
       <GeneratingScreen
@@ -192,6 +237,7 @@ export default function ICPBuilder() {
         steps={["Interpreting your business context", "Building demographics layer", "Mapping psychographics & beliefs", "Identifying pain points", "Defining desired outcomes"]}
         isComplete={apiDone}
         onReady={handleDone}
+        minMs={45000}
       />
     );
   }
@@ -200,111 +246,181 @@ export default function ICPBuilder() {
   if (step === "config") {
     return (
       <ClientLayout>
-        <div className="min-h-screen bg-background">
-          <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
-            {/* Header */}
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
-                <Users className="w-3.5 h-3.5" />ICP Builder
+        <div className="max-w-6xl mx-auto px-5 py-8">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-7">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+              <Users className="w-4 h-4" style={{ color: "#d4b461" }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">ICP Builder</h1>
+              <p className="text-xs text-muted-foreground">AI builds your Ideal Customer Profile — demographics, psychographics, pain points & desires</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Left: Setup form */}
+            <div className="lg:col-span-3 space-y-5">
+              {/* Inspiration chips */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2 font-medium">Start with an example</p>
+                <div className="flex flex-wrap gap-2">
+                  {INSPIRATIONS.map(ins => (
+                    <button
+                      key={ins.label}
+                      onClick={() => applyInspiration(ins)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                      style={{ borderColor: "rgba(212,180,97,0.25)", color: "#d4b461", background: "rgba(212,180,97,0.06)" }}
+                      data-testid={`inspiration-${ins.label.toLowerCase().replace(/ /g, "-")}`}
+                    >
+                      {ins.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setForm({ businessName: "", whatYouSell: "", targetAudience: "", coreTransformation: "", priceRange: "mid" })}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:border-white/25 transition-all"
+                    data-testid="inspiration-blank"
+                  >
+                    Start from scratch
+                  </button>
+                </div>
               </div>
-              <h1 className="text-3xl font-black text-white tracking-tight">
-                Build your <span className="text-primary">Ideal Customer Profile</span>
-              </h1>
-              <p className="text-zinc-400 text-sm max-w-md mx-auto">
-                Tell us about your business and we'll build a deeply researched ICP — demographics, psychographics, pain points, and desired outcomes.
+
+              {/* Form card */}
+              <div className="rounded-2xl p-6 space-y-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                {/* Business name */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Business / Brand Name <span className="text-zinc-600 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    value={form.businessName}
+                    onChange={e => setF("businessName", e.target.value)}
+                    placeholder="e.g. Brandverse, ContentOS, GrowthHQ…"
+                    className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-business-name"
+                  />
+                </div>
+
+                {/* What you sell */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    What do you sell? <span style={{ color: "#d4b461" }}>*</span>
+                  </label>
+                  <textarea
+                    value={form.whatYouSell}
+                    onChange={e => setF("whatYouSell", e.target.value)}
+                    placeholder="e.g. An AI-powered content platform that helps creators generate, plan, and automate content across Instagram, YouTube, and LinkedIn. Includes AI content ideas, competitor analysis, virality scoring, and posting automation."
+                    rows={4}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-what-you-sell"
+                  />
+                  <WriteWithAI
+                    text={form.whatYouSell}
+                    onChange={v => setF("whatYouSell", v)}
+                    context="describing a business / product for marketing research"
+                    className="mt-2"
+                  />
+                </div>
+
+                {/* Target audience */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Who do you think your audience is? <span style={{ color: "#d4b461" }}>*</span>
+                  </label>
+                  <textarea
+                    value={form.targetAudience}
+                    onChange={e => setF("targetAudience", e.target.value)}
+                    placeholder="e.g. Content creators, personal brand builders, online coaches and entrepreneurs who want to grow on social media but struggle with consistency and knowing what to post."
+                    rows={3}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-target-audience"
+                  />
+                  <WriteWithAI
+                    text={form.targetAudience}
+                    onChange={v => setF("targetAudience", v)}
+                    context="describing a target audience for ICP research"
+                    className="mt-2"
+                  />
+                </div>
+
+                {/* Core transformation */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Core transformation you provide <span className="text-zinc-600 font-normal">(recommended)</span>
+                  </label>
+                  <textarea
+                    value={form.coreTransformation}
+                    onChange={e => setF("coreTransformation", e.target.value)}
+                    placeholder="e.g. Going from confused, inconsistent creator → to a structured content system that produces consistent growth, engagement and monetization."
+                    rows={2}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-transformation"
+                  />
+                  <WriteWithAI
+                    text={form.coreTransformation}
+                    onChange={v => setF("coreTransformation", v)}
+                    context="describing the core transformation a business provides to its customers"
+                    className="mt-2"
+                  />
+                </div>
+
+                {/* Price range */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block font-medium">Price range</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {PRICE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => setF("priceRange", opt.id)}
+                        className="flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all"
+                        style={form.priceRange === opt.id
+                          ? { borderColor: `${opt.color}60`, background: `${opt.color}12` }
+                          : { borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }
+                        }
+                        data-testid={`price-${opt.id}`}
+                      >
+                        <DollarSign className="w-4 h-4" style={{ color: opt.color }} />
+                        <span className="text-xs font-semibold" style={{ color: form.priceRange === opt.id ? opt.color : "#a1a1aa" }}>{opt.label}</span>
+                        <span className="text-[10px] text-zinc-600">{opt.sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleGenerate}
+                disabled={!form.whatYouSell.trim() || !form.targetAudience.trim()}
+                className="w-full h-12 font-bold text-base gap-3 text-black"
+                style={{ background: "#d4b461" }}
+                data-testid="btn-generate-icp"
+              >
+                <Wand2 className="w-5 h-5" />Build My ICP
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Powered by behavioral psychology + direct response strategy — ~45 seconds
               </p>
             </div>
 
-            <div className="flex justify-end">
-              <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-primary/30 bg-zinc-900">
-                <Clock className="w-3.5 h-3.5" />View History
-              </button>
+            {/* Right: History */}
+            <div className="lg:col-span-2">
+              <HistorySidePanel onLoad={handleLoadHistory} />
             </div>
-
-            <div className="space-y-5">
-              {/* Business Name */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Business / Brand Name <span className="text-zinc-600 font-normal">(optional)</span></label>
-                <input
-                  value={form.businessName}
-                  onChange={e => setF("businessName", e.target.value)}
-                  placeholder="e.g. Brandverse, ContentOS, GrowthHQ…"
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary/60 transition-colors"
-                  data-testid="input-business-name"
-                />
-              </div>
-
-              {/* What you sell */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">What do you sell? <span className="text-red-400">*</span></label>
-                <textarea
-                  value={form.whatYouSell}
-                  onChange={e => setF("whatYouSell", e.target.value)}
-                  placeholder="e.g. An AI-powered content platform that helps creators generate, plan, and automate content across Instagram, YouTube, and LinkedIn. Includes AI content ideas, competitor analysis, virality scoring, and posting automation."
-                  rows={4}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-what-you-sell"
-                />
-              </div>
-
-              {/* Target audience */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Who do you think your audience is? <span className="text-red-400">*</span></label>
-                <textarea
-                  value={form.targetAudience}
-                  onChange={e => setF("targetAudience", e.target.value)}
-                  placeholder="e.g. Content creators, personal brand builders, online coaches and entrepreneurs who want to grow on social media but struggle with consistency and knowing what to post."
-                  rows={3}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-target-audience"
-                />
-              </div>
-
-              {/* Core transformation */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Core transformation / outcome you provide <span className="text-zinc-600 font-normal">(optional but recommended)</span></label>
-                <textarea
-                  value={form.coreTransformation}
-                  onChange={e => setF("coreTransformation", e.target.value)}
-                  placeholder="e.g. Going from confused, inconsistent creator → to a structured content system that produces consistent growth, engagement and monetization."
-                  rows={2}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-transformation"
-                />
-              </div>
-
-              {/* Price range */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-400">Price range</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {PRICE_OPTIONS.map(opt => (
-                    <button key={opt.id} onClick={() => setF("priceRange", opt.id)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all ${form.priceRange === opt.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}
-                      data-testid={`price-${opt.id}`}>
-                      <DollarSign className="w-4 h-4" style={{ color: opt.color }} />
-                      <span className={`text-xs font-semibold ${form.priceRange === opt.id ? "text-primary" : "text-zinc-300"}`}>{opt.label}</span>
-                      <span className="text-[10px] text-zinc-600">{opt.sub}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleGenerate}
-              disabled={!form.whatYouSell.trim() || !form.targetAudience.trim()}
-              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl"
-              data-testid="btn-generate-icp"
-            >
-              <Wand2 className="w-4 h-4 mr-2" />Build My ICP
-            </Button>
-
-            <p className="text-center text-[11px] text-zinc-600">
-              Powered by behavioral psychology + direct response strategy — results in ~45 seconds
-            </p>
           </div>
         </div>
-        {showHistory && <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />}
       </ClientLayout>
     );
   }
@@ -325,14 +441,23 @@ export default function ICPBuilder() {
         <div className="max-w-3xl mx-auto px-6 py-10">
           {/* Top bar */}
           <div className="flex items-center justify-between mb-8">
-            <button onClick={() => setStep("config")} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors" data-testid="btn-back">
+            <button
+              onClick={() => setStep("config")}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+              data-testid="btn-back"
+            >
               <ChevronLeft className="w-4 h-4" />Edit Inputs
             </button>
             <div className="flex items-center gap-2">
               <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">{result.painPoints?.length || 5} pain points</Badge>
-              <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-2 py-1 rounded border border-zinc-800">
-                <Clock className="w-3.5 h-3.5" />History
-              </button>
+              <Button
+                size="sm"
+                onClick={handleGenerate}
+                className="h-8 text-xs gap-1.5 border border-white/10 bg-white/5 hover:bg-white/10 text-white"
+                data-testid="btn-regenerate"
+              >
+                <RefreshCw className="w-3 h-3" />Regenerate
+              </Button>
             </div>
           </div>
 
@@ -344,7 +469,10 @@ export default function ICPBuilder() {
               </div>
               <div className="text-[10px] font-bold text-primary uppercase tracking-widest mb-2">Positioning Statement</div>
               <p className="text-base font-bold text-white leading-relaxed">{result.businessSummary.positioningStatement}</p>
-              <button onClick={() => copyText(result.businessSummary.positioningStatement, "positioning")} className="mt-3 flex items-center gap-1.5 text-[11px] text-primary/70 hover:text-primary transition-colors">
+              <button
+                onClick={() => copyText(result.businessSummary.positioningStatement, "positioning")}
+                className="mt-3 flex items-center gap-1.5 text-[11px] text-primary/70 hover:text-primary transition-colors"
+              >
                 {copied === "positioning" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                 {copied === "positioning" ? "Copied!" : "Copy positioning statement"}
               </button>
@@ -356,9 +484,12 @@ export default function ICPBuilder() {
             {TABS.map(tab => {
               const Icon = tab.icon;
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all border-r border-zinc-800 last:border-r-0 ${activeTab === tab.id ? "bg-primary/15 text-primary" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/40"}`}
-                  data-testid={`tab-${tab.id}`}>
+                  data-testid={`tab-${tab.id}`}
+                >
                   <Icon className="w-3.5 h-3.5" />{tab.label}
                 </button>
               );
@@ -456,24 +587,22 @@ export default function ICPBuilder() {
               {(result.painPoints || []).map((pain, i) => (
                 <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-black text-red-400">{i + 1}</span>
+                    <div className="w-7 h-7 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-red-400">{i + 1}</span>
                     </div>
-                    <h3 className="text-sm font-bold text-white">{pain.title}</h3>
+                    <p className="text-sm font-bold text-white">{pain.title}</p>
                   </div>
-                  <div className="grid sm:grid-cols-3 gap-3">
-                    <div className="bg-zinc-800/60 rounded-xl p-3">
-                      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wide mb-1.5">The Situation</div>
-                      <p className="text-xs text-zinc-300 leading-relaxed">{pain.situation}</p>
-                    </div>
-                    <div className="bg-red-950/30 border border-red-900/30 rounded-xl p-3">
-                      <div className="text-[9px] font-bold text-red-400/70 uppercase tracking-wide mb-1.5">How It Feels</div>
-                      <p className="text-xs text-red-200/80 leading-relaxed italic">"{pain.emotionalFeel}"</p>
-                    </div>
-                    <div className="bg-orange-950/30 border border-orange-900/30 rounded-xl p-3">
-                      <div className="text-[9px] font-bold text-orange-400/70 uppercase tracking-wide mb-1.5">What It Costs Them</div>
-                      <p className="text-xs text-orange-200/80 leading-relaxed">{pain.cost}</p>
-                    </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Situation", val: pain.situation, color: "#71717a" },
+                      { label: "Emotional Feel", val: pain.emotionalFeel, color: "#f87171" },
+                      { label: "Real Cost", val: pain.cost, color: "#fb923c" },
+                    ].map(row => (
+                      <div key={row.label}>
+                        <div className="text-[9px] font-bold uppercase tracking-wide mb-1" style={{ color: row.color }}>{row.label}</div>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{row.val}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -483,42 +612,34 @@ export default function ICPBuilder() {
           {/* Outcomes tab */}
           {activeTab === "outcomes" && (
             <div className="space-y-4">
-              {/* Dream outcome hero */}
-              <div className="relative rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-950/40 to-emerald-950/20 p-6 overflow-hidden">
-                <div className="absolute top-3 right-3 opacity-10"><CheckCircle2 className="w-14 h-14 text-green-400" /></div>
-                <div className="text-[10px] font-bold text-green-400/70 uppercase tracking-widest mb-2">Dream Outcome</div>
-                <p className="text-sm font-bold text-white leading-relaxed">{result.desiredOutcomes?.dreamOutcome}</p>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Short-Term Desires</span>
+              {[
+                { label: "Dream Outcome", val: result.desiredOutcomes?.dreamOutcome, icon: Sparkles, color: "#d4b461" },
+                { label: "Short-term Desires (next 90 days)", val: result.desiredOutcomes?.shortTermDesires, icon: Zap, color: "#34d399" },
+                { label: "Long-term Desires (1–3 years)", val: result.desiredOutcomes?.longTermDesires, icon: TrendingUp, color: "#60a5fa" },
+                { label: "How They Define Success", val: result.desiredOutcomes?.successDefinition, icon: Heart, color: "#f472b6" },
+              ].map(item => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Icon className="w-4 h-4" style={{ color: item.color }} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{item.label}</span>
+                    </div>
+                    <p className="text-sm text-zinc-200 leading-relaxed">{item.val}</p>
+                    <button
+                      onClick={() => copyText(item.val || "", `out-${item.label}`)}
+                      className="mt-2 flex items-center gap-1 text-[10px] text-zinc-600 hover:text-primary transition-colors"
+                    >
+                      {copied === `out-${item.label}` ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied === `out-${item.label}` ? "Copied!" : "Copy"}
+                    </button>
                   </div>
-                  <p className="text-xs text-zinc-300 leading-relaxed">{result.desiredOutcomes?.shortTermDesires}</p>
-                </div>
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <TrendingUp className="w-4 h-4 text-blue-400" />
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Long-Term Desires</span>
-                  </div>
-                  <p className="text-xs text-zinc-300 leading-relaxed">{result.desiredOutcomes?.longTermDesires}</p>
-                </div>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Heart className="w-4 h-4 text-pink-400" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">What "Success" Looks Like In Their Mind</span>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">{result.desiredOutcomes?.successDefinition}</p>
-              </div>
+                );
+              })}
             </div>
           )}
-
-          <div className="h-8" />
         </div>
       </div>
-      {showHistory && <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />}
     </ClientLayout>
   );
 }

@@ -4,12 +4,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
+import WriteWithAI from "@/components/ui/WriteWithAI";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Brain, Sparkles, Wand2, Clock, Bookmark, Trash2, X,
   ChevronLeft, MessageSquare, Lightbulb, ShieldAlert,
-  TrendingUp, Zap, Copy, Check, Target, Eye,
+  TrendingUp, Zap, Copy, Check, Eye, RefreshCw,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -59,55 +60,28 @@ interface APMResult {
   };
 }
 
-// ─── History Panel ────────────────────────────────────────────────────────────
-function HistoryPanel({ onLoad, onClose }: { onLoad: (e: any) => void; onClose: () => void }) {
-  const qc = useQueryClient();
-  const { data: history = [], isLoading } = useQuery({
-    queryKey: ["/api/ai/history", "audience-psychology-map"],
-    queryFn: () => apiRequest("GET", "/api/ai/history?tool=audience-psychology-map"),
-  });
-  const del = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/ai/history/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "audience-psychology-map"] }),
-  });
-  return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden flex flex-col" style={{ height: 500 }}>
-        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-white">Saved Psychology Maps</span>
-            <Badge className="bg-primary/10 text-primary border-0 text-xs">{(history as any[]).length}</Badge>
-          </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {isLoading && <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
-          {!isLoading && (history as any[]).length === 0 && (
-            <div className="text-center py-16">
-              <Bookmark className="w-9 h-9 text-zinc-700 mx-auto mb-3" />
-              <p className="text-sm text-zinc-500">No saved maps yet</p>
-            </div>
-          )}
-          {(history as any[]).map((e: any) => (
-            <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-start justify-between gap-3 hover:border-zinc-600 group transition-all">
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">{e.title || "Untitled Map"}</p>
-                <p className="text-[10px] text-zinc-600 mt-1">{e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button size="sm" onClick={() => onLoad(e)} className="h-7 text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">Load</Button>
-                <button onClick={() => del.mutate(e.id)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+const INSPIRATIONS = [
+  {
+    label: "Online Coach",
+    businessDescription: "A 1:1 online coaching program helping ambitious professionals build a personal brand and land high-paying clients through LinkedIn content, positioning, and outreach systems. $3k–$10k programs, 3–6 month engagements.",
+    targetAudienceDescription: "Mid-career professionals aged 28–42 who are experts in their field but invisible online. They've tried posting randomly, watched courses, but still feel like no one takes them seriously as an authority.",
+    icpSummary: "",
+  },
+  {
+    label: "Content SaaS",
+    businessDescription: "An AI-powered content platform (Brandverse) that helps creators, coaches and personal brands generate, plan, and automate content across Instagram, YouTube, and LinkedIn. Mid-tier SaaS, $97–$197/mo.",
+    targetAudienceDescription: "Content creators and online entrepreneurs aged 22–38 who struggle with consistency, don't know what to post, and feel overwhelmed by algorithms and trends.",
+    icpSummary: "",
+  },
+  {
+    label: "E-Commerce",
+    businessDescription: "A premium skincare brand using science-backed formulations and clean ingredients to help people achieve healthy, glowing skin without harsh chemicals or complicated 10-step routines. $60–$150 per product.",
+    targetAudienceDescription: "Health-conscious women aged 25–40 who've tried countless products, are frustrated with broken promises and sensitivities, and want a simple routine that actually delivers visible results.",
+    icpSummary: "",
+  },
+];
 
-// ─── Pill list helper ─────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function PillList({ items, color = "#d4b461" }: { items: string[]; color?: string }) {
   return (
     <div className="flex flex-wrap gap-2 mt-2">
@@ -120,7 +94,6 @@ function PillList({ items, color = "#d4b461" }: { items: string[]; color?: strin
   );
 }
 
-// ─── Copyable quote ───────────────────────────────────────────────────────────
 function CopyableQuote({ text, index, copied, onCopy }: { text: string; index: number; copied: string | null; onCopy: (t: string, k: string) => void }) {
   const key = `quote-${index}`;
   return (
@@ -129,6 +102,64 @@ function CopyableQuote({ text, index, copied, onCopy }: { text: string; index: n
       <button onClick={() => onCopy(text, key)} className="flex-shrink-0 text-zinc-600 hover:text-primary transition-colors">
         {copied === key ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
       </button>
+    </div>
+  );
+}
+
+// ─── Right-side history panel ─────────────────────────────────────────────────
+function HistorySidePanel({ onLoad }: { onLoad: (e: any) => void }) {
+  const qc = useQueryClient();
+  const { data: history = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/ai/history", "audience-psychology-map"],
+    queryFn: () => apiRequest("GET", "/api/ai/history?tool=audience-psychology-map"),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/ai/history/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "audience-psychology-map"] }),
+  });
+  return (
+    <div
+      className="rounded-2xl flex flex-col overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", minHeight: 320 }}
+    >
+      <div className="px-4 py-3 border-b flex items-center gap-2 flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <Clock className="w-3.5 h-3.5 text-primary" />
+        <span className="text-xs font-bold text-white">Saved Maps</span>
+        <Badge className="ml-auto bg-primary/10 text-primary border-0 text-[10px]">{(history as any[]).length}</Badge>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {isLoading && (
+          <div className="flex justify-center py-10">
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {!isLoading && (history as any[]).length === 0 && (
+          <div className="text-center py-12 px-3">
+            <Bookmark className="w-7 h-7 text-zinc-700 mx-auto mb-2" />
+            <p className="text-xs text-zinc-500 font-medium">No saved maps yet</p>
+            <p className="text-[10px] text-zinc-600 mt-1">Generate one and it saves automatically</p>
+          </div>
+        )}
+        {(history as any[]).map((e: any) => (
+          <div
+            key={e.id}
+            className="rounded-xl p-3 group transition-all cursor-pointer"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
+            onClick={() => onLoad(e)}
+          >
+            <p className="text-xs font-semibold text-white truncate">{e.title || "Untitled Map"}</p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-[10px] text-zinc-600">{e.createdAt ? new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</p>
+              <button
+                onClick={ev => { ev.stopPropagation(); del.mutate(e.id); }}
+                className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -142,7 +173,6 @@ export default function AudiencePsychologyMap() {
   const [apiDone, setApiDone] = useState(false);
   const [result, setResult] = useState<APMResult | null>(null);
   const [activeTab, setActiveTab] = useState<"buyer" | "psychology" | "messaging" | "content">("buyer");
-  const [showHistory, setShowHistory] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
   const [form, setForm] = useState<APMForm>({
@@ -159,9 +189,11 @@ export default function AudiencePsychologyMap() {
 
   const handleGenerate = async () => {
     if (!form.businessDescription.trim()) {
-      toast({ title: "Required", description: "Describe your business to generate the psychology map.", variant: "destructive" }); return;
+      toast({ title: "Required", description: "Describe your business to generate the psychology map.", variant: "destructive" });
+      return;
     }
-    setGenerating(true); setApiDone(false);
+    setGenerating(true);
+    setApiDone(false);
     try {
       const data: APMResult = await apiRequest("POST", "/api/ai/audience-psychology/generate", {
         businessDescription: form.businessDescription,
@@ -183,14 +215,25 @@ export default function AudiencePsychologyMap() {
   };
 
   const handleDone = () => { setGenerating(false); setStep("results"); setActiveTab("buyer"); };
+
   const handleLoadHistory = (e: any) => {
-    if (e.output) { setResult(e.output); setStep("results"); setActiveTab("buyer"); setShowHistory(false); }
+    if (e.output) { setResult(e.output); setStep("results"); setActiveTab("buyer"); }
   };
+
+  const applyInspiration = (ins: typeof INSPIRATIONS[0]) => {
+    setForm(f => ({
+      ...f,
+      businessDescription: ins.businessDescription,
+      targetAudienceDescription: ins.targetAudienceDescription,
+    }));
+  };
+
   const copyText = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopied(key); setTimeout(() => setCopied(null), 1500);
   };
 
+  // ── Generating Screen ──
   if (generating) {
     return (
       <GeneratingScreen
@@ -198,94 +241,150 @@ export default function AudiencePsychologyMap() {
         steps={["Analysing buying behaviour", "Mapping identity & emotions", "Extracting belief systems", "Crafting messaging insights", "Building content direction"]}
         isComplete={apiDone}
         onReady={handleDone}
+        minMs={45000}
       />
     );
   }
 
+  // ── Config Step ──
   if (step === "config") {
     return (
       <ClientLayout>
-        <div className="min-h-screen bg-background">
-          <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
-            {/* Header */}
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
-                <Brain className="w-3.5 h-3.5" />Audience Psychology Map
+        <div className="max-w-6xl mx-auto px-5 py-8">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-7">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+              <Brain className="w-4 h-4" style={{ color: "#d4b461" }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">Audience Psychology Map</h1>
+              <p className="text-xs text-muted-foreground">Deep psychology breakdown — buying behaviour, emotions, beliefs, messaging angles & content strategy</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Left: Setup form */}
+            <div className="lg:col-span-3 space-y-5">
+              {/* Inspiration chips */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2 font-medium">Start with an example</p>
+                <div className="flex flex-wrap gap-2">
+                  {INSPIRATIONS.map(ins => (
+                    <button
+                      key={ins.label}
+                      onClick={() => applyInspiration(ins)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all"
+                      style={{ borderColor: "rgba(212,180,97,0.25)", color: "#d4b461", background: "rgba(212,180,97,0.06)" }}
+                      data-testid={`inspiration-${ins.label.toLowerCase().replace(/ /g, "-")}`}
+                    >
+                      {ins.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setForm({ businessDescription: "", targetAudienceDescription: "", icpSummary: "" })}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:border-white/25 transition-all"
+                    data-testid="inspiration-blank"
+                  >
+                    Start from scratch
+                  </button>
+                </div>
               </div>
-              <h1 className="text-3xl font-black text-white tracking-tight">
-                Map Your <span className="text-primary">Audience Psychology</span>
-              </h1>
-              <p className="text-zinc-400 text-sm max-w-md mx-auto">
-                Get a deep psychological breakdown — buying behaviour, identity, emotional triggers, limiting beliefs, messaging angles, and content strategy — all tailored to your audience.
+
+              {/* Form card */}
+              <div className="rounded-2xl p-6 space-y-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                {/* Business description */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Business description <span style={{ color: "#d4b461" }}>*</span>
+                  </label>
+                  <textarea
+                    value={form.businessDescription}
+                    onChange={e => setF("businessDescription", e.target.value)}
+                    placeholder="Describe your business, what you sell, the transformation you provide, and your price range. The more detail, the more accurate the psychology map."
+                    rows={4}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-business-description"
+                  />
+                  <WriteWithAI
+                    text={form.businessDescription}
+                    onChange={v => setF("businessDescription", v)}
+                    context="describing a business for audience psychology research"
+                    className="mt-2"
+                  />
+                </div>
+
+                {/* Target audience */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Target audience description <span className="text-zinc-600 font-normal">(recommended — adds precision)</span>
+                  </label>
+                  <textarea
+                    value={form.targetAudienceDescription}
+                    onChange={e => setF("targetAudienceDescription", e.target.value)}
+                    placeholder="Who is your target audience? What do they struggle with? What have they tried before? What frustrates them most?"
+                    rows={3}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-audience-description"
+                  />
+                  <WriteWithAI
+                    text={form.targetAudienceDescription}
+                    onChange={v => setF("targetAudienceDescription", v)}
+                    context="describing a target audience for psychology and buying behaviour research"
+                    className="mt-2"
+                  />
+                </div>
+
+                {/* Paste ICP */}
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1.5 block font-medium">
+                    Paste ICP results <span className="text-zinc-600 font-normal">(optional — paste from ICP Builder for deeper analysis)</span>
+                  </label>
+                  <textarea
+                    value={form.icpSummary}
+                    onChange={e => setF("icpSummary", e.target.value)}
+                    placeholder="Paste key insights from your ICP Builder output here for even deeper, more personalised results…"
+                    rows={3}
+                    className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 outline-none resize-none transition-colors"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                    data-testid="input-icp-summary"
+                  />
+                  <p className="text-[10px] text-zinc-600 mt-1">Go to ICP Builder → generate your profile → copy key insights and paste here</p>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleGenerate}
+                disabled={!form.businessDescription.trim()}
+                className="w-full h-12 font-bold text-base gap-3 text-black"
+                style={{ background: "#d4b461" }}
+                data-testid="btn-generate-apm"
+              >
+                <Wand2 className="w-5 h-5" />Generate Psychology Map
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Combines behavioral psychology, direct response strategy & buying science — ~45 seconds
               </p>
             </div>
 
-            <div className="flex justify-end">
-              <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-primary/30 bg-zinc-900">
-                <Clock className="w-3.5 h-3.5" />View History
-              </button>
+            {/* Right: History */}
+            <div className="lg:col-span-2">
+              <HistorySidePanel onLoad={handleLoadHistory} />
             </div>
-
-            <div className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Business description <span className="text-red-400">*</span></label>
-                <textarea
-                  value={form.businessDescription}
-                  onChange={e => setF("businessDescription", e.target.value)}
-                  placeholder="Describe your business, what you sell, and the transformation you provide. The more detail, the more accurate the psychology map."
-                  rows={4}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-business-description"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Target audience description <span className="text-zinc-600 font-normal">(optional — adds more precision)</span></label>
-                <textarea
-                  value={form.targetAudienceDescription}
-                  onChange={e => setF("targetAudienceDescription", e.target.value)}
-                  placeholder="Who is your target audience? What do they struggle with? What have they tried before?"
-                  rows={3}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-audience-description"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-400">
-                  Paste ICP results <span className="text-zinc-600 font-normal">(optional — paste from ICP Builder for deeper analysis)</span>
-                </label>
-                <textarea
-                  value={form.icpSummary}
-                  onChange={e => setF("icpSummary", e.target.value)}
-                  placeholder="Paste key insights from your ICP Builder output here for even deeper, more personalised results…"
-                  rows={3}
-                  className="w-full bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-primary/60 transition-colors resize-none"
-                  data-testid="input-icp-summary"
-                />
-                <p className="text-[11px] text-zinc-600">Go to ICP Builder → generate your profile → copy key insights and paste here</p>
-              </div>
-            </div>
-
-            <Button
-              onClick={handleGenerate}
-              disabled={!form.businessDescription.trim()}
-              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl"
-              data-testid="btn-generate-apm"
-            >
-              <Wand2 className="w-4 h-4 mr-2" />Generate Psychology Map
-            </Button>
-
-            <p className="text-center text-[11px] text-zinc-600">
-              Combines behavioral psychology, direct response strategy & buying science — ~45 seconds
-            </p>
           </div>
         </div>
-        {showHistory && <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />}
       </ClientLayout>
     );
   }
 
+  // ── Results Step ──
   if (!result) return null;
 
   const TABS = [
@@ -301,12 +400,20 @@ export default function AudiencePsychologyMap() {
         <div className="max-w-3xl mx-auto px-6 py-10">
           {/* Top bar */}
           <div className="flex items-center justify-between mb-8">
-            <button onClick={() => setStep("config")} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors">
+            <button
+              onClick={() => setStep("config")}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+            >
               <ChevronLeft className="w-4 h-4" />Edit Inputs
             </button>
-            <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-2 py-1 rounded border border-zinc-800">
-              <Clock className="w-3.5 h-3.5" />History
-            </button>
+            <Button
+              size="sm"
+              onClick={handleGenerate}
+              className="h-8 text-xs gap-1.5 border border-white/10 bg-white/5 hover:bg-white/10 text-white"
+              data-testid="btn-regenerate"
+            >
+              <RefreshCw className="w-3 h-3" />Regenerate
+            </Button>
           </div>
 
           {/* Most compelling promise hero */}
@@ -362,7 +469,6 @@ export default function AudiencePsychologyMap() {
                   </div>
                 ))}
               </div>
-              {/* Objections */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                 <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Objections & Resistance</div>
                 <div className="space-y-3">
@@ -379,7 +485,6 @@ export default function AudiencePsychologyMap() {
                   ))}
                 </div>
               </div>
-              {/* Internal dialogue */}
               {result.buyerClarity.internalDialogue && (
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                   <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Internal Dialogue Before Buying</div>
@@ -404,7 +509,6 @@ export default function AudiencePsychologyMap() {
           {/* Psychology tab */}
           {activeTab === "psychology" && result.psychologyMap && (
             <div className="space-y-5">
-              {/* Identity */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-2">
                   <Eye className="w-4 h-4 text-primary" />
@@ -421,7 +525,6 @@ export default function AudiencePsychologyMap() {
                   </div>
                 ))}
               </div>
-              {/* Emotional landscape */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-yellow-400" />
@@ -446,71 +549,47 @@ export default function AudiencePsychologyMap() {
                   <p className="text-xs text-zinc-300 leading-relaxed">{result.psychologyMap.whatKeepsThemStuck}</p>
                 </div>
               </div>
-              {/* Belief system */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-purple-400" />
+                  <Brain className="w-4 h-4 text-violet-400" />
                   <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Belief System</span>
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold text-red-400/60 uppercase tracking-wide mb-2">Limiting Beliefs</div>
-                  <div className="space-y-1.5">
-                    {(result.psychologyMap.limitingBeliefs || []).map((b, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-red-400 text-xs mt-0.5">✗</span>
-                        <p className="text-xs text-zinc-400">{b}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="text-[9px] font-bold text-red-400/70 uppercase tracking-wide mb-2">Limiting Beliefs</div>
+                  <PillList items={result.psychologyMap.limitingBeliefs || []} color="#f87171" />
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold text-green-400/60 uppercase tracking-wide mb-2">Empowering Beliefs They're Trying to Adopt</div>
-                  <div className="space-y-1.5">
-                    {(result.psychologyMap.empoweringBeliefs || []).map((b, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-green-400 text-xs mt-0.5">✓</span>
-                        <p className="text-xs text-zinc-400">{b}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="text-[9px] font-bold text-green-400/70 uppercase tracking-wide mb-2">Empowering Beliefs (after your offer)</div>
+                  <PillList items={result.psychologyMap.empoweringBeliefs || []} color="#34d399" />
                 </div>
                 <div>
-                  <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">False Assumptions About Growth & Success</div>
-                  <div className="space-y-1.5">
-                    {(result.psychologyMap.falseAssumptions || []).map((b, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className="text-yellow-400 text-xs mt-0.5">⚠</span>
-                        <p className="text-xs text-zinc-400">{b}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">False Assumptions They Hold</div>
+                  <PillList items={result.psychologyMap.falseAssumptions || []} color="#a78bfa" />
                 </div>
               </div>
-              {/* Language patterns */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-blue-400" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Language Patterns</span>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">Exact Phrases They Use to Describe Their Problem</div>
-                  <div className="space-y-2">
-                    {(result.psychologyMap.exactPhrases || []).map((p, i) => (
-                      <CopyableQuote key={i} text={p} index={i} copied={copied} onCopy={copyText} />
-                    ))}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Words They Actually Use</div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[9px] font-bold text-primary/60 uppercase tracking-wide mb-2">Exact Phrases They Say / Think</div>
+                    <div className="space-y-2">
+                      {(result.psychologyMap.exactPhrases || []).map((p, i) => (
+                        <CopyableQuote key={i} text={p} index={i} copied={copied} onCopy={copyText} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">How They Express Frustration</div>
-                  <div className="space-y-2">
-                    {(result.psychologyMap.frustrationExpressions || []).map((p, i) => (
-                      <CopyableQuote key={i} text={p} index={100 + i} copied={copied} onCopy={copyText} />
-                    ))}
+                  <div>
+                    <div className="text-[9px] font-bold text-red-400/60 uppercase tracking-wide mb-2">Frustration Expressions</div>
+                    <div className="space-y-2">
+                      {(result.psychologyMap.frustrationExpressions || []).map((p, i) => (
+                        <CopyableQuote key={i} text={p} index={100 + i} copied={copied} onCopy={copyText} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">Emotional Keywords</div>
-                  <PillList items={result.psychologyMap.emotionalKeywords || []} color="#818cf8" />
+                  <div>
+                    <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mb-2">Emotional Keywords</div>
+                    <PillList items={result.psychologyMap.emotionalKeywords || []} color="#d4b461" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -519,36 +598,32 @@ export default function AudiencePsychologyMap() {
           {/* Messaging tab */}
           {activeTab === "messaging" && result.messagingInsights && (
             <div className="space-y-5">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Target className="w-4 h-4 text-primary" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Resonant Messaging Angles</span>
-                </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-4">Resonant Messaging Angles</div>
                 <div className="space-y-2">
                   {(result.messagingInsights.resonantAngles || []).map((angle, i) => (
-                    <div key={i} className="flex items-start gap-3 bg-zinc-800/50 rounded-xl p-3">
-                      <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="w-5 h-5 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <span className="text-[9px] font-bold text-primary">{i + 1}</span>
                       </div>
-                      <p className="text-xs text-zinc-200 leading-snug">{angle}</p>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{angle}</p>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-primary/8 border border-primary/20 rounded-2xl p-5">
-                <div className="text-[9px] font-bold text-primary uppercase tracking-wider mb-2">Angle That Grabs Attention Immediately</div>
-                <p className="text-sm font-semibold text-white leading-relaxed">{result.messagingInsights.immediateAttentionAngle}</p>
-                <button onClick={() => copyText(result.messagingInsights.immediateAttentionAngle, "attention")} className="mt-3 flex items-center gap-1.5 text-[11px] text-primary/70 hover:text-primary transition-colors">
-                  {copied === "attention" ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}Copy
-                </button>
-              </div>
-              <div className="bg-red-950/30 border border-red-900/30 rounded-2xl p-5">
-                <div className="text-[9px] font-bold text-red-400/70 uppercase tracking-wider mb-3">Do NOT Say (Messaging That Turns Them Off)</div>
+              {result.messagingInsights.immediateAttentionAngle && (
+                <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-5">
+                  <div className="text-[9px] font-bold text-yellow-400 uppercase tracking-wider mb-2">Immediate Attention Angle</div>
+                  <p className="text-sm font-semibold text-white leading-relaxed">{result.messagingInsights.immediateAttentionAngle}</p>
+                </div>
+              )}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                <div className="text-[10px] font-bold text-red-400/80 uppercase tracking-wider mb-3">Do NOT Say These Things</div>
                 <div className="space-y-2">
-                  {(result.messagingInsights.doNotSay || []).map((d, i) => (
+                  {(result.messagingInsights.doNotSay || []).map((phrase, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <X className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
-                      <p className="text-xs text-red-200/80">{d}</p>
+                      <X className="w-3 h-3 text-red-400 flex-shrink-0" />
+                      <p className="text-xs text-zinc-400">{phrase}</p>
                     </div>
                   ))}
                 </div>
@@ -559,63 +634,61 @@ export default function AudiencePsychologyMap() {
           {/* Content tab */}
           {activeTab === "content" && result.contentDirection && (
             <div className="space-y-5">
-              {/* Content ideas */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Lightbulb className="w-4 h-4 text-yellow-400" />
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">5 High-Performing Content Ideas</span>
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Content Ideas (Ready to Post)</span>
                 </div>
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {(result.contentDirection.contentIdeas || []).map((idea, i) => (
-                    <div key={i} className="flex items-start gap-3 bg-zinc-800/50 rounded-xl p-3">
-                      <div className="w-5 h-5 rounded-full bg-yellow-400/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <span className="text-[9px] font-bold text-yellow-400">{i + 1}</span>
+                    <div key={i} className="bg-zinc-800/60 rounded-xl p-3 flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-[10px] font-bold text-primary/60 mt-0.5">#{i + 1}</span>
+                        <p className="text-xs text-zinc-200 leading-snug">{idea}</p>
                       </div>
-                      <p className="text-xs text-zinc-200 leading-snug">{idea}</p>
+                      <button onClick={() => copyText(idea, `idea-${i}`)} className="flex-shrink-0 text-zinc-600 hover:text-primary transition-colors">
+                        {copied === `idea-${i}` ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
                     </div>
                   ))}
                 </div>
               </div>
-              {/* Scroll-stopping hooks */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Scroll-Stopping Hooks & Headlines</div>
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Scroll-Stopping Hooks</div>
                 <div className="space-y-2">
                   {(result.contentDirection.scrollStoppingHooks || []).map((hook, i) => (
                     <CopyableQuote key={i} text={hook} index={200 + i} copied={copied} onCopy={copyText} />
                   ))}
                 </div>
               </div>
-              {/* Offer angles */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">3 Offer Angles That Convert</div>
-                <div className="space-y-3">
-                  {(result.contentDirection.offerAngles || []).map((offer, i) => (
-                    <div key={i} className="bg-zinc-800/60 rounded-xl p-4 border-l-2 border-primary/40">
-                      <div className="text-[9px] font-bold text-primary/60 uppercase tracking-wide mb-1">Angle {i + 1}</div>
-                      <p className="text-xs text-zinc-200 leading-snug">{offer}</p>
-                    </div>
-                  ))}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Offer Angles</div>
+                  <div className="space-y-2">
+                    {(result.contentDirection.offerAngles || []).map((angle, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <TrendingUp className="w-3 h-3 text-primary/50 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-zinc-300">{angle}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              {/* Positioning */}
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Positioning Suggestions</div>
-                <div className="space-y-2">
-                  {(result.contentDirection.positioningSuggestions || []).map((p, i) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <TrendingUp className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-zinc-300 leading-snug">{p}</p>
-                    </div>
-                  ))}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-3">Positioning Suggestions</div>
+                  <div className="space-y-2">
+                    {(result.contentDirection.positioningSuggestions || []).map((sug, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <Sparkles className="w-3 h-3 text-yellow-400/50 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-zinc-300">{sug}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
-
-          <div className="h-8" />
         </div>
       </div>
-      {showHistory && <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />}
     </ClientLayout>
   );
 }

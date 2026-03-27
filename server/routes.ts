@@ -5665,6 +5665,19 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
     }
   });
 
+  // ── Write better with AI ─────────────────────────────────────────────────────
+  app.post("/api/ai/enhance-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text?.trim()) return res.status(400).json({ error: "text required" });
+      const systemPrompt = `You are an elite copywriter. Rewrite the user's text to be clearer, more compelling, more specific and more persuasive — while keeping their core meaning and voice. ${context ? `Context: ${context}` : ""} Return ONLY the improved text. No explanations, no quotation marks wrapping the whole response.`;
+      const enhanced = await callGroq(systemPrompt, text, 600);
+      return res.json({ enhanced: enhanced.trim() });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ── ICP Builder ──────────────────────────────────────────────────────────────
   app.post("/api/ai/icp/generate", requireAuth, async (req: Request, res: Response) => {
     try {
