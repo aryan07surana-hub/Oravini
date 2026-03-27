@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -290,7 +291,11 @@ function HistoryPanel({
 export default function LeadMagnetGenerator() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [step, setStep] = useState<"config" | "generating" | "editor">("config");
+  const [step, setStep] = useState<"config" | "editor">("config");
+  const [generating, setGenerating] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
+  const [pendingResult, setPendingResult] = useState<LMResult | null>(null);
+  const [pendingPages, setPendingPages] = useState<LMPage[]>([]);
   const [result, setResult] = useState<LMResult | null>(null);
   const [pages, setPages] = useState<LMPage[]>([]);
   const [selectedPageIdx, setSelectedPageIdx] = useState(0);
@@ -336,11 +341,10 @@ export default function LeadMagnetGenerator() {
   const generateMutation = useMutation({
     mutationFn: (body: object) => apiRequest("POST", "/api/ai/lead-magnet/generate", body),
     onSuccess: (data: LMResult) => {
-      setResult(data);
       const generatedPages = data.pages.map((p, i) => ({ ...p, id: `page-${i}` }));
-      setPages(generatedPages);
-      setSelectedPageIdx(0); setSelectedTitleIdx(0); setChatMsgs([]);
-      setStep("editor");
+      setPendingResult(data);
+      setPendingPages(generatedPages);
+      setApiDone(true);
       // Auto-save to history
       saveMutation.mutate({
         tool: "lead-magnet",
@@ -351,9 +355,20 @@ export default function LeadMagnetGenerator() {
     },
     onError: (err: any) => {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
-      setStep("config");
+      setGenerating(false);
+      setApiDone(false);
     },
   });
+
+  const handleGenerateReady = () => {
+    if (pendingResult) {
+      setResult(pendingResult);
+      setPages(pendingPages);
+      setSelectedPageIdx(0); setSelectedTitleIdx(0); setChatMsgs([]);
+    }
+    setGenerating(false);
+    setStep("editor");
+  };
 
   const improveTextMutation = useMutation({
     mutationFn: (body: object) => apiRequest("POST", "/api/ai/lead-magnet/improve-text", body),
@@ -422,7 +437,8 @@ export default function LeadMagnetGenerator() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleGenerate = () => {
     if (!form.topic.trim()) { toast({ title: "Topic required", variant: "destructive" }); return; }
-    setStep("generating");
+    setGenerating(true);
+    setApiDone(false);
     generateMutation.mutate({
       niche: nicheInput || form.niche, type: form.type, topic: form.topic, audience: form.audience,
       goal: form.goal === "other" ? form.goalCustom : form.goal,
@@ -531,34 +547,20 @@ export default function LeadMagnetGenerator() {
 
   const selectedPage = pages[selectedPageIdx];
 
-  // ── Generating ──────────────────────────────────────────────────────────
-  if (step === "generating") return (
-    <ClientLayout>
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 max-w-xs">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto animate-pulse">
-            <Wand2 className="w-8 h-8 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white mb-2">Building your lead magnet…</h2>
-            <p className="text-sm text-zinc-400">Crafting {form.pageCount} pages of premium content. ~20–45 seconds.</p>
-          </div>
-          <div className="space-y-2 text-left">
-            {["Analysing niche & audience", "Writing page content", "Structuring layouts", "Optimising CTAs"].map((s, i) => (
-              <div key={i} className="flex items-center gap-3 text-xs text-zinc-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
-                {s}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </ClientLayout>
-  );
+  // ── Generating overlay ───────────────────────────────────────────────────
+  // GeneratingScreen is rendered as a fixed overlay anywhere in the tree
 
   // ── Config ──────────────────────────────────────────────────────────────
   if (step === "config") return (
     <ClientLayout>
+      {generating && (
+        <GeneratingScreen
+          label={`your ${form.pageCount}-page lead magnet`}
+          minMs={47000}
+          isComplete={apiDone}
+          onReady={handleGenerateReady}
+        />
+      )}
       <div className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
           <div>

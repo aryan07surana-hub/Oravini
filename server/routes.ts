@@ -5341,6 +5341,91 @@ Rules:
     }
   });
 
+  // ── Brand Kit Builder ─────────────────────────────────────────────────────
+  app.post("/api/ai/brand-kit/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessDescription, targetAudience, platform, style, goal } = req.body;
+      if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
+
+      const systemPrompt = `You are an expert brand strategist, visual designer, and marketing consultant. You create complete, premium brand identity systems. Return ONLY valid JSON — no markdown, no explanation, just the JSON object.`;
+
+      const userPrompt = `Create a complete brand kit for this brand:
+
+Business/Brand: ${businessDescription}
+Target Audience: ${targetAudience || "Not specified"}
+Platform Focus: ${platform || "Instagram"}
+Style Preference: ${style || "Minimal & Clean"}
+Goal: ${goal || "Grow Audience"}
+
+Return this exact JSON structure:
+{
+  "brandCore": {
+    "positioning": { "standFor": "string", "uniqueAngle": "string" },
+    "personality": { "traits": ["trait1","trait2","trait3","trait4"], "contentExpression": "string" },
+    "toneOfVoice": { "style": "string", "example": "string (a sample sentence in this brand voice)" }
+  },
+  "visualIdentity": {
+    "colorPalette": {
+      "primary": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "secondary": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "accent": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "background": { "name": "color name", "hex": "#hexcode" },
+      "emotionalImpact": "string explaining the emotional effect of this palette"
+    },
+    "typography": {
+      "heading": { "style": "font description", "usage": "when to use" },
+      "body": { "style": "font description", "usage": "when to use" },
+      "accent": { "style": "font description", "usage": "when to use" }
+    },
+    "designStyle": {
+      "aesthetic": "string",
+      "layout": "string",
+      "visualElements": "string"
+    }
+  },
+  "socialMedia": {
+    "postStyle": { "look": "string", "textPlacement": "string", "colorsSpacing": "string" },
+    "carouselStyle": { "structure": "string", "fontHierarchy": "string", "visualFlow": "string" },
+    "storyStyle": { "textDensity": "string", "interaction": "string", "tone": "string" }
+  },
+  "contentStrategy": {
+    "pillars": [
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" }
+    ],
+    "hooks": ["hook1","hook2","hook3","hook4","hook5"],
+    "ctas": { "style": "string", "examples": ["cta1","cta2","cta3"] }
+  },
+  "leadMagnet": {
+    "types": ["type1","type2","type3"],
+    "designStyle": "string",
+    "tone": "string"
+  },
+  "brandRules": {
+    "dos": ["do1","do2","do3","do4","do5"],
+    "donts": ["dont1","dont2","dont3","dont4","dont5"]
+  },
+  "summary": ["bullet1","bullet2","bullet3","bullet4","bullet5"]
+}
+
+Make it specific, strategic, and cohesive — not generic. Optimise for modern social media growth.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/);
+        if (!m) throw new Error("Failed to parse brand kit JSON");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Lead Magnet — expand existing slide with deeper AI content
   app.post("/api/ai/lead-magnet/expand-slide", requireAuth, async (req: Request, res: Response) => {
     try {
