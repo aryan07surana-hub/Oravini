@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,7 @@ import {
   Sparkles, Layers, ChevronLeft, ChevronRight,
   Download, ImagePlus, RefreshCw, Upload, Check, Palette,
   LayoutTemplate, Wand2, Zap, History, Plus, Trash2, Clock,
-  ArrowLeft,
+  ArrowLeft, PlusCircle, Brain,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -19,15 +20,22 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 interface AiSlide { role: string; headline: string; body: string; }
 interface DesignSlide extends AiSlide { imageUrl: string | null; layout: "full" | "split" | "text"; }
 
-type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral";
+type ThemeData = { name: string; bg: string; overlay: string; headline: string; body: string; accent: string; accentText: string };
+type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral" | "rose" | "forest" | "sunset" | "cyber" | "arctic" | "custom";
 
 // ── Themes ───────────────────────────────────────────────────────────────────
-const THEMES: Record<ThemeKey, { name: string; bg: string; overlay: string; headline: string; body: string; accent: string; accentText: string }> = {
-  brandverse: { name: "Brandverse Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.58)", headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
-  minimal:    { name: "Clean White",     bg: "#ffffff",  overlay: "rgba(255,255,255,0.72)", headline: "#111111", body: "#444444", accent: "#111111", accentText: "#ffffff" },
+const THEMES: Record<ThemeKey, ThemeData> = {
+  brandverse: { name: "Brandverse Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.58)",      headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
+  minimal:    { name: "Clean White",     bg: "#ffffff",  overlay: "rgba(255,255,255,0.72)",headline: "#111111", body: "#444444", accent: "#111111", accentText: "#ffffff" },
   navy:       { name: "Midnight Blue",   bg: "#0f172a",  overlay: "rgba(15,23,42,0.68)",   headline: "#818cf8", body: "#e2e8f0", accent: "#818cf8", accentText: "#0f172a" },
   coral:      { name: "Bold Coral",      bg: "#1a1a1a",  overlay: "rgba(0,0,0,0.52)",      headline: "#ff6b6b", body: "#ffffff", accent: "#ff6b6b", accentText: "#000000" },
   viral:      { name: "Viral Dark",      bg: "#0d0d0d",  overlay: "rgba(0,0,0,0.60)",      headline: "#ffffff", body: "#cccccc", accent: "#ff3b8e", accentText: "#ffffff" },
+  rose:       { name: "Rose Gold",       bg: "#1a0a0e",  overlay: "rgba(20,5,8,0.58)",     headline: "#fda4af", body: "#ffffff", accent: "#f43f5e",  accentText: "#ffffff" },
+  forest:     { name: "Forest Dark",     bg: "#0a1a0e",  overlay: "rgba(5,15,8,0.58)",     headline: "#86efac", body: "#ffffff", accent: "#22c55e",  accentText: "#000000" },
+  sunset:     { name: "Sunset Vibes",    bg: "#18100a",  overlay: "rgba(18,8,3,0.52)",     headline: "#fdba74", body: "#ffffff", accent: "#f97316",  accentText: "#000000" },
+  cyber:      { name: "Cyberpunk",       bg: "#050511",  overlay: "rgba(5,5,17,0.65)",     headline: "#e879f9", body: "#d4d4f8", accent: "#a855f7",  accentText: "#ffffff" },
+  arctic:     { name: "Arctic Blue",     bg: "#0a0f1a",  overlay: "rgba(0,5,20,0.58)",     headline: "#7dd3fc", body: "#e2e8f0", accent: "#0ea5e9",  accentText: "#ffffff" },
+  custom:     { name: "Custom",          bg: "#0a0a0a",  overlay: "rgba(0,0,0,0.58)",      headline: "#ffffff", body: "#cccccc", accent: "#d4b461",  accentText: "#000000" },
 };
 
 const TONES = ["Engaging & Educational", "Bold & Direct", "Motivational", "Storytelling", "Data-Driven", "Conversational"];
@@ -49,9 +57,9 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 async function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 }
-async function renderSlide(slide: DesignSlide, theme: ThemeKey, num: number, total: number): Promise<string> {
+async function renderSlide(slide: DesignSlide, t: ThemeData, num: number, total: number): Promise<string> {
   const S = 1080; const canvas = document.createElement("canvas"); canvas.width = S; canvas.height = S;
-  const ctx = canvas.getContext("2d")!; const t = THEMES[theme];
+  const ctx = canvas.getContext("2d")!;
   if (slide.layout === "split" && slide.imageUrl) {
     const W = S / 2; const img = await loadImg(slide.imageUrl);
     const sc = Math.max(W / img.width, S / img.height); const dw = img.width * sc; const dh = img.height * sc;
@@ -126,6 +134,8 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const [tone, setTone] = useState(TONES[0]);
   const [slideCount, setSlideCount] = useState(6);
   const [generating, setGenerating] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
+  const [pendingSlides, setPendingSlides] = useState<DesignSlide[]>([]);
 
   // Slides state
   const [slides, setSlides] = useState<DesignSlide[]>([]);
@@ -134,10 +144,17 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
 
   // Design state
   const [theme, setTheme] = useState<ThemeKey>("brandverse");
+  const [customAccent, setCustomAccent] = useState("#d4b461");
   const [applyToAll, setApplyToAll] = useState(true);
   const [globalImage, setGlobalImage] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [generatingImageIdx, setGeneratingImageIdx] = useState<number | "all" | null>(null);
+
+  // Generate more + refine state
+  const [addCount, setAddCount] = useState(3);
+  const [generatingMore, setGeneratingMore] = useState(false);
+  const [refineInput, setRefineInput] = useState("");
+  const [refining, setRefining] = useState(false);
 
   // Right panel tab: "design" | "history"
   const [rightTab, setRightTab] = useState<"design" | "history">("design");
@@ -150,7 +167,10 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const multiRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
-  const t = THEMES[theme];
+  const effectiveTheme: ThemeData = theme === "custom"
+    ? { ...THEMES.custom, accent: customAccent, accentText: "#000000" }
+    : THEMES[theme];
+  const t = effectiveTheme;
 
   // History
   const { data: carouselHistory = [] } = useQuery<any[]>({
@@ -196,24 +216,71 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       .catch(() => {});
   }
 
-  // ── Generate text ──────────────────────────────────────────────────────────
+  // ── Generate text (with 45s GeneratingScreen) ─────────────────────────────
   async function generateText() {
     if (!topic.trim()) { toast({ title: "Enter a topic first", variant: "destructive" }); return; }
     setGenerating(true);
+    setApiDone(false);
+    setPendingSlides([]);
     try {
       const data = await apiRequest("POST", "/api/carousel/generate-text", { topic: topic.trim(), tone, slideCount });
       const designed: DesignSlide[] = (data.slides as AiSlide[]).map(s => ({ ...s, imageUrl: null, layout: "full" as const }));
-      setSlides(designed);
-      setActiveIdx(0);
-      saveToHistory(designed, topic.trim());
-      toast({ title: `${designed.length} slides generated!`, description: `3 credits used · ${data.balance} remaining` });
+      setPendingSlides(designed);
+      setApiDone(true);
     } catch (err: any) {
+      setGenerating(false);
+      setApiDone(false);
       if (err.message?.includes("402") || err.insufficientCredits) {
         toast({ title: "Not enough credits", description: "Upgrade your plan to generate more carousels.", variant: "destructive" });
       } else {
         toast({ title: "Generation failed", description: err.message, variant: "destructive" });
       }
-    } finally { setGenerating(false); }
+    }
+  }
+
+  function handleDoneGenerating() {
+    setSlides(pendingSlides);
+    setActiveIdx(0);
+    saveToHistory(pendingSlides, topic.trim());
+    setGenerating(false);
+    toast({ title: `${pendingSlides.length} slides ready!`, description: "Add images and export your carousel." });
+  }
+
+  // ── Generate more slides ────────────────────────────────────────────────────
+  async function generateMoreSlides() {
+    if (!topic.trim() || slides.length === 0) return;
+    setGeneratingMore(true);
+    try {
+      const existingRoles = slides.map(s => s.role);
+      const data = await apiRequest("POST", "/api/carousel/add-slides", { topic: topic.trim(), tone, addCount, existingRoles });
+      const newSlides: DesignSlide[] = (data.slides as AiSlide[]).map(s => ({ ...s, imageUrl: null, layout: "full" as const }));
+      setSlides(prev => [...prev, ...newSlides]);
+      setActiveIdx(slides.length);
+      toast({ title: `${newSlides.length} more slides added!`, description: `2 credits used · ${data.balance} remaining` });
+    } catch (err: any) {
+      toast({ title: "Failed to add slides", description: err.message, variant: "destructive" });
+    } finally { setGeneratingMore(false); }
+  }
+
+  // ── Refine all slides with AI ───────────────────────────────────────────────
+  async function refineAll() {
+    if (!refineInput.trim() || slides.length === 0) {
+      toast({ title: "Enter a refinement prompt first", variant: "destructive" }); return;
+    }
+    setRefining(true);
+    try {
+      const data = await apiRequest("POST", "/api/carousel/refine", { topic, tone, slides, prompt: refineInput.trim() });
+      const refined: DesignSlide[] = (data.slides as AiSlide[]).map((s, i) => ({
+        ...s,
+        imageUrl: slides[i]?.imageUrl ?? null,
+        layout: slides[i]?.layout ?? "full" as const,
+      }));
+      setSlides(refined);
+      setRefineInput("");
+      toast({ title: "Carousel refined!", description: "2 credits used." });
+    } catch (err: any) {
+      toast({ title: "Refinement failed", description: err.message, variant: "destructive" });
+    } finally { setRefining(false); }
   }
 
   // ── Regenerate single slide ────────────────────────────────────────────────
@@ -290,7 +357,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
 
   // ── Export ─────────────────────────────────────────────────────────────────
   async function downloadOne(idx: number) {
-    const dataUrl = await renderSlide(slides[idx], theme, idx + 1, slides.length);
+    const dataUrl = await renderSlide(slides[idx], effectiveTheme, idx + 1, slides.length);
     const a = document.createElement("a");
     a.href = dataUrl;
     a.download = `slide-${idx + 1}-${slides[idx].role.toLowerCase()}.png`;
@@ -301,7 +368,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     setExporting(true);
     try {
       for (let i = 0; i < slides.length; i++) {
-        const dataUrl = await renderSlide(slides[i], theme, i + 1, slides.length);
+        const dataUrl = await renderSlide(slides[i], effectiveTheme, i + 1, slides.length);
         const a = document.createElement("a");
         a.href = dataUrl;
         a.download = `slide-${i + 1}-${slides[i].role.toLowerCase()}.png`;
@@ -341,12 +408,29 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
               <button key={key} onClick={() => setTheme(key)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${theme === key ? "border-[#d4b461]/70 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
                 data-testid={`theme-${key}`}>
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: THEMES[key].accent }} />
+                <div className="w-3 h-3 rounded-full flex-shrink-0 border border-white/20" style={{ background: key === "custom" ? customAccent : THEMES[key].accent }} />
                 {THEMES[key].name}
                 {theme === key && <Check className="w-3 h-3 ml-auto" />}
               </button>
             ))}
           </div>
+          {/* Custom accent color picker */}
+          {theme === "custom" && (
+            <div className="mt-3 flex items-center gap-2.5 px-3 py-2 rounded-xl border border-[#d4b461]/30 bg-[#d4b461]/5">
+              <Palette className="w-3 h-3 text-[#d4b461] flex-shrink-0" />
+              <span className="text-xs text-muted-foreground flex-1">Accent colour</span>
+              <div className="relative flex items-center gap-2">
+                <input
+                  type="color"
+                  value={customAccent}
+                  onChange={e => setCustomAccent(e.target.value)}
+                  className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                  data-testid="input-custom-accent"
+                />
+                <span className="text-[10px] font-mono text-zinc-400">{customAccent}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Layout toggle */}
@@ -406,6 +490,27 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
             </button>
           )}
         </div>
+
+        {/* Refine with AI */}
+        {slides.length > 0 && (
+          <div className="rounded-xl p-3.5 space-y-3" style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)" }}>
+            <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "#a855f7" }}><Brain className="w-3 h-3" />Refine with AI</p>
+            <Textarea
+              value={refineInput}
+              onChange={e => setRefineInput(e.target.value)}
+              placeholder="e.g. Make it more urgent, add more emotion, use a storytelling angle…"
+              className="text-xs min-h-[70px] resize-none"
+              style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(168,85,247,0.2)", color: "#e2e8f0" }}
+              data-testid="input-refine-prompt"
+            />
+            <button onClick={refineAll} disabled={refining || !refineInput.trim()}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              style={{ background: "#a855f7", color: "#fff" }}
+              data-testid="button-refine-all">
+              {refining ? <><RefreshCw className="w-3 h-3 animate-spin" />Refining…</> : <><Wand2 className="w-3 h-3" />Refine All Slides</>}
+            </button>
+          </div>
+        )}
 
         {/* Export */}
         <div className="space-y-2 pt-1">
@@ -483,6 +588,17 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   // ── Render ─────────────────────────────────────────────────────────────────
   const content = (
     <div className="max-w-6xl mx-auto px-5 py-8">
+
+      {/* 45-second generating screen */}
+      {generating && (
+        <GeneratingScreen
+          label="your carousel"
+          minMs={45000}
+          isComplete={apiDone}
+          onReady={handleDoneGenerating}
+          steps={["Crafting your Hook slide", "Writing value slides", "Building CTA", "Structuring the flow", "Final quality check"]}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-7">
@@ -604,6 +720,28 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
               data-testid="button-new-carousel">
               <Plus className="w-3 h-3" /> New
             </button>
+
+            {/* Generate More section */}
+            <div className="mt-4 space-y-2 border-t border-white/8 pt-4">
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider text-center">Add Slides</p>
+              <div className="flex gap-1">
+                {[1, 2, 3].map(n => (
+                  <button key={n} onClick={() => setAddCount(n)}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${addCount === n ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/20"}`}
+                    data-testid={`add-count-${n}`}>
+                    +{n}
+                  </button>
+                ))}
+              </div>
+              <button onClick={generateMoreSlides} disabled={generatingMore}
+                className="w-full py-2 rounded-xl text-[10px] font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.3)" }}
+                data-testid="button-generate-more">
+                {generatingMore
+                  ? <><RefreshCw className="w-3 h-3 animate-spin" />Adding…</>
+                  : <><PlusCircle className="w-3 h-3" />Generate More</>}
+              </button>
+            </div>
           </div>
 
           {/* Center: Active slide editor */}

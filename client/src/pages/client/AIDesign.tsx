@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
-import BrandKitBuilder from "./BrandKitBuilder";
 import {
   Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft, Film,
 } from "lucide-react";
@@ -27,7 +26,7 @@ const MAIN_TOOLS = [
     label: "Brand Kit Builder",
     description: "Complete brand identity system — colours, typography, content strategy, hooks and application rules.",
     icon: Palette,
-    route: null,
+    route: "/brand-kit-builder",
   },
   {
     id: "story-generator",
@@ -62,19 +61,6 @@ export default function AIDesign() {
           <ArrowLeft className="w-3.5 h-3.5" />AI Design Hub
         </button>
         <CarouselStudio embedded />
-      </div>
-    );
-  }
-
-  if (active === "brand-kit") {
-    return (
-      <div className="relative">
-        <button onClick={() => setActive(null)}
-          className="fixed top-4 left-4 z-50 flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors bg-zinc-900/80 border border-zinc-700 rounded-lg px-3 py-2 backdrop-blur"
-          data-testid="back-from-brand-kit">
-          <ArrowLeft className="w-3.5 h-3.5" />AI Design Hub
-        </button>
-        <BrandKitBuilder embedded />
       </div>
     );
   }

@@ -90,7 +90,7 @@ function Pill({ text, variant = "default" }: { text: string; variant?: "default"
   return <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-semibold ${cls}`}>{text}</span>;
 }
 
-export default function BrandKitBuilder({ embedded = false }: { embedded?: boolean }) {
+export default function BrandKitBuilder() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [kit, setKit] = useState<BrandKit | null>(null);
@@ -106,7 +106,6 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     style: "Minimal & Clean",
     goal: "Grow Audience",
     industry: "",
-    existingColors: "",
     revenueModel: "",
     contentFrequency: "",
     mainCompetitor: "",
@@ -118,7 +117,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
 
   const { data: kitHistory = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=brand-kit"],
-    enabled: !embedded,
+    enabled: true,
   });
 
   const setF = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -134,7 +133,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     onSuccess: (data: BrandKit) => {
       setKit(data);
       setApiDone(true);
-      if (!embedded && form.businessDescription.trim()) {
+      if (form.businessDescription.trim()) {
         const title = form.businessDescription.slice(0, 60) + (form.businessDescription.length > 60 ? "…" : "");
         apiRequest("POST", "/api/ai/history", {
           tool: "brand-kit",
@@ -225,11 +224,8 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     toast({ title: "Brand kit copied to clipboard!" });
   };
 
-  const Wrapper = embedded ? ({ children }: any) => <div className="min-h-screen bg-background">{children}</div>
-    : ({ children }: any) => <ClientLayout><div className="min-h-screen bg-background">{children}</div></ClientLayout>;
-
   return (
-    <Wrapper>
+    <ClientLayout>
       {generating && (
         <GeneratingScreen
           label="your brand kit"
@@ -252,29 +248,27 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
         </div>
 
         {/* Tab bar */}
-        {!embedded && (
-          <div className="flex rounded-xl border border-zinc-800 overflow-hidden w-fit">
-            <button
-              onClick={() => setActiveView("new")}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "new" ? "bg-primary/10 text-primary border-r border-zinc-800" : "text-zinc-400 hover:text-white border-r border-zinc-800"}`}
-              data-testid="tab-new-brandkit"
-            >
-              <Palette className="w-3.5 h-3.5" />New Kit
-            </button>
-            <button
-              onClick={() => setActiveView("history")}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "history" ? "bg-primary/10 text-primary" : "text-zinc-400 hover:text-white"}`}
-              data-testid="tab-history-brandkit"
-            >
-              <History className="w-3.5 h-3.5" />History
-              {kitHistory.length > 0 && (
-                <span className="ml-1 text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5">{kitHistory.length}</span>
-              )}
-            </button>
-          </div>
-        )}
+        <div className="flex rounded-xl border border-zinc-800 overflow-hidden w-fit">
+          <button
+            onClick={() => setActiveView("new")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "new" ? "bg-primary/10 text-primary border-r border-zinc-800" : "text-zinc-400 hover:text-white border-r border-zinc-800"}`}
+            data-testid="tab-new-brandkit"
+          >
+            <Palette className="w-3.5 h-3.5" />New Kit
+          </button>
+          <button
+            onClick={() => setActiveView("history")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "history" ? "bg-primary/10 text-primary" : "text-zinc-400 hover:text-white"}`}
+            data-testid="tab-history-brandkit"
+          >
+            <History className="w-3.5 h-3.5" />History
+            {kitHistory.length > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5">{kitHistory.length}</span>
+            )}
+          </button>
+        </div>
 
-        {!embedded && activeView === "history" ? (
+        {activeView === "history" ? (
           kitHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
               <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
@@ -431,13 +425,13 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Palette className="w-3 h-3" />Existing brand colors</label>
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Award className="w-3 h-3" />Brand hero / inspiration</label>
               <Input
-                value={form.existingColors}
-                onChange={e => setF("existingColors", e.target.value)}
-                placeholder="e.g. #1A1A1A, navy blue + gold, none yet…"
+                value={form.brandHero}
+                onChange={e => setF("brandHero", e.target.value)}
+                placeholder="e.g. @garyvee, Apple, MrBeast…"
                 className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
-                data-testid="input-existing-colors"
+                data-testid="input-brand-hero-2"
               />
             </div>
             <div className="space-y-2">
@@ -749,6 +743,6 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
           </div>
         )}
       </div>
-    </Wrapper>
+    </ClientLayout>
   );
 }

@@ -1828,6 +1828,69 @@ Return JSON:
     }
   });
 
+  // ── Add more slides to an existing carousel ──────────────────────────────
+  app.post("/api/carousel/add-slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, addCount, existingRoles } = req.body;
+      if (!topic) return res.status(400).json({ message: "Topic is required" });
+      const count = Math.min(Math.max(Number(addCount) || 3, 1), 5);
+      const creditResult = await storage.deductCredits(u.id, 2, "carousel", "Carousel add-slides", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate additional slides as valid JSON only. No markdown, no code fences.`;
+      const userPrompt = `Generate ${count} NEW slides for an existing carousel about: "${topic}"
+Tone: ${tone || "engaging and educational"}
+Existing slide roles already used: ${(existingRoles || []).join(", ")}
+These new slides should ADD more value — deeper insights, extra steps, or a stronger CTA.
+Available roles: Insight, Solution, Step, Benefit, Proof, Story, Tip, Deep Dive, Bonus, Recap
+
+Return JSON:
+{
+  "slides": [
+    { "role": "Insight", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" }
+  ]
+}`;
+      const raw = await callGroqJson(systemPrompt, userPrompt, 1200);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 2, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to add slides" });
+    }
+  });
+
+  // ── AI Refine: rewrite all slides from a prompt ───────────────────────────
+  app.post("/api/carousel/refine", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, slides, prompt } = req.body;
+      if (!slides || !Array.isArray(slides)) return res.status(400).json({ message: "Slides array required" });
+      const creditResult = await storage.deductCredits(u.id, 2, "carousel", "Carousel AI refine", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Refine carousel slides as valid JSON only. No markdown, no code fences.`;
+      const userPrompt = `Refine the following ${slides.length} carousel slides about "${topic}".
+Tone: ${tone || "engaging and educational"}
+User instruction: "${prompt}"
+
+Current slides:
+${slides.map((s: any, i: number) => `Slide ${i+1} (${s.role}): "${s.headline}" — ${s.body}`).join("\n")}
+
+Apply the user's instruction to improve, strengthen, or transform the slides. Keep the same roles and count.
+Return JSON:
+{
+  "slides": [
+    { "role": "same role as input", "headline": "improved headline", "body": "improved body" }
+  ]
+}`;
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 2, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Refinement failed" });
+    }
+  });
+
   // ── AI Content Report (OpenRouter — smart reasoning) ─────────────────────
   app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
     try {
