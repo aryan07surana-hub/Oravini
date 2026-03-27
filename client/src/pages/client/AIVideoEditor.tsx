@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import { useToast } from "@/hooks/use-toast";
@@ -15,7 +15,7 @@ import {
   Loader2, Link2, FileText, Lightbulb, Scissors, Volume2, Eye, ListChecks,
   Shuffle, Wand2, Music, Layers, Star, Play, RotateCcw, Hash, Video, Camera,
   Download, CheckSquare, Square, Plus, X, TrendingUp, Trophy, AlertCircle,
-  ArrowRight, Image, Film, MessageCircle, Send, Radio
+  ArrowRight, Image, Film, MessageCircle, Send, Radio, History, Trash2, Clock,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -391,6 +391,12 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [result, setResult] = useState<any>(null);
   const [isIdeaResult, setIsIdeaResult] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline");
+  const [showScriptHistory, setShowScriptHistory] = useState(false);
+  const qcVideo = useQueryClient();
+  const { data: videoHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=video-script"],
+    enabled: !useAdmin,
+  });
   const [appliedEdits, setAppliedEdits] = useState<Set<number>>(new Set());
 
   // Handle Canva OAuth redirect callbacks
@@ -461,7 +467,19 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       ]);
       return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(false); setActiveTab("timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); setCaptionSegments([]); setAudioSuggestions([]); },
+    onSuccess: (data) => {
+      setResult(data); setIsIdeaResult(false); setActiveTab("timeline");
+      setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({});
+      setCaptionSegments([]); setAudioSuggestions([]);
+      if (!useAdmin) {
+        apiRequest("POST", "/api/ai/history", {
+          tool: "video-script",
+          title: (inputValue || "").slice(0, 80) || "Video analysis",
+          inputs: { inputType, inputValue, mode, goal, platform },
+          output: { videoTitle: data.videoTitle, fullScript: data.fullScript?.slice(0, 500), timeline: data.timeline?.slice(0, 3) },
+        }).then(() => qcVideo.invalidateQueries({ queryKey: ["/api/ai/history?tool=video-script"] })).catch(() => {});
+      }
+    },
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
   });
 
@@ -476,7 +494,19 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       ]);
       return data;
     },
-    onSuccess: (data) => { setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline"); setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({}); setCaptionSegments([]); setAudioSuggestions([]); },
+    onSuccess: (data) => {
+      setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline");
+      setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({});
+      setCaptionSegments([]); setAudioSuggestions([]);
+      if (!useAdmin) {
+        apiRequest("POST", "/api/ai/history", {
+          tool: "video-script",
+          title: (concept || "").slice(0, 80) || "Video idea",
+          inputs: { concept, mode, goal, platform },
+          output: { videoTitle: data.videoTitle, fullScript: data.fullScript?.slice(0, 500) },
+        }).then(() => qcVideo.invalidateQueries({ queryKey: ["/api/ai/history?tool=video-script"] })).catch(() => {});
+      }
+    },
     onError: (err: any) => toast({ title: "Idea Builder failed", description: err.message, variant: "destructive" }),
   });
 
@@ -1124,6 +1154,68 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             : <><Wand2 className="w-4 h-4" />{inputType === "idea" ? "Build My Video — Generate Full Plan" : "Analyze & Generate Edit Plan"}{activeCompUrls.length > 0 ? ` (+ ${activeCompUrls.length} competitor${activeCompUrls.length > 1 ? "s" : ""})` : ""}</>
           }
         </Button>
+
+        {/* ── Script History ───────────────────────────────────────────────────── */}
+        {!useAdmin && videoHistory.length > 0 && !isPending && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30">
+            <button
+              onClick={() => setShowScriptHistory(h => !h)}
+              className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors"
+              data-testid="toggle-video-history"
+            >
+              <span className="flex items-center gap-2">
+                <History className="w-4 h-4 text-primary" />
+                Script History ({videoHistory.length})
+              </span>
+              {showScriptHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showScriptHistory && (
+              <div className="border-t border-zinc-800 divide-y divide-zinc-800/50">
+                {videoHistory.map((h: any) => {
+                  const inp = h.inputs as any ?? {};
+                  const out = h.output as any ?? {};
+                  return (
+                    <div key={h.id} className="flex items-center gap-3 px-5 py-3" data-testid={`video-history-${h.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-zinc-300 leading-snug truncate font-medium">{out.videoTitle || h.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {inp.platform && <span className="text-[10px] text-zinc-600 capitalize">{inp.platform}</span>}
+                          {inp.mode && <span className="text-[10px] text-zinc-600">• {inp.mode}</span>}
+                          <span className="text-[10px] text-zinc-700">
+                            {new Date(h.createdAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          className="text-xs text-primary hover:text-primary/80 font-semibold"
+                          data-testid={`restore-video-${h.id}`}
+                          onClick={() => {
+                            if (inp.inputValue) setInputValue(inp.inputValue);
+                            if (inp.concept) setConcept(inp.concept);
+                            if (inp.inputType) setInputType(inp.inputType);
+                            if (inp.mode) setMode(inp.mode);
+                            if (inp.goal) setGoal(inp.goal);
+                            setShowScriptHistory(false);
+                          }}
+                        >
+                          Restore
+                        </button>
+                        <button
+                          className="text-zinc-600 hover:text-red-400 transition-colors"
+                          onClick={() => apiRequest("DELETE", `/api/ai/history/${h.id}`).then(() => qcVideo.invalidateQueries({ queryKey: ["/api/ai/history?tool=video-script"] })).catch(() => {})}
+                          data-testid={`delete-video-${h.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Loading state ────────────────────────────────────────────────────── */}
         {isPending && (() => {

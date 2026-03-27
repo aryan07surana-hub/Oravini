@@ -6,9 +6,10 @@ import {
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
-  twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts,
+  twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
+  type AiSessionHistory, type InsertAiSessionHistory,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
   type CallFeedback, type InsertCallFeedback, type Task, type InsertTask,
@@ -894,6 +895,22 @@ class DatabaseStorage implements IStorage {
 
   async deleteScheduledLinkedinPost(id: string, userId: string): Promise<void> {
     await db.delete(scheduledLinkedinPosts).where(and(eq(scheduledLinkedinPosts.id, id), eq(scheduledLinkedinPosts.userId, userId)));
+  }
+
+  async saveAiHistory(data: InsertAiSessionHistory): Promise<AiSessionHistory> {
+    const [row] = await db.insert(aiSessionHistory).values(data).returning();
+    return row;
+  }
+
+  async getAiHistory(userId: string, tool: string, limit = 20): Promise<AiSessionHistory[]> {
+    return db.select().from(aiSessionHistory)
+      .where(and(eq(aiSessionHistory.userId, userId), eq(aiSessionHistory.tool, tool)))
+      .orderBy(desc(aiSessionHistory.createdAt))
+      .limit(limit);
+  }
+
+  async deleteAiHistory(id: string, userId: string): Promise<void> {
+    await db.delete(aiSessionHistory).where(and(eq(aiSessionHistory.id, id), eq(aiSessionHistory.userId, userId)));
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import {
   Flame, Zap, TrendingUp, TrendingDown, AlertTriangle, Sparkles, Loader2,
   Target, Brain, Activity, Play, ChevronDown, ChevronUp, Copy, Check,
   RefreshCw, Star, AlertCircle, ArrowRight, Clock, BarChart2, Heart,
-  Eye, Shield, Award, Lightbulb, Wand2, MessageCircle, Crosshair,
+  Eye, Shield, Award, Lightbulb, Wand2, MessageCircle, Crosshair, Trash2,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -130,6 +130,7 @@ const CustomRetentionTooltip = ({ active, payload, label }: any) => {
 
 export default function ViralityTester({ useAdmin, activeClientId, user }: { useAdmin?: boolean; activeClientId?: string | number; user?: any }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [mode, setMode] = useState<"new" | "reel">("new");
   const [script, setScript] = useState("");
   const [reelUrl, setReelUrl] = useState("");
@@ -140,17 +141,32 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
   const [rewrittenScript, setRewrittenScript] = useState("");
   const [showHooks, setShowHooks] = useState(false);
   const [showRewrite, setShowRewrite] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const { data: viralityHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=virality"],
+    enabled: !useAdmin,
+  });
 
   const analyzeMutation = useMutation({
     mutationFn: async (payload: any) => {
       return await apiRequest("POST", "/api/virality/analyze", payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables: any) => {
       setResult(data);
       setNewHooks([]);
       setRewrittenScript("");
       setShowHooks(false);
       setShowRewrite(false);
+      if (!useAdmin) {
+        const snippet = (variables.script || variables.reelUrl || "").slice(0, 80);
+        apiRequest("POST", "/api/ai/history", {
+          tool: "virality",
+          title: snippet || "Reel analysis",
+          inputs: { script: variables.script, reelUrl: variables.reelUrl, platform: variables.platform, audience: variables.audience },
+          output: { overallScore: data.overallScore, viralPrediction: data.viralPrediction, scores: data.scores },
+        }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=virality"] })).catch(() => {});
+      }
     },
     onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
   });
@@ -303,6 +319,64 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
           </Button>
         </CardContent>
       </Card>
+
+      {/* Recent Analyses History */}
+      {!useAdmin && viralityHistory.length > 0 && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30">
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors"
+            data-testid="toggle-virality-history"
+          >
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              Recent Analyses ({viralityHistory.length})
+            </span>
+            {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {showHistory && (
+            <div className="border-t border-zinc-800 divide-y divide-zinc-800/50">
+              {viralityHistory.map((h: any) => {
+                const out = h.output as any ?? {};
+                const inp = h.inputs as any ?? {};
+                const score = out.overallScore ?? 0;
+                const scoreColor = score >= 75 ? "text-emerald-400" : score >= 50 ? "text-primary" : score >= 30 ? "text-orange-400" : "text-red-400";
+                return (
+                  <div key={h.id} className="flex items-center gap-3 px-5 py-3" data-testid={`virality-history-${h.id}`}>
+                    <div className={`text-lg font-black ${scoreColor} w-12 flex-shrink-0`}>{score}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-zinc-300 leading-snug truncate">{h.title}</p>
+                      <p className="text-[10px] text-zinc-600 mt-0.5">
+                        {new Date(h.createdAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <button
+                      className="text-xs text-primary hover:text-primary/80 font-semibold flex-shrink-0"
+                      data-testid={`restore-virality-${h.id}`}
+                      onClick={() => {
+                        if (inp.script) setScript(inp.script);
+                        if (inp.reelUrl) setReelUrl(inp.reelUrl);
+                        if (inp.audience) setAudience(inp.audience);
+                        setMode(inp.reelUrl ? "reel" : "new");
+                        setShowHistory(false);
+                      }}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      className="text-zinc-600 hover:text-red-400 transition-colors"
+                      onClick={() => apiRequest("DELETE", `/api/ai/history/${h.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=virality"] })).catch(() => {})}
+                      data-testid={`delete-virality-${h.id}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Loading state */}
       {analyzeMutation.isPending && (

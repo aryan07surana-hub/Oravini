@@ -4582,6 +4582,39 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // ── AI Session History ───────────────────────────────────────────────────────
+  app.get("/api/ai/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const tool = (req.query.tool as string) || "ideas";
+      const history = await storage.getAiHistory(userId, tool);
+      return res.json(history);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/ai/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { tool, title, inputs, output } = req.body;
+      if (!tool) return res.status(400).json({ message: "tool is required" });
+      const entry = await storage.saveAiHistory({ userId, tool, title, inputs, output });
+      return res.json(entry);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/ai/history/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteAiHistory(req.params.id, (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── LinkedIn Integration ─────────────────────────────────────────────────────
   const LINKEDIN_CALLBACK = process.env.NODE_ENV === "production"
     ? "https://admin-control-hub-aryan07surana.replit.app/api/linkedin/callback"

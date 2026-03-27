@@ -10,15 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
+import PublishModal from "@/components/PublishModal";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
-  FileText, Wand2, Hash, Plus, X, Clock, Linkedin, Twitter
+  FileText, Wand2, Hash, Plus, X, Clock, Linkedin, Twitter, Send, History, RotateCcw
 } from "lucide-react";
 
 // ─── AI hashtag suggestions hook ───────────────────────────────────────────────
@@ -235,12 +237,29 @@ function AILoadingState({ platform }: { platform: string }) {
   );
 }
 
-function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }: {
+function buildPublishText(idea: ContentIdea, plat: string): string {
+  if (plat === "linkedin") {
+    const parts: string[] = [];
+    if (idea.captionStarter) parts.push(idea.captionStarter);
+    if (idea.linkedinStructure?.length) parts.push(idea.linkedinStructure.join("\n"));
+    if (idea.cta) parts.push(idea.cta);
+    return parts.filter(Boolean).join("\n\n");
+  } else {
+    const parts: string[] = [];
+    if (idea.captionStarter) parts.push(idea.captionStarter);
+    if (idea.threadOutline?.length) parts.push("🧵 Thread:\n\n" + idea.threadOutline.join("\n\n"));
+    else if (idea.cta) parts.push(idea.cta);
+    return parts.filter(Boolean).join("\n\n");
+  }
+}
+
+function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, platform }: {
   idea: ContentIdea;
   index: number;
   isLiked?: boolean;
   onToggleLike?: (idea: ContentIdea) => void;
   onGetScript?: (idea: ContentIdea) => void;
+  onPublish?: (idea: ContentIdea) => void;
   platform?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -281,6 +300,16 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, platform }:
                 >
                   <Heart className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`} />
                 </button>
+                {(isLinkedIn || isTwitter) && onPublish && (
+                  <button
+                    onClick={() => onPublish(idea)}
+                    data-testid={`publish-idea-${index}`}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    title="Publish this idea"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => setExpanded(e => !e)}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -447,6 +476,12 @@ export default function AIIdeas() {
   const [creditError, setCreditError] = useState<string | null>(null);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
+  const [publishIdea, setPublishIdea] = useState<ContentIdea | null>(null);
+  const qc = useQueryClient();
+
+  const { data: ideaHistory = [], isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=ideas"],
+  });
 
   useEffect(() => {
     setLikedIdeas(loadLiked(platform));
@@ -556,10 +591,19 @@ export default function AIIdeas() {
         scrapedPosts: scrapedPosts.length > 0 ? scrapedPosts : undefined,
         hashtags: hashtags.length > 0 ? hashtags : undefined,
       });
-      setIdeas(Array.isArray(data) ? data : (data?.ideas ?? []));
+      const resolvedIdeas = Array.isArray(data) ? data : (data?.ideas ?? []);
+      setIdeas(resolvedIdeas);
       if (data?.contentMix) setContentMix(data.contentMix);
       if (scrapedPosts.length > 0) {
         toast({ title: `Ideas based on ${scrapedPosts.length} real posts`, description: "Your actual Instagram content was analysed to make these ideas personal." });
+      }
+      if (resolvedIdeas.length > 0) {
+        apiRequest("POST", "/api/ai/history", {
+          tool: "ideas",
+          title: `${niche.trim()} — ${platform}`,
+          inputs: { platform, niche, contentType, goal, audience, additionalContext },
+          output: { ideas: resolvedIdeas, contentMix: data?.contentMix },
+        }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=ideas"] })).catch(() => {});
       }
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 402) {
@@ -666,7 +710,94 @@ export default function AIIdeas() {
                 <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{likedIdeas.length}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5" data-testid="tab-ideas-history">
+              <History className="w-3.5 h-3.5" /> History
+              {ideaHistory.length > 0 && (
+                <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{ideaHistory.length}</Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="history" className="space-y-3 mt-0">
+            {historyLoading ? (
+              [1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)
+            ) : ideaHistory.length === 0 ? (
+              <Card className="border border-card-border">
+                <CardContent className="p-10 text-center">
+                  <History className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-medium text-foreground mb-1">No history yet</p>
+                  <p className="text-xs text-muted-foreground">Generate ideas and they'll be saved here automatically.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {ideaHistory.map((session: any) => {
+                  const inp = session.inputs as any ?? {};
+                  const out = session.output as any ?? {};
+                  const count = out.ideas?.length ?? 0;
+                  const platLabel: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", linkedin: "LinkedIn", twitter: "X / Twitter" };
+                  const platColor: Record<string, string> = { instagram: "text-pink-400 border-pink-500/30 bg-pink-500/10", youtube: "text-red-400 border-red-500/30 bg-red-500/10", linkedin: "text-blue-400 border-blue-500/30 bg-blue-500/10", twitter: "text-zinc-300 border-zinc-400/30 bg-zinc-700/20" };
+                  const colorCls = platColor[inp.platform] ?? "text-primary border-primary/30 bg-primary/10";
+                  return (
+                    <Card key={session.id} className="border border-card-border hover:border-primary/30 transition-all" data-testid={`history-session-${session.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant="outline" className={`text-[10px] h-5 border ${colorCls}`}>
+                                {platLabel[inp.platform] ?? inp.platform}
+                              </Badge>
+                              <Badge variant="outline" className="text-[10px] h-5 border-primary/30 text-primary">
+                                {count} ideas
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(session.createdAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground leading-snug truncate">{session.title}</p>
+                            {inp.niche && <p className="text-xs text-muted-foreground mt-0.5 truncate">Niche: {inp.niche}</p>}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs gap-1.5"
+                              data-testid={`restore-session-${session.id}`}
+                              onClick={() => {
+                                if (count > 0) {
+                                  setIdeas(out.ideas);
+                                  setContentMix(out.contentMix ?? null);
+                                  if (inp.platform) setPlatform(inp.platform);
+                                  if (inp.niche) setNiche(inp.niche);
+                                  if (inp.contentType) setContentType(inp.contentType);
+                                  if (inp.goal) setGoal(inp.goal);
+                                  if (inp.audience) setAudience(inp.audience);
+                                  toast({ title: "Session restored!", description: `${count} ideas loaded from history.` });
+                                }
+                              }}
+                            >
+                              <RotateCcw className="w-3 h-3" /> Restore
+                            </Button>
+                            <button
+                              onClick={() => {
+                                apiRequest("DELETE", `/api/ai/history/${session.id}`).then(() =>
+                                  qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=ideas"] })
+                                ).catch(() => {});
+                              }}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              data-testid={`delete-history-${session.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="liked" className="space-y-3 mt-0">
             {likedIdeas.length === 0 ? (
@@ -1008,7 +1139,7 @@ export default function AIIdeas() {
 
             <div className="space-y-3">
               {ideas.map((idea, i) => (
-                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} platform={platform} />
+                <IdeaCard key={i} idea={idea} index={i} isLiked={likedIdeas.some(l => l.title === idea.title)} onToggleLike={toggleLike} onGetScript={handleGetScript} onPublish={setPublishIdea} platform={platform} />
               ))}
               {platform === "youtube" && (
                 <p className="text-center text-[11px] text-muted-foreground pt-1">
@@ -1119,6 +1250,16 @@ export default function AIIdeas() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {publishIdea && (
+        <PublishModal
+          open={!!publishIdea}
+          onClose={() => setPublishIdea(null)}
+          initialText={buildPublishText(publishIdea, platform)}
+          defaultPlatform={platform === "linkedin" ? "linkedin" : "twitter"}
+          ideaTitle={publishIdea.title}
+        />
+      )}
     </ClientLayout>
   );
 }

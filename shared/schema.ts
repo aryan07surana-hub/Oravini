@@ -458,3 +458,15 @@ export const scheduledLinkedinPosts = pgTable("scheduled_linkedin_posts", {
 export const insertScheduledLinkedinPostSchema = createInsertSchema(scheduledLinkedinPosts).omit({ id: true, createdAt: true, postId: true, errorMessage: true });
 export type InsertScheduledLinkedinPost = z.infer<typeof insertScheduledLinkedinPostSchema>;
 export type ScheduledLinkedinPost = typeof scheduledLinkedinPosts.$inferSelect;
+
+export const aiSessionHistory = pgTable("ai_session_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tool: text("tool").notNull(),
+  title: text("title"),
+  inputs: jsonb("inputs"),
+  output: jsonb("output"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AiSessionHistory = typeof aiSessionHistory.$inferSelect;
+export type InsertAiSessionHistory = { userId: string; tool: string; title?: string; inputs?: any; output?: any };
