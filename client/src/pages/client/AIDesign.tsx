@@ -4,7 +4,7 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
 import {
   Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft,
-  Film, Users, Brain, ClipboardList,
+  Film, Users, Brain, ClipboardList, CalendarDays, ArrowRight, Zap,
 } from "lucide-react";
 
 // ── All hub tiles ─────────────────────────────────────────────────────────────
@@ -287,6 +287,58 @@ export default function AIDesign() {
                 testId={`design-tool-${tool.id}`}
               />
             ))}
+          </div>
+
+          {/* ── Content Calendar — featured section ────────────────────────── */}
+          <div className="mb-10">
+            <p className="text-xs font-semibold text-zinc-600 uppercase tracking-widest mb-4 text-center">Content Strategy</p>
+            <button
+              onClick={() => navigate("/ai-content-planner")}
+              data-testid="design-tool-content-planner"
+              className="group w-full relative rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent hover:border-primary/50 hover:shadow-[0_0_48px_rgba(212,180,97,0.18)] transition-all duration-300 overflow-hidden text-left p-7"
+            >
+              {/* Background glow orb */}
+              <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: "radial-gradient(circle, #d4b461 0%, transparent 70%)" }} />
+
+              <div className="relative flex items-start gap-6">
+                {/* Icon */}
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 mt-1" style={{ background: "rgba(212,180,97,0.15)", border: "1px solid rgba(212,180,97,0.3)" }}>
+                  <CalendarDays className="w-8 h-8" style={{ color: "#d4b461" }} />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-xl font-black text-white tracking-tight">AI Content Planner</h3>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "#d4b461", color: "#000" }}>New</span>
+                  </div>
+                  <p className="text-sm text-zinc-400 leading-relaxed mb-4 max-w-lg">
+                    A complete weekly content execution system — not just ideas. Get content roles, scroll-stopping hooks, formats, and posting strategy built around your niche and goal.
+                  </p>
+
+                  {/* Feature pills */}
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { icon: Zap, text: "Role-based scheduling" },
+                      { icon: Sparkles, text: "Scroll-stopping hooks" },
+                      { icon: CalendarDays, text: "7-day plan" },
+                      { icon: ArrowRight, text: "Regenerate any day" },
+                    ].map(({ icon: Icon, text }) => (
+                      <div key={text} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)", color: "#d4b461" }}>
+                        <Icon className="w-3 h-3" />{text}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex-shrink-0 self-center">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all group-hover:translate-x-1" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)" }}>
+                    <ArrowRight className="w-5 h-5" style={{ color: "#d4b461" }} />
+                  </div>
+                </div>
+              </div>
+            </button>
           </div>
 
           {/* Coming soon */}

@@ -1,0 +1,239 @@
+
+
+Also in theAI DESIGN THING MAKE A NEW SECTION CONTENT CALENDAR AND MAKE IT PROPERLY LIKE WHEN THEY CLICK ONTP THE CONTENT CALENDAR FROM THE SECTION INSDIE THE CONTENT CALENDAR LIKE WHEN THEY CLIKC ONTO AI DESIGN GIVE THEM ONE MORE SECTION COONTENT CALENDAR AND WHEN HTEY CLIKC ONTO IT THE CONTENT CLAENDAR THEY’LL GIVE INTO THE WHOLE CONTENT CALENDAR THING
+ALSO ASK THEM A BUNCH OF QUESTIONS BEFORE THE CONTENT CLANDER SO THAT THEY CAN OPTMISE IT BETTER AND IN A GOOD WAY ASK BEST AND RELEVANT QUESTIONS
+
+You are a high-performance content strategist embedded inside an AI SaaS.
+Your job is to THINK in systems, not ideas.
+Your goal is to generate a content calendar that maximizes:
+Consistency
+Engagement
+Growth
+Execution speed
+
+CORE THINKING RULES
+DO NOT generate random ideas
+→ Every piece of content must have a purpose
+THINK IN CONTENT TYPES
+→ Balance across:
+Authority (build trust)
+Engagement (drive interaction)
+Virality (reach new people)
+Conversion (drive action)
+THINK IN SYSTEMS, NOT POSTS
+→ Each post should connect to a larger weekly strategy
+OPTIMIZE FOR EXECUTION
+→ Ideas must be simple, clear, and easy to create
+AVOID REPETITION
+→ Ensure variety in format, topic, and angle
+
+INPUT CONTEXT
+Niche: {{niche}}
+Platform: {{platform}}
+Goal: {{goal}}
+Posting Frequency: {{frequency}}
+Content Style: {{style}}
+
+PLANNING LOGIC
+Step 1: Define weekly objective
+→ Growth / Leads / Authority
+Step 2: Assign content roles across the week
+→ At least:
+1 Virality post
+2 Authority posts
+1 Engagement post
+1 Conversion post
+Step 3: Map content to platform behavior
+→ Short-form = hook heavy
+→ Long-form = depth + value
+Step 4: Generate ideas
+→ Specific, relevant, non-generic
+Step 5: Attach hook to every idea
+→ First line must stop scroll
+Step 6: Assign format
+→ Reel / Carousel / Tweet / Video
+
+OUTPUT STRUCTURE
+For each day:
+Content Role (Virality / Authority / etc.)
+Content Idea (specific)
+Hook (scroll-stopping first line)
+Format (platform-specific)
+Goal (why this post exists)
+
+FINAL RULE
+You are not a content generator.
+You are a SYSTEM that removes thinking and makes execution inevitable.
+
+
+
+
+
+You need to build a “Content Execution System” that:
+Removes thinking
+Drives consistency
+Connects directly to growth
+
+🧠 WHAT YOU SHOULD BUILD (PRODUCT POSITIONING)
+Instead of:
+ ❌ Content Calendar
+Call it:
+ 👉 “AI Content Planner”
+ 👉 “Content Execution Engine”
+ 👉 “Growth Calendar”
+
+⚙️ FULL SYSTEM DESIGN (FOR YOUR SAAS)
+I’ll give you:
+Feature structure
+UX flow
+AI prompt (backend)
+Output format
+
+🧩 1. CORE FEATURES (WHAT YOUR CALENDAR SHOULD DO)
+🔹 A. Smart Calendar View
+Weekly / Monthly view
+Drag & drop posts
+Platform tags (IG, YT, X, LinkedIn)
+
+🔹 B. AI Content Planner (MAIN DIFFERENTIATOR)
+User clicks:
+ 👉 “Generate My Week”
+AI generates:
+Content ideas
+Hooks
+Format (Reel, Carousel, etc.)
+Posting schedule
+
+🔹 C. Content Status System
+Each post has status:
+Idea
+Scripted
+Ready
+Posted
+
+🔹 D. Performance Feedback Loop
+After posting:
+Add metrics (views, likes)
+AI learns what works
+
+🔹 E. Repurposing Engine
+1 idea → 5 formats:
+Reel
+Tweet
+Carousel
+LinkedIn post
+
+🧠 2. USER FLOW (IMPORTANT)
+Step 1:
+User clicks:
+ 👉 “Plan My Content”
+
+Step 2:
+Fill inputs:
+Niche
+Platform
+Goal (growth / leads / sales)
+Posting frequency
+Content style (educational / storytelling / authority)
+
+Step 3:
+Click:
+ 👉 “Generate Plan”
+
+Step 4:
+AI outputs:
+Weekly calendar
+Content ideas
+Hooks
+Format
+
+🤖 3. BACKEND SYSTEM PROMPT
+Use this inside your SaaS:
+Writing
+You are an elite content strategist and growth operator.
+Your task is to generate a highly strategic, performance-driven content calendar for a creator or business.
+The goal is NOT to just fill dates — the goal is to create content that drives growth, engagement, and consistency.
+The calendar must:
+Be structured and easy to follow
+Include specific content ideas (not generic topics)
+Include hooks for each post
+Be aligned with the user’s goal (growth, leads, or authority)
+Balance different content types (educational, engaging, viral, personal)
+Avoid generic ideas. Make everything feel relevant, sharp, and high-performing.
+
+USER INPUTS:
+Niche: {{niche}}
+Platform: {{platform}}
+Goal: {{goal}}
+Posting Frequency: {{frequency}}
+Content Style: {{style}}
+
+Generate:
+A weekly content calendar
+For each day include:
+Content idea
+Hook (first line)
+Content type (Reel, Carousel, Tweet, etc.)
+Goal of the post (engagement, value, conversion)
+Ensure:
+Variety in content
+Logical flow across the week
+At least 1 high-virality post
+At least 1 authority-building post
+At least 1 engagement-focused post
+Make it actionable and ready to execute immediately.
+
+📊 4. OUTPUT FORMAT (UI STRUCTURE)
+
+📅 WEEKLY CONTENT PLAN
+Monday
+Idea:
+Hook:
+Type:
+Goal:
+
+Tuesday
+(same format)
+
+👉 Keep it clean, skimmable, actionable
+
+⚡ 5. ADVANCED FEATURES (THIS IS WHERE YOU WIN)
+🔥 A. “Regenerate This Day”
+User doesn’t like Tuesday → regenerate only that
+
+🔥 B. “Make It Viral”
+AI rewrites idea for virality
+
+🔥 C. “Expand to Script”
+Converts idea → full script
+
+🔥 D. “Auto Schedule”
+Connect APIs → post automatically
+
+🔥 E. “Performance Learning”
+AI adjusts future plans based on results
+
+💣 6. DIFFERENTIATION (CRITICAL)
+Your competitors:
+ 👉 Give ideas
+You:
+ 👉 Give a SYSTEM
+
+🧠 REAL POSITIONING
+👉 “We don’t give you content ideas.
+ We give you a content plan that works.”
+
+⚠️ BIG MISTAKE TO AVOID
+Don’t build:
+ ❌ Static calendar
+Build:
+ ✅ Dynamic + AI-driven + feedback loop
+
+🚀 FINAL VISION
+User logs in → clicks one button → gets:
+Ideas
+Hooks
+Plan
+Execution system
+👉 That’s addictive.
+

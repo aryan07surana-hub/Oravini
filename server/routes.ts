@@ -6031,5 +6031,158 @@ CRITICAL: Be hyper-specific and deeply human. Avoid generic advice entirely. Wri
     }
   });
 
+  // ── AI Content Planner — Generate weekly plan ──────────────────────────────
+  app.post("/api/ai/content-planner/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, targetAudience, goal, platforms, postingFrequency, contentStyle, brandVoice, contentPillars, biggestChallenge, weeklyFocus } = req.body;
+      if (!niche?.trim()) return res.status(400).json({ message: "niche required" });
+
+      const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms.join(", ") : "Instagram";
+      const freqMap: Record<string, number> = { daily: 7, frequent: 6, moderate: 4, light: 2 };
+      const numDays = freqMap[postingFrequency] ?? 5;
+
+      const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].slice(0, numDays);
+
+      const systemPrompt = `You are an elite content strategist and growth operator embedded in a high-performance SaaS platform.
+
+Your task is to generate a highly strategic, performance-driven weekly content calendar. This is NOT about filling dates — it is about creating a system that drives growth, engagement, and consistency.
+
+CORE THINKING RULES:
+1. DO NOT generate random or generic ideas — every post must have a purpose
+2. THINK IN CONTENT TYPES — balance across: Authority (build trust), Engagement (drive interaction), Virality (reach new people), Conversion (drive action), Value (educate)
+3. THINK IN SYSTEMS, NOT POSTS — each post connects to a larger weekly strategy
+4. OPTIMIZE FOR EXECUTION — ideas must be simple, clear, and easy to create
+5. AVOID REPETITION — ensure variety in format, topic, and angle
+
+PLANNING LOGIC:
+- Step 1: Define weekly objective and theme based on user's goal
+- Step 2: Assign content roles across the week (at minimum: 1 Virality, 2 Authority, 1 Engagement, 1 Conversion)
+- Step 3: Map content to platform behavior (short-form = hook heavy, long-form = depth + value)
+- Step 4: Generate specific, non-generic content ideas
+- Step 5: Craft a scroll-stopping hook for EVERY idea
+- Step 6: Assign the right format (Reel, Carousel, Tweet, Story, Video, LinkedIn post)
+
+OUTPUT: Return ONLY valid JSON in this exact structure:
+{
+  "weekObjective": "One clear sentence describing what this week's content will achieve",
+  "weekTheme": "A unifying theme that connects all posts this week",
+  "contentMix": {
+    "virality": 1,
+    "authority": 2,
+    "engagement": 1,
+    "conversion": 1,
+    "value": 1
+  },
+  "days": [
+    {
+      "day": "Monday",
+      "role": "Virality",
+      "contentIdea": "Specific, non-generic content idea in 1-2 sentences",
+      "hook": "The exact first line/sentence that stops the scroll — must be compelling",
+      "format": "Reel",
+      "goal": "Why this post exists and what result it drives",
+      "tip": "One execution tip to make this post better"
+    }
+  ],
+  "executionNote": "Strategic note on how to execute this week for maximum results",
+  "repurposingOpportunity": "One high-value piece of content that can be repurposed across multiple formats"
+}`;
+
+      const userPrompt = `Generate a ${numDays}-day content plan for:
+
+Niche: ${niche}
+Target Audience: ${targetAudience || "Not specified"}
+Primary Goal: ${goal}
+Platforms: ${platformList}
+Posting Frequency: ${postingFrequency}
+Content Style: ${contentStyle}
+Brand Voice: ${brandVoice}
+Content Pillars: ${contentPillars || "Not specified"}
+Biggest Challenge: ${biggestChallenge || "Not specified"}
+Weekly Focus / Campaign: ${weeklyFocus || "General brand building"}
+
+Days to plan: ${dayNames.join(", ")}
+
+Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The hook for each post must be so good it stops someone mid-scroll. Match the format to the platform (${platformList}).`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse content plan");
+        result = JSON.parse(m[0]);
+      }
+      if (!Array.isArray(result.days)) throw new Error("Invalid response structure");
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Content Planner — Regenerate single day ─────────────────────────────
+  app.post("/api/ai/content-planner/regenerate-day", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { dayName, role, niche, goal, platforms, contentStyle, brandVoice, contentPillars } = req.body;
+      if (!dayName || !niche) return res.status(400).json({ message: "dayName and niche required" });
+
+      const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
+      const systemPrompt = `You are an elite content strategist. Regenerate a SINGLE content day with a fresh, specific idea. Return ONLY valid JSON with this structure:
+{
+  "day": {
+    "day": "${dayName}",
+    "role": "${role}",
+    "contentIdea": "Fresh, specific content idea",
+    "hook": "Scroll-stopping first line",
+    "format": "Reel/Carousel/Tweet/etc",
+    "goal": "Why this post exists",
+    "tip": "One execution tip"
+  }
+}`;
+      const userPrompt = `New ${role} content for ${dayName}. Niche: ${niche}. Goal: ${goal}. Platform: ${platformList}. Style: ${contentStyle}. Voice: ${brandVoice}. Pillars: ${contentPillars || "general"}. Make it different from a typical post — be specific and punchy.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 700);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse error");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Content Planner — Make it viral ────────────────────────────────────
+  app.post("/api/ai/content-planner/make-viral", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { dayName, currentIdea, niche, platforms, targetAudience } = req.body;
+      if (!dayName || !currentIdea) return res.status(400).json({ message: "dayName and currentIdea required" });
+
+      const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
+      const systemPrompt = `You are an elite viral content strategist. Your ONLY job is to rewrite a content idea to maximize reach, shares, and new audience growth. Make it controversial-enough-to-share, emotionally charged, and platform-optimized. Return ONLY valid JSON:
+{
+  "day": {
+    "day": "${dayName}",
+    "role": "Virality",
+    "contentIdea": "Viral-optimized version of the idea — more provocative, shareable, emotionally charged",
+    "hook": "The most scroll-stopping, pattern-disrupting first line possible",
+    "format": "Best format for virality on this platform",
+    "goal": "Maximize reach and new follower acquisition",
+    "tip": "One specific virality tip for executing this post"
+  }
+}`;
+      const userPrompt = `Make this viral for ${platformList} in the ${niche} niche. Original idea: "${currentIdea}". Target: ${targetAudience || "general audience"}. Rewrite it to be more provocative, emotionally engaging, and shareable — without being dishonest.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 600);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse error");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

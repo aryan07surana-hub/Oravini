@@ -50,6 +50,7 @@ import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
 import ICPBuilder from "@/pages/client/ICPBuilder";
 import SOPGenerator from "@/pages/client/SOPGenerator";
 import AudiencePsychologyMap from "@/pages/client/AudiencePsychologyMap";
+import AIContentPlanner from "@/pages/client/AIContentPlanner";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -137,6 +138,9 @@ function Router() {
       </Route>
       <Route path="/sop-generator">
         {() => <ProtectedRoute component={SOPGenerator} />}
+      </Route>
+      <Route path="/ai-content-planner">
+        {() => <ProtectedRoute component={AIContentPlanner} />}
       </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}
