@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, queryClient as qcGlobal } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Palette, Sparkles, ChevronRight, Copy, CheckSquare, Download,
   Target, Brush, Layout, FileText, Shield, Star, Zap, ArrowLeft,
-  Eye, Type, Layers, Link, Loader2, Wand2,
+  Eye, Type, Layers, Link, Loader2, Wand2, Clock, Trash2, History,
+  TrendingUp, Users, DollarSign, Calendar, Award,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -91,10 +92,12 @@ function Pill({ text, variant = "default" }: { text: string; variant?: "default"
 
 export default function BrandKitBuilder({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [kit, setKit] = useState<BrandKit | null>(null);
   const [generating, setGenerating] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"new" | "history">("new");
   const resultRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
@@ -102,10 +105,21 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     targetAudience: "",
     style: "Minimal & Clean",
     goal: "Grow Audience",
+    industry: "",
+    existingColors: "",
+    revenueModel: "",
+    contentFrequency: "",
+    mainCompetitor: "",
+    brandHero: "",
   });
   const [platforms, setPlatforms] = useState<string[]>(["Instagram"]);
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
   const [improvingField, setImprovingField] = useState<string | null>(null);
+
+  const { data: kitHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=brand-kit"],
+    enabled: !embedded,
+  });
 
   const setF = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -120,6 +134,15 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     onSuccess: (data: BrandKit) => {
       setKit(data);
       setApiDone(true);
+      if (!embedded && form.businessDescription.trim()) {
+        const title = form.businessDescription.slice(0, 60) + (form.businessDescription.length > 60 ? "…" : "");
+        apiRequest("POST", "/api/ai/history", {
+          tool: "brand-kit",
+          title,
+          inputs: { ...form, platforms, platformUrls },
+          output: { summary: data.summary, traits: data.brandCore?.personality?.traits, colors: data.visualIdentity?.colorPalette },
+        }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=brand-kit"] })).catch(() => {});
+      }
     },
     onError: (err: any) => {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
@@ -228,6 +251,100 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
           </p>
         </div>
 
+        {/* Tab bar */}
+        {!embedded && (
+          <div className="flex rounded-xl border border-zinc-800 overflow-hidden w-fit">
+            <button
+              onClick={() => setActiveView("new")}
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "new" ? "bg-primary/10 text-primary border-r border-zinc-800" : "text-zinc-400 hover:text-white border-r border-zinc-800"}`}
+              data-testid="tab-new-brandkit"
+            >
+              <Palette className="w-3.5 h-3.5" />New Kit
+            </button>
+            <button
+              onClick={() => setActiveView("history")}
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "history" ? "bg-primary/10 text-primary" : "text-zinc-400 hover:text-white"}`}
+              data-testid="tab-history-brandkit"
+            >
+              <History className="w-3.5 h-3.5" />History
+              {kitHistory.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5">{kitHistory.length}</span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {!embedded && activeView === "history" ? (
+          kitHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                <History className="w-7 h-7 text-zinc-600" />
+              </div>
+              <p className="text-sm font-semibold text-zinc-300">No saved brand kits yet</p>
+              <p className="text-xs text-zinc-500">Generate your first kit and it will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {kitHistory.map((item: any) => {
+                const traits = item.output?.traits ?? [];
+                const colors = item.output?.colors ?? {};
+                return (
+                  <div key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Palette className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white leading-snug line-clamp-2">{item.title}</p>
+                          <p className="text-[10px] text-zinc-500 mt-0.5">{new Date(item.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            if (item.inputs) {
+                              const { platforms: pl, platformUrls: pu, ...rest } = item.inputs;
+                              setForm(f => ({ ...f, ...rest }));
+                              if (pl) setPlatforms(pl);
+                              if (pu) setPlatformUrls(pu);
+                            }
+                            setActiveView("new");
+                          }}
+                          className="text-xs text-primary hover:underline font-semibold"
+                          data-testid={`restore-kit-${item.id}`}
+                        >Restore</button>
+                        <button
+                          onClick={() => apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=brand-kit"] })).catch(() => {})}
+                          className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                          data-testid={`delete-kit-${item.id}`}
+                        ><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                    {(traits.length > 0 || colors.primary) && (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {colors.primary?.hex && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" style={{ background: colors.primary.hex }} />
+                            <div className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" style={{ background: colors.secondary?.hex ?? "#333" }} />
+                            <div className="w-4 h-4 rounded-full border border-zinc-700 flex-shrink-0" style={{ background: colors.accent?.hex ?? "#555" }} />
+                          </div>
+                        )}
+                        {traits.slice(0, 3).map((t: string) => (
+                          <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary font-semibold">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    {item.output?.summary?.[0] && (
+                      <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2">{item.output.summary[0]}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+        <>
         {/* Config Form */}
         <div className="space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
 
@@ -279,6 +396,70 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
               className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm min-h-[72px]"
               data-testid="input-target-audience"
             />
+          </div>
+
+          {/* Extra context fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" />Industry / Niche</label>
+              <Input
+                value={form.industry}
+                onChange={e => setF("industry", e.target.value)}
+                placeholder="e.g. Health & Wellness, SaaS, Real Estate…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-industry"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><DollarSign className="w-3 h-3" />Revenue model</label>
+              <Input
+                value={form.revenueModel}
+                onChange={e => setF("revenueModel", e.target.value)}
+                placeholder="e.g. 1:1 coaching, digital course, agency…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-revenue-model"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Calendar className="w-3 h-3" />Content frequency</label>
+              <Input
+                value={form.contentFrequency}
+                onChange={e => setF("contentFrequency", e.target.value)}
+                placeholder="e.g. 3× per week, daily Stories…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-content-frequency"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Palette className="w-3 h-3" />Existing brand colors</label>
+              <Input
+                value={form.existingColors}
+                onChange={e => setF("existingColors", e.target.value)}
+                placeholder="e.g. #1A1A1A, navy blue + gold, none yet…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-existing-colors"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Users className="w-3 h-3" />Main competitor</label>
+              <Input
+                value={form.mainCompetitor}
+                onChange={e => setF("mainCompetitor", e.target.value)}
+                placeholder="e.g. @alexhormozi, Nike, MindValley…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-main-competitor"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Award className="w-3 h-3" />Brand hero / inspiration</label>
+              <Input
+                value={form.brandHero}
+                onChange={e => setF("brandHero", e.target.value)}
+                placeholder="e.g. @mrbeats, Notion, Apple…"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-brand-hero"
+              />
+            </div>
           </div>
 
           {/* Platform Focus + URLs */}
@@ -346,6 +527,8 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
             <ChevronRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
+        </>
+        )}
 
         {/* Result */}
         {kit && !generating && (

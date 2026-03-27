@@ -141,7 +141,6 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
   const [rewrittenScript, setRewrittenScript] = useState("");
   const [showHooks, setShowHooks] = useState(false);
   const [showRewrite, setShowRewrite] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
 
   const { data: viralityHistory = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=virality"],
@@ -231,6 +230,8 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
+      <div className="space-y-6">
       {/* Input card */}
       <Card className="border-border bg-card">
         <CardContent className="p-6 space-y-5">
@@ -320,63 +321,6 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
         </CardContent>
       </Card>
 
-      {/* Recent Analyses History */}
-      {!useAdmin && viralityHistory.length > 0 && (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30">
-          <button
-            onClick={() => setShowHistory(h => !h)}
-            className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors"
-            data-testid="toggle-virality-history"
-          >
-            <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" />
-              Recent Analyses ({viralityHistory.length})
-            </span>
-            {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          {showHistory && (
-            <div className="border-t border-zinc-800 divide-y divide-zinc-800/50">
-              {viralityHistory.map((h: any) => {
-                const out = h.output as any ?? {};
-                const inp = h.inputs as any ?? {};
-                const score = out.overallScore ?? 0;
-                const scoreColor = score >= 75 ? "text-emerald-400" : score >= 50 ? "text-primary" : score >= 30 ? "text-orange-400" : "text-red-400";
-                return (
-                  <div key={h.id} className="flex items-center gap-3 px-5 py-3" data-testid={`virality-history-${h.id}`}>
-                    <div className={`text-lg font-black ${scoreColor} w-12 flex-shrink-0`}>{score}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-300 leading-snug truncate">{h.title}</p>
-                      <p className="text-[10px] text-zinc-600 mt-0.5">
-                        {new Date(h.createdAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                    <button
-                      className="text-xs text-primary hover:text-primary/80 font-semibold flex-shrink-0"
-                      data-testid={`restore-virality-${h.id}`}
-                      onClick={() => {
-                        if (inp.script) setScript(inp.script);
-                        if (inp.reelUrl) setReelUrl(inp.reelUrl);
-                        if (inp.audience) setAudience(inp.audience);
-                        setMode(inp.reelUrl ? "reel" : "new");
-                        setShowHistory(false);
-                      }}
-                    >
-                      Restore
-                    </button>
-                    <button
-                      className="text-zinc-600 hover:text-red-400 transition-colors"
-                      onClick={() => apiRequest("DELETE", `/api/ai/history/${h.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=virality"] })).catch(() => {})}
-                      data-testid={`delete-virality-${h.id}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Loading state */}
       {analyzeMutation.isPending && (
@@ -730,6 +674,64 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
           )}
         </div>
       )}
+      </div>
+
+      {/* Right column: History panel */}
+      {!useAdmin && (
+        <div className="lg:sticky lg:top-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-white">Past Analyses</span>
+              {viralityHistory.length > 0 && (
+                <span className="ml-auto text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5">{viralityHistory.length}</span>
+              )}
+            </div>
+            {viralityHistory.length === 0 ? (
+              <div className="p-6 flex flex-col items-center gap-2 text-center">
+                <Clock className="w-7 h-7 text-zinc-700" />
+                <p className="text-xs text-zinc-500 leading-relaxed">No analyses yet.<br />Run your first test above.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-zinc-800/50 max-h-[500px] overflow-y-auto">
+                {viralityHistory.map((h: any) => {
+                  const out = h.output as any ?? {};
+                  const inp = h.inputs as any ?? {};
+                  const score = out.overallScore ?? 0;
+                  const scoreColor = score >= 75 ? "text-emerald-400" : score >= 50 ? "text-primary" : score >= 30 ? "text-orange-400" : "text-red-400";
+                  return (
+                    <div key={h.id} className="flex items-center gap-2.5 px-4 py-3" data-testid={`virality-history-${h.id}`}>
+                      <div className={`text-base font-black ${scoreColor} w-9 flex-shrink-0 text-center`}>{score}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-zinc-300 leading-snug truncate">{h.title}</p>
+                        <p className="text-[10px] text-zinc-600 mt-0.5">
+                          {new Date(h.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                      <button
+                        className="text-[10px] text-primary hover:text-primary/80 font-semibold flex-shrink-0"
+                        data-testid={`restore-virality-${h.id}`}
+                        onClick={() => {
+                          if (inp.script) setScript(inp.script);
+                          if (inp.reelUrl) setReelUrl(inp.reelUrl);
+                          if (inp.audience) setAudience(inp.audience);
+                          setMode(inp.reelUrl ? "reel" : "new");
+                        }}
+                      >Restore</button>
+                      <button
+                        className="text-zinc-600 hover:text-red-400 transition-colors"
+                        onClick={() => apiRequest("DELETE", `/api/ai/history/${h.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=virality"] })).catch(() => {})}
+                        data-testid={`delete-virality-${h.id}`}
+                      ><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

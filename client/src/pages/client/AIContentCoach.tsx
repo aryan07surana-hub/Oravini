@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ import {
   CheckCircle2, ChevronDown, ChevronUp, Copy, Check, Send, Instagram,
   Flame, Brain, BarChart2, Loader2, Play, Scissors, Heart, BookOpen,
   DollarSign, Laugh, BookMarked, Map, User, ChevronRight, Star,
+  Clock, Trash2, PlusCircle,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -488,6 +490,7 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function AIContentCoach() {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [script, setScript] = useState("");
   const [chatInput, setChatInput] = useState("");
@@ -499,6 +502,32 @@ export default function AIContentCoach() {
   const [hasGreeted, setHasGreeted] = useState(false);
   const [showTones, setShowTones] = useState(false);
   const [creditError, setCreditError] = useState<string | null>(null);
+  const [showSessionHistory, setShowSessionHistory] = useState(false);
+
+  const { data: coachHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=coach"],
+  });
+
+  const saveSession = () => {
+    const userMessages = messages.filter(m => m.role === "user");
+    if (userMessages.length < 2) return;
+    const firstUserMsg = userMessages[0].content.replace(/^\[Script\] /, "").slice(0, 80);
+    apiRequest("POST", "/api/ai/history", {
+      tool: "coach",
+      title: firstUserMsg + (firstUserMsg.length >= 80 ? "…" : ""),
+      inputs: { mode, goal, script: script.slice(0, 300) },
+      output: { messageCount: messages.length, preview: messages.slice(-3).map(m => ({ role: m.role, content: m.content.slice(0, 120) })) },
+    }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {});
+  };
+
+  const startNewSession = () => {
+    saveSession();
+    setMessages([]);
+    setScript("");
+    setHasGreeted(false);
+    setMood("idle");
+    setCreditError(null);
+  };
 
   // Brand builder state
   const [brandForm, setBrandForm] = useState({ niche: "", target: "", goal: "", currentBio: "", handle: "" });
@@ -762,6 +791,48 @@ export default function AIContentCoach() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Session History */}
+          <div className="p-3 border-b border-border">
+            <button
+              onClick={() => setShowSessionHistory(v => !v)}
+              className="w-full flex items-center justify-between text-[10px] font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"
+              data-testid="toggle-coach-history"
+            >
+              <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />Sessions ({coachHistory.length})</span>
+              {showSessionHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            {showSessionHistory && (
+              <div className="space-y-1 max-h-48 overflow-y-auto mt-1">
+                {coachHistory.length === 0 ? (
+                  <p className="text-[10px] text-zinc-600 text-center py-3">No saved sessions yet</p>
+                ) : (
+                  coachHistory.map((item: any) => (
+                    <div key={item.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] text-zinc-300 truncate leading-snug">{item.title}</p>
+                        <p className="text-[9px] text-zinc-600">{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} · {item.output?.messageCount ?? 0} msgs</p>
+                      </div>
+                      <button
+                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+                        onClick={() => apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {})}
+                        data-testid={`delete-session-${item.id}`}
+                      ><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={startNewSession}
+              className="w-full mt-2 h-7 text-[10px] border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 gap-1.5"
+              data-testid="btn-new-session"
+            >
+              <PlusCircle className="w-3 h-3" />New Session
+            </Button>
           </div>
 
           {/* ── Center: Chat ── */}

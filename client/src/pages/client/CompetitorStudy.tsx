@@ -4,7 +4,7 @@ import ViralityTester from "@/pages/client/ViralityTester";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
@@ -2842,6 +2842,7 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
   const [showGrowthPlaybook, setShowGrowthPlaybook] = useState(false);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
+  const [activeView, setActiveView] = useState<"new" | "history">("new");
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/niche/analyses", activeClientId],
@@ -2889,77 +2890,101 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
 
   return (
     <div className="space-y-6">
-      {/* Input form */}
-      <Card className="border border-card-border">
-        <CardContent className="p-5 space-y-5">
-          <div>
-            <p className="text-sm font-bold text-foreground mb-0.5">Niche Intelligence Engine</p>
-            <p className="text-xs text-muted-foreground">Enter your niche + up to 5 competitor URLs — get a complete intelligence report on what's working</p>
-          </div>
+      {screenVisible && (
+        <GeneratingScreen
+          label="your niche intelligence report"
+          minMs={40000}
+          isComplete={apiDone}
+          onReady={() => { setScreenVisible(false); setApiDone(false); }}
+          steps={[
+            "Scraping competitor profiles",
+            "Analysing post performance data",
+            "Identifying niche patterns",
+            "Finding gaps & opportunities",
+            "Generating your growth playbook",
+          ]}
+        />
+      )}
 
-          <div>
-            <Label className="text-xs mb-1.5 block">Your Niche</Label>
-            <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. fitness, real estate, SMMA, faceless content..." className="h-9 text-sm" data-testid="input-niche-name" />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label className="text-xs">Competitor Instagram URLs (3–5 for best results)</Label>
-              {competitorUrls.length < 5 && (
-                <button onClick={addUrl} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">+ Add URL</button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {competitorUrls.map((url, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
-                  </div>
-                  <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`instagram.com/competitor${i + 1}`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
-                  {competitorUrls.length > 1 && (
-                    <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
-                      <XCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {screenVisible && (
-            <GeneratingScreen
-              label="your niche intelligence report"
-              minMs={40000}
-              isComplete={apiDone}
-              onReady={() => { setScreenVisible(false); setApiDone(false); }}
-              steps={[
-                "Scraping competitor profiles",
-                "Analysing post performance data",
-                "Identifying niche patterns",
-                "Finding gaps & opportunities",
-                "Generating your growth playbook",
-              ]}
-            />
+      {/* Tab bar */}
+      <div className="flex rounded-xl border border-border overflow-hidden">
+        <button
+          onClick={() => setActiveView("new")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "new" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-new-niche">
+          <Sparkles className="w-3.5 h-3.5" />New Analysis
+        </button>
+        <button
+          onClick={() => setActiveView("history")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "history" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-niche-history">
+          <Clock className="w-3.5 h-3.5" />History
+          {(analyses as any[]).length > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary/20 text-primary">{(analyses as any[]).length}</span>
           )}
-          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
-            {analyze.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report…</>
-              : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
-          </Button>
-        </CardContent>
-      </Card>
+        </button>
+      </div>
 
-      {/* Past analyses */}
-      {isLoading ? (
-        <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-      ) : (analyses as any[]).length === 0 ? (
-        <div className="text-center py-12">
-          <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-          <p className="text-sm text-muted-foreground">No niche analyses yet — enter your niche above to get started</p>
-        </div>
+      {activeView === "new" ? (
+        /* ── New Analysis Form ── */
+        <Card className="border border-card-border">
+          <CardContent className="p-5 space-y-5">
+            <div>
+              <p className="text-sm font-bold text-foreground mb-0.5">Niche Intelligence Engine</p>
+              <p className="text-xs text-muted-foreground">Enter your niche + up to 5 competitor URLs — get a complete intelligence report on what's working</p>
+            </div>
+
+            <div>
+              <Label className="text-xs mb-1.5 block">Your Niche</Label>
+              <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. fitness, real estate, SMMA, faceless content..." className="h-9 text-sm" data-testid="input-niche-name" />
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs">Competitor Instagram URLs (3–5 for best results)</Label>
+                {competitorUrls.length < 5 && (
+                  <button onClick={addUrl} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">+ Add URL</button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {competitorUrls.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
+                    </div>
+                    <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`instagram.com/competitor${i + 1}`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
+                    {competitorUrls.length > 1 && (
+                      <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
+              {analyze.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report…</>
+                : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-3">
-          {(analyses as any[]).map((a: any) => {
+        /* ── History Tab ── */
+        isLoading ? (
+          <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        ) : (analyses as any[]).length === 0 ? (
+          <div className="text-center py-16">
+            <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+            <p className="text-sm text-muted-foreground">No niche analyses yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Run your first analysis to see it here</p>
+            <button onClick={() => setActiveView("new")} className="mt-4 text-xs text-primary hover:text-primary/80 font-semibold transition-colors">+ Start New Analysis</button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">{(analyses as any[]).length} saved {(analyses as any[]).length === 1 ? "analysis" : "analyses"} — click to expand the full report</p>
+            {(analyses as any[]).map((a: any) => {
             const isActive = selectedId === a.id;
             return (
               <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
@@ -3053,6 +3078,7 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
             );
           })}
         </div>
+        )
       )}
     </div>
   );
@@ -3438,7 +3464,14 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
   const [reelFetching, setReelFetching] = useState(false);
   const [toolResult, setToolResult] = useState<any>(null);
   const [toolLoading, setToolLoading] = useState(false);
+  const [activeView, setActiveView] = useState<"new" | "history">("new");
   const { toast } = useToast();
+  const qcM = useQueryClient();
+
+  const { data: methodologyHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=methodology"],
+    enabled: !useAdmin,
+  });
 
   const handleFetchReel = async () => {
     if (!reelUrl.trim()) return toast({ title: "Enter a reel URL", variant: "destructive" });
@@ -3469,6 +3502,14 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
       const data = await apiRequest("POST", "/api/methodology/analyze", { profileUrl: profileUrl.trim() });
       setProfile(data);
       toast({ title: "Content DNA Profile Ready!", description: `Analysed ${data?.handle}'s methodology from their recent posts.` });
+      if (!useAdmin && data?.handle) {
+        apiRequest("POST", "/api/ai/history", {
+          tool: "methodology",
+          title: `@${data.handle} — Content DNA`,
+          inputs: { profileUrl: profileUrl.trim(), handle: data.handle },
+          output: { contentDNA: data.contentDNA, handle: data.handle, postCount: data.postCount },
+        }).then(() => qcM.invalidateQueries({ queryKey: ["/api/ai/history?tool=methodology"] })).catch(() => {});
+      }
     } catch (err: any) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
     } finally {
@@ -3498,6 +3539,65 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
 
   return (
     <div className="space-y-6">
+      {/* Tab bar */}
+      <div className="flex rounded-xl border border-border overflow-hidden w-fit">
+        <button
+          onClick={() => setActiveView("new")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "new" ? "bg-primary/10 text-primary border-r border-border" : "text-muted-foreground hover:text-foreground border-r border-border"}`}
+          data-testid="tab-new-methodology"
+        >
+          <Dna className="w-3.5 h-3.5" />New Analysis
+        </button>
+        <button
+          onClick={() => setActiveView("history")}
+          className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-colors ${activeView === "history" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-history-methodology"
+        >
+          <Clock className="w-3.5 h-3.5" />History
+          {methodologyHistory.length > 0 && (
+            <span className="ml-1 text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-1.5">{methodologyHistory.length}</span>
+          )}
+        </button>
+      </div>
+
+      {activeView === "history" ? (
+        methodologyHistory.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center">
+              <Clock className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">No past analyses yet</p>
+            <p className="text-xs text-muted-foreground">Analyse your first profile and it will appear here</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {methodologyHistory.map((item: any) => (
+              <div key={item.id} className="bg-card border border-card-border rounded-xl p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
+                    <Dna className="w-4 h-4 text-violet-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleDateString()} · {item.inputs?.handle ? `@${item.inputs.handle}` : item.inputs?.profileUrl}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setProfileUrl(item.inputs?.profileUrl || ""); setActiveView("new"); }}
+                    className="text-xs text-primary hover:underline font-semibold"
+                  >Re-run</button>
+                  <button
+                    onClick={() => { apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qcM.invalidateQueries({ queryKey: ["/api/ai/history?tool=methodology"] })); }}
+                    className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                  ><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+      <>
       {/* Profile URL input */}
       <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2 mb-1">
@@ -3655,6 +3755,8 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );

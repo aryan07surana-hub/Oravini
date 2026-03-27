@@ -15,6 +15,10 @@ The platform aims to enhance client-coach relationships by streamlining administ
 - **Admin CRM dashboard:** Segment all clients by plan (Free/Starter/Pro) and view all email leads with quiz data and AI-generated reports.
 - **Revised plan tiers:** Free = 10 credits/day, Starter ($29) = 20 credits/week, Pro = 500 credits/month.
 - **Competitor analysis:** AI-driven comparison of Instagram profiles.
+- **Competitor Study history tabs:** All three study modes (Competitor Analysis, Niche Intelligence, Methodology) now have "New Analysis / History" tab switchers to revisit past results.
+- **AI Design Hub history:** Carousel Studio has a right-panel History tab; Brand Kit Builder has a History tab with full kit restore and 6 deeper onboarding fields (industry, revenue model, content frequency, existing colors, main competitor, brand hero inspiration).
+- **Virality Tester right-side history:** Past analyses permanently visible in a right-column panel; analysis score + date shown for each entry with one-click restore.
+- **AI Content Coach session history:** New Session button saves the current session and clears the chat; history panel in the sidebar shows past sessions with message count and quick delete.
 - **Integrated scheduling:** Calendly webhook for booking management.
 - **Real-time communication:** WebSocket-based chat with file support.
 
