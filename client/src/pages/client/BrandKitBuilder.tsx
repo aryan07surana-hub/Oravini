@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Palette, Sparkles, ChevronRight, Copy, CheckSquare, Download,
   Target, Brush, Layout, FileText, Shield, Star, Zap, ArrowLeft,
-  Eye, Type, Layers,
+  Eye, Type, Layers, Link, Loader2, Wand2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -100,11 +100,20 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
   const [form, setForm] = useState({
     businessDescription: "",
     targetAudience: "",
-    platform: "Instagram",
     style: "Minimal & Clean",
     goal: "Grow Audience",
   });
+  const [platforms, setPlatforms] = useState<string[]>(["Instagram"]);
+  const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
+  const [improvingField, setImprovingField] = useState<string | null>(null);
+
   const setF = (k: keyof typeof form, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const togglePlatform = (p: string) => {
+    setPlatforms(prev =>
+      prev.includes(p) ? (prev.length > 1 ? prev.filter(x => x !== p) : prev) : [...prev, p]
+    );
+  };
 
   const generateMutation = useMutation({
     mutationFn: (body: object) => apiRequest("POST", "/api/ai/brand-kit/generate", body),
@@ -119,6 +128,30 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     },
   });
 
+  const improveMutation = useMutation({
+    mutationFn: ({ text, field }: { text: string; field: string }) =>
+      apiRequest("POST", "/api/ai/brand-kit/improve-text", { text, field }),
+    onSuccess: (data: { text: string }, { field }) => {
+      setF(field as keyof typeof form, data.text);
+      setImprovingField(null);
+      toast({ title: "Text improved!", description: "Your description has been enhanced by AI." });
+    },
+    onError: () => {
+      setImprovingField(null);
+      toast({ title: "Couldn't improve text", variant: "destructive" });
+    },
+  });
+
+  const handleImprove = (field: "businessDescription" | "targetAudience") => {
+    const text = form[field].trim();
+    if (!text) {
+      toast({ title: `Write something first`, variant: "destructive" });
+      return;
+    }
+    setImprovingField(field);
+    improveMutation.mutate({ text, field });
+  };
+
   const handleGenerate = () => {
     if (!form.businessDescription.trim()) {
       toast({ title: "Describe your brand first", variant: "destructive" });
@@ -127,7 +160,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     setGenerating(true);
     setApiDone(false);
     setKit(null);
-    generateMutation.mutate(form);
+    generateMutation.mutate({ ...form, platforms, platformUrls });
   };
 
   const handleReady = () => {
@@ -197,38 +230,92 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
 
         {/* Config Form */}
         <div className="space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+
+          {/* Brand Description */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-300">Describe your brand / business <span className="text-red-400">*</span></label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-zinc-300">
+                Describe your brand / business <span className="text-red-400">*</span>
+              </label>
+              <button
+                onClick={() => handleImprove("businessDescription")}
+                disabled={improvingField === "businessDescription" || !form.businessDescription.trim()}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                data-testid="btn-improve-desc"
+              >
+                {improvingField === "businessDescription"
+                  ? <><Loader2 className="w-3 h-3 animate-spin" />Improving…</>
+                  : <><Wand2 className="w-3 h-3" />Make it better with AI</>}
+              </button>
+            </div>
             <Textarea
               value={form.businessDescription}
               onChange={e => setF("businessDescription", e.target.value)}
               placeholder="e.g. I'm a fitness coach for busy moms who want to lose weight without giving up their lifestyle. I post on Instagram and sell a 12-week program."
-              className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm min-h-[90px] resize-none"
+              className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm min-h-[100px]"
               data-testid="input-brand-desc"
             />
           </div>
+
+          {/* Target Audience */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-300">Target audience</label>
-            <Input
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-zinc-300">Target audience</label>
+              <button
+                onClick={() => handleImprove("targetAudience")}
+                disabled={improvingField === "targetAudience" || !form.targetAudience.trim()}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                data-testid="btn-improve-audience"
+              >
+                {improvingField === "targetAudience"
+                  ? <><Loader2 className="w-3 h-3 animate-spin" />Improving…</>
+                  : <><Wand2 className="w-3 h-3" />Make it better with AI</>}
+              </button>
+            </div>
+            <Textarea
               value={form.targetAudience}
               onChange={e => setF("targetAudience", e.target.value)}
-              placeholder="e.g. Women 28–45, busy schedule, want results fast, follow fitness accounts"
-              className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm"
+              placeholder="e.g. Women 28–45, busy schedule, want results fast, follow fitness and wellness accounts"
+              className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm min-h-[72px]"
               data-testid="input-target-audience"
             />
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400">Platform focus</label>
-              <div className="flex flex-wrap gap-1.5">
-                {PLATFORM_OPTIONS.map(p => (
-                  <button key={p} onClick={() => setF("platform", p)}
-                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all ${form.platform === p ? "border-primary bg-primary/10 text-primary font-semibold" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}>
-                    {p}
-                  </button>
+
+          {/* Platform Focus + URLs */}
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-zinc-400">Platform focus <span className="text-zinc-600 font-normal">(select all that apply)</span></label>
+            <div className="flex flex-wrap gap-1.5">
+              {PLATFORM_OPTIONS.map(p => (
+                <button key={p} onClick={() => togglePlatform(p)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all ${platforms.includes(p) ? "border-primary bg-primary/10 text-primary font-semibold" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}>
+                  {p}
+                </button>
+              ))}
+            </div>
+            {/* Per-platform URL inputs */}
+            {platforms.length > 0 && (
+              <div className="space-y-2 pt-1">
+                {platforms.map(p => (
+                  <div key={p} className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 w-28 flex-shrink-0">
+                      <Link className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                      <span className="text-[11px] text-zinc-500 font-medium truncate">{p}</span>
+                    </div>
+                    <Input
+                      value={platformUrls[p] || ""}
+                      onChange={e => setPlatformUrls(prev => ({ ...prev, [p]: e.target.value }))}
+                      placeholder={`Your ${p} URL (optional)`}
+                      className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-xs h-8 flex-1"
+                      data-testid={`input-url-${p.toLowerCase().replace(/\//g, "-")}`}
+                    />
+                  </div>
                 ))}
               </div>
-            </div>
+            )}
+          </div>
+
+          {/* Style + Goal */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-400">Style vibe</label>
               <div className="flex flex-wrap gap-1.5">

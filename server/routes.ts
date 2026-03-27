@@ -5341,11 +5341,37 @@ Rules:
     }
   });
 
+  // ── Brand Kit — improve text field ────────────────────────────────────────
+  app.post("/api/ai/brand-kit/improve-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, field } = req.body;
+      if (!text?.trim()) return res.status(400).json({ message: "text required" });
+      const instructions: Record<string, string> = {
+        businessDescription: "Rewrite this brand/business description to be more specific, compelling, and strategic. Keep it in first person. Make it 2–3 sentences that clearly communicate what the brand does, who it serves, and why it's unique.",
+        targetAudience: "Rewrite this target audience description to be more detailed and specific — include demographics, psychographics, pain points, desires, and online behaviour. 2–3 sentences.",
+      };
+      const instruction = instructions[field] || "Rewrite this text to be clearer, more specific, and more compelling. Keep the same intent.";
+      const result = await callGroq(
+        "You are a brand strategist. Improve the given text. Return ONLY the improved text — no quotes, no explanation.",
+        `Original text: "${text}"\n\nInstruction: ${instruction}`,
+        400,
+      );
+      return res.json({ text: result.trim().replace(/^["']|["']$/g, "") });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // ── Brand Kit Builder ─────────────────────────────────────────────────────
   app.post("/api/ai/brand-kit/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { businessDescription, targetAudience, platform, style, goal } = req.body;
+      const { businessDescription, targetAudience, platforms, platformUrls, style, goal } = req.body;
       if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
+
+      const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms : ["Instagram"];
+      const urlsText = platformUrls && typeof platformUrls === "object"
+        ? Object.entries(platformUrls).filter(([, u]) => u).map(([p, u]) => `  - ${p}: ${u}`).join("\n")
+        : "";
 
       const systemPrompt = `You are an expert brand strategist, visual designer, and marketing consultant. You create complete, premium brand identity systems. Return ONLY valid JSON — no markdown, no explanation, just the JSON object.`;
 
@@ -5353,7 +5379,7 @@ Rules:
 
 Business/Brand: ${businessDescription}
 Target Audience: ${targetAudience || "Not specified"}
-Platform Focus: ${platform || "Instagram"}
+Platform Focus: ${platformList.join(", ")}${urlsText ? `\nPlatform URLs (use these for context on the brand's presence):\n${urlsText}` : ""}
 Style Preference: ${style || "Minimal & Clean"}
 Goal: ${goal || "Grow Audience"}
 
