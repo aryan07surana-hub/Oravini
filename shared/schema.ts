@@ -459,6 +459,39 @@ export const insertScheduledLinkedinPostSchema = createInsertSchema(scheduledLin
 export type InsertScheduledLinkedinPost = z.infer<typeof insertScheduledLinkedinPostSchema>;
 export type ScheduledLinkedinPost = typeof scheduledLinkedinPosts.$inferSelect;
 
+export const youtubeTokens = pgTable("youtube_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  channelId: text("channel_id"),
+  channelTitle: text("channel_title"),
+  channelThumbnail: text("channel_thumbnail"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type YoutubeToken = typeof youtubeTokens.$inferSelect;
+
+export const scheduledYoutubePosts = pgTable("scheduled_youtube_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  tags: text("tags").array(),
+  category: text("category").default("22"),
+  privacyStatus: text("privacy_status").notNull().default("public"),
+  videoUrl: text("video_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: text("status").notNull().default("pending"),
+  youtubeVideoId: text("youtube_video_id"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertScheduledYoutubePostSchema = createInsertSchema(scheduledYoutubePosts).omit({ id: true, createdAt: true, youtubeVideoId: true, errorMessage: true, status: true });
+export type InsertScheduledYoutubePost = z.infer<typeof insertScheduledYoutubePostSchema>;
+export type ScheduledYoutubePost = typeof scheduledYoutubePosts.$inferSelect;
+
 export const aiSessionHistory = pgTable("ai_session_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

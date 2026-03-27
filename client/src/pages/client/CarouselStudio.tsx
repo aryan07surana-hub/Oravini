@@ -140,7 +140,7 @@ function StepBar({ step }: { step: Step }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function CarouselStudio() {
+export default function CarouselStudio({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>(1);
@@ -311,8 +311,7 @@ export default function CarouselStudio() {
     fr.readAsText(file);
   }
 
-  return (
-    <ClientLayout>
+  const content = (
       <div className="max-w-5xl mx-auto px-6 py-10">
 
         {/* Page header */}
@@ -753,6 +752,6 @@ export default function CarouselStudio() {
           </div>
         )}
       </div>
-    </ClientLayout>
   );
+  return embedded ? content : <ClientLayout>{content}</ClientLayout>;
 }

@@ -4932,5 +4932,169 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // ── YouTube Integration ───────────────────────────────────────────────────────
+  const { google } = await import("googleapis");
+
+  const YOUTUBE_CALLBACK = process.env.NODE_ENV === "production"
+    ? "https://admin-control-hub-aryan07surana.replit.app/api/auth/youtube/callback"
+    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/auth/youtube/callback`;
+
+  function getYoutubeOAuth2Client() {
+    return new google.auth.OAuth2(
+      process.env.YOUTUBE_CLIENT_ID,
+      process.env.YOUTUBE_CLIENT_SECRET,
+      YOUTUBE_CALLBACK,
+    );
+  }
+
+  app.get("/api/auth/youtube", requireAuth, (req: Request, res: Response) => {
+    const oauth2Client = getYoutubeOAuth2Client();
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+      ],
+      prompt: "consent",
+      state: (req.user as any).id,
+    });
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/youtube/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state: userId } = req.query as { code?: string; state?: string };
+      if (!code || !userId) return res.redirect("/?yt_error=missing_code");
+      const oauth2Client = getYoutubeOAuth2Client();
+      const { tokens } = await oauth2Client.getToken(code);
+      oauth2Client.setCredentials(tokens);
+      const yt = google.youtube({ version: "v3", auth: oauth2Client });
+      const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
+      const channel = channelRes.data.items?.[0];
+      await storage.upsertYoutubeToken(userId, {
+        accessToken: tokens.access_token!,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        channelId: channel?.id ?? null,
+        channelTitle: channel?.snippet?.title ?? null,
+        channelThumbnail: channel?.snippet?.thumbnails?.default?.url ?? null,
+      });
+      const base = process.env.NODE_ENV === "production"
+        ? "https://admin-control-hub-aryan07surana.replit.app"
+        : `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      return res.redirect(`${base}/youtube-scheduler?yt_connected=1`);
+    } catch (err: any) {
+      log(`YouTube OAuth callback error: ${err.message}`, "youtube");
+      const base = process.env.NODE_ENV === "production"
+        ? "https://admin-control-hub-aryan07surana.replit.app"
+        : `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+      return res.redirect(`${base}/youtube-scheduler?yt_error=1`);
+    }
+  });
+
+  app.get("/api/youtube/status", requireAuth, async (req: Request, res: Response) => {
+    const token = await storage.getYoutubeToken((req.user as any).id);
+    if (!token) return res.json({ connected: false });
+    return res.json({
+      connected: true,
+      channelId: token.channelId,
+      channelTitle: token.channelTitle,
+      channelThumbnail: token.channelThumbnail,
+    });
+  });
+
+  app.delete("/api/youtube/disconnect", requireAuth, async (req: Request, res: Response) => {
+    await storage.deleteYoutubeToken((req.user as any).id);
+    return res.json({ success: true });
+  });
+
+  async function getAuthedYoutubeClient(userId: string) {
+    const token = await storage.getYoutubeToken(userId);
+    if (!token) throw new Error("YouTube not connected");
+    const oauth2Client = getYoutubeOAuth2Client();
+    if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
+      if (!token.refreshToken) throw new Error("YouTube token expired, please reconnect");
+      oauth2Client.setCredentials({ refresh_token: token.refreshToken });
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      await storage.upsertYoutubeToken(userId, {
+        accessToken: credentials.access_token!,
+        refreshToken: credentials.refresh_token ?? token.refreshToken,
+        expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+        channelId: token.channelId,
+        channelTitle: token.channelTitle,
+        channelThumbnail: token.channelThumbnail,
+      });
+      oauth2Client.setCredentials(credentials);
+    } else {
+      oauth2Client.setCredentials({ access_token: token.accessToken, refresh_token: token.refreshToken ?? undefined });
+    }
+    return google.youtube({ version: "v3", auth: oauth2Client });
+  }
+
+  async function uploadVideoFromUrl(yt: any, videoUrl: string, title: string, description: string, tags: string[], category: string, privacyStatus: string) {
+    const videoResp = await fetch(videoUrl);
+    if (!videoResp.ok) throw new Error(`Failed to fetch video: ${videoResp.statusText}`);
+    const videoBuffer = await videoResp.arrayBuffer();
+    const { Readable } = await import("stream");
+    const stream = Readable.from(Buffer.from(videoBuffer));
+    const res = await yt.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: { title, description, tags, categoryId: category },
+        status: { privacyStatus },
+      },
+      media: { mimeType: "video/*", body: stream },
+    });
+    return res.data;
+  }
+
+  app.post("/api/youtube/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, description = "", tags = [], category = "22", privacyStatus = "public", videoUrl } = req.body;
+      if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+      if (!videoUrl?.trim()) return res.status(400).json({ message: "Video URL is required" });
+      const yt = await getAuthedYoutubeClient(userId);
+      const result = await uploadVideoFromUrl(yt, videoUrl, title, description, tags, category, privacyStatus);
+      return res.json({ success: true, videoId: result.id, url: `https://youtube.com/watch?v=${result.id}` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/youtube/schedule", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, description, tags, category, privacyStatus, videoUrl, thumbnailUrl, scheduledFor } = req.body;
+      if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+      if (!videoUrl?.trim()) return res.status(400).json({ message: "Video URL is required" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const post = await storage.createScheduledYoutubePost({
+        userId, title: title.trim(), description: description ?? "", tags: tags ?? [], category: category ?? "22",
+        privacyStatus: privacyStatus ?? "public", videoUrl: videoUrl.trim(), thumbnailUrl: thumbnailUrl ?? null,
+        scheduledFor: schedDate,
+      });
+      return res.json(post);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/youtube/scheduled", requireAuth, async (req: Request, res: Response) => {
+    const posts = await storage.getScheduledYoutubePosts((req.user as any).id);
+    return res.json(posts);
+  });
+
+  app.delete("/api/youtube/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduledYoutubePost(req.params.id, (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

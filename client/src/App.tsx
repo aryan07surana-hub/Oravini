@@ -15,6 +15,7 @@ import { TrackingHome, ContentTrackingIndex, InstagramTracking, YouTubeTracking 
 import ContentCalendar from "@/pages/client/ContentCalendar";
 import AIIdeas from "@/pages/client/AIIdeas";
 import CarouselStudio from "@/pages/client/CarouselStudio";
+import AIDesign from "@/pages/client/AIDesign";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
@@ -31,6 +32,7 @@ import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
+import YouTubeScheduler from "@/pages/client/YouTubeScheduler";
 import Sessions from "@/pages/client/Sessions";
 import AdminSessions from "@/pages/admin/AdminSessions";
 import Credits from "@/pages/client/Credits";
@@ -109,6 +111,9 @@ function Router() {
       <Route path="/carousel-studio">
         {() => <ProtectedRoute component={CarouselStudio} />}
       </Route>
+      <Route path="/ai-design">
+        {() => <ProtectedRoute component={AIDesign} />}
+      </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}
       </Route>
@@ -141,6 +146,9 @@ function Router() {
       </Route>
       <Route path="/linkedin-scheduler">
         {() => <ProtectedRoute component={LinkedInScheduler} />}
+      </Route>
+      <Route path="/youtube-scheduler">
+        {() => <ProtectedRoute component={YouTubeScheduler} />}
       </Route>
       <Route path="/credits">
         {() => <ProtectedRoute component={Credits} />}

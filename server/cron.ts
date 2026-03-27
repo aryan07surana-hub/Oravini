@@ -234,9 +234,77 @@ export async function processScheduledLinkedinPosts() {
   }
 }
 
+async function processScheduledYoutubePosts() {
+  try {
+    const posts = await storage.getPendingDueYoutubePosts();
+    if (posts.length === 0) return;
+    log(`YouTube scheduler: processing ${posts.length} pending post(s)`, "cron");
+    const { google } = await import("googleapis");
+    const { Readable } = await import("stream");
+    for (const post of posts) {
+      try {
+        const token = await storage.getYoutubeToken(post.userId);
+        if (!token) {
+          await storage.updateScheduledYoutubePost(post.id, { status: "failed", errorMessage: "YouTube not connected" });
+          continue;
+        }
+        const YOUTUBE_CALLBACK = process.env.NODE_ENV === "production"
+          ? "https://admin-control-hub-aryan07surana.replit.app/api/auth/youtube/callback"
+          : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/auth/youtube/callback`;
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.YOUTUBE_CLIENT_ID,
+          process.env.YOUTUBE_CLIENT_SECRET,
+          YOUTUBE_CALLBACK,
+        );
+        if (token.expiresAt && new Date(token.expiresAt) < new Date() && token.refreshToken) {
+          oauth2Client.setCredentials({ refresh_token: token.refreshToken });
+          const { credentials } = await oauth2Client.refreshAccessToken();
+          await storage.upsertYoutubeToken(post.userId, {
+            accessToken: credentials.access_token!,
+            refreshToken: credentials.refresh_token ?? token.refreshToken,
+            expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+            channelId: token.channelId,
+            channelTitle: token.channelTitle,
+            channelThumbnail: token.channelThumbnail,
+          });
+          oauth2Client.setCredentials(credentials);
+        } else {
+          oauth2Client.setCredentials({ access_token: token.accessToken, refresh_token: token.refreshToken ?? undefined });
+        }
+        const yt = google.youtube({ version: "v3", auth: oauth2Client });
+        const videoResp = await fetch(post.videoUrl);
+        if (!videoResp.ok) throw new Error(`Cannot fetch video URL: ${videoResp.statusText}`);
+        const videoBuffer = await videoResp.arrayBuffer();
+        const stream = Readable.from(Buffer.from(videoBuffer));
+        const res = await yt.videos.insert({
+          part: ["snippet", "status"],
+          requestBody: {
+            snippet: {
+              title: post.title,
+              description: post.description ?? "",
+              tags: post.tags ?? [],
+              categoryId: post.category ?? "22",
+            },
+            status: { privacyStatus: post.privacyStatus ?? "public" },
+          },
+          media: { mimeType: "video/*", body: stream },
+        });
+        await storage.updateScheduledYoutubePost(post.id, { status: "posted", youtubeVideoId: res.data.id ?? "" });
+        log(`YouTube video uploaded: ${res.data.id}`, "cron");
+      } catch (e: any) {
+        await storage.updateScheduledYoutubePost(post.id, { status: "failed", errorMessage: e.message });
+        log(`YouTube upload failed for ${post.id}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`YouTube scheduler error: ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; Twitter + LinkedIn schedulers every 5 minutes", "cron");
+  cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes", "cron");
 }

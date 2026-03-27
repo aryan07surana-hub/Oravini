@@ -7,8 +7,10 @@ import {
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
+  youtubeTokens, scheduledYoutubePosts,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
+  type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
   type AiSessionHistory, type InsertAiSessionHistory,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
@@ -165,6 +167,16 @@ export interface IStorage {
   deleteDmQuickReply(id: string): Promise<void>;
   getInstagramProfileReport(clientId: string): Promise<InstagramProfileReport | null>;
   upsertInstagramProfileReport(data: InsertInstagramProfileReport): Promise<InstagramProfileReport>;
+
+  // YouTube OAuth tokens
+  getYoutubeToken(userId: string): Promise<YoutubeToken | null>;
+  upsertYoutubeToken(userId: string, data: Omit<YoutubeToken, "id" | "userId" | "createdAt">): Promise<YoutubeToken>;
+  deleteYoutubeToken(userId: string): Promise<void>;
+  getScheduledYoutubePosts(userId: string): Promise<ScheduledYoutubePost[]>;
+  getPendingDueYoutubePosts(): Promise<ScheduledYoutubePost[]>;
+  createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost>;
+  updateScheduledYoutubePost(id: string, data: Partial<ScheduledYoutubePost>): Promise<void>;
+  deleteScheduledYoutubePost(id: string, userId: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -911,6 +923,47 @@ class DatabaseStorage implements IStorage {
 
   async deleteAiHistory(id: string, userId: string): Promise<void> {
     await db.delete(aiSessionHistory).where(and(eq(aiSessionHistory.id, id), eq(aiSessionHistory.userId, userId)));
+  }
+
+  async getYoutubeToken(userId: string): Promise<YoutubeToken | null> {
+    const [row] = await db.select().from(youtubeTokens).where(eq(youtubeTokens.userId, userId));
+    return row ?? null;
+  }
+
+  async upsertYoutubeToken(userId: string, data: Omit<YoutubeToken, "id" | "userId" | "createdAt">): Promise<YoutubeToken> {
+    const existing = await this.getYoutubeToken(userId);
+    if (existing) {
+      const [row] = await db.update(youtubeTokens).set(data).where(eq(youtubeTokens.userId, userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(youtubeTokens).values({ userId, ...data }).returning();
+    return row;
+  }
+
+  async deleteYoutubeToken(userId: string): Promise<void> {
+    await db.delete(youtubeTokens).where(eq(youtubeTokens.userId, userId));
+  }
+
+  async getScheduledYoutubePosts(userId: string): Promise<ScheduledYoutubePost[]> {
+    return db.select().from(scheduledYoutubePosts).where(eq(scheduledYoutubePosts.userId, userId)).orderBy(desc(scheduledYoutubePosts.scheduledFor));
+  }
+
+  async getPendingDueYoutubePosts(): Promise<ScheduledYoutubePost[]> {
+    return db.select().from(scheduledYoutubePosts)
+      .where(and(eq(scheduledYoutubePosts.status, "pending"), lte(scheduledYoutubePosts.scheduledFor, new Date())));
+  }
+
+  async createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost> {
+    const [row] = await db.insert(scheduledYoutubePosts).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledYoutubePost(id: string, data: Partial<ScheduledYoutubePost>): Promise<void> {
+    await db.update(scheduledYoutubePosts).set(data).where(eq(scheduledYoutubePosts.id, id));
+  }
+
+  async deleteScheduledYoutubePost(id: string, userId: string): Promise<void> {
+    await db.delete(scheduledYoutubePosts).where(and(eq(scheduledYoutubePosts.id, id), eq(scheduledYoutubePosts.userId, userId)));
   }
 }
 
