@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Sparkles } from "lucide-react";
 
 const FACTS = [
   { emoji: "📈", text: "Content marketing generates 3× more leads than paid search — at 62% lower cost." },
@@ -27,19 +28,35 @@ const FACTS = [
   { emoji: "🔥", text: "Brands that tell stories see 22× more recall than those that just share facts." },
 ];
 
+const DEFAULT_STEPS = [
+  "Analysing your brand & niche",
+  "Writing tailored copy & content",
+  "Structuring layouts & flow",
+  "Optimising for your goal",
+  "Final polish & quality check",
+];
+
 interface Props {
   label?: string;
   minMs?: number;
   isComplete?: boolean;
   onReady?: () => void;
+  steps?: string[];
 }
 
-export default function GeneratingScreen({ label = "your content", minMs = 47000, isComplete = false, onReady }: Props) {
+export default function GeneratingScreen({
+  label = "your content",
+  minMs = 47000,
+  isComplete = false,
+  onReady,
+  steps = DEFAULT_STEPS,
+}: Props) {
   const [factIdx, setFactIdx] = useState(0);
   const [fade, setFade] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [minDone, setMinDone] = useState(false);
   const [ready, setReady] = useState(false);
+  const [pulse, setPulse] = useState(false);
 
   // Rotate facts every 5-7 seconds
   useEffect(() => {
@@ -55,6 +72,12 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
     };
     ti = window.setTimeout(next, delays[0]);
     return () => clearTimeout(ti);
+  }, []);
+
+  // Pulse the icon every second
+  useEffect(() => {
+    const iv = setInterval(() => setPulse(p => !p), 900);
+    return () => clearInterval(iv);
   }, []);
 
   // Count elapsed time (tick every 100ms)
@@ -80,11 +103,7 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
   const progress = Math.min(elapsed / minMs, 1);
   const circumference = 2 * Math.PI * 52;
   const dash = circumference * (1 - progress);
-  const seconds = Math.ceil((minMs - elapsed) / 1000);
   const fact = FACTS[factIdx];
-
-  // Animated dot colors cycle
-  const dots = ["bg-primary", "bg-primary/60", "bg-primary/30"];
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-center px-6">
@@ -96,7 +115,7 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
 
       <div className="relative flex flex-col items-center gap-10 max-w-sm w-full">
 
-        {/* Circle Progress */}
+        {/* Circle Progress — no seconds, just animated ring + icon */}
         <div className="relative flex items-center justify-center">
           <svg width="128" height="128" className="rotate-[-90deg]">
             <circle cx="64" cy="64" r="52" fill="none" stroke="rgba(212,180,97,0.08)" strokeWidth="6" />
@@ -111,14 +130,16 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
               style={{ transition: "stroke-dashoffset 0.3s ease" }}
             />
           </svg>
-          {/* Inner icon + time */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-            <div className="text-2xl font-black text-primary tabular-nums">
-              {seconds > 0 ? seconds : "✓"}
-            </div>
-            <div className="text-[10px] text-zinc-600 font-medium">
-              {seconds > 0 ? "seconds" : "done"}
-            </div>
+          {/* Pulsing Sparkles icon — no countdown number */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Sparkles
+              className="text-primary transition-all duration-700"
+              style={{
+                width: pulse ? 30 : 26,
+                height: pulse ? 30 : 26,
+                opacity: pulse ? 1 : 0.6,
+              }}
+            />
           </div>
         </div>
 
@@ -129,7 +150,7 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
             {[0, 1, 2].map(i => (
               <div
                 key={i}
-                className={`rounded-full ${dots[i]} animate-bounce`}
+                className="rounded-full bg-primary animate-bounce"
                 style={{ width: 6, height: 6, animationDelay: `${i * 0.18}s` }}
               />
             ))}
@@ -154,20 +175,18 @@ export default function GeneratingScreen({ label = "your content", minMs = 47000
 
         {/* Process steps */}
         <div className="space-y-2 w-full">
-          {[
-            { label: "Analysing your brand & niche", done: progress > 0.1 },
-            { label: "Writing tailored copy & content", done: progress > 0.3 },
-            { label: "Structuring layouts & flow", done: progress > 0.55 },
-            { label: "Optimising for your goal", done: progress > 0.75 },
-            { label: "Final polish & quality check", done: progress > 0.92 },
-          ].map((step, i) => (
-            <div key={i} className="flex items-center gap-3 text-xs text-zinc-500">
-              <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${step.done ? "bg-primary border-primary" : "border-zinc-700"}`}>
-                {step.done && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+          {steps.map((stepLabel, i) => {
+            const thresholds = [0.08, 0.28, 0.52, 0.74, 0.91];
+            const done = progress > (thresholds[i] ?? 0.9);
+            return (
+              <div key={i} className="flex items-center gap-3 text-xs text-zinc-500">
+                <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${done ? "bg-primary border-primary" : "border-zinc-700"}`}>
+                  {done && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                </div>
+                <span className={done ? "text-zinc-300" : "text-zinc-600"}>{stepLabel}</span>
               </div>
-              <span className={step.done ? "text-zinc-300" : "text-zinc-600"}>{step.label}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import PublishModal from "@/components/PublishModal";
 import {
@@ -467,6 +468,8 @@ export default function AIIdeas() {
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [contentMix, setContentMix] = useState<ContentMix | null>(null);
   const [loading, setLoading] = useState(false);
+  const [screenVisible, setScreenVisible] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
   const [likedIdeas, setLikedIdeas] = useState<ContentIdea[]>(() => loadLiked(platform));
   const [scriptIdea, setScriptIdea] = useState<ContentIdea | null>(null);
   const [scriptContent, setScriptContent] = useState("");
@@ -571,6 +574,8 @@ export default function AIIdeas() {
       return;
     }
     setLoading(true);
+    setScreenVisible(true);
+    setApiDone(false);
     setIdeas([]);
     setContentMix(null);
     try {
@@ -612,7 +617,7 @@ export default function AIIdeas() {
         toast({ title: "Generation failed", description: err.message || "Failed to generate ideas", variant: "destructive" });
       }
     } finally {
-      setLoading(false);
+      setApiDone(true);
     }
   };
 
@@ -620,6 +625,21 @@ export default function AIIdeas() {
 
   return (
     <ClientLayout>
+      {screenVisible && (
+        <GeneratingScreen
+          label="your content ideas"
+          minMs={18000}
+          isComplete={apiDone}
+          onReady={() => { setScreenVisible(false); setLoading(false); }}
+          steps={[
+            "Scanning your niche & audience",
+            "Researching trending formats",
+            "Generating personalised ideas",
+            "Adding hooks & CTAs",
+            "Final quality check",
+          ]}
+        />
+      )}
       <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -1112,8 +1132,6 @@ export default function AIIdeas() {
             )}
           </CardContent>
         </Card>
-
-        {loading && <AILoadingState platform={platform} />}
 
         {ideas.length > 0 && !loading && (
           <div className="space-y-4">

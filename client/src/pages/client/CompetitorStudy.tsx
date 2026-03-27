@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2107,6 +2108,8 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creditError, setCreditError] = useState<string | null>(null);
+  const [screenVisible, setScreenVisible] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -2120,6 +2123,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       clientId: activeClientId || user?.id,
     }),
     onSuccess: (data: any) => {
+      setApiDone(true);
       queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
       setSelectedId(data.id);
       setClientUrl("");
@@ -2127,6 +2131,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
     },
     onError: (e: any) => {
+      setApiDone(true);
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
       } else {
@@ -2148,6 +2153,21 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
 
   return (
     <div className="space-y-6">
+      {screenVisible && (
+        <GeneratingScreen
+          label="your competitor analysis"
+          minMs={35000}
+          isComplete={apiDone}
+          onReady={() => { setScreenVisible(false); setApiDone(false); }}
+          steps={[
+            "Scraping Instagram profiles",
+            "Collecting posts & engagement data",
+            "Running AI deep analysis",
+            "Comparing strategies & gaps",
+            "Generating full report",
+          ]}
+        />
+      )}
       {creditError && <CreditErrorBanner message={creditError} />}
       {/* Input form */}
       <Card className="border border-card-border">
@@ -2166,12 +2186,11 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
               <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
             </div>
           </div>
-          <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
+          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
             {analyze.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing… (~60s)</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
               : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
           </Button>
-          {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse">Scraping both profiles (30 posts each) + running full AI analysis — please wait…</p>}
         </CardContent>
       </Card>
 
@@ -2794,6 +2813,8 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeNicheSection, setActiveNicheSection] = useState<string | null>(null);
   const [showGrowthPlaybook, setShowGrowthPlaybook] = useState(false);
+  const [screenVisible, setScreenVisible] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/niche/analyses", activeClientId],
@@ -2807,13 +2828,14 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
       clientId: activeClientId || user?.id,
     }),
     onSuccess: (data: any) => {
+      setApiDone(true);
       queryClient.invalidateQueries({ queryKey: ["/api/niche/analyses", activeClientId] });
       setSelectedId(data.id);
       setNiche("");
       setCompetitorUrls(["", "", ""]);
       toast({ title: "Niche Analysis Ready!", description: "Your complete niche intelligence report is ready." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => { setApiDone(true); toast({ title: "Error", description: e.message, variant: "destructive" }); },
   });
 
   const deleteAnalysis = useMutation({
@@ -2877,12 +2899,26 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
             </div>
           </div>
 
-          <Button onClick={() => analyze.mutate()} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
+          {screenVisible && (
+            <GeneratingScreen
+              label="your niche intelligence report"
+              minMs={40000}
+              isComplete={apiDone}
+              onReady={() => { setScreenVisible(false); setApiDone(false); }}
+              steps={[
+                "Scraping competitor profiles",
+                "Analysing post performance data",
+                "Identifying niche patterns",
+                "Finding gaps & opportunities",
+                "Generating your growth playbook",
+              ]}
+            />
+          )}
+          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
             {analyze.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report… (~90s)</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report…</>
               : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
           </Button>
-          {analyze.isPending && <p className="text-xs text-muted-foreground animate-pulse text-center">Scraping up to {competitorUrls.filter(u => u.trim()).length} profiles and running full niche AI analysis — please wait…</p>}
         </CardContent>
       </Card>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -422,6 +423,8 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   // Loading experience
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [screenVisible, setScreenVisible] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
 
   // Chat editing
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string; edits?: any[] }[]>([]);
@@ -471,6 +474,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       setResult(data); setIsIdeaResult(false); setActiveTab("timeline");
       setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({});
       setCaptionSegments([]); setAudioSuggestions([]);
+      setApiDone(true);
       if (!useAdmin) {
         apiRequest("POST", "/api/ai/history", {
           tool: "video-script",
@@ -480,7 +484,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
         }).then(() => qcVideo.invalidateQueries({ queryKey: ["/api/ai/history?tool=video-script"] })).catch(() => {});
       }
     },
-    onError: (err: any) => toast({ title: "Analysis failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => { setApiDone(true); toast({ title: "Analysis failed", description: err.message, variant: "destructive" }); },
   });
 
   const ideaMutation = useMutation({
@@ -498,6 +502,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
       setResult(data); setIsIdeaResult(true); setActiveTab(data.fullScript ? "script" : "timeline");
       setAppliedEdits(new Set()); setChatHistory([]); setThumbnails([]); setShotImages({});
       setCaptionSegments([]); setAudioSuggestions([]);
+      setApiDone(true);
       if (!useAdmin) {
         apiRequest("POST", "/api/ai/history", {
           tool: "video-script",
@@ -507,7 +512,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
         }).then(() => qcVideo.invalidateQueries({ queryKey: ["/api/ai/history?tool=video-script"] })).catch(() => {});
       }
     },
-    onError: (err: any) => toast({ title: "Idea Builder failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => { setApiDone(true); toast({ title: "Idea Builder failed", description: err.message, variant: "destructive" }); },
   });
 
   const suggestMutation = useMutation({
@@ -610,9 +615,13 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const handleGenerate = () => {
     if (inputType === "idea") {
       if (!concept.trim() || concept.trim().length < 10) return toast({ title: "Describe your video idea", description: "Give the AI at least a sentence to work with", variant: "destructive" });
+      setScreenVisible(true);
+      setApiDone(false);
       ideaMutation.mutate();
     } else {
       if (!inputValue.trim() || inputValue.trim().length < 5) return toast({ title: "Add some content first", description: "Paste a URL, script, or description", variant: "destructive" });
+      setScreenVisible(true);
+      setApiDone(false);
       analyzeMutation.mutate();
     }
   };
@@ -711,6 +720,21 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   // Render ─────────────────────────────────────────────────────────────────────
   return (
     <Layout>
+      {screenVisible && (
+        <GeneratingScreen
+          label={inputType === "idea" ? "your video plan" : "your video analysis"}
+          minMs={22000}
+          isComplete={apiDone}
+          onReady={() => { setScreenVisible(false); setApiDone(false); }}
+          steps={[
+            "Analysing your video concept",
+            "Researching hooks & angles",
+            "Writing script & timeline",
+            "Optimising for platform & goal",
+            "Final quality check",
+          ]}
+        />
+      )}
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
         {/* ── Header ──────────────────────────────────────────────────────────── */}
