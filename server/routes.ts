@@ -5144,10 +5144,20 @@ Generate their personalised audit. Be specific to their situation.`;
   // ── Lead Magnet Generator ─────────────────────────────────────────────────
   app.post("/api/ai/lead-magnet/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { niche, type, topic, audience, goal } = req.body;
+      const { niche, type, topic, audience, goal, ctaType, calendlyUrl, referenceUrl, pageCount = 8 } = req.body;
       if (!topic?.trim()) return res.status(400).json({ message: "Topic is required" });
 
+      const targetPages = Math.min(Math.max(Number(pageCount) || 8, 5), 25);
+      const contentPages = Math.max(targetPages - 4, 1); // cover + problem + content(s) + cta
+
       const systemPrompt = `You are an expert lead magnet strategist and copywriter. You create high-converting, premium-quality lead magnets with detailed, actionable content. Always respond with valid JSON only — no markdown, no code fences.`;
+
+      const ctaInstruction = ctaType === "book-call"
+        ? `CTA: Book a discovery call${calendlyUrl ? ` — Calendly: ${calendlyUrl}` : ""}`
+        : ctaType === "email-list" ? "CTA: Join the email list / newsletter"
+        : ctaType === "follow-instagram" ? "CTA: Follow on Instagram"
+        : ctaType === "buy-product" ? "CTA: Buy the product/course"
+        : `CTA goal: ${goal || "Generate leads"}`;
 
       const userPrompt = `Create a complete, detailed lead magnet with the following details:
 NICHE: ${niche || "Business / Marketing"}
@@ -5155,6 +5165,8 @@ TYPE: ${type || "Guide"}
 TOPIC: ${topic}
 AUDIENCE: ${audience || "Entrepreneurs and small business owners"}
 GOAL: ${goal || "Grow their audience and generate leads"}
+${ctaInstruction}
+${referenceUrl ? `REFERENCE: ${referenceUrl}` : ""}
 
 Return a JSON object with EXACTLY this structure:
 {
@@ -5244,6 +5256,83 @@ Make the content specific, detailed, and actionable — not generic. Tailor it p
         if (!match) throw new Error("Failed to parse AI response");
         result = JSON.parse(match[0]);
       }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — improve a single text field with AI
+  app.post("/api/ai/lead-magnet/improve-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text?.trim()) return res.status(400).json({ message: "Text required" });
+      const improved = await callGroq(
+        "You improve marketing copy for lead magnets. Return ONLY the improved text — no quotes, no commentary, no extra words. Keep a similar length.",
+        `Improve this text to be more clear, engaging and persuasive:\n\nContext: ${context || "lead magnet page"}\n\nText:\n${text}`,
+        400,
+      );
+      return res.json({ text: improved.trim() });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — rearrange a page's content with AI
+  app.post("/api/ai/lead-magnet/rearrange", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { page, niche, goal } = req.body;
+      if (!page) return res.status(400).json({ message: "Page data required" });
+      const raw = await callGroqJson(
+        "You are an expert lead magnet designer. Improve and restructure page content. Return only valid JSON with the same shape as the input.",
+        `Improve this lead magnet page. Make it more structured and scannable. Add useful detail where needed. Return JSON with EXACTLY the same keys as input.\n\nNiche: ${niche || "general"}\nGoal: ${goal || "generate leads"}\n\nPage:\n${JSON.stringify(page)}`,
+        800,
+      );
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : page;
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — AI chat assistant
+  app.post("/api/ai/lead-magnet/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, pages, niche, goal, topic } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "Message required" });
+      const pagesSummary = (pages || []).map((p: any, i: number) =>
+        `Page ${i + 1} (${p.type}): ${p.title || p.heading || p.headline || ""}`
+      ).join("\n");
+      const response = await callGroq(
+        "You are an AI lead magnet assistant. Give concise, actionable advice. Be specific. Max 3 paragraphs.",
+        `Lead magnet details:\nTopic: ${topic || ""}\nNiche: ${niche || ""}\nGoal: ${goal || ""}\n\nPages:\n${pagesSummary}\n\nUser request: ${message}`,
+        500,
+      );
+      return res.json({ response: response.trim() });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — fill/expand an empty page
+  app.post("/api/ai/lead-magnet/fill-page", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { pageType, niche, goal, topic, pageIndex } = req.body;
+      const raw = await callGroqJson(
+        "You generate lead magnet page content. Return valid JSON only — no markdown.",
+        `Generate content for a "${pageType}" page in a lead magnet.\nTopic: ${topic}\nNiche: ${niche}\nGoal: ${goal}\nPage number: ${pageIndex + 1}\n\nReturn JSON matching this shape based on type:\n- cover: {type, id, title, subtitle, hook}\n- content: {type, id, heading, body, bullets:[]}\n- checklist: {type, id, heading, items:[]}\n- tips: {type, id, heading, tips:[{number,title,body}]}\n- cta: {type, id, headline, body, cta}`,
+        600,
+      );
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse failed");
+        result = JSON.parse(m[0]);
+      }
+      result.id = `page-${pageIndex}`;
+      result.type = pageType;
       return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });

@@ -1,0 +1,234 @@
+Make all these changes inside the lead magent generator
+
+
+
+click on selecting the niche, let them write it, you know, and for the golden, the CTA, give them options, you know, what are the common options for a lead magnet generator. You give them options for both the cases, if the thing is, if they want to do, if the goal is something else or the niche is something else, give them an option for other, and for other, give them an option to write it down and then select on it. Also give them an option to click on the slide, rearrange the text format, also input the text there they write and make it better with AI. Like, uh, suppose there's, and like the whole thing, when they click on the slide, help them rearrange the text, so if they wanna add something, text of there and write it by themselves, make a text box near the slide and then just say, write it like this and get the whole, rearrange with AI thing, make it better with AI like text and give them with an option to import their own design. Like I give them an option to import their own design on one slide or on other slides. Just give them an option to import their own design from their own computer. Also make a chatbot below the lead carousel generator. No, no, no, not the lead, but the uh lead magnet generator. So that better, we will write the changes and it will automatically change and also each text should be systematically organized. For the chatbot, it will be like, like a small box below it and whatever we write in the chatbot, the changes for the lead magnet, it will make the changes automatically and also each text, each text in the whole page should be systematically organized. Also for the font text, give them different options to choose from. Give them a lot of variety of options for font and text and tell me to choose from it. Also give options to upload PDFs to the URLs for referencing, so that. When we're putting the proper inputs at first, give them options to input PDFs or URLs for reference, so that the AI can look into the PDFs and generate something better and similar, or like they have a brief idea about it, when they are making a lead magnet. Also give them an option to input Instagram URLs so that they will be... Also give them an option to input Instagram URLs so that they will give better reference. Like, if I put my Instagram URL inside the lead magnet generator before, it can analyze my Instagram too and make the lead magnet more precise and generate it in a card. Give them more design options if they have a goal, like book a call for that, book a call, and only for that book a call thing, give them an option to insert the Calendly link, and only if they choose that goal to book a call, and in the last slide, of course, give them the Calendly link. If their aim is to collect emails at the end, give them so. So make it like that, you know, whatever goal they choose, automatically, like, give them an option to, like, insert link or something at the last page or some shit like that, you know. And also make the 60 seconds to 45 to 60 seconds to make the whole thing. Also the CTA options, whatever option they pick, like these three CTA options, right? Option they pick, allow them to choose it and choose it and then automatically upload it to the last slide, the CTA slide. So if they choose the second CTA, give them an option to select the second CTA and then upload it to the last slide. Also give them an option for how many pages they want the lead magnet to be for, you know. Max keep it like 20, 20, 20 pages, 25 pages. Also, when they have, when you are filling on the whole page for the lead magnet, fill out the entire page, you know, fill out every single, don't keep a single line or single space open, you know. I want you to fill it with text, copy text, you know. Also go like, yeah, like I said, fill out the whole page right now, if I see, click on the, see the lead magnet. The whole page isn't filled, so fill out the whole page like that. Also give them an option to import their own designs, like I said, import their own designs and apply it to different slides if they want to, like, if I want to apply it to some slide 3, give them an option to do so. And also, like I said, have a brief option there, like history. In every single AI thing you have on this platform, keep it history, you know, for the AI content coach, have a second option over there named as history, and when you click on the history, you'll see the past every single thing. This is for the client, so that the client can see what all I've used and how I can go back to it. For every single platform, every single thing they use on this SaaS, keep a history, like, okay, if I use the carousel generator, keep a second option as history so that they can see what things they've done before. Also, give them different font styles, text styles into the thing, like the lead generator, lead magnet thing, the lead magnet thing, give them proper options to like design your text, like, what text, how text you want it to be before it, and the color of the text, you know, something like that.
+
+
+
+🚀 PART 1: INPUT SYSTEM (SMART + FLEXIBLE)
+🎯 1. GOAL SELECTION (WITH CONDITIONAL LOGIC)
+Give options:
+Grow email list
+Book calls
+Sell product
+Build audience
+Other (→ user types)
+🔥 LOGIC:
+If Book Calls → show Calendly input
+If Email List → show email capture CTA
+If Other → free text input
+
+🧠 2. NICHE INPUT (SMART FIELD)
+Instead of dropdown:
+👉 Use:
+Input field + suggestions
+Example:
+Fitness
+Finance
+Personal brand
+SaaS
+Other (custom input)
+
+📎 3. REFERENCE INPUT (HUGE DIFFERENTIATOR)
+Let user add:
+PDF upload
+Website URL
+Instagram profile link
+🔥 WHAT YOUR AI SHOULD DO:
+Extract tone + structure
+Match style
+Improve content quality
+
+🎨 PART 2: GENERATION SYSTEM
+⚡ FAST GENERATION (45–60 sec)
+User inputs:
+Goal
+Topic
+Niche
+References
+Pages (5–25)
+👉 Output:
+Fully structured lead magnet
+Fully designed slides
+CTA auto-added
+
+🧩 PART 3: EDITOR (THIS IS YOUR SECRET WEAPON)
+🖱️ CLICK ON SLIDE → SMART EDIT PANEL
+When user clicks a slide:
+Show:
+Text boxes (editable)
+Layout controls
+“✨ Improve with AI” button
+
+✍️ TEXT EDITING SYSTEM
+Each text box:
+Editable manually
+Button:
+ 👉 “Make better with AI”
+
+COPY-PASTE PROMPT FOR THIS:
+Improve this text for a lead magnet.
+
+Make it:
+- More clear
+- More engaging
+- More persuasive
+- Easy to read
+
+Keep it concise and structured.
+
+Text:
+{user_text}
+
+🔄 AUTO REARRANGE FEATURE
+When user clicks:
+👉 “Rearrange with AI”
+Rearrange this content into a clean, well-structured layout for a lead magnet page.
+
+- Use headings
+- Use bullet points if needed
+- Make it visually scannable
+- Keep balance between text blocks
+
+Content:
+{page_content}
+
+🎨 PART 4: DESIGN CONTROLS
+🔤 FONT + TEXT OPTIONS
+Give options like:
+Font styles (modern, bold, minimal, aesthetic)
+Text size
+Line spacing
+Text color
+Highlight styles
+
+🎨 THEMES
+Minimal
+Bold
+Dark
+Gradient
+Aesthetic
+
+📥 IMPORT DESIGN FEATURE
+Allow:
+Upload image/design
+Apply to:
+Single slide
+Multiple slides
+
+🤖 PART 5: CHATBOT (SUPER IMPORTANT FEATURE)
+📍 POSITION:
+Small box below editor
+
+💬 WHAT IT DOES:
+User types:
+“Make this more persuasive”
+ “Add more content to slide 3”
+ “Change tone to casual”
+
+COPY-PASTE PROMPT:
+You are an AI design assistant.
+
+User request:
+{user_input}
+
+Current lead magnet content:
+{full_content}
+
+Update the content based on the request.
+
+Keep:
+- Structure intact
+- Design consistency
+- High readability
+
+🎯 PART 6: CTA SYSTEM (SMART + CONDITIONAL)
+GIVE OPTIONS:
+Book a call
+Download resource
+Follow on Instagram
+Join newsletter
+Buy product
+Other
+
+🔥 LOGIC:
+If user selects:
+👉 Book a call
+ → Show Calendly input
+ → Auto add to last slide
+
+CTA PROMPT:
+Generate a strong call-to-action for this lead magnet.
+
+Goal: {goal}
+
+Make it:
+- Clear
+- Action-driven
+- Not pushy
+
+Give 3 variations.
+
+📄 PART 7: PAGE CONTROL
+Allow:
+5 to 25 pages
+Add/remove pages
+Reorder pages
+
+🔥 IMPORTANT RULE:
+👉 NO EMPTY SPACE
+Use this prompt:
+Expand this page content to fully utilize the space.
+
+- Add useful insights
+- Add examples
+- Add supporting points
+- Keep it valuable, not fluffy
+
+Content:
+{page_content}
+
+🔁 PART 8: REPURPOSING ENGINE
+After generation:
+Auto create:
+Instagram carousel
+Story slides
+LinkedIn post
+
+🕘 PART 9: HISTORY SYSTEM (VERY IMPORTANT)
+Every feature should have:
+👉 “History” tab
+Store:
+Previous generations
+Edits
+Versions
+
+🧠 STRUCTURE:
+User ID
+Project ID
+Version
+Timestamp
+Content JSON
+
+⚡ FINAL USER FLOW
+1. Input (goal, niche, references)
+2. Generate (60 sec)
+3. Edit (click slides)
+4. AI assist (chatbot + improve)
+5. Customize design
+6. Export
+7. Save in history
+
+💡 WHAT MAKES THIS INSANE
+You’re combining:
+✅ AI generation
+ ✅ Canva-like editor
+ ✅ ChatGPT assistant
+ ✅ Conversion system
+ ✅ Smart CTA logic
+
+🚀 FINAL POSITIONING
+Say this:
+👉 “Create high-converting lead magnets in 60 seconds—with AI that actually helps you edit, design, and convert.”
+
