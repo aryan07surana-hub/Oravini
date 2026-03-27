@@ -375,6 +375,24 @@ export default function LeadMagnetGenerator() {
     onError: (err: any) => toast({ title: "Failed to add page", description: err.message, variant: "destructive" }),
   });
 
+  const [expandingSlide, setExpandingSlide] = useState(false);
+  const expandSlideMutation = useMutation({
+    mutationFn: (body: object) => apiRequest("POST", "/api/ai/lead-magnet/expand-slide", body),
+    onSuccess: (expanded: LMPage) => {
+      setPages(prev => prev.map((p, i) => i === selectedPageIdx ? { ...expanded, id: p.id, type: p.type } : p));
+      toast({ title: "Slide expanded!", description: "More content added to this slide." });
+      setExpandingSlide(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Expand failed", description: err.message, variant: "destructive" });
+      setExpandingSlide(false);
+    },
+  });
+  const handleExpandSlide = () => {
+    setExpandingSlide(true);
+    expandSlideMutation.mutate({ page: selectedPage, niche: nicheInput || form.niche, goal: form.goal, topic: form.topic });
+  };
+
   const chatMutation = useMutation({
     mutationFn: (body: object) => apiRequest("POST", "/api/ai/lead-magnet/chat", body),
     onSuccess: (data: { response: string; pageUpdates?: { index: number; page: LMPage }[] }) => {
@@ -884,10 +902,38 @@ export default function LeadMagnetGenerator() {
                 </div>
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 space-y-4">
-                  <p className="text-xs font-semibold text-white flex items-center gap-2">
-                    <Wand2 className="w-3.5 h-3.5 text-primary" />Edit Slide {selectedPageIdx + 1}
-                    <span className="text-zinc-600 text-[10px] font-normal capitalize">({selectedPage.type})</span>
-                  </p>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs font-semibold text-white flex items-center gap-2">
+                      <Wand2 className="w-3.5 h-3.5 text-primary" />Edit Slide {selectedPageIdx + 1}
+                      <span className="text-zinc-600 text-[10px] font-normal capitalize">({selectedPage.type})</span>
+                    </p>
+                    <button
+                      onClick={handleExpandSlide}
+                      disabled={expandingSlide}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 hover:border-primary/50 text-primary text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      data-testid="btn-expand-slide"
+                    >
+                      {expandingSlide
+                        ? <><div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Expanding…</>
+                        : <><Sparkles className="w-3 h-3" />Get More Content</>
+                      }
+                    </button>
+                  </div>
+
+                  {/* Per-type hint */}
+                  <div className="flex items-start gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2">
+                    <Zap className="w-3 h-3 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-zinc-500 leading-relaxed">
+                      {selectedPage.type === "content" && "Adds more bullet points and enriches the body with examples or stats."}
+                      {selectedPage.type === "checklist" && "Adds more specific, actionable checklist items."}
+                      {selectedPage.type === "tips" && "Adds 2–3 more expert tips with titles and details."}
+                      {selectedPage.type === "problem" && "Deepens the body with a real example, sharpens the key insight."}
+                      {selectedPage.type === "cover" && "Strengthens the hook and enriches the subtitle."}
+                      {selectedPage.type === "cta" && "Makes the headline more urgent and copy more persuasive."}
+                      {!["content","checklist","tips","problem","cover","cta"].includes(selectedPage.type) && "Adds more depth and value to this slide."}
+                      {" "}Existing content is preserved.
+                    </p>
+                  </div>
 
                   {selectedPage.type === "cover" && (<>
                     <EditField label="Title" value={selectedPage.title || ""} onChange={v => updatePageField(selectedPageIdx, "title", v)} onImprove={() => handleImprove(selectedPageIdx, "title", selectedPage.title || "", "lead magnet cover title")} improvingKey={`${selectedPageIdx}-title`} activeImproving={activeImproving} />

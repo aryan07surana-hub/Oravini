@@ -5341,6 +5341,41 @@ Rules:
     }
   });
 
+  // Lead Magnet — expand existing slide with deeper AI content
+  app.post("/api/ai/lead-magnet/expand-slide", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { page, niche, goal, topic, context } = req.body;
+      if (!page) return res.status(400).json({ message: "page required" });
+
+      const instrMap: Record<string, string> = {
+        content: "Add 2–3 more detailed bullet points and make the body paragraph richer with a specific example or statistic. Keep all existing content.",
+        checklist: "Add 3–5 more specific, actionable checklist items that are distinct from the existing ones.",
+        tips: "Add 2–3 more expert tips, each with a clear number, title, and body. Keep all existing tips.",
+        problem: "Deepen the body text with a relatable real-world example. Make the emphasis field more specific, striking, and impactful.",
+        cover: "Write a stronger, more emotionally resonant hook quote. Enrich the subtitle to highlight a key benefit.",
+        cta: "Strengthen the headline with urgency. Make the body copy more persuasive and benefit-driven. Improve the CTA button text to be action-oriented.",
+      };
+      const instrText = instrMap[page.type] || "Add more depth, examples, and value to every text field in this slide.";
+
+      const raw = await callGroqJson(
+        `You are an expert lead magnet copywriter. Expand and enrich the given slide. Return ONLY valid JSON matching the exact same shape — same 'id', same 'type'. NEVER remove existing content, only improve and add.`,
+        `Expand this slide:\n${JSON.stringify(page)}\n\nNiche: ${niche}\nGoal: ${goal}\nTopic: ${topic}\nExtra context: ${context || "none"}\n\nInstruction: ${instrText}\n\nReturn the complete updated slide as JSON.`,
+        1400,
+      );
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse failed");
+        result = JSON.parse(m[0]);
+      }
+      result.id = page.id;
+      result.type = page.type;
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Lead Magnet — fill/expand an empty page
   app.post("/api/ai/lead-magnet/fill-page", requireAuth, async (req: Request, res: Response) => {
     try {
