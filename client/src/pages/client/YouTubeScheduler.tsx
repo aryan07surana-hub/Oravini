@@ -56,13 +56,21 @@ export default function YouTubeScheduler() {
   const [mode, setMode] = useState<"now" | "schedule">("now");
 
   useEffect(() => {
-    if (location.includes("yt_connected=1")) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("yt_connected") === "1") {
       toast({ title: "YouTube connected!", description: "Your channel is now linked." });
       setActiveTab("post");
-    } else if (location.includes("yt_error=1")) {
-      toast({ title: "Connection failed", description: "Could not connect YouTube. Please try again.", variant: "destructive" });
+      window.history.replaceState({}, "", "/youtube-scheduler");
+    } else if (params.get("yt_error")) {
+      const msg = decodeURIComponent(params.get("yt_error") || "");
+      toast({
+        title: "Connection failed",
+        description: msg === "missing_code" ? "No authorisation code received. Please try again." : (msg || "Could not connect YouTube."),
+        variant: "destructive",
+      });
+      window.history.replaceState({}, "", "/youtube-scheduler");
     }
-  }, [location]);
+  }, []);
 
   const { data: status, isLoading: statusLoading } = useQuery<any>({
     queryKey: ["/api/youtube/status"],

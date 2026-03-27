@@ -4935,20 +4935,32 @@ Generate their personalised audit. Be specific to their situation.`;
   // ── YouTube Integration ───────────────────────────────────────────────────────
   const { google } = await import("googleapis");
 
-  const YOUTUBE_CALLBACK = process.env.NODE_ENV === "production"
-    ? "https://admin-control-hub-aryan07surana.replit.app/api/auth/youtube/callback"
-    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/auth/youtube/callback`;
+  function getSiteBase() {
+    if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (domain) return `https://${domain}`;
+    return "http://localhost:5000";
+  }
+
+  function getYoutubeCallbackUrl() {
+    return `${getSiteBase()}/api/auth/youtube/callback`;
+  }
 
   function getYoutubeOAuth2Client() {
     return new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET,
-      YOUTUBE_CALLBACK,
+      getYoutubeCallbackUrl(),
     );
   }
 
   app.get("/api/auth/youtube", requireAuth, (req: Request, res: Response) => {
+    if (!process.env.YOUTUBE_CLIENT_ID || !process.env.YOUTUBE_CLIENT_SECRET) {
+      return res.status(500).json({ message: "YouTube credentials not configured" });
+    }
     const oauth2Client = getYoutubeOAuth2Client();
+    const callbackUrl = getYoutubeCallbackUrl();
+    log(`YouTube OAuth: starting flow, callback=${callbackUrl}`, "youtube");
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: [
@@ -4962,33 +4974,46 @@ Generate their personalised audit. Be specific to their situation.`;
   });
 
   app.get("/api/auth/youtube/callback", async (req: Request, res: Response) => {
+    const base = getSiteBase();
     try {
-      const { code, state: userId } = req.query as { code?: string; state?: string };
-      if (!code || !userId) return res.redirect("/?yt_error=missing_code");
+      const { code, state: userId, error, error_description } = req.query as {
+        code?: string; state?: string; error?: string; error_description?: string;
+      };
+
+      if (error) {
+        log(`YouTube OAuth denied: ${error} — ${error_description}`, "youtube");
+        return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(error_description || error)}`);
+      }
+
+      if (!code || !userId) {
+        log("YouTube OAuth callback: missing code or state", "youtube");
+        return res.redirect(`${base}/youtube-scheduler?yt_error=missing_code`);
+      }
+
       const oauth2Client = getYoutubeOAuth2Client();
       const { tokens } = await oauth2Client.getToken(code);
       oauth2Client.setCredentials(tokens);
+
+      if (!tokens.access_token) throw new Error("No access token received from Google");
+
       const yt = google.youtube({ version: "v3", auth: oauth2Client });
       const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
       const channel = channelRes.data.items?.[0];
+
       await storage.upsertYoutubeToken(userId, {
-        accessToken: tokens.access_token!,
+        accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token ?? null,
         expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         channelId: channel?.id ?? null,
         channelTitle: channel?.snippet?.title ?? null,
         channelThumbnail: channel?.snippet?.thumbnails?.default?.url ?? null,
       });
-      const base = process.env.NODE_ENV === "production"
-        ? "https://admin-control-hub-aryan07surana.replit.app"
-        : `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+
+      log(`YouTube connected: channel=${channel?.snippet?.title} user=${userId}`, "youtube");
       return res.redirect(`${base}/youtube-scheduler?yt_connected=1`);
     } catch (err: any) {
       log(`YouTube OAuth callback error: ${err.message}`, "youtube");
-      const base = process.env.NODE_ENV === "production"
-        ? "https://admin-control-hub-aryan07surana.replit.app"
-        : `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-      return res.redirect(`${base}/youtube-scheduler?yt_error=1`);
+      return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(err.message)}`);
     }
   });
 

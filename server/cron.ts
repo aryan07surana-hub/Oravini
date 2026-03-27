@@ -248,9 +248,8 @@ async function processScheduledYoutubePosts() {
           await storage.updateScheduledYoutubePost(post.id, { status: "failed", errorMessage: "YouTube not connected" });
           continue;
         }
-        const YOUTUBE_CALLBACK = process.env.NODE_ENV === "production"
-          ? "https://admin-control-hub-aryan07surana.replit.app/api/auth/youtube/callback"
-          : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/auth/youtube/callback`;
+        const siteDomain = process.env.SITE_URL?.replace(/\/$/, "") ?? `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}`;
+        const YOUTUBE_CALLBACK = `${siteDomain}/api/auth/youtube/callback`;
         const oauth2Client = new google.auth.OAuth2(
           process.env.YOUTUBE_CLIENT_ID,
           process.env.YOUTUBE_CLIENT_SECRET,
