@@ -5298,20 +5298,44 @@ Make the content specific, detailed, and actionable — not generic. Tailor it p
     }
   });
 
-  // Lead Magnet — AI chat assistant
+  // Lead Magnet — AI chat assistant (auto-applies slide changes)
   app.post("/api/ai/lead-magnet/chat", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message, pages, niche, goal, topic } = req.body;
       if (!message?.trim()) return res.status(400).json({ message: "Message required" });
-      const pagesSummary = (pages || []).map((p: any, i: number) =>
-        `Page ${i + 1} (${p.type}): ${p.title || p.heading || p.headline || ""}`
-      ).join("\n");
-      const response = await callGroq(
-        "You are an AI lead magnet assistant. Give concise, actionable advice. Be specific. Max 3 paragraphs.",
-        `Lead magnet details:\nTopic: ${topic || ""}\nNiche: ${niche || ""}\nGoal: ${goal || ""}\n\nPages:\n${pagesSummary}\n\nUser request: ${message}`,
-        500,
+
+      const pagesJson = JSON.stringify((pages || []).map((p: any, i: number) => ({ index: i, ...p })));
+
+      const systemPrompt = `You are an AI lead magnet editor that AUTOMATICALLY applies changes to slides. 
+
+When the user mentions a slide/page number (e.g., "slide 3", "page 2", "slide 4"), you MUST update that slide's content and return it in pageUpdates.
+
+Always return valid JSON in this exact format:
+{
+  "response": "brief description of what you did",
+  "pageUpdates": [
+    { "index": 2, "page": { ...complete updated page object with all fields... } }
+  ]
+}
+
+Rules:
+- "slide 3" = index 2 (0-based), "page 1" = index 0, etc.
+- When updating a page, copy its FULL structure and improve only the requested fields
+- If no specific slide is mentioned but changes make sense (e.g., "improve all CTAs"), update relevant pages
+- pageUpdates can be empty [] if only giving advice
+- Return ONLY the JSON, no markdown`;
+
+      const raw = await callGroqJson(systemPrompt,
+        `User request: "${message}"\n\nNiche: ${niche}\nGoal: ${goal}\nTopic: ${topic}\n\nAll pages:\n${pagesJson}`,
+        2000,
       );
-      return res.json({ response: response.trim() });
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : { response: raw, pageUpdates: [] };
+      }
+      if (!result.pageUpdates) result.pageUpdates = [];
+      return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
