@@ -4723,7 +4723,7 @@ Generate their personalised audit. Be specific to their situation.`;
         code?: string; state?: string; error?: string; error_description?: string;
       };
       if (error) {
-        log(`LinkedIn OAuth denied: ${error} — ${error_description}`, "linkedin");
+        console.log(`[linkedin] OAuth denied: ${error} — ${error_description}`);
         return res.redirect(`${base}/linkedin-scheduler?error=${encodeURIComponent(error_description || error)}`);
       }
       if (!code || !state) return res.redirect(`${base}/linkedin-scheduler?error=missing_params`);
@@ -4741,7 +4741,7 @@ Generate their personalised audit. Be specific to their situation.`;
       });
       return res.redirect("/linkedin-scheduler?connected=1");
     } catch (err: any) {
-      log(`LinkedIn callback error: ${err.message}`, "linkedin");
+      console.log(`[linkedin] Callback error: ${err.message}`);
       return res.redirect(`/linkedin-scheduler?error=${encodeURIComponent(err.message || "Authentication failed")}`);
     }
   });
@@ -4980,7 +4980,7 @@ Generate their personalised audit. Be specific to their situation.`;
     }
     const oauth2Client = getYoutubeOAuth2Client();
     const callbackUrl = getYoutubeCallbackUrl();
-    log(`YouTube OAuth: starting flow, callback=${callbackUrl}`, "youtube");
+    console.log(`[youtube] OAuth starting, callback=${callbackUrl}`);
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: [
@@ -5001,12 +5001,12 @@ Generate their personalised audit. Be specific to their situation.`;
       };
 
       if (error) {
-        log(`YouTube OAuth denied: ${error} — ${error_description}`, "youtube");
+        console.log(`[youtube] OAuth denied: ${error} — ${error_description}`);
         return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(error_description || error)}`);
       }
 
       if (!code || !userId) {
-        log("YouTube OAuth callback: missing code or state", "youtube");
+        console.log("[youtube] OAuth callback: missing code or state");
         return res.redirect(`${base}/youtube-scheduler?yt_error=missing_code`);
       }
 
@@ -5029,10 +5029,10 @@ Generate their personalised audit. Be specific to their situation.`;
         channelThumbnail: channel?.snippet?.thumbnails?.default?.url ?? null,
       });
 
-      log(`YouTube connected: channel=${channel?.snippet?.title} user=${userId}`, "youtube");
+      console.log(`[youtube] Connected: channel=${channel?.snippet?.title} user=${userId}`);
       return res.redirect(`${base}/youtube-scheduler?yt_connected=1`);
     } catch (err: any) {
-      log(`YouTube OAuth callback error: ${err.message}`, "youtube");
+      console.log(`[youtube] Callback error: ${err.message}`);
       return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(err.message)}`);
     }
   });
