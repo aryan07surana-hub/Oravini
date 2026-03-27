@@ -4,7 +4,7 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
 import {
   Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft,
-  Film, Users, Brain,
+  Film, Users, Brain, ClipboardList,
 } from "lucide-react";
 
 // ── All hub tiles ─────────────────────────────────────────────────────────────
@@ -50,6 +50,15 @@ const MAIN_TOOLS = [
     route: null,
     badge: "2 Tools",
     accent: "#a78bfa",
+  },
+  {
+    id: "sop-generator",
+    label: "Content System Builder",
+    description: "AI designs your complete operating system — workflow, execution steps, automation, and scaling.",
+    icon: ClipboardList,
+    route: "/sop-generator",
+    badge: "New",
+    accent: "#d4b461",
   },
 ];
 
@@ -264,7 +273,7 @@ export default function AIDesign() {
             </p>
           </div>
 
-          {/* 3-column grid — 5 tools + 1 coming-soon slot */}
+          {/* 3-column grid — 6 tools (2×3 perfect) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 mb-10">
             {MAIN_TOOLS.map((tool) => (
               <SquareTile
@@ -278,20 +287,13 @@ export default function AIDesign() {
                 testId={`design-tool-${tool.id}`}
               />
             ))}
-            {/* Fill last slot with a Coming Soon tile so the grid is complete */}
-            <SquareTile
-              icon={COMING_SOON[0].icon}
-              label={COMING_SOON[0].label}
-              description={COMING_SOON[0].description}
-              comingSoon
-            />
           </div>
 
-          {/* Remaining coming soon */}
+          {/* Coming soon */}
           <div>
             <p className="text-xs font-semibold text-zinc-600 uppercase tracking-widest mb-4 text-center">Coming Soon</p>
             <div className="grid grid-cols-2 gap-4">
-              {COMING_SOON.slice(1).map((tool) => (
+              {COMING_SOON.map((tool) => (
                 <SquareTile
                   key={tool.id}
                   icon={tool.icon}

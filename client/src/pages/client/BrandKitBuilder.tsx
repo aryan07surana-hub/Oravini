@@ -112,6 +112,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
     contentFrequency: "",
     mainCompetitor: "",
     brandHero: "",
+    existingBrandColors: "",
   });
   const [platforms, setPlatforms] = useState<string[]>(["Instagram"]);
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
@@ -240,6 +241,13 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
       <div className="max-w-3xl mx-auto px-6 py-10 space-y-10">
         {/* Header */}
         <div>
+          <button
+            onClick={() => navigate("/ai-design")}
+            className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-4"
+            data-testid="btn-back-ai-design"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />AI Design Hub
+          </button>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-4">
             <Palette className="w-3 h-3" />Brand Kit Builder
           </div>
@@ -444,6 +452,16 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
                 placeholder="e.g. @mrbeats, Notion, Apple…"
                 className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
                 data-testid="input-brand-hero"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5"><Palette className="w-3 h-3" />Existing brand colours <span className="font-normal text-zinc-600">(optional)</span></label>
+              <Input
+                value={form.existingBrandColors}
+                onChange={e => setF("existingBrandColors", e.target.value)}
+                placeholder="e.g. #1A1A2E (dark navy), #d4b461 (gold), #FFFFFF — or describe: deep blue, white, gold"
+                className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-9"
+                data-testid="input-existing-colors"
               />
             </div>
           </div>

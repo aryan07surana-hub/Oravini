@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Wand2, Download, ChevronRight, CheckSquare, Copy, RefreshCw, Sparkles,
+  Wand2, Download, ChevronRight, ChevronLeft, CheckSquare, Copy, RefreshCw, Sparkles,
   FileText, Palette, Plus, Trash2, ArrowUp, ArrowDown, MessageSquare,
   Send, LayoutTemplate, X, Zap, History, RotateCcw, Type, Instagram,
   Link, ChevronDown, ChevronUp, Save, Clock, Bookmark,
@@ -289,6 +290,7 @@ function HistoryPanel({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function LeadMagnetGenerator() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [step, setStep] = useState<"config" | "editor">("config");
@@ -564,6 +566,13 @@ export default function LeadMagnetGenerator() {
       <div className="min-h-screen bg-background">
         <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
           <div>
+            <button
+              onClick={() => navigate("/ai-design")}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-4"
+              data-testid="btn-back-ai-design"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />AI Design Hub
+            </button>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-3">
               <FileText className="w-3 h-3" />Lead Magnet Generator
             </div>

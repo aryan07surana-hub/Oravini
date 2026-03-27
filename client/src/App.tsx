@@ -48,6 +48,7 @@ import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
 import ICPBuilder from "@/pages/client/ICPBuilder";
+import SOPGenerator from "@/pages/client/SOPGenerator";
 import AudiencePsychologyMap from "@/pages/client/AudiencePsychologyMap";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
@@ -133,6 +134,9 @@ function Router() {
       </Route>
       <Route path="/audience-psychology-map">
         {() => <ProtectedRoute component={AudiencePsychologyMap} />}
+      </Route>
+      <Route path="/sop-generator">
+        {() => <ProtectedRoute component={SOPGenerator} />}
       </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}

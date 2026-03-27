@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -156,6 +157,7 @@ function HistorySidePanel({ onLoad }: { onLoad: (e: any) => void }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ICPBuilder() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [step, setStep] = useState<"config" | "results">("config");
@@ -249,6 +251,13 @@ export default function ICPBuilder() {
         <div className="max-w-6xl mx-auto px-5 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-7">
+            <button
+              onClick={() => navigate("/ai-design")}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mr-1"
+              data-testid="btn-back-ai-design"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />AI Design Hub
+            </button>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
               <Users className="w-4 h-4" style={{ color: "#d4b461" }} />
             </div>

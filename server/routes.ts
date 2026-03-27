@@ -5428,7 +5428,7 @@ Rules:
   // ── Brand Kit Builder ─────────────────────────────────────────────────────
   app.post("/api/ai/brand-kit/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { businessDescription, targetAudience, platforms, platformUrls, style, goal } = req.body;
+      const { businessDescription, targetAudience, platforms, platformUrls, style, goal, industry, revenueModel, contentFrequency, mainCompetitor, brandHero, existingBrandColors } = req.body;
       if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
 
       const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms : ["Instagram"];
@@ -5442,9 +5442,17 @@ Rules:
 
 Business/Brand: ${businessDescription}
 Target Audience: ${targetAudience || "Not specified"}
-Platform Focus: ${platformList.join(", ")}${urlsText ? `\nPlatform URLs (use these for context on the brand's presence):\n${urlsText}` : ""}
+Industry / Niche: ${industry || "Not specified"}
+Revenue Model: ${revenueModel || "Not specified"}
+Platform Focus: ${platformList.join(", ")}${urlsText ? `\nPlatform URLs:\n${urlsText}` : ""}
 Style Preference: ${style || "Minimal & Clean"}
 Goal: ${goal || "Grow Audience"}
+Content Frequency: ${contentFrequency || "Not specified"}
+Main Competitor: ${mainCompetitor || "Not specified"}
+Brand Hero / Inspiration: ${brandHero || "Not specified"}
+Existing Brand Colours: ${existingBrandColors || "None — generate fresh colours"}
+
+${existingBrandColors ? `IMPORTANT: The user has existing brand colours (${existingBrandColors}). Build the palette around or complementary to these — do NOT ignore them.` : ""}
 
 Return this exact JSON structure:
 {
@@ -5675,6 +5683,136 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
       return res.json({ enhanced: enhanced.trim() });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── SOP / Content System Builder ─────────────────────────────────────────────
+  app.post("/api/ai/sop/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessType, niche, platform, contentType, experienceLevel, teamSetup, goal, postingFrequency, biggestStruggle } = req.body;
+      const systemPrompt = `You are an elite operations architect and systems designer who builds premium, agency-level SOPs for creators, personal brands, and online businesses. Your SOPs are extremely structured, step-by-step actionable, and immediately implementable. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Build a complete, hyper-detailed Content System SOP for this creator/business.
+
+USER CONTEXT:
+- Business Type: ${businessType}
+- Niche: ${niche}
+- Primary Platform: ${platform}
+- Content Type: ${contentType}
+- Experience Level: ${experienceLevel}
+- Team Setup: ${teamSetup}
+- Primary Goal: ${goal}
+- Posting Frequency: ${postingFrequency}
+- Biggest Struggle: ${biggestStruggle}
+
+CUSTOMIZATION RULES:
+- If Beginner → simplify steps, add more clarity and decision rules
+- If Advanced → include optimization and scaling systems
+- If Solo → focus on efficiency, batching, and automation
+- If team → include delegation workflows, roles and handoffs
+- Tailor EVERYTHING specifically to their niche and platform
+
+Return EXACTLY this JSON structure:
+{
+  "sopName": "Custom name for this SOP — make it powerful and specific to their niche/goal",
+  "tagline": "One-sentence description of what this SOP achieves — outcome-driven",
+  "overview": {
+    "objective": "Clear, specific objective of this SOP",
+    "outcome": "Measurable result they will achieve — be specific with numbers/timeframes where possible",
+    "whoExecutes": "Who is responsible for executing this — their role description",
+    "toolsRequired": ["Tool 1 with specific use case", "Tool 2", "Tool 3", "Tool 4", "Tool 5", "Tool 6"],
+    "timeInvestment": "Total estimated time per week to execute this system",
+    "difficultyLevel": "${experienceLevel}-calibrated",
+    "proTip": "One powerful pro tip specific to their situation"
+  },
+  "workflowStages": [
+    { "name": "Stage 1 Name", "description": "What happens in this stage and why it matters", "duration": "X min/hrs", "who": "Who executes this", "output": "What gets produced" },
+    { "name": "Stage 2", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 3", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 4", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 5", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 6", "description": "...", "duration": "...", "who": "...", "output": "..." }
+  ],
+  "executionSteps": [
+    {
+      "stage": "Stage 1 Name",
+      "steps": [
+        { "number": 1, "action": "Specific action to take", "microActions": ["Micro-action 1", "Micro-action 2", "Micro-action 3"], "timeEstimate": "X minutes", "tools": ["Tool name"], "decisionRule": "If X → do Y, else do Z", "qualityStandard": "What good looks like here" },
+        { "number": 2, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..." },
+        { "number": 3, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..." }
+      ]
+    },
+    { "stage": "Stage 2", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 3", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 4", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 5", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 6", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] }
+  ],
+  "qualityControl": {
+    "prePublishChecklist": ["Checklist item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7", "Item 8"],
+    "whatGoodLooksLike": "Specific description of what a high-quality ${contentType} looks like for their niche",
+    "commonMistakes": ["Mistake 1 with why it kills results", "Mistake 2", "Mistake 3", "Mistake 4", "Mistake 5"],
+    "avoidThis": "The single biggest mistake people in this niche make that tanks their ${goal}",
+    "qualityBenchmarks": { "engagement": "Target engagement rate", "reach": "Expected reach per post", "consistency": "Minimum posting consistency", "retention": "Hook retention benchmark if applicable" }
+  },
+  "automation": {
+    "whatToAutomate": ["Task 1 — Tool to use", "Task 2 — Tool", "Task 3 — Tool", "Task 4", "Task 5"],
+    "whatToBatch": ["Batch task 1 — when and how often", "Batch task 2", "Batch task 3", "Batch task 4"],
+    "aiUsagePoints": ["Where to use AI: specific step — tool recommendation", "AI point 2", "AI point 3", "AI point 4", "AI point 5"],
+    "timeReductionTips": ["Tip to cut time on X by Y%", "Tip 2", "Tip 3"],
+    "speedHack": "The single most powerful speed hack for their specific setup (${teamSetup}, ${experienceLevel})"
+  },
+  "optimizationLoop": {
+    "metricsToTrack": [
+      { "metric": "Metric name", "why": "Why this matters", "target": "Target benchmark", "frequency": "How often to check" },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." }
+    ],
+    "weeklyReviewSystem": "Exact weekly review process — step by step",
+    "improvementLoop": "How to take data → insight → action → test → repeat",
+    "monthlyResetProtocol": "What to do every month to reset, refine and level up the system"
+  },
+  "repurposingSystem": {
+    "coreToFive": "How to turn one ${contentType} into 5 pieces of content — be specific",
+    "platformAdaptations": [
+      { "platform": "Platform name", "format": "Content format", "adaptation": "How to adapt it specifically", "uniqueAngle": "What angle works best here" },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." }
+    ],
+    "repurposingSchedule": "How to spread the content across the week/month"
+  },
+  "scalingSystem": {
+    "roles": [
+      { "role": "Role title", "responsibilities": ["Responsibility 1", "Responsibility 2", "Responsibility 3"], "hireWhen": "When to hire this role" },
+      { "role": "...", "responsibilities": ["..."], "hireWhen": "..." }
+    ],
+    "handoffProcess": "How to hand off tasks without losing quality or consistency",
+    "communicationStructure": "How the team communicates — tools, cadence, structure",
+    "consistencySystem": "How to maintain brand voice and quality as team grows",
+    "applicableNote": "${teamSetup === "Solo" ? "This section is for when you scale. Review it when you hire your first VA." : "Implement these systems now to build a scalable operation."}"
+  },
+  "executionSummary": {
+    "simplifiedSystem": "The entire SOP distilled into 5 simple steps anyone can follow",
+    "keyRules": ["Rule 1 — non-negotiable for success", "Rule 2", "Rule 3", "Rule 4", "Rule 5", "Rule 6"],
+    "consistencyTips": ["Tip 1 specific to beating their struggle (${biggestStruggle})", "Tip 2", "Tip 3", "Tip 4", "Tip 5"],
+    "firstWeekPlan": "Exactly what to do in the first 7 days to get this system running",
+    "motivationalClose": "A powerful closing statement that makes them feel equipped and confident"
+  }
+}
+
+CRITICAL: Make every step hyper-specific to their niche (${niche}), platform (${platform}), and goal (${goal}). Avoid generic advice entirely. Every tool recommendation, time estimate, and decision rule must feel tailored and immediately actionable.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 6000);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse SOP response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
     }
   });
 

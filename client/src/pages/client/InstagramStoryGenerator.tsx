@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -495,6 +496,7 @@ function HistoryPanel({ onLoad, onClose }: { onLoad: (entry: any) => void; onClo
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function InstagramStoryGenerator() {
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [step, setStep] = useState<"config" | "photos" | "editor">("config");
@@ -636,6 +638,13 @@ export default function InstagramStoryGenerator() {
           <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
             {/* Header */}
             <div className="text-center space-y-3">
+              <button
+                onClick={() => navigate("/ai-design")}
+                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mx-auto mb-2"
+                data-testid="btn-back-ai-design"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />AI Design Hub
+              </button>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
                 <Film className="w-3.5 h-3.5" />Instagram Story Generator
               </div>
