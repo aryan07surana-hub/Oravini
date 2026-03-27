@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
   TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check,
-  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb
+  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -344,6 +344,49 @@ export default function ClientDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Focus Music Banner */}
+        <div
+          data-testid="focus-music-banner"
+          className="relative overflow-hidden rounded-2xl px-5 py-4 flex items-center gap-4"
+          style={{
+            background: "linear-gradient(135deg, rgba(15,10,30,0.95) 0%, rgba(18,14,35,0.95) 100%)",
+            border: "1px solid rgba(212,180,97,0.15)",
+          }}
+        >
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: "radial-gradient(ellipse at 10% 50%, rgba(212,180,97,0.06) 0%, transparent 60%)",
+          }} />
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}
+          >
+            <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white">Focus Music — now live</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Lo-fi · Deep Ambient · Space Station · Deep House · Zen Flow — pick your vibe from the player in the bottom right.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {[
+              { emoji: "☕", color: "#a78bfa" },
+              { emoji: "🌌", color: "#60a5fa" },
+              { emoji: "🚀", color: "#34d399" },
+              { emoji: "🎹", color: "#f472b6" },
+              { emoji: "🌊", color: "#fb923c" },
+            ].map(({ emoji, color }) => (
+              <div
+                key={emoji}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                style={{ background: `${color}15`, border: `1px solid ${color}25` }}
+              >
+                {emoji}
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Two square cards: Daily Quote + Income Goal */}
         <div className="grid grid-cols-2 gap-4">

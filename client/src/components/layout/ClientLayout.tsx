@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, Twitter, Linkedin, Youtube
@@ -204,6 +205,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           {children}
         </main>
       </div>
+
+      <FocusMusicPlayer />
     </div>
   );
 }
