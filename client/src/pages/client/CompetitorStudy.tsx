@@ -2110,6 +2110,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [creditError, setCreditError] = useState<string | null>(null);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
+  const [activeView, setActiveView] = useState<"new" | "history">("new");
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -2169,76 +2170,102 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
         />
       )}
       {creditError && <CreditErrorBanner message={creditError} />}
-      {/* Input form */}
-      <Card className="border border-card-border">
-        <CardContent className="p-5 space-y-4">
-          <div>
-            <p className="text-sm font-bold text-foreground mb-0.5">New Competitor Analysis</p>
-            <p className="text-xs text-muted-foreground">Enter your Instagram + a competitor's — get a 9-section deep-dive report</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
-              <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
-            </div>
-            <div>
-              <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
-              <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
-            </div>
-          </div>
-          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
-            {analyze.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
-              : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
-          </Button>
-        </CardContent>
-      </Card>
 
-      {/* Past analyses */}
-      {isLoading ? (
-        <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-      ) : (analyses as any[]).length === 0 ? (
-        <div className="text-center py-12">
-          <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-          <p className="text-sm text-muted-foreground">No analyses yet — enter two Instagram URLs above to get started</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">Past analyses — click to expand the full report</p>
-          {(analyses as any[]).map((a: any) => {
-            const isActive = selectedId === a.id;
-            return (
-              <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
-                <button
-                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
-                  onClick={() => setSelectedId(isActive ? null : a.id)}
-                  data-testid={`analysis-${a.id}`}
-                >
-                  <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Instagram className="w-4 h-4 text-pink-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(a.createdAt), "MMM d, yyyy")}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {a.report?.overview?.assessment && (
-                      <Badge variant="outline" className={`text-[10px] ${a.report.overview.assessment === "winning" ? "text-green-400 border-green-500/30" : a.report.overview.assessment === "losing" ? "text-red-400 border-red-500/30" : "text-yellow-400 border-yellow-500/30"}`}>
-                        {a.report.overview.assessment === "losing" ? "Needs Work" : a.report.overview.assessment}
-                      </Badge>
-                    )}
-                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
-                  </div>
-                </button>
-                {isActive && (
-                  <div className="p-4 pt-0 border-t border-border mt-1">
-                    <FullReport analysis={a} onDelete={() => deleteAnalysis.mutate(a.id)} />
-                  </div>
-                )}
+      {/* Tab bar */}
+      <div className="flex rounded-xl border border-border overflow-hidden">
+        <button
+          onClick={() => setActiveView("new")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "new" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-new-analysis">
+          <Sparkles className="w-3.5 h-3.5" />New Analysis
+        </button>
+        <button
+          onClick={() => setActiveView("history")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "history" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-analysis-history">
+          <Clock className="w-3.5 h-3.5" />History
+          {(analyses as any[]).length > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary/20 text-primary">{(analyses as any[]).length}</span>
+          )}
+        </button>
+      </div>
+
+      {activeView === "new" ? (
+        /* ── New Analysis Form ── */
+        <Card className="border border-card-border">
+          <CardContent className="p-5 space-y-4">
+            <div>
+              <p className="text-sm font-bold text-foreground mb-0.5">New Competitor Analysis</p>
+              <p className="text-xs text-muted-foreground">Enter your Instagram + a competitor's — get a 9-section deep-dive report</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
+                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
               </div>
-            );
-          })}
-        </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
+                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
+              </div>
+            </div>
+            <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
+              {analyze.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
+                : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        /* ── History Tab ── */
+        isLoading ? (
+          <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        ) : (analyses as any[]).length === 0 ? (
+          <div className="text-center py-16">
+            <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+            <p className="text-sm text-muted-foreground">No analyses yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Run your first competitor analysis to see it here</p>
+            <button onClick={() => setActiveView("new")} className="mt-4 text-xs text-primary hover:text-primary/80 font-semibold transition-colors">
+              + Start New Analysis
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">{(analyses as any[]).length} saved {(analyses as any[]).length === 1 ? "analysis" : "analyses"} — click to expand the full report</p>
+            {(analyses as any[]).map((a: any) => {
+              const isActive = selectedId === a.id;
+              return (
+                <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
+                  <button
+                    className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
+                    onClick={() => setSelectedId(isActive ? null : a.id)}
+                    data-testid={`analysis-${a.id}`}
+                  >
+                    <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Instagram className="w-4 h-4 text-pink-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(a.createdAt), "MMM d, yyyy")}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {a.report?.overview?.assessment && (
+                        <Badge variant="outline" className={`text-[10px] ${a.report.overview.assessment === "winning" ? "text-green-400 border-green-500/30" : a.report.overview.assessment === "losing" ? "text-red-400 border-red-500/30" : "text-yellow-400 border-yellow-500/30"}`}>
+                          {a.report.overview.assessment === "losing" ? "Needs Work" : a.report.overview.assessment}
+                        </Badge>
+                      )}
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
+                    </div>
+                  </button>
+                  {isActive && (
+                    <div className="p-4 pt-0 border-t border-border mt-1">
+                      <FullReport analysis={a} onDelete={() => deleteAnalysis.mutate(a.id)} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
     </div>
   );

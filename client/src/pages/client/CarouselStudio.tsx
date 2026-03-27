@@ -6,19 +6,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Sparkles, Layers, ChevronDown, ChevronLeft, ChevronRight,
+  Sparkles, Layers, ChevronLeft, ChevronRight,
   Download, ImagePlus, RefreshCw, Upload, Check, Palette,
-  LayoutTemplate, Wand2, Play, ArrowRight, Zap
+  LayoutTemplate, Wand2, Zap, History, Plus, Trash2, Clock,
+  ArrowLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface AiSlide { role: string; headline: string; body: string; }
 interface DesignSlide extends AiSlide { imageUrl: string | null; layout: "full" | "split" | "text"; }
 
 type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral";
-type Step = 1 | 2 | 3 | 4;
 
 // ── Themes ───────────────────────────────────────────────────────────────────
 const THEMES: Record<ThemeKey, { name: string; bg: string; overlay: string; headline: string; body: string; accent: string; accentText: string }> = {
@@ -115,55 +116,33 @@ function SlidePreview({ slide, theme: t, num, total, mini = false }: { slide: De
   );
 }
 
-// ── Step indicator ────────────────────────────────────────────────────────────
-const STEPS = ["Setup", "Edit Text", "Design", "Preview & Export"];
-function StepBar({ step }: { step: Step }) {
-  return (
-    <div className="flex items-center gap-1 mb-8">
-      {STEPS.map((label, i) => {
-        const n = (i + 1) as Step; const done = step > n; const active = step === n;
-        return (
-          <div key={n} className="flex items-center gap-1 flex-1">
-            <div className="flex items-center gap-2 flex-1">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 transition-all"
-                style={{ background: done ? "#d4b461" : active ? "rgba(212,180,97,0.15)" : "rgba(255,255,255,0.05)", border: `1px solid ${done || active ? "#d4b461" : "rgba(255,255,255,0.1)"}`, color: done ? "#000" : active ? "#d4b461" : "rgba(255,255,255,0.35)" }}>
-                {done ? <Check className="w-3 h-3" /> : n}
-              </div>
-              <span className="text-xs font-medium hidden sm:block" style={{ color: active ? "#d4b461" : done ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.25)" }}>{label}</span>
-            </div>
-            {i < STEPS.length - 1 && <div className="flex-1 h-px mx-1" style={{ background: step > n ? "rgba(212,180,97,0.5)" : "rgba(255,255,255,0.08)" }} />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function CarouselStudio({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>(1);
+  const qc = useQueryClient();
 
-  // Step 1 state
+  // Setup state
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState(TONES[0]);
   const [slideCount, setSlideCount] = useState(6);
   const [generating, setGenerating] = useState(false);
 
-  // Step 2 state
+  // Slides state
   const [slides, setSlides] = useState<DesignSlide[]>([]);
   const [regenIdx, setRegenIdx] = useState<number | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Step 3 state
+  // Design state
   const [theme, setTheme] = useState<ThemeKey>("brandverse");
   const [applyToAll, setApplyToAll] = useState(true);
   const [globalImage, setGlobalImage] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [generatingImageIdx, setGeneratingImageIdx] = useState<number | "all" | null>(null);
 
-  // Step 4 state
+  // Right panel tab: "design" | "history"
+  const [rightTab, setRightTab] = useState<"design" | "history">("design");
+
+  // Export state
   const [exporting, setExporting] = useState(false);
 
   const fileRefs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -172,6 +151,11 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const importRef = useRef<HTMLInputElement>(null);
 
   const t = THEMES[theme];
+
+  // History
+  const { data: carouselHistory = [] } = useQuery<any[]>({
+    queryKey: ["/api/ai/history?tool=carousel"],
+  });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function readFile(file: File): Promise<string> {
@@ -182,7 +166,37 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     setSlides(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s));
   }
 
-  // ── Step 1 → Generate text ─────────────────────────────────────────────────
+  function saveToHistory(generatedSlides: DesignSlide[], currentTopic: string) {
+    apiRequest("POST", "/api/ai/history", {
+      tool: "carousel",
+      title: currentTopic.slice(0, 80),
+      inputs: { topic: currentTopic, tone, slideCount },
+      output: { slides: generatedSlides.map(s => ({ role: s.role, headline: s.headline, body: s.body })), theme },
+    }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=carousel"] })).catch(() => {});
+  }
+
+  function restoreFromHistory(item: any) {
+    const restoredSlides: DesignSlide[] = (item.output?.slides || []).map((s: any) => ({
+      ...s,
+      imageUrl: null,
+      layout: "full" as const,
+    }));
+    setSlides(restoredSlides);
+    setTopic(item.inputs?.topic || item.title || "");
+    setTone(item.inputs?.tone || TONES[0]);
+    if (item.output?.theme) setTheme(item.output.theme as ThemeKey);
+    setActiveIdx(0);
+    setRightTab("design");
+    toast({ title: "Carousel restored!", description: "Text is loaded — add images and export." });
+  }
+
+  function deleteHistory(id: number) {
+    apiRequest("DELETE", `/api/ai/history/${id}`)
+      .then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=carousel"] }))
+      .catch(() => {});
+  }
+
+  // ── Generate text ──────────────────────────────────────────────────────────
   async function generateText() {
     if (!topic.trim()) { toast({ title: "Enter a topic first", variant: "destructive" }); return; }
     setGenerating(true);
@@ -191,7 +205,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       const designed: DesignSlide[] = (data.slides as AiSlide[]).map(s => ({ ...s, imageUrl: null, layout: "full" as const }));
       setSlides(designed);
       setActiveIdx(0);
-      setStep(2);
+      saveToHistory(designed, topic.trim());
       toast({ title: `${designed.length} slides generated!`, description: `3 credits used · ${data.balance} remaining` });
     } catch (err: any) {
       if (err.message?.includes("402") || err.insufficientCredits) {
@@ -215,7 +229,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     } finally { setRegenIdx(null); }
   }
 
-  // ── Step 3 image handling ──────────────────────────────────────────────────
+  // ── Image handling ─────────────────────────────────────────────────────────
   async function handleGlobalImage(file: File) {
     const url = await readFile(file);
     setGlobalImage(url);
@@ -275,24 +289,28 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   }
 
   // ── Export ─────────────────────────────────────────────────────────────────
+  async function downloadOne(idx: number) {
+    const dataUrl = await renderSlide(slides[idx], theme, idx + 1, slides.length);
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `slide-${idx + 1}-${slides[idx].role.toLowerCase()}.png`;
+    a.click();
+  }
+
   async function downloadAll() {
     setExporting(true);
     try {
       for (let i = 0; i < slides.length; i++) {
-        const url = await renderSlide(slides[i], theme, i + 1, slides.length);
-        const a = document.createElement("a"); a.href = url; a.download = `slide-${i + 1}.png`; a.click();
-        await new Promise(r => setTimeout(r, 220));
+        const dataUrl = await renderSlide(slides[i], theme, i + 1, slides.length);
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = `slide-${i + 1}-${slides[i].role.toLowerCase()}.png`;
+        a.click();
+        await new Promise(r => setTimeout(r, 250));
       }
       toast({ title: `${slides.length} slides downloaded!` });
     } catch { toast({ title: "Export failed", variant: "destructive" }); }
     finally { setExporting(false); }
-  }
-
-  async function downloadOne(idx: number) {
-    try {
-      const url = await renderSlide(slides[idx], theme, idx + 1, slides.length);
-      const a = document.createElement("a"); a.href = url; a.download = `slide-${idx + 1}.png`; a.click();
-    } catch { toast({ title: "Export failed", variant: "destructive" }); }
   }
 
   function saveProject() {
@@ -305,453 +323,364 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     fr.onload = e => {
       try {
         const d = JSON.parse(e.target!.result as string);
-        if (d.slides) { setSlides(d.slides); if (d.theme) setTheme(d.theme); if (d.topic) setTopic(d.topic); if (d.tone) setTone(d.tone); setStep(2); setActiveIdx(0); toast({ title: "Project loaded!" }); }
+        if (d.slides) { setSlides(d.slides); if (d.theme) setTheme(d.theme); if (d.topic) setTopic(d.topic); if (d.tone) setTone(d.tone); setActiveIdx(0); toast({ title: "Project loaded!" }); }
       } catch { toast({ title: "Invalid file", variant: "destructive" }); }
     };
     fr.readAsText(file);
   }
 
-  const content = (
-      <div className="max-w-5xl mx-auto px-6 py-10">
-
-        {/* Page header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-            <Sparkles className="w-4 h-4" style={{ color: "#d4b461" }} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">AI Design</h1>
-            <p className="text-xs text-muted-foreground">Create stunning content designs for your brand</p>
-          </div>
-        </div>
-
-        {/* Square subsection card */}
-        <div
-          onClick={() => setOpen(v => !v)}
-          data-testid="carousel-card-toggle"
-          className="rounded-2xl p-6 cursor-pointer transition-all duration-200 hover:scale-[1.005] active:scale-[0.995] select-none mb-4"
-          style={{ background: open ? "rgba(212,180,97,0.06)" : "rgba(255,255,255,0.02)", border: `1px solid ${open ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)"}`, boxShadow: open ? "0 0 40px rgba(212,180,97,0.07)" : "none" }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.25)" }}>
-                <Layers className="w-5 h-5" style={{ color: "#d4b461" }} />
-              </div>
-              <div>
-                <p className="text-base font-black text-white">Carousel Generator</p>
-                <p className="text-xs text-muted-foreground mt-0.5">AI writes your slides · add your designs · export as PNG</p>
-                <div className="flex gap-2 mt-1.5 flex-wrap">
-                  {["AI text generation", "Up to 10 slides", "Image upload", "PNG export"].map(t => (
-                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" }}>{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-          </div>
-        </div>
-
-        {/* Expanded content */}
-        {open && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-6">
-
-            {/* Import / Save project toolbar */}
-            <div className="flex items-center gap-2 justify-end">
-              <input ref={importRef} type="file" accept=".json" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) loadProject(f); e.target.value = ""; }} />
-              <button onClick={() => importRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
-                <Upload className="w-3 h-3" /> Import Project
+  // ── Right Panel: Design Tab ────────────────────────────────────────────────
+  function DesignPanel() {
+    return (
+      <div className="space-y-5">
+        {/* Template picker */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5"><LayoutTemplate className="w-3 h-3" />Theme</p>
+          <div className="space-y-1.5">
+            {(Object.keys(THEMES) as ThemeKey[]).map(key => (
+              <button key={key} onClick={() => setTheme(key)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${theme === key ? "border-[#d4b461]/70 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
+                data-testid={`theme-${key}`}>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: THEMES[key].accent }} />
+                {THEMES[key].name}
+                {theme === key && <Check className="w-3 h-3 ml-auto" />}
               </button>
-              {slides.length > 0 && (
-                <button onClick={saveProject} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
-                  <Download className="w-3 h-3" /> Save Project
+            ))}
+          </div>
+        </div>
+
+        {/* Layout toggle */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5"><ImagePlus className="w-3 h-3" />Slide Layout</p>
+          <div className="flex gap-1.5">
+            {["full", "split", "text"].map(l => (
+              <button key={l} onClick={() => slides[activeIdx] && updateSlide(activeIdx, { layout: l as any })}
+                className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all capitalize ${slides[activeIdx]?.layout === l ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Images */}
+        <div className="rounded-xl p-3.5 space-y-3" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
+          <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "#d4b461" }}><Sparkles className="w-3 h-3" />AI Images</p>
+          <button onClick={generateAiImagesForAll} disabled={generatingImageIdx !== null}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            style={{ background: "#d4b461", color: "#000" }}
+            data-testid="button-ai-images-all">
+            {generatingImageIdx === "all" ? <><RefreshCw className="w-3 h-3 animate-spin" />Generating all…</> : <><Zap className="w-3 h-3" />Generate All {slides.length} Slides</>}
+          </button>
+          <button onClick={() => generateAiImageForSlide(activeIdx)} disabled={generatingImageIdx !== null}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-medium border border-white/15 text-muted-foreground hover:text-white hover:border-white/30 transition-all disabled:opacity-50"
+            data-testid={`button-ai-image-active`}>
+            {generatingImageIdx === activeIdx ? <><RefreshCw className="w-3 h-3 animate-spin" />Generating…</> : <><Sparkles className="w-3 h-3" />Generate for Slide {activeIdx + 1}</>}
+          </button>
+        </div>
+
+        {/* Upload image */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-muted-foreground">Upload Image</p>
+            <label className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-white cursor-pointer">
+              <input type="checkbox" checked={applyToAll} onChange={e => setApplyToAll(e.target.checked)} className="w-3 h-3" />
+              All slides
+            </label>
+          </div>
+          <input ref={globalRef} type="file" accept="image/*" className="hidden"
+            onChange={async e => { const f = e.target.files?.[0]; if (f) { await handleGlobalImage(f); } e.target.value = ""; }} />
+          {globalImage ? (
+            <div className="relative rounded-xl overflow-hidden h-20">
+              <img src={globalImage} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => { setGlobalImage(null); if (applyToAll) setSlides(prev => prev.map(s => ({ ...s, imageUrl: null }))); }}
+                className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-lg text-white hover:bg-red-500/60 transition-colors">
+                <Trash2 className="w-3 h-3" />
+              </button>
+              {applyToAll && <div className="absolute bottom-0 left-0 right-0 px-2 py-0.5 text-[9px] font-bold bg-[#d4b461] text-black text-center">Applied to all</div>}
+            </div>
+          ) : (
+            <button onClick={() => globalRef.current?.click()}
+              className="w-full h-16 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all text-xs">
+              <Upload className="w-3.5 h-3.5" />
+              <span className="text-[10px]">Upload brand image</span>
+            </button>
+          )}
+        </div>
+
+        {/* Export */}
+        <div className="space-y-2 pt-1">
+          <button onClick={downloadAll} disabled={exporting}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs transition-all disabled:opacity-50"
+            style={{ background: "#d4b461", color: "#000" }}
+            data-testid="button-download-all">
+            <Download className="w-3.5 h-3.5" />
+            {exporting ? "Downloading…" : `Download All (${slides.length})`}
+          </button>
+          <button onClick={() => downloadOne(activeIdx)}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all"
+            data-testid="button-download-slide">
+            <Download className="w-3 h-3" /> This Slide
+          </button>
+          <button onClick={saveProject}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+            <Download className="w-3 h-3" /> Save Project (.json)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Right Panel: History Tab ───────────────────────────────────────────────
+  function HistoryPanel() {
+    if (!carouselHistory.length) {
+      return (
+        <div className="text-center py-10 px-4">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+            <History className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <p className="text-xs text-muted-foreground">No carousels yet — generate one to see it here</p>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        {(carouselHistory as any[]).map((item: any) => (
+          <div key={item.id} className="rounded-xl border border-white/10 bg-white/3 hover:border-[#d4b461]/30 transition-all group"
+            data-testid={`carousel-history-${item.id}`}>
+            <div className="p-3 flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(212,180,97,0.1)" }}>
+                <Layers className="w-4 h-4" style={{ color: "#d4b461" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white truncate" title={item.title}>{item.title}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] text-muted-foreground">{item.inputs?.slideCount || "?"} slides</span>
+                  <span className="text-[10px] text-zinc-700">·</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                    <Clock className="w-2.5 h-2.5" />{new Date(item.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => restoreFromHistory(item)}
+                  className="p-1.5 rounded-lg bg-[#d4b461]/10 text-[#d4b461] hover:bg-[#d4b461]/20 transition-colors"
+                  title="Restore" data-testid={`restore-carousel-${item.id}`}>
+                  <RefreshCw className="w-3 h-3" />
                 </button>
-              )}
+                <button onClick={() => deleteHistory(item.id)}
+                  className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-600 hover:text-red-400 transition-colors"
+                  title="Delete">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const content = (
+    <div className="max-w-6xl mx-auto px-5 py-8">
+
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-7">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+          <Sparkles className="w-4 h-4" style={{ color: "#d4b461" }} />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">Carousel Generator</h1>
+          <p className="text-xs text-muted-foreground">AI writes your slides · add designs · export as 1080×1080 PNG</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <input ref={importRef} type="file" accept=".json" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) loadProject(f); e.target.value = ""; }} />
+          <button onClick={() => importRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+            <Upload className="w-3 h-3" /> Import
+          </button>
+        </div>
+      </div>
+
+      {slides.length === 0 ? (
+        /* ── SETUP SCREEN (no slides yet) ────────────────────────────────── */
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+          {/* Left: Setup form */}
+          <div className="lg:col-span-3 space-y-5">
+            <div className="rounded-2xl p-6 space-y-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">What's your carousel about? <span style={{ color: "#d4b461" }}>*</span></Label>
+                <Input
+                  value={topic}
+                  onChange={e => setTopic(e.target.value)}
+                  placeholder="e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"
+                  className="bg-white/5 border-white/10 text-sm h-12"
+                  data-testid="input-topic"
+                  onKeyDown={e => e.key === "Enter" && generateText()}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Tone</Label>
+                <div className="flex flex-wrap gap-2">
+                  {TONES.map(tn => (
+                    <button key={tn} onClick={() => setTone(tn)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${tone === tn ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
+                      data-testid={`tone-${tn.toLowerCase().replace(/ /g, "-")}`}>
+                      {tn}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Number of slides</Label>
+                <div className="flex flex-wrap gap-2">
+                  {SLIDE_COUNTS.map(n => (
+                    <button key={n} onClick={() => setSlideCount(n)}
+                      className={`w-10 h-10 rounded-lg text-sm font-bold border transition-all ${slideCount === n ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
+                      data-testid={`slide-count-${n}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <StepBar step={step} />
-
-            {/* ── STEP 1: Setup ──────────────────────────────────────────── */}
-            {step === 1 && (
-              <div className="space-y-6">
-                <div className="rounded-2xl p-6 space-y-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div>
-                    <Label className="text-xs text-muted-foreground mb-2 block">What's your carousel about? <span className="text-[#d4b461]">*</span></Label>
-                    <Input
-                      value={topic}
-                      onChange={e => setTopic(e.target.value)}
-                      placeholder="e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"
-                      className="bg-white/5 border-white/10 text-sm h-12"
-                      data-testid="input-topic"
-                      onKeyDown={e => e.key === "Enter" && generateText()}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">Tone</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {TONES.map(t => (
-                          <button key={t} onClick={() => setTone(t)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${tone === t ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground mb-2 block">Number of slides</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {SLIDE_COUNTS.map(n => (
-                          <button key={n} onClick={() => setSlideCount(n)}
-                            className={`w-10 h-10 rounded-lg text-sm font-bold border transition-all ${slideCount === n ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
-                            {n}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button onClick={generateText} disabled={generating || !topic.trim()}
-                  className="w-full h-13 font-bold text-base gap-3 bg-[#d4b461] hover:bg-[#c4a451] text-black"
-                  data-testid="button-generate-text">
-                  {generating ? (
-                    <><RefreshCw className="w-5 h-5 animate-spin" /> Generating {slideCount} slides…</>
-                  ) : (
-                    <><Wand2 className="w-5 h-5" /> Generate Carousel Text with AI <ArrowRight className="w-4 h-4" /></>
-                  )}
-                </Button>
-                <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
-              </div>
-            )}
-
-            {/* ── STEP 2: Edit Text ──────────────────────────────────────── */}
-            {step === 2 && slides.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Review & Edit Your Slides</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">AI has written all {slides.length} slides — edit any text or regenerate individual slides</p>
-                  </div>
-                  <Button onClick={() => setStep(3)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm" data-testid="button-next-design">
-                    Next: Design <ArrowRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {slides.map((slide, i) => (
-                    <div key={i} onClick={() => setActiveIdx(i)}
-                      className="rounded-xl border p-4 space-y-3 transition-all cursor-pointer"
-                      style={{ background: i === activeIdx ? "rgba(212,180,97,0.04)" : "rgba(255,255,255,0.02)", borderColor: i === activeIdx ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.07)" }}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
-                            style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}>{i + 1}</div>
-                          <Badge className="text-[10px] h-4 px-2 border-0 font-semibold"
-                            style={{ background: `${ROLE_COLORS[slide.role] || "#d4b461"}18`, color: ROLE_COLORS[slide.role] || "#d4b461" }}>
-                            {slide.role}
-                          </Badge>
-                        </div>
-                        <button onClick={e => { e.stopPropagation(); regenerateSlide(i); }} disabled={regenIdx === i}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-50"
-                          data-testid={`regen-slide-${i + 1}`}>
-                          <RefreshCw className={`w-3 h-3 ${regenIdx === i ? "animate-spin" : ""}`} />
-                          {regenIdx === i ? "Regenerating…" : "Regenerate"}
-                        </button>
-                      </div>
-                      <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                        <Input value={slide.headline} onChange={e => updateSlide(i, { headline: e.target.value })}
-                          placeholder="Headline…" className="bg-white/5 border-white/10 text-sm font-semibold h-9"
-                          data-testid={`input-headline-${i + 1}`} />
-                        <Textarea value={slide.body} onChange={e => updateSlide(i, { body: e.target.value })}
-                          placeholder="Body text…" className="bg-white/5 border-white/10 text-xs resize-none min-h-[64px]"
-                          data-testid={`textarea-body-${i + 1}`} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-between pt-2">
-                  <button onClick={() => setStep(1)} className="text-xs text-muted-foreground hover:text-white transition-colors flex items-center gap-1">
-                    <ChevronLeft className="w-3 h-3" /> Back to Setup
-                  </button>
-                  <Button onClick={() => setStep(3)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm">
-                    Next: Design <ArrowRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 3: Design ────────────────────────────────────────── */}
-            {step === 3 && slides.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Choose Your Design</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Pick a template and upload your images</p>
-                  </div>
-                  <Button onClick={() => setStep(4)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm" data-testid="button-next-preview">
-                    <Play className="w-3.5 h-3.5" /> Preview Carousel
-                  </Button>
-                </div>
-
-                {/* Template picker */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-3 flex items-center gap-1"><LayoutTemplate className="w-3 h-3" /> Template</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {(Object.keys(THEMES) as ThemeKey[]).map(key => (
-                      <button key={key} onClick={() => setTheme(key)} data-testid={`theme-${key}`}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-all ${theme === key ? "border-[#d4b461]/70 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}>
-                        <div className="w-3 h-3 rounded-full" style={{ background: THEMES[key].accent }} />
-                        {THEMES[key].name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Image section */}
-                <div className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><ImagePlus className="w-3 h-3" /> Slide Images</Label>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Same image for all</span>
-                        <button onClick={() => setApplyToAll(v => !v)}
-                          className="w-9 h-5 rounded-full transition-all relative"
-                          style={{ background: applyToAll ? "#d4b461" : "rgba(255,255,255,0.1)" }}>
-                          <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
-                            style={{ left: applyToAll ? "calc(100% - 18px)" : "2px" }} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Generate Images - primary action */}
-                  <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5" style={{ color: "#d4b461" }} />
-                      <span className="text-xs font-semibold" style={{ color: "#d4b461" }}>Generate AI Images</span>
-                      <span className="text-[10px] text-muted-foreground ml-1">Powered by Google Imagen</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">AI creates unique backgrounds for each slide based on your content — cinematic, professional, no text overlays.</p>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={generateAiImagesForAll} disabled={generatingImageIdx !== null} data-testid="button-ai-images-all"
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
-                        style={{ background: "#d4b461", color: "#000" }}>
-                        {generatingImageIdx === "all" ? <><RefreshCw className="w-4 h-4 animate-spin" /> Generating all slides…</> : <><Zap className="w-4 h-4" /> Generate All {slides.length} Slides</>}
-                      </button>
-                    </div>
-                    {generatingImageIdx !== null && generatingImageIdx !== "all" && (
-                      <p className="text-xs" style={{ color: "#d4b461" }}><RefreshCw className="w-3 h-3 inline animate-spin mr-1" />Generating image for slide {(generatingImageIdx as number) + 1}…</p>
-                    )}
-
-                    {/* Per-slide generate buttons */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                      {slides.map((slide, si) => (
-                        <div key={si} className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                          {slide.imageUrl ? (
-                            <>
-                              <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5 opacity-0 hover:opacity-100 transition-opacity">
-                                <button onClick={() => generateAiImageForSlide(si)} disabled={generatingImageIdx !== null}
-                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#d4b461] text-black disabled:opacity-50"
-                                  data-testid={`button-ai-image-${si + 1}`}>
-                                  <RefreshCw className="w-3 h-3" /> Regenerate
-                                </button>
-                                <button onClick={() => updateSlide(si, { imageUrl: null })}
-                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-red-500/40 text-white">
-                                  Remove
-                                </button>
-                              </div>
-                              <div className="absolute bottom-0 left-0 right-0 py-1 px-1.5 text-center text-[9px] font-semibold bg-black/70 text-white truncate">{slide.role}</div>
-                            </>
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-2">
-                              <span className="text-[9px] font-semibold text-center" style={{ color: ROLE_COLORS[slide.role] || "#d4b461" }}>{slide.role}</span>
-                              <span className="text-[8px] text-muted-foreground text-center leading-tight line-clamp-2">{slide.headline}</span>
-                              <button onClick={() => generateAiImageForSlide(si)} disabled={generatingImageIdx !== null}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all mt-1 disabled:opacity-50"
-                                style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.3)" }}
-                                data-testid={`button-ai-image-slide-${si + 1}`}>
-                                {generatingImageIdx === si ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : <Sparkles className="w-2.5 h-2.5" />}
-                                {generatingImageIdx === si ? "…" : "Generate"}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 my-1">
-                    <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
-                    <span className="text-[10px] text-muted-foreground px-2">or upload your own</span>
-                    <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
-                  </div>
-
-                  {/* Global image upload */}
-                  <input ref={globalRef} type="file" accept="image/*" className="hidden"
-                    onChange={async e => { const f = e.target.files?.[0]; if (f) { await handleGlobalImage(f); } e.target.value = ""; }} />
-                  {globalImage ? (
-                    <div className="relative rounded-xl overflow-hidden h-28">
-                      <img src={globalImage} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity">
-                        <button onClick={() => globalRef.current?.click()} className="px-3 py-1.5 bg-white/20 rounded-lg text-white text-xs font-medium">Change</button>
-                        <button onClick={() => { setGlobalImage(null); if (applyToAll) setSlides(prev => prev.map(s => ({ ...s, imageUrl: null }))); }} className="px-3 py-1.5 bg-red-500/40 rounded-lg text-white text-xs font-medium">Remove</button>
-                      </div>
-                      {applyToAll && <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#d4b461] text-black">Applied to all slides</div>}
-                    </div>
-                  ) : (
-                    <button onClick={() => globalRef.current?.click()}
-                      className="w-full h-24 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all">
-                      <ImagePlus className="w-5 h-5" />
-                      <span className="text-xs font-medium">{applyToAll ? "Upload design image → applied to all slides" : "Upload brand design image"}</span>
-                    </button>
-                  )}
-
-                  {/* Multiple images upload + per-slide assignment */}
-                  {!applyToAll && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Upload multiple images → assign to slides</span>
-                        <input ref={multiRef} type="file" accept="image/*" multiple className="hidden"
-                          onChange={e => { if (e.target.files?.length) handleMultiUpload(e.target.files); e.target.value = ""; }} />
-                        <button onClick={() => multiRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
-                          <Upload className="w-3 h-3" /> Upload images
-                        </button>
-                      </div>
-                      {uploadedImages.length > 0 && (
-                        <div className="flex gap-2 flex-wrap">
-                          {uploadedImages.map((img, ii) => (
-                            <div key={ii} className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10">
-                              <img src={img} alt="" className="w-full h-full object-cover" />
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-[9px] text-center text-white py-0.5">Img {ii + 1}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {/* Per-slide assignment */}
-                      {uploadedImages.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">Assign images to slides:</p>
-                          {slides.map((slide, si) => (
-                            <div key={si} className="flex items-center gap-3 py-2 px-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
-                              <span className="text-xs font-medium text-white w-14">Slide {si + 1}</span>
-                              <Badge className="text-[10px] border-0 mr-auto" style={{ background: `${ROLE_COLORS[slide.role] || "#d4b461"}18`, color: ROLE_COLORS[slide.role] || "#d4b461" }}>{slide.role}</Badge>
-                              <div className="flex gap-1.5 flex-wrap">
-                                <button onClick={() => updateSlide(si, { imageUrl: null })}
-                                  className={`px-2 py-1 rounded text-[10px] font-medium border transition-all ${!slide.imageUrl ? "border-[#d4b461]/50 text-[#d4b461] bg-[#d4b461]/08" : "border-white/08 text-muted-foreground hover:border-white/20"}`}>
-                                  None
-                                </button>
-                                {uploadedImages.map((img, ii) => (
-                                  <button key={ii} onClick={() => assignImageToSlide(si, img)}
-                                    className={`w-7 h-7 rounded overflow-hidden border-2 transition-all ${slide.imageUrl === img ? "border-[#d4b461]" : "border-white/15 hover:border-white/35"}`}>
-                                    <img src={img} alt="" className="w-full h-full object-cover" />
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-between pt-1">
-                  <button onClick={() => setStep(2)} className="text-xs text-muted-foreground hover:text-white transition-colors flex items-center gap-1">
-                    <ChevronLeft className="w-3 h-3" /> Back to Text
-                  </button>
-                  <Button onClick={() => setStep(4)} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-2 h-9 text-sm">
-                    <Play className="w-3.5 h-3.5" /> Preview Carousel
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 4: Preview & Export ──────────────────────────────── */}
-            {step === 4 && slides.length > 0 && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Preview & Export</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{slides.length} slides ready · 1080×1080 PNG</p>
-                  </div>
-                  <Button onClick={downloadAll} disabled={exporting} className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-bold gap-2 h-10" data-testid="button-download-all">
-                    <Download className="w-4 h-4" />
-                    {exporting ? "Downloading…" : `Download All (${slides.length})`}
-                  </Button>
-                </div>
-
-                {/* Slide tabs */}
-                <div className="flex flex-wrap gap-2 items-center">
-                  {slides.map((s, i) => (
-                    <button key={i} onClick={() => setActiveIdx(i)} data-testid={`slide-tab-${i + 1}`}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${i === activeIdx ? "bg-[#d4b461] text-black" : "bg-white/5 text-muted-foreground hover:bg-white/10"}`}>
-                      <span>{i + 1}</span>
-                      <span className="hidden sm:inline" style={{ color: i === activeIdx ? "rgba(0,0,0,0.7)" : ROLE_COLORS[s.role] || "inherit" }}>{s.role}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Preview */}
-                  <div className="space-y-3">
-                    <div className="w-full rounded-2xl overflow-hidden" style={{ aspectRatio: "1/1", background: t.bg, position: "relative" }} data-testid="slide-preview">
-                      <SlidePreview slide={slides[activeIdx]} theme={t} num={activeIdx + 1} total={slides.length} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setActiveIdx(i => Math.max(0, i - 1))} disabled={activeIdx === 0}
-                        className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <div className="flex-1 text-center">
-                        <p className="text-xs font-semibold text-white">{slides[activeIdx]?.role}</p>
-                        <p className="text-[10px] text-muted-foreground">Slide {activeIdx + 1} of {slides.length}</p>
-                      </div>
-                      <button onClick={() => setActiveIdx(i => Math.min(slides.length - 1, i + 1))} disabled={activeIdx === slides.length - 1}
-                        className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <button onClick={() => downloadOne(activeIdx)}
-                      className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2"
-                      data-testid="button-download-slide">
-                      <Download className="w-3.5 h-3.5" /> Download this slide
-                    </button>
-                  </div>
-
-                  {/* All slides grid */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">All Slides</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {slides.map((s, i) => (
-                        <div key={i} className="space-y-1 cursor-pointer" onClick={() => setActiveIdx(i)}>
-                          <div className={`rounded-lg overflow-hidden border-2 transition-all ${i === activeIdx ? "border-[#d4b461]" : "border-white/10 hover:border-white/25"}`} style={{ aspectRatio: "1/1", background: t.bg }}>
-                            <SlidePreview slide={s} theme={t} num={i + 1} total={slides.length} mini />
-                          </div>
-                          <p className="text-[9px] text-center font-medium" style={{ color: ROLE_COLORS[s.role] || "#d4b461" }}>{s.role}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="pt-2 space-y-2">
-                      <button onClick={() => setStep(3)} className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2">
-                        <Palette className="w-3.5 h-3.5" /> Change Design
-                      </button>
-                      <button onClick={() => setStep(2)} className="w-full py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-2">
-                        Edit Text
-                      </button>
-                      <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                        <span className="text-[10px] text-muted-foreground">🚧</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">Auto-post to Instagram — Coming Soon</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <Button onClick={generateText} disabled={generating || !topic.trim()}
+              className="w-full h-13 font-bold text-base gap-3 bg-[#d4b461] hover:bg-[#c4a451] text-black"
+              data-testid="button-generate-text">
+              {generating ? (
+                <><RefreshCw className="w-5 h-5 animate-spin" />Generating {slideCount} slides…</>
+              ) : (
+                <><Wand2 className="w-5 h-5" />Generate Carousel with AI</>
+              )}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
           </div>
-        )}
-      </div>
+
+          {/* Right: History */}
+          <div className="lg:col-span-2">
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.015)" }}>
+              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
+                <History className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs font-semibold text-muted-foreground">Past Carousels</span>
+                {carouselHistory.length > 0 && (
+                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461" }}>
+                    {carouselHistory.length}
+                  </span>
+                )}
+              </div>
+              <div className="p-3 max-h-96 overflow-y-auto">
+                <HistoryPanel />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── EDITOR SCREEN (slides generated) ────────────────────────────── */
+        <div className="flex gap-4 min-h-[600px]">
+
+          {/* Left: Slide strip */}
+          <div className="w-28 flex-shrink-0 space-y-2 overflow-y-auto max-h-[calc(100vh-160px)]">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-center mb-3">{slides.length} Slides</p>
+            {slides.map((s, i) => (
+              <div key={i} onClick={() => setActiveIdx(i)}
+                className="cursor-pointer space-y-1"
+                data-testid={`slide-thumb-${i + 1}`}>
+                <div className={`rounded-lg overflow-hidden transition-all border-2 ${i === activeIdx ? "border-[#d4b461]" : "border-white/10 hover:border-white/25"}`}
+                  style={{ aspectRatio: "1/1", background: t.bg }}>
+                  <SlidePreview slide={s} theme={t} num={i + 1} total={slides.length} mini />
+                </div>
+                <p className="text-[8px] text-center font-bold truncate" style={{ color: i === activeIdx ? ROLE_COLORS[s.role] || "#d4b461" : "rgba(255,255,255,0.3)" }}>
+                  {i + 1}. {s.role}
+                </p>
+              </div>
+            ))}
+            <button onClick={() => { setSlides([]); setActiveIdx(0); }}
+              className="w-full mt-3 py-2 rounded-xl border border-white/10 text-[10px] font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all flex items-center justify-center gap-1.5"
+              data-testid="button-new-carousel">
+              <Plus className="w-3 h-3" /> New
+            </button>
+          </div>
+
+          {/* Center: Active slide editor */}
+          <div className="flex-1 min-w-0 space-y-4">
+            {/* Preview */}
+            <div className="w-full rounded-2xl overflow-hidden" style={{ aspectRatio: "1/1", maxHeight: "360px", background: t.bg, position: "relative" }} data-testid="slide-preview">
+              <SlidePreview slide={slides[activeIdx]} theme={t} num={activeIdx + 1} total={slides.length} />
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-2">
+              <button onClick={() => setActiveIdx(i => Math.max(0, i - 1))} disabled={activeIdx === 0}
+                className="p-1.5 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 text-center">
+                <p className="text-xs font-bold text-white">{slides[activeIdx]?.role}</p>
+                <p className="text-[10px] text-muted-foreground">Slide {activeIdx + 1} of {slides.length}</p>
+              </div>
+              <button onClick={() => setActiveIdx(i => Math.min(slides.length - 1, i + 1))} disabled={activeIdx === slides.length - 1}
+                className="p-1.5 rounded-lg border border-white/10 text-muted-foreground hover:text-white disabled:opacity-30 transition-all">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Inline editor for active slide */}
+            <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge className="text-[10px] h-5 border-0 font-semibold"
+                    style={{ background: `${ROLE_COLORS[slides[activeIdx]?.role] || "#d4b461"}18`, color: ROLE_COLORS[slides[activeIdx]?.role] || "#d4b461" }}>
+                    {slides[activeIdx]?.role}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">Slide {activeIdx + 1}</span>
+                </div>
+                <button onClick={() => regenerateSlide(activeIdx)} disabled={regenIdx === activeIdx}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-50"
+                  data-testid={`regen-slide-${activeIdx + 1}`}>
+                  <RefreshCw className={`w-3 h-3 ${regenIdx === activeIdx ? "animate-spin" : ""}`} />
+                  {regenIdx === activeIdx ? "Regenerating…" : "Regenerate"}
+                </button>
+              </div>
+              <Input value={slides[activeIdx]?.headline || ""} onChange={e => updateSlide(activeIdx, { headline: e.target.value })}
+                placeholder="Headline…" className="bg-white/5 border-white/10 text-sm font-semibold h-9"
+                data-testid={`input-headline-${activeIdx + 1}`} />
+              <Textarea value={slides[activeIdx]?.body || ""} onChange={e => updateSlide(activeIdx, { body: e.target.value })}
+                placeholder="Body text…" className="bg-white/5 border-white/10 text-xs resize-none min-h-[64px]"
+                data-testid={`textarea-body-${activeIdx + 1}`} />
+            </div>
+          </div>
+
+          {/* Right: Design + History tabs */}
+          <div className="w-64 flex-shrink-0 flex flex-col">
+            {/* Tab bar */}
+            <div className="flex rounded-xl border border-white/10 overflow-hidden mb-4 flex-shrink-0">
+              <button onClick={() => setRightTab("design")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-all ${rightTab === "design" ? "bg-[#d4b461]/15 text-[#d4b461]" : "text-muted-foreground hover:text-white"}`}
+                data-testid="tab-design">
+                <Palette className="w-3.5 h-3.5" />Design
+              </button>
+              <button onClick={() => setRightTab("history")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-all ${rightTab === "history" ? "bg-[#d4b461]/15 text-[#d4b461]" : "text-muted-foreground hover:text-white"}`}
+                data-testid="tab-history">
+                <History className="w-3.5 h-3.5" />History
+                {carouselHistory.length > 0 && <span className="ml-0.5 text-[9px] px-1 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.2)", color: "#d4b461" }}>{carouselHistory.length}</span>}
+              </button>
+            </div>
+
+            {/* Panel content */}
+            <div className="flex-1 overflow-y-auto">
+              {rightTab === "design" ? <DesignPanel /> : <HistoryPanel />}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
+
   return embedded ? content : <ClientLayout>{content}</ClientLayout>;
 }
