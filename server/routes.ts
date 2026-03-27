@@ -4620,7 +4620,18 @@ Generate their personalised audit. Be specific to their situation.`;
     ? "https://admin-control-hub-aryan07surana.replit.app/api/linkedin/callback"
     : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/linkedin/callback`;
 
-  const linkedinStates = new Map<string, string>(); // state -> userId
+  function encodeLinkedinState(userId: string): string {
+    const nonce = Math.random().toString(36).slice(2, 10);
+    return Buffer.from(`${userId}:${nonce}`).toString("base64url");
+  }
+
+  function decodeLinkedinState(state: string): string | null {
+    try {
+      const decoded = Buffer.from(state, "base64url").toString("utf8");
+      const [userId] = decoded.split(":");
+      return userId || null;
+    } catch { return null; }
+  }
 
   function linkedinAuthUrl(state: string): string {
     const params = new URLSearchParams({
@@ -4693,23 +4704,31 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
-  app.get("/api/linkedin/connect", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/linkedin/connect", requireAuth, (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const state = Math.random().toString(36).slice(2);
-      linkedinStates.set(state, userId);
-      return res.json({ url: linkedinAuthUrl(state) });
+      const state = encodeLinkedinState(userId);
+      return res.redirect(linkedinAuthUrl(state));
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
   });
 
   app.get("/api/linkedin/callback", async (req: Request, res: Response) => {
+    const base = process.env.NODE_ENV === "production"
+      ? "https://admin-control-hub-aryan07surana.replit.app"
+      : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}`;
     try {
-      const { code, state } = req.query as { code: string; state: string };
-      const userId = linkedinStates.get(state);
-      if (!userId) return res.status(400).send("Invalid state — please try connecting again.");
-      linkedinStates.delete(state);
+      const { code, state, error, error_description } = req.query as {
+        code?: string; state?: string; error?: string; error_description?: string;
+      };
+      if (error) {
+        log(`LinkedIn OAuth denied: ${error} — ${error_description}`, "linkedin");
+        return res.redirect(`${base}/linkedin-scheduler?error=${encodeURIComponent(error_description || error)}`);
+      }
+      if (!code || !state) return res.redirect(`${base}/linkedin-scheduler?error=missing_params`);
+      const userId = decodeLinkedinState(state);
+      if (!userId) return res.redirect(`${base}/linkedin-scheduler?error=invalid_state`);
       const tokens = await linkedinExchangeCode(code);
       const profile = await linkedinMe(tokens.access_token);
       const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
@@ -4722,7 +4741,8 @@ Generate their personalised audit. Be specific to their situation.`;
       });
       return res.redirect("/linkedin-scheduler?connected=1");
     } catch (err: any) {
-      return res.redirect("/linkedin-scheduler?error=auth_failed");
+      log(`LinkedIn callback error: ${err.message}`, "linkedin");
+      return res.redirect(`/linkedin-scheduler?error=${encodeURIComponent(err.message || "Authentication failed")}`);
     }
   });
 

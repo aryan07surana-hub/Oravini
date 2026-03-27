@@ -52,9 +52,8 @@ export default function LinkedInScheduler() {
   });
 
   const connectMutation = useMutation({
-    mutationFn: async () => apiRequest("GET", "/api/linkedin/connect"),
-    onSuccess: (data: any) => {
-      window.open(data.url, "_blank", "width=600,height=700");
+    mutationFn: async () => {
+      window.location.href = "/api/linkedin/connect";
     },
     onError: (err: any) => {
       toast({ title: "Connection failed", description: err.message, variant: "destructive" });
@@ -110,8 +109,9 @@ export default function LinkedInScheduler() {
       toast({ title: "LinkedIn connected!", description: "Your LinkedIn account is now linked." });
       window.history.replaceState({}, "", "/linkedin-scheduler");
     }
-    if (params.get("error") === "auth_failed") {
-      toast({ title: "Connection failed", description: "Could not authenticate with LinkedIn. Please try again.", variant: "destructive" });
+    const errorMsg = params.get("error");
+    if (errorMsg) {
+      toast({ title: "Connection failed", description: decodeURIComponent(errorMsg), variant: "destructive" });
       window.history.replaceState({}, "", "/linkedin-scheduler");
     }
   }, []);
