@@ -5509,5 +5509,98 @@ Make it specific, strategic, and cohesive — not generic. Optimise for modern s
     }
   });
 
+  // Instagram Story Generator
+  app.post("/api/ai/story/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style } = req.body;
+      const systemPrompt = `You are an expert Instagram Story strategist. Generate high-converting story sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.`;
+      const userPrompt = `Generate a HIGH-CONVERTING Instagram Story Sequence as JSON.
+
+User Inputs:
+- Goal: ${goal}
+- Topic: ${topic}
+- Niche: ${niche}
+- Target Audience: ${targetAudience}
+- Instagram Profile: ${instagramUrl || "not provided"}
+- Call To Action: ${ctaType}
+- Number of Slides: ${slidesCount}
+- Style Preference: ${style}
+
+Rules:
+- Each slide must feel like a REAL Instagram story (short, punchy, visual)
+- Avoid long paragraphs — keep everything tight
+- Focus on flow: each slide should naturally lead to the next
+- Use curiosity, emotion, or value to keep users tapping
+- Balance text + visuals (don't overload text)
+
+Return this EXACT JSON structure (no other output):
+{
+  "flowStrategy": {
+    "sequenceType": "educational / storytelling / sales / engagement",
+    "whyItWorks": "2-3 sentence explanation of why this works for the selected goal"
+  },
+  "slides": [
+    {
+      "slideNumber": 1,
+      "slideType": "Hook",
+      "headline": "Short punchy headline (5-8 words max)",
+      "subtext": "One supporting line (or empty string)",
+      "textContent": "Full text for this slide (1-2 lines)",
+      "visualDirection": "How to design/style this slide visually",
+      "designNotes": {
+        "fontStyle": "Bold / Light / Script",
+        "textSizeEmphasis": "Headline dominant, subtext small",
+        "colorUsage": "Dark bg with gold headline text"
+      },
+      "interaction": {
+        "type": "Poll",
+        "content": "The poll question or prompt text"
+      }
+    }
+  ],
+  "ctaSlide": {
+    "variations": ["CTA variation 1", "CTA variation 2", "CTA variation 3"],
+    "instruction": "Exact action instruction for viewers"
+  },
+  "designSystem": {
+    "headingFont": "Font name and weight",
+    "bodyFont": "Font name and weight",
+    "primaryColor": "#hex",
+    "accentColor": "#hex",
+    "layoutStyle": "How to lay out slides — centered / asymmetric / split"
+  },
+  "imageUsagePlan": {
+    "slidesWithImages": [1, 3, 5],
+    "textHeavySlides": [2, 4],
+    "balanceNotes": "How to balance uploaded images with text overlays"
+  },
+  "variations": [
+    {
+      "hook": "Alternative hook text for variation 1",
+      "tone": "casual / bold / inspirational",
+      "description": "How this variation differs and why it works"
+    },
+    {
+      "hook": "Alternative hook for variation 2",
+      "tone": "emotional / direct / humorous",
+      "description": "How this angle differs and who it resonates with"
+    }
+  ]
+}
+
+CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: Hook → Problem/Value → Value → Proof/Engagement → CTA. The last slide must be of type "CTA". For interaction, use one of: "Poll", "Question", "Slider", "Tap" — or null if not applicable. Make it feel native to Instagram.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse story response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

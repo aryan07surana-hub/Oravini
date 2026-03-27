@@ -4,7 +4,7 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
 import BrandKitBuilder from "./BrandKitBuilder";
 import {
-  Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft,
+  Layers, FileText, Image, Palette, Video, Sparkles, ChevronRight, ArrowLeft, Film,
 } from "lucide-react";
 
 const MAIN_TOOLS = [
@@ -28,6 +28,13 @@ const MAIN_TOOLS = [
     description: "Complete brand identity system — colours, typography, content strategy, hooks and application rules.",
     icon: Palette,
     route: null,
+  },
+  {
+    id: "story-generator",
+    label: "Story Generator",
+    description: "AI-built Instagram Story sequences — slide-by-slide breakdown, CTA, design system and variation ideas.",
+    icon: Film,
+    route: "/story-generator",
     badge: "New",
   },
 ];
@@ -89,8 +96,8 @@ export default function AIDesign() {
             </p>
           </div>
 
-          {/* Main Tools — 3 cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+          {/* Main Tools — 2×2 grid */}
+          <div className="grid grid-cols-2 gap-5 mb-10">
             {MAIN_TOOLS.map((tool) => {
               const Icon = tool.icon;
               return (

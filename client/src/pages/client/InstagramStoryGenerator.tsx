@@ -1,0 +1,786 @@
+import { useState, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import ClientLayout from "@/components/layout/ClientLayout";
+import GeneratingScreen from "@/components/ui/GeneratingScreen";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Instagram, Sparkles, Wand2, Clock, Bookmark, Trash2,
+  X, ChevronLeft, ChevronRight, Palette, LayoutTemplate,
+  Zap, Copy, Check, Film, AlignLeft, ImageIcon, Layers,
+} from "lucide-react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface StoryForm {
+  goal: string; goalCustom: string;
+  topic: string; niche: string;
+  targetAudience: string; instagramUrl: string;
+  ctaType: string; ctaCustom: string;
+  slidesCount: number; style: string;
+}
+interface StorySlide {
+  slideNumber: number; slideType: string;
+  headline: string; subtext: string; textContent: string;
+  visualDirection: string;
+  designNotes: { fontStyle: string; textSizeEmphasis: string; colorUsage: string };
+  interaction: { type: string | null; content: string } | null;
+  background?: string;
+}
+interface StoryResult {
+  flowStrategy: { sequenceType: string; whyItWorks: string };
+  slides: StorySlide[];
+  ctaSlide: { variations: string[]; instruction: string };
+  designSystem: { headingFont: string; bodyFont: string; primaryColor: string; accentColor: string; layoutStyle: string };
+  imageUsagePlan: { slidesWithImages: number[]; textHeavySlides: number[]; balanceNotes: string };
+  variations: { hook: string; tone: string; description: string }[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const NICHE_SUGGESTIONS = ["Fitness", "Finance", "Marketing", "Personal Brand", "Coaching", "SaaS", "Real Estate", "E-commerce", "Social Media", "Mindset", "Nutrition", "Business"];
+
+const GOAL_OPTIONS = [
+  { id: "value", label: "Provide Value", icon: "💡" },
+  { id: "audience", label: "Build Audience", icon: "👥" },
+  { id: "engagement", label: "Boost Engagement", icon: "❤️" },
+  { id: "sell", label: "Sell Product", icon: "🛒" },
+  { id: "traffic", label: "Drive Traffic", icon: "🔗" },
+  { id: "other", label: "Other", icon: "✏️" },
+];
+const CTA_OPTIONS = [
+  { id: "follow", label: "Follow Me" }, { id: "dm", label: "DM Me" },
+  { id: "link", label: "Link in Bio" }, { id: "buy", label: "Buy / Shop" },
+  { id: "join", label: "Join Community" }, { id: "book-call", label: "Book a Call" },
+  { id: "custom", label: "Custom" },
+];
+const STYLE_OPTIONS = [
+  { id: "minimal", label: "Minimal", desc: "Clean & elegant" },
+  { id: "bold", label: "Bold", desc: "High contrast" },
+  { id: "aesthetic", label: "Aesthetic", desc: "Warm & soft" },
+  { id: "modern", label: "Modern", desc: "Dark & sharp" },
+  { id: "luxury", label: "Luxury", desc: "Black & gold" },
+  { id: "casual", label: "Casual", desc: "Light & fun" },
+];
+const INSPIRATIONS = [
+  { id: "mindset", emoji: "🧠", label: "7-Day Mindset Reset", desc: "Daily value sequence for personal development", niche: "Personal Development", goal: "value", topic: "7-day mindset reset challenge for entrepreneurs", targetAudience: "Entrepreneurs and coaches feeling burnt out", ctaType: "follow", slidesCount: 7, style: "minimal", color: "#7c3aed" },
+  { id: "story", emoji: "✨", label: "My Origin Story", desc: "Storytelling to build deep connection", niche: "Personal Brand", goal: "audience", topic: "How I went from struggling creator to full-time income", targetAudience: "Aspiring content creators", ctaType: "follow", slidesCount: 8, style: "aesthetic", color: "#ec4899" },
+  { id: "mistakes", emoji: "🚫", label: "3 Costly Mistakes", desc: "Educational problem-aware sequence", niche: "Business", goal: "engagement", topic: "3 mistakes that are killing your Instagram growth", targetAudience: "Small business owners on Instagram", ctaType: "dm", slidesCount: 6, style: "bold", color: "#dc2626" },
+  { id: "launch", emoji: "🚀", label: "Product Launch Story", desc: "Behind-the-scenes sales sequence", niche: "E-commerce", goal: "sell", topic: "Behind the scenes of launching my new digital product", targetAudience: "Online shoppers interested in the niche", ctaType: "buy", slidesCount: 9, style: "modern", color: "#2563eb" },
+  { id: "results", emoji: "📈", label: "Client Results Proof", desc: "Proof-based credibility sequence", niche: "Coaching", goal: "sell", topic: "Real results my clients achieved in 30 days", targetAudience: "People looking for a coach or mentor", ctaType: "book-call", slidesCount: 7, style: "luxury", color: "#d4b461" },
+  { id: "challenge", emoji: "🎯", label: "Free Challenge Invite", desc: "Community building CTA sequence", niche: "Marketing", goal: "traffic", topic: "Join my free 5-day content challenge to grow your audience", targetAudience: "Content creators wanting to grow", ctaType: "link", slidesCount: 5, style: "casual", color: "#10b981" },
+];
+const SLIDE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  Hook:       { bg: "#7c3aed", text: "#fff" },
+  Problem:    { bg: "#dc2626", text: "#fff" },
+  Value:      { bg: "#16a34a", text: "#fff" },
+  Proof:      { bg: "#2563eb", text: "#fff" },
+  Engagement: { bg: "#d97706", text: "#fff" },
+  CTA:        { bg: "#d4b461", text: "#000" },
+};
+const STYLE_THEMES: Record<string, { bg: string; text: string; accent: string; sub: string }> = {
+  minimal:   { bg: "#f8f9fa", text: "#111111", accent: "#d4b461", sub: "#666666" },
+  bold:      { bg: "#000000", text: "#ffffff", accent: "#ff3366", sub: "#aaaaaa" },
+  aesthetic: { bg: "#faf5ee", text: "#2c2017", accent: "#c9a96e", sub: "#8a7a6a" },
+  modern:    { bg: "#0f172a", text: "#f8fafc", accent: "#38bdf8", sub: "#94a3b8" },
+  luxury:    { bg: "#0c0c0c", text: "#d4b461", accent: "#d4b461", sub: "#888888" },
+  casual:    { bg: "#f0f9ff", text: "#1e3a5f", accent: "#06b6d4", sub: "#64748b" },
+};
+
+// ─── Story Slide Card ─────────────────────────────────────────────────────────
+function StorySlideCard({ slide, style, count, small = false }: {
+  slide: StorySlide; style: string; count: number; small?: boolean;
+}) {
+  const t = STYLE_THEMES[style] || STYLE_THEMES.minimal;
+  const tc = SLIDE_TYPE_COLORS[slide.slideType] || SLIDE_TYPE_COLORS["Value"];
+  const fs = small ? 0.6 : 1;
+  return (
+    <div style={{
+      width: "100%", aspectRatio: "9/16",
+      background: t.bg === "#0c0c0c" || t.bg === "#000000" || t.bg === "#0f172a"
+        ? `linear-gradient(160deg, ${t.bg} 60%, ${t.accent}18 100%)`
+        : `linear-gradient(160deg, ${t.bg} 80%, ${t.accent}14 100%)`,
+      borderRadius: small ? 8 : 16,
+      overflow: "hidden", position: "relative",
+      display: "flex", flexDirection: "column",
+      fontFamily: "Inter, system-ui, sans-serif",
+    }}>
+      {/* Story progress bars */}
+      <div style={{ display: "flex", gap: 2, padding: `${8 * fs}px ${10 * fs}px ${4 * fs}px`, flexShrink: 0 }}>
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} style={{
+            flex: 1, height: small ? 1.5 : 2.5, borderRadius: 2,
+            background: i < slide.slideNumber ? t.accent : `${t.accent}35`,
+          }} />
+        ))}
+      </div>
+      {/* Profile row */}
+      {!small && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 6px", flexShrink: 0 }}>
+          <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${t.accent}30`, border: `1.5px solid ${t.accent}` }} />
+          <div style={{ fontSize: 9, fontWeight: 600, color: t.text, opacity: 0.7 }}>your_handle</div>
+        </div>
+      )}
+      {/* Type badge */}
+      <div style={{ padding: `${small ? 3 : 8}px ${small ? 7 : 12}px`, flexShrink: 0 }}>
+        <span style={{ display: "inline-block", background: tc.bg, color: tc.text, borderRadius: 20, padding: `${small ? 1 : 2}px ${small ? 6 : 8}px`, fontSize: small ? 7 : 9, fontWeight: 700, letterSpacing: "0.03em" }}>
+          {slide.slideType}
+        </span>
+      </div>
+      {/* Main content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: small ? "6px 9px" : "14px 14px", gap: 8 }}>
+        <div style={{ fontSize: small ? 10 : 18, fontWeight: 900, color: t.text, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+          {slide.headline}
+        </div>
+        {!small && slide.subtext && (
+          <div style={{ fontSize: 10.5, color: t.sub, lineHeight: 1.5 }}>{slide.subtext}</div>
+        )}
+      </div>
+      {/* Interaction element */}
+      {!small && slide.interaction?.type && (
+        <div style={{ padding: "6px 12px 10px", flexShrink: 0 }}>
+          <div style={{ background: `${t.accent}18`, border: `1px solid ${t.accent}40`, borderRadius: 8, padding: "5px 10px", fontSize: 9, color: t.accent, fontWeight: 600 }}>
+            {slide.interaction.type === "Poll" && "📊 "}
+            {slide.interaction.type === "Question" && "❓ "}
+            {slide.interaction.type === "Slider" && "❤️ "}
+            {slide.interaction.type === "Tap" && "👆 "}
+            {slide.interaction.content}
+          </div>
+        </div>
+      )}
+      {/* Bottom accent bar */}
+      <div style={{ height: small ? 2 : 3, background: `linear-gradient(90deg, ${t.accent}, ${t.accent}50)`, flexShrink: 0 }} />
+    </div>
+  );
+}
+
+// ─── History Panel ────────────────────────────────────────────────────────────
+function HistoryPanel({ onLoad, onClose }: { onLoad: (entry: any) => void; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: ["/api/ai/history", "story-generator"],
+    queryFn: () => apiRequest("GET", "/api/ai/history?tool=story-generator"),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/ai/history/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "story-generator"] }),
+  });
+  return (
+    <div className="absolute inset-0 bg-zinc-950 z-20 flex flex-col">
+      <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold text-white">Saved Story Sequences</h3>
+          <Badge className="bg-primary/10 text-primary border-0 text-xs">{(history as any[]).length}</Badge>
+        </div>
+        <button onClick={onClose} className="text-zinc-500 hover:text-white"><X className="w-5 h-5" /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        {isLoading && <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
+        {!isLoading && (history as any[]).length === 0 && (
+          <div className="text-center py-16">
+            <Bookmark className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+            <p className="text-sm text-zinc-500 font-medium">No saved sequences yet</p>
+            <p className="text-xs text-zinc-600 mt-1">Generate one and it'll appear here automatically</p>
+          </div>
+        )}
+        {(history as any[]).map((entry: any) => (
+          <div key={entry.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-start justify-between gap-4 hover:border-zinc-600 transition-all group">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{entry.title || "Untitled Sequence"}</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {entry.inputs?.niche && <Badge className="bg-zinc-800 text-zinc-400 border-0 text-[10px]">{entry.inputs.niche}</Badge>}
+                {entry.inputs?.slidesCount && <Badge className="bg-zinc-800 text-zinc-400 border-0 text-[10px]">{entry.inputs.slidesCount} slides</Badge>}
+                {entry.inputs?.style && <Badge className="bg-zinc-800 text-zinc-400 border-0 text-[10px] capitalize">{entry.inputs.style}</Badge>}
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1.5">
+                {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button size="sm" onClick={() => onLoad(entry)} className="h-8 text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">Load</Button>
+              <button onClick={() => deleteMut.mutate(entry.id)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function InstagramStoryGenerator() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [step, setStep] = useState<"config" | "editor">("config");
+  const [generating, setGenerating] = useState(false);
+  const [apiDone, setApiDone] = useState(false);
+  const [result, setResult] = useState<StoryResult | null>(null);
+  const [selectedSlideIdx, setSelectedSlideIdx] = useState(0);
+  const [rightTab, setRightTab] = useState<"details" | "design" | "cta" | "variations">("details");
+  const [nicheInput, setNicheInput] = useState("");
+  const [showNicheSugg, setShowNicheSugg] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedInspo, setSelectedInspo] = useState<string | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
+
+  const [form, setForm] = useState<StoryForm>({
+    goal: "", goalCustom: "", topic: "", niche: "",
+    targetAudience: "", instagramUrl: "",
+    ctaType: "follow", ctaCustom: "",
+    slidesCount: 7, style: "minimal",
+  });
+  const setF = (k: keyof StoryForm, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const saveMut = useMutation({
+    mutationFn: (body: object) => apiRequest("POST", "/api/ai/history", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "story-generator"] }),
+  });
+
+  const applyInspo = (ins: typeof INSPIRATIONS[0]) => {
+    setSelectedInspo(ins.id);
+    setF("goal", ins.goal);
+    setF("topic", ins.topic);
+    setF("niche", ins.niche);
+    setNicheInput(ins.niche);
+    setF("targetAudience", ins.targetAudience);
+    setF("ctaType", ins.ctaType);
+    setF("slidesCount", ins.slidesCount);
+    setF("style", ins.style);
+  };
+
+  const handleGenerate = async () => {
+    if (!form.topic.trim() || !form.goal) {
+      toast({ title: "Fill in required fields", description: "Topic and Goal are required.", variant: "destructive" }); return;
+    }
+    setGenerating(true);
+    setApiDone(false);
+    try {
+      const data: StoryResult = await apiRequest("POST", "/api/ai/story/generate", {
+        goal: form.goal === "other" ? form.goalCustom : form.goal,
+        topic: form.topic, niche: nicheInput || form.niche,
+        targetAudience: form.targetAudience, instagramUrl: form.instagramUrl,
+        ctaType: form.ctaType === "custom" ? form.ctaCustom : form.ctaType,
+        slidesCount: form.slidesCount, style: form.style,
+      });
+      setResult(data);
+      setApiDone(true);
+      // Save to history
+      saveMut.mutate({
+        tool: "story-generator",
+        title: form.topic.slice(0, 60),
+        inputs: { niche: nicheInput || form.niche, slidesCount: form.slidesCount, style: form.style, goal: form.goal },
+        output: data,
+      });
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      setGenerating(false);
+    }
+  };
+
+  const handleDoneGenerating = () => {
+    setGenerating(false);
+    setStep("editor");
+    setSelectedSlideIdx(0);
+    setRightTab("details");
+  };
+
+  const handleLoadHistory = (entry: any) => {
+    if (entry.output) {
+      setResult(entry.output);
+      if (entry.inputs) {
+        setF("niche", entry.inputs.niche || "");
+        setNicheInput(entry.inputs.niche || "");
+        setF("slidesCount", entry.inputs.slidesCount || 7);
+        setF("style", entry.inputs.style || "minimal");
+        setF("goal", entry.inputs.goal || "");
+      }
+      setStep("editor");
+      setSelectedSlideIdx(0);
+      setShowHistory(false);
+    }
+  };
+
+  const copyCta = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 1500);
+  };
+
+  const slides = result?.slides || [];
+  const activeSlide = slides[selectedSlideIdx];
+
+  // ── Generating screen ─────────────────────────────────────────────────────
+  if (generating) {
+    return (
+      <GeneratingScreen
+        title="Generating your story sequence…"
+        steps={[
+          "Analysing your goal and niche",
+          "Crafting slide-by-slide breakdown",
+          "Designing your CTA slide",
+          "Building design system",
+          "Writing variation ideas",
+        ]}
+        apiDone={apiDone}
+        onDone={handleDoneGenerating}
+      />
+    );
+  }
+
+  // ── Config step ───────────────────────────────────────────────────────────
+  if (step === "config") {
+    return (
+      <ClientLayout>
+        <div className="min-h-screen bg-background">
+          <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
+            {/* Header */}
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+                <Film className="w-3.5 h-3.5" />Instagram Story Generator
+              </div>
+              <h1 className="text-3xl font-black text-white tracking-tight">
+                Build a <span className="text-primary">High-Converting</span> Story Sequence
+              </h1>
+              <p className="text-zinc-400 text-sm max-w-md mx-auto">
+                AI generates a slide-by-slide Instagram story — with hooks, design system, CTA, and variation ideas.
+              </p>
+            </div>
+
+            {/* History button */}
+            <div className="flex justify-end">
+              <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-primary/30 bg-zinc-900">
+                <Clock className="w-3.5 h-3.5" />View History
+              </button>
+            </div>
+
+            {/* Inspirations */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />Start with an Inspiration
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {INSPIRATIONS.map(ins => (
+                  <button key={ins.id} onClick={() => applyInspo(ins)} data-testid={`inspo-${ins.id}`}
+                    className={`relative rounded-xl border p-3 text-left transition-all hover:scale-[1.02] ${selectedInspo === ins.id ? "border-primary bg-primary/8" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
+                    {selectedInspo === ins.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />}
+                    <div className="text-xl mb-1">{ins.emoji}</div>
+                    <div style={{ color: ins.color }} className="text-[9px] font-bold uppercase tracking-wide mb-0.5">{ins.niche}</div>
+                    <div className="text-xs font-bold text-white leading-tight">{ins.label}</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5 leading-tight">{ins.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-800/60" />
+
+            {/* Goal */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-white">Goal <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-3 gap-2">
+                {GOAL_OPTIONS.map(opt => (
+                  <button key={opt.id} data-testid={`goal-${opt.id}`} onClick={() => setF("goal", opt.id)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${form.goal === opt.id ? "border-primary bg-primary/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
+                    <span className="text-xl">{opt.icon}</span>
+                    <span className={`text-xs font-semibold ${form.goal === opt.id ? "text-primary" : "text-zinc-300"}`}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+              {form.goal === "other" && (
+                <Input placeholder="Describe your goal…" value={form.goalCustom} onChange={e => setF("goalCustom", e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" />
+              )}
+            </div>
+
+            {/* Niche */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">Niche</label>
+              <div className="relative">
+                <Input placeholder="Type your niche…" value={nicheInput}
+                  onChange={e => { setNicheInput(e.target.value); setShowNicheSugg(true); }}
+                  onFocus={() => setShowNicheSugg(true)}
+                  onBlur={() => setTimeout(() => setShowNicheSugg(false), 150)}
+                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
+                  data-testid="input-niche" />
+                {showNicheSugg && nicheInput.length < 20 && (
+                  <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                    {NICHE_SUGGESTIONS.filter(s => s.toLowerCase().includes(nicheInput.toLowerCase()) || !nicheInput).slice(0, 6).map(s => (
+                      <button key={s} onMouseDown={() => { setNicheInput(s); setShowNicheSugg(false); }} className="w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">{s}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {NICHE_SUGGESTIONS.slice(0, 8).map(s => (
+                  <button key={s} onMouseDown={() => setNicheInput(s)}
+                    className={`text-xs px-3 py-1 rounded-full border transition-all ${nicheInput === s ? "bg-primary/20 text-primary border-primary/40" : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:border-zinc-500"}`}>{s}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Topic + Audience */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Topic <span className="text-red-400">*</span></label>
+                <Input placeholder="e.g. How I grew from 0 to 10k followers in 90 days" value={form.topic} onChange={e => setF("topic", e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" data-testid="input-topic" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Target Audience</label>
+                <Input placeholder="e.g. Coaches with under 1k followers wanting to monetize" value={form.targetAudience} onChange={e => setF("targetAudience", e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" data-testid="input-audience" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-300">Instagram Profile URL <span className="text-zinc-600">(optional)</span></label>
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 h-9">
+                  <Instagram className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                  <input value={form.instagramUrl} onChange={e => setF("instagramUrl", e.target.value)} placeholder="https://instagram.com/yourhandle" className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none" data-testid="input-instagram" />
+                </div>
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">CTA Type</label>
+              <div className="flex flex-wrap gap-2">
+                {CTA_OPTIONS.map(c => (
+                  <button key={c.id} onClick={() => setF("ctaType", c.id)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${form.ctaType === c.id ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>{c.label}</button>
+                ))}
+              </div>
+              {form.ctaType === "custom" && (
+                <Input placeholder="e.g. Subscribe to my newsletter" value={form.ctaCustom} onChange={e => setF("ctaCustom", e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 mt-2" />
+              )}
+            </div>
+
+            {/* Design — slides + style */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Story Design</div>
+              {/* Slide count */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-400">Number of slides</label>
+                  <span className="text-primary font-bold text-sm">{form.slidesCount}</span>
+                </div>
+                <input type="range" min={3} max={15} value={form.slidesCount} onChange={e => setF("slidesCount", Number(e.target.value))} className="w-full accent-primary" data-testid="slider-slides" />
+                <div className="flex justify-between text-[10px] text-zinc-600"><span>3</span><span>15</span></div>
+              </div>
+              {/* Style picker */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400">Style</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {STYLE_OPTIONS.map(s => (
+                    <button key={s.id} onClick={() => setF("style", s.id)}
+                      className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${form.style === s.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                      <div className="w-6 h-4 rounded" style={{
+                        background: STYLE_THEMES[s.id]?.bg || "#fff",
+                        border: `2px solid ${STYLE_THEMES[s.id]?.accent || "#d4b461"}`,
+                      }} />
+                      <span className={`text-[10px] font-semibold ${form.style === s.id ? "text-primary" : "text-zinc-400"}`}>{s.label}</span>
+                      <span className="text-[9px] text-zinc-600">{s.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Generate button */}
+            <Button onClick={handleGenerate} disabled={!form.goal || !form.topic.trim()}
+              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl" data-testid="btn-generate-story">
+              <Wand2 className="w-4 h-4 mr-2" />Generate Story Sequence ({form.slidesCount} slides)
+            </Button>
+          </div>
+
+          {/* History overlay */}
+          {showHistory && (
+            <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
+              <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden" style={{ height: 500 }}>
+                <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />
+              </div>
+            </div>
+          )}
+        </div>
+      </ClientLayout>
+    );
+  }
+
+  // ── Editor step ───────────────────────────────────────────────────────────
+  if (!result) return null;
+
+  return (
+    <ClientLayout fullWidth>
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
+        {/* Top bar */}
+        <div className="flex-shrink-0 h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setStep("config")} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors" data-testid="btn-back-config">
+              <ChevronLeft className="w-4 h-4" />Back
+            </button>
+            <div className="w-px h-4 bg-zinc-700" />
+            <div className="flex items-center gap-2">
+              <Film className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-bold text-white truncate max-w-xs">{form.topic || "Story Sequence"}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">{slides.length} slides</Badge>
+            <Badge className="bg-zinc-800 text-zinc-400 border-0 text-xs capitalize">{form.style}</Badge>
+            <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-2 py-1 rounded border border-zinc-800 hover:border-primary/30">
+              <Clock className="w-3.5 h-3.5" />History
+            </button>
+          </div>
+        </div>
+
+        {/* 3-panel body */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left — slide strip */}
+          <div ref={thumbRef} className="w-28 flex-shrink-0 bg-zinc-950 border-r border-zinc-800 overflow-y-auto py-3 space-y-2 px-2">
+            {slides.map((slide, i) => (
+              <button key={i} onClick={() => setSelectedSlideIdx(i)}
+                className={`w-full rounded-lg overflow-hidden border transition-all ${selectedSlideIdx === i ? "border-primary ring-1 ring-primary/40" : "border-zinc-800 hover:border-zinc-600"}`}
+                data-testid={`thumb-slide-${i}`}>
+                <StorySlideCard slide={slide} style={form.style} count={slides.length} small />
+                <div className="text-center text-[9px] font-semibold py-1 bg-zinc-900 text-zinc-500">{i + 1}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Center — preview */}
+          <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900/40 overflow-y-auto p-6 gap-4">
+            {/* Nav arrows */}
+            <div className="flex items-center gap-4">
+              <button onClick={() => setSelectedSlideIdx(i => Math.max(0, i - 1))} disabled={selectedSlideIdx === 0}
+                className="w-8 h-8 rounded-full border border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-30 transition-all" data-testid="btn-prev-slide">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-zinc-500 font-medium">{selectedSlideIdx + 1} / {slides.length}</span>
+              <button onClick={() => setSelectedSlideIdx(i => Math.min(slides.length - 1, i + 1))} disabled={selectedSlideIdx === slides.length - 1}
+                className="w-8 h-8 rounded-full border border-zinc-700 bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-30 transition-all" data-testid="btn-next-slide">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Main story card */}
+            {activeSlide && (
+              <div style={{ width: "min(280px, 90%)" }}>
+                <StorySlideCard slide={activeSlide} style={form.style} count={slides.length} />
+              </div>
+            )}
+            {/* Story flow strategy pill */}
+            {result.flowStrategy && (
+              <div className="max-w-sm w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-primary"><Zap className="w-3.5 h-3.5" />Story Strategy</div>
+                <p className="text-[11px] text-zinc-400 capitalize font-semibold">{result.flowStrategy.sequenceType}</p>
+                <p className="text-[11px] text-zinc-500 leading-relaxed">{result.flowStrategy.whyItWorks}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Right — details panel */}
+          <div className="w-80 flex-shrink-0 bg-zinc-950 border-l border-zinc-800 flex flex-col">
+            {/* Right panel tabs */}
+            <div className="flex border-b border-zinc-800 flex-shrink-0">
+              {([
+                { id: "details", label: "Slide", icon: AlignLeft },
+                { id: "design", label: "Design", icon: Palette },
+                { id: "cta", label: "CTA", icon: Zap },
+                { id: "variations", label: "Ideas", icon: Layers },
+              ] as const).map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <button key={tab.id} onClick={() => setRightTab(tab.id)}
+                    className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold transition-colors border-b-2 ${rightTab === tab.id ? "border-primary text-primary" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}
+                    data-testid={`tab-${tab.id}`}>
+                    <Icon className="w-3.5 h-3.5" />{tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Details tab */}
+              {rightTab === "details" && activeSlide && (
+                <>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Slide {activeSlide.slideNumber} — {activeSlide.slideType}</div>
+                    <div className="bg-zinc-900 rounded-xl p-3 space-y-3">
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Headline</div>
+                        <p className="text-xs text-white font-semibold leading-snug">{activeSlide.headline}</p>
+                      </div>
+                      {activeSlide.subtext && (
+                        <div>
+                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Subtext</div>
+                          <p className="text-xs text-zinc-300 leading-snug">{activeSlide.subtext}</p>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Full Text</div>
+                        <p className="text-xs text-zinc-400 leading-relaxed">{activeSlide.textContent}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Visual Direction</div>
+                    <div className="bg-zinc-900 rounded-xl p-3">
+                      <div className="flex items-start gap-2">
+                        <ImageIcon className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-zinc-300 leading-relaxed">{activeSlide.visualDirection}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Design Notes</div>
+                    <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
+                      {[
+                        { label: "Font Style", val: activeSlide.designNotes?.fontStyle },
+                        { label: "Text Emphasis", val: activeSlide.designNotes?.textSizeEmphasis },
+                        { label: "Colour Usage", val: activeSlide.designNotes?.colorUsage },
+                      ].map(row => row.val ? (
+                        <div key={row.label}>
+                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide">{row.label}</div>
+                          <p className="text-xs text-zinc-400 leading-snug mt-0.5">{row.val}</p>
+                        </div>
+                      ) : null)}
+                    </div>
+                  </div>
+                  {activeSlide.interaction?.type && (
+                    <div>
+                      <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Interaction</div>
+                      <div className="bg-primary/10 border border-primary/20 rounded-xl p-3">
+                        <div className="text-[9px] font-bold text-primary uppercase tracking-wide mb-1">{activeSlide.interaction.type}</div>
+                        <p className="text-xs text-zinc-300">{activeSlide.interaction.content}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Design tab */}
+              {rightTab === "design" && result.designSystem && (
+                <>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Typography</div>
+                    <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide">Heading</div>
+                        <p className="text-xs text-zinc-300 mt-0.5">{result.designSystem.headingFont}</p>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide">Body</div>
+                        <p className="text-xs text-zinc-300 mt-0.5">{result.designSystem.bodyFont}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Colour Palette</div>
+                    <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
+                      {[
+                        { label: "Primary", hex: result.designSystem.primaryColor },
+                        { label: "Accent", hex: result.designSystem.accentColor },
+                      ].map(c => (
+                        <div key={c.label} className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg border border-zinc-700 flex-shrink-0" style={{ background: c.hex }} />
+                          <div>
+                            <div className="text-[9px] font-semibold text-zinc-500 uppercase tracking-wide">{c.label}</div>
+                            <div className="text-xs text-zinc-300 font-mono">{c.hex}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Layout Style</div>
+                    <div className="bg-zinc-900 rounded-xl p-3">
+                      <p className="text-xs text-zinc-300 leading-relaxed">{result.designSystem.layoutStyle}</p>
+                    </div>
+                  </div>
+                  {result.imageUsagePlan && (
+                    <div>
+                      <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Image Usage Plan</div>
+                      <div className="bg-zinc-900 rounded-xl p-3 space-y-2">
+                        <div>
+                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Slides with uploaded images</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(result.imageUsagePlan.slidesWithImages || []).map(n => (
+                              <span key={n} className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">Slide {n}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Text-heavy slides</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(result.imageUsagePlan.textHeavySlides || []).map(n => (
+                              <span key={n} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-semibold">Slide {n}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-500 leading-relaxed">{result.imageUsagePlan.balanceNotes}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* CTA tab */}
+              {rightTab === "cta" && result.ctaSlide && (
+                <>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">CTA Instruction</div>
+                    <div className="bg-primary/8 border border-primary/20 rounded-xl p-3">
+                      <p className="text-xs text-zinc-300 leading-relaxed">{result.ctaSlide.instruction}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">3 CTA Variations</div>
+                    <div className="space-y-2">
+                      {(result.ctaSlide.variations || []).map((v, i) => (
+                        <div key={i} className="bg-zinc-900 rounded-xl p-3 flex items-start justify-between gap-3 group hover:border-zinc-600 border border-zinc-800 transition-all">
+                          <p className="text-xs text-zinc-200 leading-snug flex-1">{v}</p>
+                          <button onClick={() => copyCta(v, i)} className="flex-shrink-0 text-zinc-600 hover:text-primary transition-colors" data-testid={`copy-cta-${i}`}>
+                            {copiedIdx === i ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Variations tab */}
+              {rightTab === "variations" && (
+                <>
+                  <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Alternative Angles</div>
+                  {(result.variations || []).map((v, i) => (
+                    <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary">Variation {i + 1}</span>
+                        <span className="text-[9px] text-zinc-600 capitalize">{v.tone}</span>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Alternative Hook</div>
+                        <p className="text-xs text-white font-semibold leading-snug">"{v.hook}"</p>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold text-zinc-600 uppercase tracking-wide mb-1">Why It Works</div>
+                        <p className="text-xs text-zinc-400 leading-relaxed">{v.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* History overlay */}
+        {showHistory && (
+          <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
+            <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden" style={{ height: 500 }}>
+              <HistoryPanel onLoad={handleLoadHistory} onClose={() => setShowHistory(false)} />
+            </div>
+          </div>
+        )}
+      </div>
+    </ClientLayout>
+  );
+}
