@@ -4617,7 +4617,7 @@ Generate their personalised audit. Be specific to their situation.`;
 
   // ── LinkedIn Integration ─────────────────────────────────────────────────────
   const LINKEDIN_CALLBACK = process.env.NODE_ENV === "production"
-    ? "https://admin-control-hub-aryan07surana.replit.app/api/linkedin/callback"
+    ? "https://admin-control-hub-oravini.replit.app/api/linkedin/callback"
     : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/linkedin/callback`;
 
   const linkedinStates = new Map<string, string>(); // state -> userId
@@ -4813,7 +4813,7 @@ Generate their personalised audit. Be specific to their situation.`;
   }
 
   const TWITTER_CALLBACK = process.env.NODE_ENV === "production"
-    ? "https://admin-control-hub-aryan07surana.replit.app/api/twitter/callback"
+    ? "https://admin-control-hub-oravini.replit.app/api/twitter/callback"
     : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/twitter/callback`;
 
   const twitterCodeVerifiers = new Map<string, { codeVerifier: string; userId: string }>();
