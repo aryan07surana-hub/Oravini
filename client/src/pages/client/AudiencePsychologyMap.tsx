@@ -11,8 +11,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Brain, Sparkles, Wand2, Clock, Bookmark, Trash2, X,
   ChevronLeft, MessageSquare, Lightbulb, ShieldAlert,
-  TrendingUp, Zap, Copy, Check, Eye, RefreshCw,
+  TrendingUp, Zap, Copy, Check, Eye, RefreshCw, Activity,
 } from "lucide-react";
+import {
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ResponsiveContainer, Tooltip,
+} from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface APMForm {
@@ -27,6 +31,7 @@ interface APMResult {
     whatMakesThemSayYes: string;
     trustBuilders: string;
     proofNeeded: string;
+    decisionTimeline?: string;
     objections: { title: string; type: "visible" | "hidden"; description: string }[];
     internalDialogue: string;
     emotionalTriggers: string[];
@@ -52,12 +57,25 @@ interface APMResult {
     immediateAttentionAngle: string;
     doNotSay: string[];
     mostCompellingPromise: string;
+    headlineFormulas?: string[];
+    ctaApproach?: string;
   };
   contentDirection: {
     contentIdeas: string[];
     offerAngles: string[];
     scrollStoppingHooks: string[];
     positioningSuggestions: string[];
+    platformStrategy?: string;
+  };
+  scores?: {
+    buyerReadiness: number;
+    emotionalIntensity: number;
+    resistanceLevel: number;
+    identityGapSize: number;
+    messagingResonance: number;
+    purchaseUrgency: number;
+    trustRequired: number;
+    scoreNotes?: string;
   };
 }
 
@@ -174,7 +192,7 @@ export default function AudiencePsychologyMap() {
   const [generating, setGenerating] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [result, setResult] = useState<APMResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"buyer" | "psychology" | "messaging" | "content">("buyer");
+  const [activeTab, setActiveTab] = useState<"buyer" | "psychology" | "messaging" | "content" | "scores">("buyer");
   const [copied, setCopied] = useState<string | null>(null);
 
   const [form, setForm] = useState<APMForm>({
@@ -401,7 +419,20 @@ export default function AudiencePsychologyMap() {
     { id: "psychology", label: "Psychology", icon: Brain },
     { id: "messaging", label: "Messaging", icon: MessageSquare },
     { id: "content", label: "Content", icon: Lightbulb },
+    { id: "scores", label: "Scores", icon: Activity },
   ] as const;
+
+  const radarData = result.scores
+    ? [
+        { subject: "Buyer Readiness", value: result.scores.buyerReadiness ?? 0 },
+        { subject: "Emotional Intensity", value: result.scores.emotionalIntensity ?? 0 },
+        { subject: "Resistance Level", value: result.scores.resistanceLevel ?? 0 },
+        { subject: "Identity Gap", value: result.scores.identityGapSize ?? 0 },
+        { subject: "Msg Resonance", value: result.scores.messagingResonance ?? 0 },
+        { subject: "Purchase Urgency", value: result.scores.purchaseUrgency ?? 0 },
+        { subject: "Trust Required", value: result.scores.trustRequired ?? 0 },
+      ]
+    : [];
 
   return (
     <ClientLayout>
@@ -694,6 +725,115 @@ export default function AudiencePsychologyMap() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+          {/* Scores tab */}
+          {activeTab === "scores" && (
+            <div className="space-y-6">
+              {!result.scores ? (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
+                  <Activity className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-500 font-medium">No score data available</p>
+                  <p className="text-xs text-zinc-600 mt-1">Regenerate your psychology map to see the scores radar chart</p>
+                </div>
+              ) : (
+                <>
+                  {/* Radar Chart */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                    <div className="flex items-center gap-2 mb-5">
+                      <Activity className="w-4 h-4 text-primary" />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Psychology Score Radar</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-4">All scores out of 10. Higher = stronger signal for that dimension.</p>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <RadarChart data={radarData}>
+                        <PolarGrid stroke="rgba(255,255,255,0.07)" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: "#71717a", fontSize: 10 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fill: "#52525b", fontSize: 9 }} />
+                        <Radar name="Score" dataKey="value" stroke="#d4b461" fill="#d4b461" fillOpacity={0.18} strokeWidth={2} />
+                        <Tooltip
+                          contentStyle={{ background: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                          labelStyle={{ color: "#e4e4e7", fontWeight: 700 }}
+                          formatter={(value: any) => [`${value}/10`]}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Score cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { key: "buyerReadiness", label: "Buyer Readiness", desc: "How ready they are to buy right now", color: "#34d399" },
+                      { key: "emotionalIntensity", label: "Emotional Intensity", desc: "How emotionally charged their pain is", color: "#f87171" },
+                      { key: "resistanceLevel", label: "Resistance Level", desc: "How much internal resistance exists", color: "#fb923c" },
+                      { key: "identityGapSize", label: "Identity Gap", desc: "Distance between current and desired self", color: "#a78bfa" },
+                      { key: "messagingResonance", label: "Messaging Resonance", desc: "How much the right message will land", color: "#60a5fa" },
+                      { key: "purchaseUrgency", label: "Purchase Urgency", desc: "How urgently they need a solution", color: "#d4b461" },
+                      { key: "trustRequired", label: "Trust Required", desc: "Amount of trust needed before they buy", color: "#f472b6" },
+                    ].map(s => {
+                      const val = result.scores?.[s.key as keyof typeof result.scores] as number | undefined;
+                      const pct = typeof val === "number" ? val / 10 : 0;
+                      return (
+                        <div key={s.key} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide leading-tight">{s.label}</span>
+                            <span className="text-xl font-black" style={{ color: s.color }}>{typeof val === "number" ? val : "–"}</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${pct * 100}%`, background: s.color }} />
+                          </div>
+                          <p className="text-[10px] text-zinc-600 mt-1.5">{s.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Score notes */}
+                  {result.scores.scoreNotes && (
+                    <div className="bg-primary/8 border border-primary/20 rounded-2xl p-5">
+                      <div className="text-[9px] font-bold text-primary uppercase tracking-wider mb-2">AI Analysis of These Scores</div>
+                      <p className="text-xs text-zinc-200 leading-relaxed">{result.scores.scoreNotes}</p>
+                    </div>
+                  )}
+
+                  {/* Decision Timeline + Platform Strategy */}
+                  <div className="space-y-4">
+                    {result.buyerClarity?.decisionTimeline && (
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Decision Timeline</div>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{result.buyerClarity.decisionTimeline}</p>
+                      </div>
+                    )}
+                    {result.contentDirection?.platformStrategy && (
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                        <div className="text-[9px] font-bold text-blue-400/80 uppercase tracking-wider mb-2">Platform Strategy</div>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{result.contentDirection.platformStrategy}</p>
+                      </div>
+                    )}
+                    {result.messagingInsights?.ctaApproach && (
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                        <div className="text-[9px] font-bold text-orange-400/80 uppercase tracking-wider mb-2">Best CTA Approach</div>
+                        <p className="text-xs text-zinc-300 leading-relaxed">{result.messagingInsights.ctaApproach}</p>
+                      </div>
+                    )}
+                    {(result.messagingInsights?.headlineFormulas || []).length > 0 && (
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                        <div className="text-[9px] font-bold text-yellow-400/80 uppercase tracking-wider mb-3">Headline Formulas That Convert</div>
+                        <div className="space-y-2">
+                          {(result.messagingInsights?.headlineFormulas || []).map((formula, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <div className="w-4 h-4 rounded-md bg-yellow-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-[8px] font-bold text-yellow-400">{i + 1}</span>
+                              </div>
+                              <p className="text-xs text-zinc-300">{formula}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

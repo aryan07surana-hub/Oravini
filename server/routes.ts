@@ -5583,7 +5583,20 @@ Make it specific, strategic, and cohesive — not generic. Optimise for modern s
   // Instagram Story Generator
   app.post("/api/ai/story/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style } = req.body;
+      const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style, tone, hookStyle, contentDepth } = req.body;
+      const hookStyleMap: Record<string, string> = {
+        "curiosity": "Start with a powerful curiosity question that makes them want to keep tapping (e.g. 'What if I told you...' / 'Have you ever wondered why...')",
+        "bold-stat": "Open with a surprising, specific statistic or data point that challenges assumptions",
+        "story": "Begin with a personal story opening — set the scene with vivid first-person detail",
+        "challenge": "Throw down a challenge that creates urgency or competitive instinct",
+        "bold-claim": "Lead with a bold, contrarian claim that challenges conventional wisdom",
+        "relatable": "Start with a deeply relatable observation or shared experience",
+      };
+      const depthMap: Record<string, string> = {
+        "quick": "Keep slides SHORT and punchy — 1-3 words headline, single concept per slide, fast pace. Optimise for speed and impact.",
+        "balanced": "Mix quick-hitting slides with deeper insight slides. Balance brevity with substance.",
+        "deep-dive": "Go deep on each slide — more detailed explanations, richer context, educational depth. Users who want the full picture.",
+      };
       const systemPrompt = `You are an expert Instagram Story strategist. Generate high-converting story sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.`;
       const userPrompt = `Generate a HIGH-CONVERTING Instagram Story Sequence as JSON.
 
@@ -5595,11 +5608,16 @@ User Inputs:
 - Instagram Profile: ${instagramUrl || "not provided"}
 - Call To Action: ${ctaType}
 - Number of Slides: ${slidesCount}
-- Style Preference: ${style}
+- Visual Style: ${style}
+- Tone of Voice: ${tone || "inspirational"} — Every slide must feel ${tone || "inspirational"}. The language, word choice, and energy should consistently reflect this tone.
+- Hook Style: ${hookStyleMap[hookStyle] || hookStyleMap["curiosity"]}
+- Content Depth: ${depthMap[contentDepth] || depthMap["balanced"]}
 
 Rules:
 - Each slide must feel like a REAL Instagram story (short, punchy, visual)
-- Avoid long paragraphs — keep everything tight
+- STRICTLY apply the requested tone of voice throughout — it must be felt in every slide
+- The FIRST slide hook must use the specified hook style
+- Apply the content depth level consistently across all slides
 - Focus on flow: each slide should naturally lead to the next
 - Use curiosity, emotion, or value to keep users tapping
 - Balance text + visuals (don't overload text)

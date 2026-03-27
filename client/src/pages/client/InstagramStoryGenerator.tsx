@@ -22,6 +22,9 @@ interface StoryForm {
   targetAudience: string; instagramUrl: string;
   ctaType: string; ctaCustom: string;
   slidesCount: number; style: string;
+  tone: string;
+  hookStyle: string;
+  contentDepth: string;
 }
 interface StorySlide {
   slideNumber: number; slideType: string;
@@ -64,6 +67,27 @@ const STYLE_OPTIONS = [
   { id: "modern", label: "Modern", desc: "Dark & sharp" },
   { id: "luxury", label: "Luxury", desc: "Black & gold" },
   { id: "casual", label: "Casual", desc: "Light & fun" },
+];
+const TONE_OPTIONS = [
+  { id: "inspirational", label: "Inspirational", emoji: "✨" },
+  { id: "educational", label: "Educational", emoji: "📚" },
+  { id: "entertaining", label: "Entertaining", emoji: "😂" },
+  { id: "controversial", label: "Controversial", emoji: "🔥" },
+  { id: "storytelling", label: "Storytelling", emoji: "📖" },
+  { id: "motivational", label: "Motivational", emoji: "💪" },
+];
+const HOOK_STYLE_OPTIONS = [
+  { id: "curiosity", label: "Curiosity Question", example: '"What if I told you…"' },
+  { id: "bold-stat", label: "Bold Statistic", example: '"95% of creators fail at this…"' },
+  { id: "story", label: "Story Opening", example: '"3 years ago I was completely broke…"' },
+  { id: "challenge", label: "Challenge", example: '"Most people can\'t answer this…"' },
+  { id: "bold-claim", label: "Bold Claim", example: '"This changed everything for me…"' },
+  { id: "relatable", label: "Relatable Observation", example: '"We\'ve all been there…"' },
+];
+const DEPTH_OPTIONS = [
+  { id: "quick", label: "Quick Hits", desc: "Punchy, digestible, fast-paced slides", emoji: "⚡" },
+  { id: "balanced", label: "Balanced", desc: "Mix of quick hooks + deeper insights", emoji: "⚖️" },
+  { id: "deep-dive", label: "Deep Dive", desc: "Detailed, comprehensive, educational", emoji: "🔬" },
 ];
 const INSPIRATIONS = [
   { id: "mindset", emoji: "🧠", label: "7-Day Mindset Reset", desc: "Daily value sequence for personal development", niche: "Personal Development", goal: "value", topic: "7-day mindset reset challenge for entrepreneurs", targetAudience: "Entrepreneurs and coaches feeling burnt out", ctaType: "follow", slidesCount: 7, style: "minimal", color: "#7c3aed" },
@@ -517,6 +541,9 @@ export default function InstagramStoryGenerator() {
     targetAudience: "", instagramUrl: "",
     ctaType: "follow", ctaCustom: "",
     slidesCount: 7, style: "minimal",
+    tone: "inspirational",
+    hookStyle: "curiosity",
+    contentDepth: "balanced",
   });
   const setF = (k: keyof StoryForm, v: any) => setForm(f => ({ ...f, [k]: v }));
 
@@ -545,6 +572,7 @@ export default function InstagramStoryGenerator() {
         targetAudience: form.targetAudience, instagramUrl: form.instagramUrl,
         ctaType: form.ctaType === "custom" ? form.ctaCustom : form.ctaType,
         slidesCount: form.slidesCount, style: form.style,
+        tone: form.tone, hookStyle: form.hookStyle, contentDepth: form.contentDepth,
       });
       setResult(data);
       // Initialize photos array with nulls
@@ -762,7 +790,7 @@ export default function InstagramStoryGenerator() {
 
             {/* Design */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Story Design</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Story Design & Style</div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-zinc-400">Number of slides</label>
@@ -772,7 +800,7 @@ export default function InstagramStoryGenerator() {
                 <div className="flex justify-between text-[10px] text-zinc-600"><span>3</span><span>15</span></div>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-400">Style</label>
+                <label className="text-xs font-semibold text-zinc-400">Visual style</label>
                 <div className="grid grid-cols-3 gap-2">
                   {STYLE_OPTIONS.map(s => (
                     <button key={s.id} onClick={() => setF("style", s.id)}
@@ -780,6 +808,54 @@ export default function InstagramStoryGenerator() {
                       <div className="w-6 h-4 rounded" style={{ background: STYLE_THEMES[s.id]?.bg || "#fff", border: `2px solid ${STYLE_THEMES[s.id]?.accent || "#d4b461"}` }} />
                       <span className={`text-[10px] font-semibold ${form.style === s.id ? "text-primary" : "text-zinc-400"}`}>{s.label}</span>
                       <span className="text-[9px] text-zinc-600">{s.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tone */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400">Tone of voice</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TONE_OPTIONS.map(t => (
+                    <button key={t.id} onClick={() => setF("tone", t.id)}
+                      data-testid={`tone-${t.id}`}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${form.tone === t.id ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>
+                      <span>{t.emoji}</span>{t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hook Style */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400">Opening hook style</label>
+                <div className="space-y-1.5">
+                  {HOOK_STYLE_OPTIONS.map(h => (
+                    <button key={h.id} onClick={() => setF("hookStyle", h.id)}
+                      data-testid={`hook-${h.id}`}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${form.hookStyle === h.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                      <div className={`w-3 h-3 rounded-full border-2 mt-0.5 flex-shrink-0 ${form.hookStyle === h.id ? "bg-primary border-primary" : "border-zinc-600"}`} />
+                      <div>
+                        <div className={`text-xs font-semibold ${form.hookStyle === h.id ? "text-primary" : "text-zinc-300"}`}>{h.label}</div>
+                        <div className="text-[10px] text-zinc-600 mt-0.5">{h.example}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Content Depth */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400">Content depth</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {DEPTH_OPTIONS.map(d => (
+                    <button key={d.id} onClick={() => setF("contentDepth", d.id)}
+                      data-testid={`depth-${d.id}`}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all ${form.contentDepth === d.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                      <span className="text-lg">{d.emoji}</span>
+                      <span className={`text-[10px] font-bold ${form.contentDepth === d.id ? "text-primary" : "text-zinc-300"}`}>{d.label}</span>
+                      <span className="text-[9px] text-zinc-600 leading-tight">{d.desc}</span>
                     </button>
                   ))}
                 </div>

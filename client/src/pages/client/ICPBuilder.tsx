@@ -11,8 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   Users, Sparkles, Wand2, Clock, Bookmark, Trash2, X,
   ChevronLeft, Target, Brain, TrendingUp, AlertCircle,
-  DollarSign, Heart, Zap, Copy, Check, RefreshCw,
+  DollarSign, Heart, Zap, Copy, Check, RefreshCw, BarChart2,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+} from "recharts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ICPForm {
@@ -28,6 +31,8 @@ interface ICPResult {
     refinedTargetAudience: string;
     coreTransformation: string;
     positioningStatement: string;
+    unfairAdvantage?: string;
+    marketSophistication?: string;
   };
   demographics: {
     ageRange: string;
@@ -36,24 +41,33 @@ interface ICPResult {
     incomeLevel: string;
     profession: string;
     educationLevel: string;
+    deviceUsage?: string;
+    purchasingBehaviour?: string;
   };
   psychographics: {
     beliefs: string;
     coreValues: string;
     aspirations: string;
     deepFears: string;
+    worldview?: string;
+    selfPerception?: string;
   };
   currentSituation: {
     dailyLife: string;
     alreadyTried: string[];
     whyFailed: string;
     repeatedFrustrations: string;
+    currentWorkarounds?: string;
+    informationSources?: string;
   };
   painPoints: {
     title: string;
     situation: string;
     emotionalFeel: string;
     cost: string;
+    severity?: number;
+    urgency?: number;
+    frequency?: number;
   }[];
   desiredOutcomes: {
     dreamOutcome: string;
@@ -164,7 +178,7 @@ export default function ICPBuilder() {
   const [generating, setGenerating] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [result, setResult] = useState<ICPResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"business" | "profile" | "pains" | "outcomes">("business");
+  const [activeTab, setActiveTab] = useState<"business" | "profile" | "pains" | "outcomes" | "charts">("business");
   const [copied, setCopied] = useState<string | null>(null);
 
   const [form, setForm] = useState<ICPForm>({
@@ -442,7 +456,17 @@ export default function ICPBuilder() {
     { id: "profile", label: "Customer", icon: Users },
     { id: "pains", label: "Pain Points", icon: AlertCircle },
     { id: "outcomes", label: "Outcomes", icon: TrendingUp },
+    { id: "charts", label: "Charts", icon: BarChart2 },
   ] as const;
+
+  // Build chart data from pain points
+  const painChartData = (result.painPoints || []).map((p, i) => ({
+    name: p.title?.length > 18 ? p.title.slice(0, 16) + "…" : (p.title || `Pain ${i + 1}`),
+    fullName: p.title,
+    Severity: p.severity ?? 0,
+    Urgency: p.urgency ?? 0,
+    Frequency: p.frequency ?? 0,
+  }));
 
   return (
     <ClientLayout>
@@ -595,11 +619,29 @@ export default function ICPBuilder() {
             <div className="space-y-4">
               {(result.painPoints || []).map((pain, i) => (
                 <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-red-400">{i + 1}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-red-400">{i + 1}</span>
+                      </div>
+                      <p className="text-sm font-bold text-white">{pain.title}</p>
                     </div>
-                    <p className="text-sm font-bold text-white">{pain.title}</p>
+                    {(pain.severity || pain.urgency || pain.frequency) ? (
+                      <div className="flex gap-2 flex-shrink-0">
+                        <div className="text-center">
+                          <div className="text-[9px] font-bold text-red-400/70 uppercase mb-0.5">Severity</div>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm" style={{ background: `rgba(248,113,113,${(pain.severity ?? 0) / 10 * 0.25})`, border: "1px solid rgba(248,113,113,0.3)", color: "#f87171" }}>{pain.severity ?? "–"}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[9px] font-bold text-orange-400/70 uppercase mb-0.5">Urgency</div>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm" style={{ background: `rgba(251,146,60,${(pain.urgency ?? 0) / 10 * 0.25})`, border: "1px solid rgba(251,146,60,0.3)", color: "#fb923c" }}>{pain.urgency ?? "–"}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[9px] font-bold text-blue-400/70 uppercase mb-0.5">Frequency</div>
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm" style={{ background: `rgba(96,165,250,${(pain.frequency ?? 0) / 10 * 0.25})`, border: "1px solid rgba(96,165,250,0.3)", color: "#60a5fa" }}>{pain.frequency ?? "–"}</div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="space-y-3">
                     {[
@@ -645,6 +687,107 @@ export default function ICPBuilder() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* Charts tab */}
+          {activeTab === "charts" && (
+            <div className="space-y-6">
+              {/* Pain Point Severity Bar Chart */}
+              {painChartData.length > 0 && painChartData.some(d => d.Severity > 0) && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-5">
+                    <BarChart2 className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Pain Point Intensity Matrix</span>
+                  </div>
+                  <p className="text-xs text-zinc-500 mb-4">Scores are out of 10. Severity = how painful, Urgency = how quickly they want it solved, Frequency = how often it occurs.</p>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={painChartData} margin={{ top: 5, right: 10, left: -20, bottom: 60 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: "#71717a", fontSize: 10 }}
+                        angle={-35}
+                        textAnchor="end"
+                        interval={0}
+                        height={70}
+                      />
+                      <YAxis domain={[0, 10]} tick={{ fill: "#71717a", fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ background: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                        labelStyle={{ color: "#e4e4e7", fontWeight: 700 }}
+                        formatter={(value: any, name: string) => [`${value}/10`, name]}
+                        labelFormatter={(_label: any, payload: any) => payload?.[0]?.payload?.fullName || _label}
+                      />
+                      <Legend wrapperStyle={{ color: "#71717a", fontSize: 11, paddingTop: 8 }} />
+                      <Bar dataKey="Severity" fill="#f87171" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Urgency" fill="#fb923c" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Frequency" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Average scores summary */}
+              {painChartData.length > 0 && painChartData.some(d => d.Severity > 0) && (
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: "Avg Severity", key: "Severity" as const, color: "#f87171", desc: "How painful this audience finds their problems" },
+                    { label: "Avg Urgency", key: "Urgency" as const, color: "#fb923c", desc: "How quickly they want a solution" },
+                    { label: "Avg Frequency", key: "Frequency" as const, color: "#60a5fa", desc: "How often these pains occur in their life" },
+                  ].map(metric => {
+                    const avg = painChartData.length
+                      ? Math.round((painChartData.reduce((s, d) => s + d[metric.key], 0) / painChartData.length) * 10) / 10
+                      : 0;
+                    return (
+                      <div key={metric.key} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
+                        <div className="text-3xl font-black mb-1" style={{ color: metric.color }}>{avg}</div>
+                        <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-wide">{metric.label}</div>
+                        <div className="text-[10px] text-zinc-600 mt-1 leading-snug">{metric.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {painChartData.length === 0 || !painChartData.some(d => d.Severity > 0) ? (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
+                  <BarChart2 className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-500 font-medium">No score data available</p>
+                  <p className="text-xs text-zinc-600 mt-1">Regenerate your ICP to get pain point score charts</p>
+                </div>
+              ) : null}
+
+              {/* Unfair Advantage */}
+              {result.businessSummary?.unfairAdvantage && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="text-[9px] font-bold text-yellow-400/80 uppercase tracking-wider mb-2">Your Unfair Advantage</div>
+                  <p className="text-sm text-zinc-200 leading-relaxed">{result.businessSummary.unfairAdvantage}</p>
+                </div>
+              )}
+
+              {/* Market Sophistication */}
+              {result.businessSummary?.marketSophistication && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                  <div className="text-[9px] font-bold text-violet-400/80 uppercase tracking-wider mb-2">Market Sophistication</div>
+                  <p className="text-sm text-zinc-200 leading-relaxed">{result.businessSummary.marketSophistication}</p>
+                </div>
+              )}
+
+              {/* Information Sources + Current Workarounds */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                {result.currentSituation?.informationSources && (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                    <div className="text-[9px] font-bold text-blue-400/80 uppercase tracking-wider mb-2">Where They Learn</div>
+                    <p className="text-xs text-zinc-300 leading-relaxed">{result.currentSituation.informationSources}</p>
+                  </div>
+                )}
+                {result.currentSituation?.currentWorkarounds && (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                    <div className="text-[9px] font-bold text-orange-400/80 uppercase tracking-wider mb-2">Current Workarounds</div>
+                    <p className="text-xs text-zinc-300 leading-relaxed">{result.currentSituation.currentWorkarounds}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
