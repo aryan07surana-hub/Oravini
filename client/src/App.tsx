@@ -44,6 +44,7 @@ import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
 import Brandverse from "@/pages/Brandverse";
+import SelectPlan from "@/pages/SelectPlan";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import PlanSettings from "@/pages/client/PlanSettings";
@@ -72,7 +73,7 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
   // Block clients who haven't selected a plan yet
-  if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/" />;
+  if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
 
   return <Component {...props} />;
 }
@@ -86,8 +87,8 @@ function HomeRedirect() {
   );
   if (!user) return <OraviniLanding />;
   if (user.role === "admin") return <Redirect to="/admin" />;
-  // Client logged in but hasn't chosen a plan yet — show Oravini landing so they can pick one
-  if (!user.planConfirmed) return <OraviniLanding />;
+  // Client logged in but hasn't chosen a plan yet — send to plan selection
+  if (!user.planConfirmed) return <Redirect to="/select-plan" />;
   return <Redirect to="/dashboard" />;
 }
 
@@ -97,6 +98,7 @@ function Router() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
       <Route path="/brandverse" component={Brandverse} />
+      <Route path="/select-plan" component={SelectPlan} />
       <Route path="/login" component={Login} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

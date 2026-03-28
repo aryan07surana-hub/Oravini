@@ -87,6 +87,7 @@ export default function Brandverse() {
   const [, nav] = useLocation();
   const [showStrategy, setShowStrategy] = useState(false);
   useScrollAnim();
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   return (
     <div style={{ background: "#000", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", overflowX: "hidden", position: "relative", zIndex: 1 }}>
