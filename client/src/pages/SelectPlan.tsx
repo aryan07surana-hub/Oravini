@@ -97,8 +97,19 @@ export default function SelectPlan() {
     <div style={{ minHeight: "100vh", background: "#060606", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 32px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-        <img src={oraviniLogoPath} alt="Oravini" style={{ height: 36, objectFit: "contain" }} />
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Step 1 of 1 — Choose Your Plan</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 36, objectFit: "contain" }} />
+          <button
+            onClick={() => navigate("/")}
+            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: 500, transition: "color 0.2s", padding: 0 }}
+            onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
+            Back to home
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Choose Your Plan</div>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "56px 24px 80px" }}>
