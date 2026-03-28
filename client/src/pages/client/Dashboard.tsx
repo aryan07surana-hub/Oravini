@@ -746,15 +746,15 @@ export default function ClientDashboard() {
               <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Focus Music — 15 channels</p>
+              <p className="text-sm font-bold text-white">Focus Music — 24 channels</p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Music, nature sounds &amp; focus noise — plays non-stop across all pages. Look bottom-right ↘
+                SomaFM streams, nature sounds &amp; focus noise — plays non-stop across all pages. Look bottom-right ↘
               </p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: "Music", items: ["☕ Lo-fi", "🌌 Deep Focus", "🚀 Space", "🎹 Deep House", "✨ New Age", "🎷 Jazz", "🎻 Classical"], color: "#a78bfa" },
+              { label: "Music", items: ["☕ Groove Salad", "🌌 Drone Zone", "🪐 Deep Space One", "🚀 Space Station", "🎹 Beat Blender", "⚡ Cliqhop IDM", "🧘 Suburbs of Goa", "✨ Fluid", "🌸 Lush", "🌍 The Trip", "🎷 Sonic Universe", "🕵️ Secret Agent", "🎸 Seven Inch Soul", "🥂 Illinois Lounge", "💊 Digitalis", "🎸 Folk Forward", "🎵 Groove Salad Classic"], color: "#a78bfa" },
               { label: "Nature", items: ["🌧️ Rain", "⛈️ Thunderstorm", "🌊 Ocean Waves", "🌿 Forest & Birds", "🔥 Fireplace"], color: "#34d399" },
               { label: "Focus", items: ["🤍 White Noise", "🟤 Brown Noise"], color: "#60a5fa" },
             ].map(({ label, items, color }) => (

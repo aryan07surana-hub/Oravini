@@ -21,15 +21,24 @@ interface Track {
 type SynthType = "rain" | "heavy-rain" | "ocean" | "forest" | "fire" | "white-noise" | "brown-noise";
 
 const TRACKS: Track[] = [
-  // ── Music
-  { id: "groovesalad",      label: "Lo-fi Chill",       emoji: "☕", desc: "Soft ambient beats",       kind: "stream", url: "https://ice6.somafm.com/groovesalad-128-mp3",      color: "#a78bfa", category: "music" },
-  { id: "dronezone",        label: "Deep Focus",         emoji: "🌌", desc: "Cinematic ambience",       kind: "stream", url: "https://ice6.somafm.com/dronezone-128-mp3",         color: "#60a5fa", category: "music" },
-  { id: "spacestation",     label: "Space Station",      emoji: "🚀", desc: "Weightless & calm",        kind: "stream", url: "https://ice6.somafm.com/spacestation-128-mp3",      color: "#34d399", category: "music" },
-  { id: "beatblender",      label: "Deep House",         emoji: "🎹", desc: "Smooth focus grooves",     kind: "stream", url: "https://ice6.somafm.com/beatblender-128-mp3",       color: "#f472b6", category: "music" },
-  { id: "suburbsofgoa",     label: "Zen Flow",           emoji: "🌊", desc: "Eastern calm vibes",       kind: "stream", url: "https://ice6.somafm.com/suburbsofgoa-128-mp3",     color: "#fb923c", category: "music" },
-  { id: "fluid",            label: "New Age",            emoji: "✨", desc: "Crystal clarity",          kind: "stream", url: "https://ice6.somafm.com/fluid-128-mp3",            color: "#e879f9", category: "music" },
-  { id: "sonicuniverse",    label: "Jazz Fusion",        emoji: "🎷", desc: "Smooth jazz & chill",      kind: "stream", url: "https://ice6.somafm.com/sonicuniverse-128-mp3",    color: "#fbbf24", category: "music" },
-  { id: "gsclassic",        label: "Classical Focus",    emoji: "🎻", desc: "Orchestral calm",          kind: "stream", url: "https://ice6.somafm.com/gsclassic-128-mp3",        color: "#f9a8d4", category: "music" },
+  // ── Music — SomaFM Calm & Focus Channels
+  { id: "groovesalad",      label: "Groove Salad",       emoji: "☕", desc: "Slow groovy ambient beats",     kind: "stream", url: "https://ice6.somafm.com/groovesalad-128-mp3",      color: "#a78bfa", category: "music" },
+  { id: "gsclassic",        label: "Groove Salad Classic",emoji: "🎵", desc: "Classic ambient grooves",      kind: "stream", url: "https://ice6.somafm.com/gsclassic-128-mp3",        color: "#c084fc", category: "music" },
+  { id: "dronezone",        label: "Drone Zone",         emoji: "🌌", desc: "Cinematic drone ambience",      kind: "stream", url: "https://ice6.somafm.com/dronezone-128-mp3",         color: "#60a5fa", category: "music" },
+  { id: "deepspaceone",     label: "Deep Space One",     emoji: "🪐", desc: "Deep space ambient",            kind: "stream", url: "https://ice6.somafm.com/deepspaceone-128-mp3",      color: "#38bdf8", category: "music" },
+  { id: "spacestation",     label: "Space Station",      emoji: "🚀", desc: "Weightless & calm",             kind: "stream", url: "https://ice6.somafm.com/spacestation-128-mp3",      color: "#34d399", category: "music" },
+  { id: "beatblender",      label: "Beat Blender",       emoji: "🎹", desc: "Smooth electronic grooves",     kind: "stream", url: "https://ice6.somafm.com/beatblender-128-mp3",       color: "#f472b6", category: "music" },
+  { id: "cliqhop",          label: "Cliqhop IDM",        emoji: "⚡", desc: "Click-hop & IDM focus beats",   kind: "stream", url: "https://ice6.somafm.com/cliqhop-128-mp3",          color: "#fb7185", category: "music" },
+  { id: "suburbsofgoa",     label: "Suburbs of Goa",     emoji: "🧘", desc: "Eastern calm & trance",         kind: "stream", url: "https://ice6.somafm.com/suburbsofgoa-128-mp3",     color: "#fb923c", category: "music" },
+  { id: "fluid",            label: "Fluid",              emoji: "✨", desc: "Eclectic ambient calm",         kind: "stream", url: "https://ice6.somafm.com/fluid-128-mp3",            color: "#e879f9", category: "music" },
+  { id: "lush",             label: "Lush",               emoji: "🌸", desc: "Dreamy ethereal electronic",    kind: "stream", url: "https://ice6.somafm.com/lush-128-mp3",             color: "#f0abfc", category: "music" },
+  { id: "thetrip",          label: "The Trip",           emoji: "🌍", desc: "Worldwide downtempo trip-hop",  kind: "stream", url: "https://ice6.somafm.com/thetrip-128-mp3",          color: "#4ade80", category: "music" },
+  { id: "sonicuniverse",    label: "Sonic Universe",     emoji: "🎷", desc: "Smooth jazz & soul",            kind: "stream", url: "https://ice6.somafm.com/sonicuniverse-128-mp3",    color: "#fbbf24", category: "music" },
+  { id: "secretagent",      label: "Secret Agent",       emoji: "🕵️", desc: "Spy jazz & big band lounge",   kind: "stream", url: "https://ice6.somafm.com/secretagent-128-mp3",      color: "#fde68a", category: "music" },
+  { id: "7soul",            label: "Seven Inch Soul",    emoji: "🎸", desc: "Rare vinyl soul & R&B",         kind: "stream", url: "https://ice6.somafm.com/7soul-128-mp3",            color: "#f97316", category: "music" },
+  { id: "illstreet",        label: "Illinois Lounge",    emoji: "🥂", desc: "Cocktail lounge & bachelor pad",kind: "stream", url: "https://ice6.somafm.com/illstreet-128-mp3",        color: "#d4b461", category: "music" },
+  { id: "digitalis",        label: "Digitalis",          emoji: "💊", desc: "Indie lo-fi electronic",        kind: "stream", url: "https://ice6.somafm.com/digitalis-128-mp3",        color: "#a3e635", category: "music" },
+  { id: "folkfwd",          label: "Folk Forward",       emoji: "🎸", desc: "Indie folk & acoustic calm",    kind: "stream", url: "https://ice6.somafm.com/folkfwd-128-mp3",          color: "#86efac", category: "music" },
   // ── Nature / Synth
   { id: "rain",             label: "Rain Shower",        emoji: "🌧️", desc: "Gentle steady rain",       kind: "synth", synth: "rain",        color: "#93c5fd", category: "nature" },
   { id: "heavy-rain",       label: "Thunderstorm",       emoji: "⛈️", desc: "Heavy rain & thunder",     kind: "synth", synth: "heavy-rain",  color: "#818cf8", category: "nature" },
