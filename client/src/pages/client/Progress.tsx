@@ -28,6 +28,7 @@ function getProgressLabel(value: number) {
 export default function ClientProgress() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isElite = (user as any)?.plan === "elite";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, number>>({});
 
@@ -72,6 +73,39 @@ export default function ClientProgress() {
     }
     setEditing(false);
   };
+
+  if (!isElite) {
+    return (
+      <ClientLayout>
+        <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-foreground">Progress Milestones</h1>
+            <p className="text-muted-foreground mt-1">Track your journey through the program</p>
+          </div>
+          <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-12 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+              <TrendingUp className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-foreground">Progress Milestones — Tier 5 Only</p>
+              <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+                Upgrade to the Elite plan to unlock your progress milestones, offer creation tracking, funnel progress, and monetization insights.
+              </p>
+            </div>
+            <a
+              href="https://whop.com/brandversee"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm"
+              style={{ background: "#d4b461", color: "#000" }}
+            >
+              Upgrade to Elite
+            </a>
+          </div>
+        </div>
+      </ClientLayout>
+    );
+  }
 
   return (
     <ClientLayout>

@@ -510,7 +510,7 @@ export default function AIContentCoach() {
 
   const saveSession = () => {
     const userMessages = messages.filter(m => m.role === "user");
-    if (userMessages.length < 2) return;
+    if (userMessages.length < 1) return;
     const firstUserMsg = userMessages[0].content.replace(/^\[Script\] /, "").slice(0, 80);
     apiRequest("POST", "/api/ai/history", {
       tool: "coach",
@@ -562,7 +562,7 @@ export default function AIContentCoach() {
     addUserMsg(scriptToAnalyze ? `[Script] ${scriptToAnalyze.slice(0,100)}…` : userMsg);
     setThinking(true); setMood("thinking");
     try {
-      const minDelay = new Promise<void>(resolve => setTimeout(resolve, 20000 + Math.random() * 5000));
+      const minDelay = new Promise<void>(resolve => setTimeout(resolve, 15000));
       const history = messages.slice(-8).map(m=>({ role:m.role==="coach"?"assistant":"user",content:m.content }));
       const [data] = await Promise.all([
         apiRequest("POST","/api/coach/chat",{ message:userMsg||"Analyze this script",script:scriptToAnalyze||(userMsg.length>40?userMsg:undefined),mode,goal,history }),
@@ -838,9 +838,10 @@ export default function AIContentCoach() {
                         <p className="text-[9px] text-zinc-600">{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} · {item.output?.messageCount ?? 0} msgs</p>
                       </div>
                       <button
-                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+                        className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0"
                         onClick={e => { e.stopPropagation(); apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {}); }}
                         data-testid={`delete-session-${item.id}`}
+                        title="Delete session"
                       ><Trash2 className="w-3 h-3" /></button>
                     </div>
                   ))

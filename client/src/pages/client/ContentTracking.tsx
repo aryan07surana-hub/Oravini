@@ -576,10 +576,11 @@ function ReportPanel({ posts }: { posts: any[] }) {
 
 export default function ContentTracking() {
   const { user } = useAuth();
+  const isElite = (user as any)?.plan === "elite";
 
   const { data: posts = [], isLoading } = useQuery<any[]>({
     queryKey: [`/api/content/${user?.id}`],
-    enabled: !!user?.id,
+    enabled: !!user?.id && isElite,
   });
 
   return (
@@ -590,34 +591,73 @@ export default function ContentTracking() {
           <p className="text-muted-foreground mt-1">Log and track your Instagram and YouTube content performance</p>
         </div>
 
-        <Tabs defaultValue="instagram">
-          <TabsList className="mb-6 bg-card border border-card-border">
-            <TabsTrigger value="instagram" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Instagram className="w-4 h-4" /> Instagram
-            </TabsTrigger>
-            <TabsTrigger value="youtube" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Youtube className="w-4 h-4" /> YouTube
-            </TabsTrigger>
-            <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Calendar className="w-4 h-4" /> Calendar
-            </TabsTrigger>
-            <TabsTrigger value="report" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <BarChart2 className="w-4 h-4" /> Report
-            </TabsTrigger>
-          </TabsList>
+        {!isElite ? (
+          <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-12 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+              <BarChart2 className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-foreground">Content Tracking — Tier 5 Only</p>
+              <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+                Upgrade to the Elite plan to unlock full Instagram &amp; YouTube performance tracking, calendar view, and analytics reports.
+              </p>
+            </div>
+            <a
+              href="https://whop.com/brandversee"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm"
+              style={{ background: "#d4b461", color: "#000" }}
+            >
+              Upgrade to Elite
+            </a>
+          </div>
+        ) : (
+          <>
+            <Tabs defaultValue="instagram">
+              <TabsList className="mb-6 bg-card border border-card-border">
+                <TabsTrigger value="instagram" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Instagram className="w-4 h-4" /> Instagram
+                </TabsTrigger>
+                <TabsTrigger value="youtube" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Youtube className="w-4 h-4" /> YouTube
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <Calendar className="w-4 h-4" /> Calendar
+                </TabsTrigger>
+                <TabsTrigger value="report" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  <BarChart2 className="w-4 h-4" /> Report
+                </TabsTrigger>
+              </TabsList>
 
-          {isLoading ? (
-            <div className="space-y-4">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
-          ) : (
-            <>
-              <TabsContent value="instagram"><InstagramPanel clientId={user?.id!} posts={posts} /></TabsContent>
-              <TabsContent value="youtube"><YouTubePanel clientId={user?.id!} posts={posts} /></TabsContent>
-              <TabsContent value="calendar"><CalendarPanel posts={posts} /></TabsContent>
-              <TabsContent value="report"><ReportPanel posts={posts} /></TabsContent>
-            </>
-          )}
-        </Tabs>
+              {isLoading ? (
+                <div className="space-y-4">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
+              ) : (
+                <>
+                  <TabsContent value="instagram"><InstagramPanel clientId={user?.id!} posts={posts} /></TabsContent>
+                  <TabsContent value="youtube"><YouTubePanel clientId={user?.id!} posts={posts} /></TabsContent>
+                  <TabsContent value="calendar"><CalendarPanel posts={posts} /></TabsContent>
+                  <TabsContent value="report"><ReportPanel posts={posts} /></TabsContent>
+                </>
+              )}
+            </Tabs>
+          </>
+        )}
 
+        {/* Sales & Ad Metrics — Coming Soon for all tiers */}
+        <div className="mt-10 grid grid-cols-2 gap-4">
+          {[
+            { label: "Sales Tracking", desc: "Track deals, pipelines, and revenue" },
+            { label: "Ad Metrics", desc: "Monitor paid ad performance" },
+          ].map(({ label, desc }) => (
+            <div key={label} className="p-6 rounded-2xl border border-dashed border-border bg-card/50 text-center">
+              <TrendingUp className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-semibold text-foreground">{label}</p>
+              <p className="text-xs text-muted-foreground mt-1">{desc}</p>
+              <Badge variant="outline" className="mt-3 text-[10px]">Coming Soon</Badge>
+            </div>
+          ))}
+        </div>
       </div>
     </ClientLayout>
   );
