@@ -3775,7 +3775,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
       <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
 
         {/* Page header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" data-tour="competitor-main">
           {activeSection && (
             <button
               onClick={() => setActiveSection(null)}

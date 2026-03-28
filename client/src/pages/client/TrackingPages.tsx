@@ -1622,7 +1622,7 @@ export function TrackingHome() {
             <p className="text-muted-foreground mt-2">Select a metrics dashboard to get started</p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" data-tour="tracking-home">
             <Link href="/tracking/content">
               <div data-testid="card-tracking-content" className="group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
                 <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">

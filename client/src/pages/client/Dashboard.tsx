@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { TourButton } from "@/components/ui/TourGuide";
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
   TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check,
-  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2, Bot, Clapperboard
+  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2, Bot, Clapperboard, Map
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -698,15 +699,43 @@ export default function ClientDashboard() {
               {user?.program && <span className="font-medium">{user.program}</span>}
             </p>
           </div>
-          {user?.nextCallDate && (
-            <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
-              <Calendar className="w-4 h-4 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Next call</p>
-                <p className="text-sm font-semibold text-primary">{format(new Date(user.nextCallDate), "MMM d, h:mm a")}</p>
+          <div className="flex items-center gap-3">
+            <TourButton />
+            {user?.nextCallDate && (
+              <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
+                <Calendar className="w-4 h-4 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Next call</p>
+                  <p className="text-sm font-semibold text-primary">{format(new Date(user.nextCallDate), "MMM d, h:mm a")}</p>
+                </div>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Take a Tour — prominent onboarding banner */}
+        <div
+          className="relative overflow-hidden rounded-2xl px-5 py-4 cursor-pointer group"
+          style={{
+            background: "linear-gradient(135deg, rgba(18,14,30,0.97) 0%, rgba(22,16,36,0.97) 100%)",
+            border: "1px solid rgba(212,180,97,0.22)",
+          }}
+          data-testid="tour-banner"
+        >
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 10% 50%, rgba(212,180,97,0.06) 0%, transparent 60%)" }} />
+          <div className="flex items-center gap-4">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform"
+              style={{ background: "linear-gradient(135deg, #b89848 0%, #d4b461 50%, #f0d280 100%)", boxShadow: "0 0 16px rgba(212,180,97,0.4)" }}
+            >
+              <Bot className="w-6 h-6 text-black" />
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">New here? Take the guided tour</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Your AI guide walks you through every tool — Content Ideas, Coach, Design, Tracking and more. Takes 2 minutes.</p>
+            </div>
+            <TourButton className="flex-shrink-0" />
+          </div>
         </div>
 
         {/* World Clocks Bar — always at the top */}
@@ -725,54 +754,6 @@ export default function ClientDashboard() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Focus Music Banner */}
-        <div
-          data-testid="focus-music-banner"
-          className="relative overflow-hidden rounded-2xl px-5 py-4"
-          style={{
-            background: "linear-gradient(135deg, rgba(12,10,22,0.97) 0%, rgba(16,12,28,0.97) 100%)",
-            border: "1px solid rgba(212,180,97,0.14)",
-          }}
-        >
-          <div className="absolute inset-0 pointer-events-none" style={{
-            background: "radial-gradient(ellipse at 5% 50%, rgba(212,180,97,0.05) 0%, transparent 55%)",
-          }} />
-          <div className="flex items-center gap-4 mb-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}
-            >
-              <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">Focus Music — 24 channels</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                SomaFM streams, nature sounds &amp; focus noise — plays non-stop across all pages. Look bottom-right ↘
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "Music", items: ["☕ Groove Salad", "🌌 Drone Zone", "🪐 Deep Space One", "🚀 Space Station", "🎹 Beat Blender", "⚡ Cliqhop IDM", "🧘 Suburbs of Goa", "✨ Fluid", "🌸 Lush", "🌍 The Trip", "🎷 Sonic Universe", "🕵️ Secret Agent", "🎸 Seven Inch Soul", "🥂 Illinois Lounge", "💊 Digitalis", "🎸 Folk Forward", "🎵 Groove Salad Classic"], color: "#a78bfa" },
-              { label: "Nature", items: ["🌧️ Rain", "⛈️ Thunderstorm", "🌊 Ocean Waves", "🌿 Forest & Birds", "🔥 Fireplace"], color: "#34d399" },
-              { label: "Focus", items: ["🤍 White Noise", "🟤 Brown Noise"], color: "#60a5fa" },
-            ].map(({ label, items, color }) => (
-              <div
-                key={label}
-                className="rounded-xl p-3"
-                style={{ background: `${color}09`, border: `1px solid ${color}18` }}
-              >
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
-                <div className="space-y-1">
-                  {items.map(item => (
-                    <p key={item} className="text-[10px] text-zinc-500 leading-none">{item}</p>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Two square cards: Daily Quote + Income Goal */}
         <div className="grid grid-cols-2 gap-4">
@@ -795,7 +776,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* Stats — Elite gets Progress/Tasks, everyone gets Content Views + Followers */}
-        <div className={`grid gap-4 ${isElite ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2"}`}>
+        <div data-tour="dashboard-stats" className={`grid gap-4 ${isElite ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2"}`}>
           {isElite && (
             <>
               <StatCard icon={TrendingUp} label="Overall Progress" value={`${avgProgress}%`} sub="Across all tracks" color="bg-primary/10 text-primary" />
@@ -807,7 +788,7 @@ export default function ClientDashboard() {
         </div>
 
         {/* Quick Tools */}
-        <div>
+        <div data-tour="quick-tools">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Quick Tools</p>
           <div className="grid grid-cols-3 gap-3">
             {[
@@ -826,6 +807,41 @@ export default function ClientDashboard() {
                   </div>
                 </div>
               </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Focus Music Banner */}
+        <div
+          data-testid="focus-music-banner"
+          className="relative overflow-hidden rounded-2xl px-5 py-4"
+          style={{
+            background: "linear-gradient(135deg, rgba(12,10,22,0.97) 0%, rgba(16,12,28,0.97) 100%)",
+            border: "1px solid rgba(212,180,97,0.14)",
+          }}
+        >
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 5% 50%, rgba(212,180,97,0.05) 0%, transparent 55%)" }} />
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+              <Music2 className="w-5 h-5" style={{ color: "#d4b461" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">Focus Music — 24 channels</p>
+              <p className="text-xs text-zinc-500 mt-0.5">SomaFM streams, nature sounds &amp; focus noise — plays non-stop across all pages. Look bottom-right ↘</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Music", items: ["Groove Salad", "Drone Zone", "Deep Space One", "Space Station", "Beat Blender", "Cliqhop IDM", "Suburbs of Goa", "Fluid", "Lush", "The Trip", "Sonic Universe", "Secret Agent", "Seven Inch Soul", "Illinois Lounge", "Digitalis", "Folk Forward", "Groove Salad Classic"], color: "#a78bfa" },
+              { label: "Nature", items: ["Rain", "Thunderstorm", "Ocean Waves", "Forest & Birds", "Fireplace"], color: "#34d399" },
+              { label: "Focus", items: ["White Noise", "Brown Noise"], color: "#60a5fa" },
+            ].map(({ label, items, color }) => (
+              <div key={label} className="rounded-xl p-3" style={{ background: `${color}09`, border: `1px solid ${color}18` }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color }}>{label}</p>
+                <div className="space-y-1">
+                  {items.map(item => <p key={item} className="text-[10px] text-zinc-500 leading-none">{item}</p>)}
+                </div>
+              </div>
             ))}
           </div>
         </div>

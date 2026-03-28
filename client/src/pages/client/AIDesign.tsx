@@ -261,7 +261,7 @@ export default function AIDesign() {
         <div className="max-w-4xl mx-auto px-6 py-12">
 
           {/* Header */}
-          <div className="mb-12 text-center">
+          <div className="mb-12 text-center" data-tour="design-studio-main">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mb-4">
               <Sparkles className="w-3.5 h-3.5" />AI Design Studio
             </div>

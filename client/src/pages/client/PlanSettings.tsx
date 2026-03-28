@@ -92,7 +92,7 @@ export default function PlanSettings() {
       <div className="max-w-3xl mx-auto px-6 py-10">
 
         {/* Page header */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-8" data-tour="settings-main">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
             <Settings className="w-4 h-4" style={{ color: "#d4b461" }} />
           </div>

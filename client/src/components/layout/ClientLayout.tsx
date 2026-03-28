@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
+import { TourProvider } from "@/components/ui/TourGuide";
 import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
@@ -75,6 +76,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   return (
+    <TourProvider>
     <div className="min-h-screen bg-background flex">
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
@@ -217,5 +219,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
       <FocusMusicPlayer />
     </div>
+    </TourProvider>
   );
 }
