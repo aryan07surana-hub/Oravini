@@ -292,8 +292,16 @@ const STATS = [
   { val: 9, suffix: "", label: "AI-Powered Tools", prefix: "" },
 ];
 
+// ── Pricing tiers ─────────────────────────────────────────────────────────────
+const PRICING_TIERS = [
+  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "5 credits / day", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["Group community access", "5 AI credits per day", "Access to all AI tools", "Basic content ideas", "Partial audit preview"], cta: "Join Free" },
+  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "150 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["Everything in Free", "150 AI credits/month", "Full audit access", "Carousel Studio", "Story Generator", "Lead Magnet Generator"], cta: "Get Started" },
+  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "350 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["Everything in Starter", "350 AI credits/month", "No watermarks", "Competitor Intelligence", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "700 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["Everything in Growth", "700 AI credits/month", "AI Video Editor", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "DM Tracker"], cta: "Go Pro" },
+];
+
 // ── Nav ───────────────────────────────────────────────────────────────────────
-function Navbar({ onStrategyCall }: { onStrategyCall: () => void }) {
+function Navbar({ onStrategyCall, brandverseOpen, onBrandverseToggle }: { onStrategyCall: () => void; brandverseOpen: boolean; onBrandverseToggle: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [, nav] = useLocation();
   useEffect(() => {
@@ -305,11 +313,12 @@ function Navbar({ onStrategyCall }: { onStrategyCall: () => void }) {
     <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 500, background: scrolled ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: scrolled ? "blur(20px)" : "none", borderBottom: scrolled ? "1px solid rgba(212,180,97,0.1)" : "none", transition: "all 0.4s ease" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <img src={oraviniLogoPath} alt="Oravini" style={{ height: 44, objectFit: "contain" }} />
-        <button onClick={() => { document.getElementById("brandverse-section")?.scrollIntoView({ behavior: "smooth" }); }}
-          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 600, cursor: "pointer", letterSpacing: "0.02em", transition: "color 0.2s" }}
-          onMouseEnter={e => ((e.target as HTMLButtonElement).style.color = GOLD)}
-          onMouseLeave={e => ((e.target as HTMLButtonElement).style.color = "rgba(255,255,255,0.65)")}>
+        <button onClick={onBrandverseToggle}
+          style={{ background: "none", border: "none", color: brandverseOpen ? GOLD : "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 600, cursor: "pointer", letterSpacing: "0.02em", transition: "color 0.2s", display: "flex", alignItems: "center", gap: 6 }}
+          onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+          onMouseLeave={e => (e.currentTarget.style.color = brandverseOpen ? GOLD : "rgba(255,255,255,0.65)")}>
           What is Brandverse
+          <span style={{ fontSize: 10, display: "inline-block", transition: "transform 0.3s", transform: brandverseOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
         </button>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button onClick={() => nav("/login")} style={{ background: "none", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer", transition: "all 0.2s" }}
@@ -332,6 +341,7 @@ export default function OraviniLanding() {
   const [showSplash, setShowSplash] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
+  const [showBrandverse, setShowBrandverse] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [heroReady, setHeroReady] = useState(false);
 
@@ -341,6 +351,19 @@ export default function OraviniLanding() {
     const t1 = setTimeout(() => setHeroReady(true), 200);
     const t2 = setTimeout(() => setShowEmailPopup(true), 90000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  const toggleBrandverse = useCallback(() => {
+    setShowBrandverse(v => {
+      const next = !v;
+      if (next) setTimeout(() => document.getElementById("brandverse-section")?.scrollIntoView({ behavior: "smooth" }), 80);
+      return next;
+    });
+  }, []);
+
+  const openBrandverse = useCallback(() => {
+    setShowBrandverse(true);
+    setTimeout(() => document.getElementById("brandverse-section")?.scrollIntoView({ behavior: "smooth" }), 80);
   }, []);
 
   const handleAuditClick = useCallback(() => {
@@ -357,15 +380,21 @@ export default function OraviniLanding() {
       <style>{`
         @keyframes popIn { to { opacity:1; transform:scale(1.2); } }
         @keyframes floatY { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-16px); } }
+        @keyframes logoFloat { 0%{ transform:translateY(0) rotate(-1deg) scale(1); } 25%{ transform:translateY(-18px) rotate(1deg) scale(1.04); } 50%{ transform:translateY(-26px) rotate(-0.5deg) scale(1.06); } 75%{ transform:translateY(-12px) rotate(1.5deg) scale(1.02); } 100%{ transform:translateY(0) rotate(-1deg) scale(1); } }
         @keyframes shimmer { 0%{ background-position:-400px 0; } 100%{ background-position:400px 0; } }
         @keyframes pulse-ring { 0%{ transform:scale(0.95); box-shadow:0 0 0 0 rgba(212,180,97,0.4); } 70%{ transform:scale(1); box-shadow:0 0 0 20px rgba(212,180,97,0); } 100%{ transform:scale(0.95); box-shadow:0 0 0 0 rgba(212,180,97,0); } }
         @keyframes fadeUp { from{ opacity:0; transform:translateY(30px); } to{ opacity:1; transform:none; } }
+        @keyframes orbFloat1 { 0%,100%{ transform:translate(0,0) scale(1); } 33%{ transform:translate(60px,-40px) scale(1.1); } 66%{ transform:translate(-30px,50px) scale(0.9); } }
+        @keyframes orbFloat2 { 0%,100%{ transform:translate(0,0) scale(1); } 40%{ transform:translate(-50px,60px) scale(1.15); } 70%{ transform:translate(40px,-30px) scale(0.85); } }
+        @keyframes orbFloat3 { 0%,100%{ transform:translate(0,0); } 50%{ transform:translate(30px,-60px) scale(1.08); } }
+        @keyframes bvExpand { from{ opacity:0; transform:translateY(-20px); } to{ opacity:1; transform:translateY(0); } }
         .hero-title { animation: fadeUp 1s ease 0.3s both; }
         .hero-sub { animation: fadeUp 1s ease 0.6s both; }
         .hero-powered { animation: fadeUp 1s ease 0.9s both; }
         .hero-cta { animation: fadeUp 1s ease 1.1s both; }
         .hero-scroll { animation: fadeUp 1s ease 1.4s both; }
         .feature-card:hover { border-color: rgba(212,180,97,0.4) !important; box-shadow: 0 0 40px rgba(212,180,97,0.08) !important; }
+        .pricing-card:hover { transform: translateY(-6px) !important; }
         .nav-btn:hover { color: #d4b461; }
         input:focus { border-color: rgba(212,180,97,0.5) !important; }
       `}</style>
@@ -374,7 +403,7 @@ export default function OraviniLanding() {
       {showEmailPopup && <EmailPopup onClose={() => setShowEmailPopup(false)} />}
       {showStrategy && <StrategyModal onClose={() => setShowStrategy(false)} />}
 
-      <Navbar onStrategyCall={() => setShowStrategy(true)} />
+      <Navbar onStrategyCall={() => setShowStrategy(true)} brandverseOpen={showBrandverse} onBrandverseToggle={toggleBrandverse} />
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section ref={heroRef} style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", textAlign: "center", overflow: "hidden" }}>
@@ -536,59 +565,155 @@ export default function OraviniLanding() {
         <style>{`@media(max-width:768px){ .outcomes-grid{ grid-template-columns:1fr !important; gap:40px !important; } }`}</style>
       </section>
 
-      {/* ── BRANDVERSE SECTION ─────────────────────────────────────────────── */}
-      <section id="brandverse-section" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "120px 24px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Anim style={{ textAlign: "center", marginBottom: 72 }}>
-            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Team Behind Oravini</div>
-            <h2 style={{ fontSize: "clamp(30px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.025em", marginBottom: 18 }}>What is <span style={{ color: GOLD }}>Brandverse?</span></h2>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.45)", maxWidth: 600, margin: "0 auto", lineHeight: 1.8 }}>
-              Brandverse is the growth agency that built and powers Oravini. We don't just give you tools — we build you a custom content system, strategy, and growth framework from scratch.
-            </p>
-          </Anim>
+      {/* ── BRANDVERSE SECTION (accordion) ─────────────────────────────────── */}
+      <section id="brandverse-section" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        {/* Always-visible clickable header */}
+        <button onClick={toggleBrandverse} style={{ width: "100%", background: "none", border: "none", cursor: "pointer", padding: "60px 24px 52px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+          {/* Subtle animated glow behind header */}
+          <div style={{ position: "absolute", inset: 0, background: showBrandverse ? "radial-gradient(ellipse 80% 100% at 50% 50%, rgba(212,180,97,0.06) 0%, transparent 70%)" : "none", transition: "background 0.6s ease", pointerEvents: "none" }} />
+          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 12, position: "relative" }}>The Team Behind Oravini</div>
+          <h2 style={{ fontSize: "clamp(28px, 5vw, 52px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.025em", marginBottom: 14, color: "#fff", position: "relative" }}>
+            What is <span style={{ color: GOLD }}>Brandverse?</span>
+          </h2>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", maxWidth: 560, margin: "0 auto 20px", lineHeight: 1.7, position: "relative" }}>
+            The growth agency that built and powers Oravini — click to learn more.
+          </p>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: 99, padding: "6px 18px", position: "relative", transition: "background 0.2s", background: showBrandverse ? `${GOLD}15` : "transparent" }}>
+            {showBrandverse ? "Close" : "Explore Brandverse"}
+            <span style={{ display: "inline-block", transition: "transform 0.35s", transform: showBrandverse ? "rotate(180deg)" : "rotate(0deg)", fontSize: 10 }}>▼</span>
+          </span>
+        </button>
 
-          {/* VSL Placeholder */}
-          <Anim delay={100} style={{ marginBottom: 64 }}>
-            <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, overflow: "hidden", aspectRatio: "16/9", maxWidth: 820, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(212,180,97,0.06) 0%, transparent 60%)" }} />
-              <div style={{ textAlign: "center", zIndex: 1 }}>
-                <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${GOLD}22`, border: `2px solid ${GOLD}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 26, cursor: "pointer" }}>▶</div>
-                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Brandverse Story — Coming Soon</div>
+        {/* Collapsible body */}
+        <div style={{ maxHeight: showBrandverse ? "3600px" : "0", overflow: "hidden", transition: "max-height 1s cubic-bezier(0.4,0,0.2,1)" }}>
+          <div style={{ position: "relative", padding: "0 24px 100px", overflow: "hidden" }}>
+            {/* 3D animated background orbs */}
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden" }}>
+              <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,180,97,0.08) 0%, transparent 70%)", top: "10%", left: "-15%", animation: "orbFloat1 12s ease-in-out infinite" }} />
+              <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,180,97,0.06) 0%, transparent 70%)", top: "30%", right: "-10%", animation: "orbFloat2 15s ease-in-out infinite" }} />
+              <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(212,180,97,0.05) 0%, transparent 65%)", bottom: "15%", left: "35%", animation: "orbFloat3 10s ease-in-out infinite" }} />
+              {/* Grid overlay */}
+              <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,180,97,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,180,97,0.03) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+            </div>
+
+            <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", zIndex: 1, animation: showBrandverse ? "bvExpand 0.6s ease 0.2s both" : "none" }}>
+              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", maxWidth: 640, margin: "0 auto 64px", lineHeight: 1.85, textAlign: "center" }}>
+                Brandverse is the growth agency that built and powers Oravini. We don't just give you tools — we build you a custom content system, strategy, and growth framework from scratch.
+              </p>
+
+              {/* VSL Placeholder */}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}22`, borderRadius: 20, overflow: "hidden", aspectRatio: "16/9", maxWidth: 820, margin: "0 auto 64px", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(212,180,97,0.07) 0%, transparent 60%)" }} />
+                <div style={{ textAlign: "center", zIndex: 1 }}>
+                  <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${GOLD}22`, border: `2px solid ${GOLD}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 26, cursor: "pointer" }}>▶</div>
+                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.35)" }}>Brandverse Story — Coming Soon</div>
+                </div>
+              </div>
+
+              {/* Benefits grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginBottom: 64 }}>
+                {[
+                  { icon: "🎯", title: "Custom Strategy", desc: "We build a growth plan tailored to your niche, platform, and exact revenue goals." },
+                  { icon: "🤝", title: "Done-With-You", desc: "You're never alone. Our team works beside you at every stage of your growth journey." },
+                  { icon: "🛡️", title: "Results Guarantee", desc: "If your numbers don't move in 90 days, we keep working — at no extra cost to you." },
+                  { icon: "📞", title: "Direct Access", desc: "Message the Brandverse team directly through your dashboard. Real humans, real answers." },
+                ].map(({ icon, title, desc }, i) => (
+                  <div key={title} style={{ background: "rgba(212,180,97,0.04)", border: "1px solid rgba(212,180,97,0.15)", borderRadius: 16, padding: "28px 24px", backdropFilter: "blur(10px)", transition: "transform 0.3s, box-shadow 0.3s", animationDelay: `${i * 80}ms` }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 40px rgba(212,180,97,0.1)`; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}>
+                    <div style={{ fontSize: 28, marginBottom: 14 }}>{icon}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{title}</div>
+                    <div style={{ fontSize: 13.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.7 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Work With Us CTA */}
+              <div style={{ background: `linear-gradient(135deg, rgba(212,180,97,0.09) 0%, rgba(212,180,97,0.02) 100%)`, border: `1px solid ${GOLD}33`, borderRadius: 24, padding: "56px 48px", textAlign: "center", maxWidth: 700, margin: "0 auto" }}>
+                <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Tier 5 — Done With You</div>
+                <h3 style={{ fontSize: "clamp(22px, 4vw, 38px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 16, letterSpacing: "-0.02em" }}>
+                  Ready to go all in?<br /><span style={{ color: GOLD }}>Book a free strategy call.</span>
+                </h3>
+                <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, maxWidth: 480, margin: "0 auto 32px" }}>
+                  If you're ready to build a real content system with the Brandverse team behind you — book a 30-minute strategy call. We'll map out your entire growth plan, live.
+                </p>
+                <button onClick={() => setShowStrategy(true)} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 40px", cursor: "pointer" }}>
+                  Book a Free Strategy Call →
+                </button>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ──────────────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 64 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Simple Pricing</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>Start free.<br /><span style={{ color: GOLD }}>Scale when ready.</span></h2>
           </Anim>
 
-          {/* Benefits grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginBottom: 64 }}>
-            {[
-              { icon: "🎯", title: "Custom Strategy", desc: "We build a growth plan tailored to your niche, platform, and exact revenue goals." },
-              { icon: "🤝", title: "Done-With-You", desc: "You're never alone. Our team works beside you at every stage of your growth journey." },
-              { icon: "🛡️", title: "Results Guarantee", desc: "If your numbers don't move in 90 days, we keep working — at no extra cost to you." },
-              { icon: "📞", title: "Direct Access", desc: "Message the Brandverse team directly through your dashboard. Real humans, real answers." },
-            ].map(({ icon, title, desc }) => (
-              <Anim key={title} delay={80}>
-                <div style={{ background: "rgba(212,180,97,0.03)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 16, padding: "28px 24px" }}>
-                  <div style={{ fontSize: 28, marginBottom: 14 }}>{icon}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{title}</div>
-                  <div style={{ fontSize: 13.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.7 }}>{desc}</div>
+          {/* 4 standard tiers */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginBottom: 24 }}>
+            {PRICING_TIERS.map((t, i) => (
+              <Anim key={t.name} delay={i * 80}>
+                <div className="pricing-card" style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 20, padding: "32px 28px", display: "flex", flexDirection: "column", height: "100%", transition: "transform 0.3s, box-shadow 0.3s", position: "relative", overflow: "hidden", boxShadow: t.highlight ? `0 0 60px ${GOLD}18` : "none" }}>
+                  {t.highlight && (
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                  )}
+                  {t.highlight && (
+                    <div style={{ position: "absolute", top: 14, right: 14, fontSize: 9, fontWeight: 800, color: "#000", background: GOLD, borderRadius: 99, padding: "3px 8px", letterSpacing: "0.08em", textTransform: "uppercase" }}>Most Popular</div>
+                  )}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: t.accent, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{t.tier}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{t.name}</div>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 4, marginBottom: 6 }}>
+                    <span style={{ fontSize: t.price === "Free" ? 32 : 40, fontWeight: 900, color: t.accent, lineHeight: 1 }}>{t.price}</span>
+                    {t.period && <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>{t.period}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24, fontWeight: 500 }}>{t.credits}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, marginBottom: 28 }}>
+                    {t.features.map(f => (
+                      <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                        <span style={{ color: t.accent, fontSize: 12, marginTop: 1, flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <a href="/audit" style={{ display: "block", textAlign: "center", background: t.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.06)", border: t.highlight ? "none" : `1px solid ${t.border}`, color: t.highlight ? "#000" : t.accent, fontWeight: 700, fontSize: 14, borderRadius: 10, padding: "12px 20px", textDecoration: "none", transition: "opacity 0.2s" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
+                    {t.cta} →
+                  </a>
                 </div>
               </Anim>
             ))}
           </div>
 
-          {/* Tier 5 / Work With Us CTA */}
-          <Anim delay={100}>
-            <div style={{ background: `linear-gradient(135deg, rgba(212,180,97,0.08) 0%, rgba(212,180,97,0.02) 100%)`, border: `1px solid ${GOLD}33`, borderRadius: 24, padding: "56px 48px", textAlign: "center", maxWidth: 700, margin: "0 auto" }}>
-              <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Tier 5 — Done With You</div>
-              <h3 style={{ fontSize: "clamp(24px, 4vw, 40px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 16, letterSpacing: "-0.02em" }}>
-                Ready to go all in?<br /><span style={{ color: GOLD }}>Book a free strategy call.</span>
-              </h3>
-              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, marginBottom: 32, maxWidth: 480, margin: "0 auto 32px" }}>
-                If you're ready to build a real content system with the Brandverse team behind you — book a 30-minute strategy call. We'll map out your entire growth plan, live.
-              </p>
-              <button onClick={() => setShowStrategy(true)} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 40px", cursor: "pointer" }}>
-                Book a Free Strategy Call →
-              </button>
+          {/* Tier 5 special card */}
+          <Anim delay={200}>
+            <div className="pricing-card" style={{ background: `linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)`, border: `1px solid ${GOLD}55`, borderRadius: 24, padding: "52px 48px", textAlign: "center", position: "relative", overflow: "hidden", boxShadow: `0 0 80px rgba(212,180,97,0.12)`, transition: "transform 0.3s, box-shadow 0.3s" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${GOLD_BRIGHT}, ${GOLD}, transparent)` }} />
+              <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,180,97,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,180,97,0.03) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
+              <div style={{ position: "relative", zIndex: 1 }}>
+                <div style={{ display: "inline-block", fontSize: 9, fontWeight: 800, color: "#000", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 12px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Tier 5 — Exclusive</div>
+                <h3 style={{ fontSize: "clamp(24px, 4vw, 44px)", fontWeight: 900, color: "#fff", marginBottom: 12, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
+                  Elite — <span style={{ color: GOLD }}>Work With Us</span>
+                </h3>
+                <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 900, color: GOLD, marginBottom: 8, lineHeight: 1 }}>Apply</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 28 }}>Unlimited credits · Custom pricing</div>
+                <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 24, marginBottom: 36 }}>
+                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "90-day results guarantee", "Direct Brandverse access"].map(f => (
+                    <div key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ color: GOLD, fontSize: 13 }}>✦</span>
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={openBrandverse} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 44px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
+                  Learn About Tier 5 →
+                </button>
+              </div>
             </div>
           </Anim>
         </div>
@@ -597,7 +722,7 @@ export default function OraviniLanding() {
       {/* ── FINAL CTA ─────────────────────────────────────────────────────────── */}
       <section style={{ padding: "120px 24px", textAlign: "center", background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212,180,97,0.06) 0%, transparent 70%)" }}>
         <Anim>
-          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 80, objectFit: "contain", marginBottom: 28, animation: "floatY 4s ease-in-out infinite", filter: "drop-shadow(0 0 30px rgba(212,180,97,0.3))" }} />
+          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 80, objectFit: "contain", marginBottom: 28, animation: "logoFloat 5s ease-in-out infinite", filter: "drop-shadow(0 0 40px rgba(212,180,97,0.45)) drop-shadow(0 0 80px rgba(212,180,97,0.2))" }} />
         </Anim>
         <Anim delay={100}>
           <h2 style={{ fontSize: "clamp(32px, 5.5vw, 64px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.03em", marginBottom: 18 }}>
@@ -632,7 +757,7 @@ export default function OraviniLanding() {
               </a>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2025 Oravini. All rights reserved.</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2026 Oravini. All rights reserved.</div>
         </div>
       </footer>
     </div>
