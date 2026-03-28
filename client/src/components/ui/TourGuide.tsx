@@ -438,18 +438,32 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
   const locateTarget = useCallback(async (target: string | null) => {
     if (!target) { setRect(null); return; }
+
+    // Retry finding the element (handles async-rendered content)
     let el: Element | null = null;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 20; i++) {
       el = document.querySelector(target);
       if (el) break;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 150));
     }
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      await new Promise(r => setTimeout(r, 450));
-      setRect((el as HTMLElement).getBoundingClientRect());
-    } else {
+
+    if (!el) { setRect(null); return; }
+
+    // Scroll instantly so getBoundingClientRect is accurate immediately
+    el.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "center" });
+
+    // Give the browser one frame + a buffer to finish layout
+    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => requestAnimationFrame(r));
+    await new Promise(r => setTimeout(r, 80));
+
+    const r = (el as HTMLElement).getBoundingClientRect();
+
+    // If element has no dimensions (hidden / collapsed), don't show spotlight
+    if (r.width === 0 && r.height === 0) {
       setRect(null);
+    } else {
+      setRect(r);
     }
   }, []);
 
@@ -460,8 +474,15 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     busyRef.current = true;
     setRect(null);
     setStepIndex(index);
+
+    const prevRoute = TOUR_STEPS[index - 1]?.route;
+    const isNewPage = s.route !== prevRoute;
+
     navigate(s.route);
-    await new Promise(r => setTimeout(r, 450));
+
+    // Wait longer when navigating to a new page, shorter when already there
+    await new Promise(r => setTimeout(r, isNewPage ? 600 : 120));
+
     await locateTarget(s.target);
     busyRef.current = false;
   }, [navigate, locateTarget]);
