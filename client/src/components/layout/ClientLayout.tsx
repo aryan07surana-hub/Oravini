@@ -13,7 +13,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
@@ -95,7 +95,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {mainNavItems.map(({ href, label, icon: Icon }) => {
+          {[
+            ...mainNavItems.filter(item => {
+              if (item.href === "/documents") return (user as any)?.plan === "elite";
+              return true;
+            }),
+            ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Progress", icon: TrendingUp }] : []),
+          ].map(({ href, label, icon: Icon }) => {
             const active = href === "/tracking"
               ? (location === "/tracking" || location.startsWith("/tracking/content"))
               : href === "/tracking/competitor"

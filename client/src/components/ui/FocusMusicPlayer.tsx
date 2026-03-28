@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Music2, Pause, Play, Volume2, VolumeX, ChevronUp, ChevronDown, X, Wifi } from "lucide-react";
+import { Music2, Pause, Play, Volume2, VolumeX, ChevronUp, ChevronDown, X, Wifi, GripHorizontal } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────
    TRACK DEFINITIONS
@@ -458,6 +458,39 @@ export default function FocusMusicPlayer() {
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<"music" | "nature" | "focus">("music");
 
+  // ── Draggable position state ──────────────────────────────────────────────
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragInfo = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number; moved: boolean } | null>(null);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startPosX = pos?.x ?? rect.left;
+    const startPosY = pos?.y ?? rect.top;
+    dragInfo.current = { startX: e.clientX, startY: e.clientY, startPosX, startPosY, moved: false };
+    if (!pos) setPos({ x: rect.left, y: rect.top });
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragInfo.current) return;
+      const dx = ev.clientX - dragInfo.current.startX;
+      const dy = ev.clientY - dragInfo.current.startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragInfo.current.moved = true;
+      const maxX = window.innerWidth - (containerRef.current?.offsetWidth ?? 320);
+      const maxY = window.innerHeight - (containerRef.current?.offsetHeight ?? 60);
+      setPos({ x: Math.max(0, Math.min(maxX, dragInfo.current.startPosX + dx)), y: Math.max(0, Math.min(maxY, dragInfo.current.startPosY + dy)) });
+    };
+    const onUp = () => {
+      dragInfo.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [pos]);
+
   // Subscribe to singleton changes
   useEffect(() => subscribe(rerender), [rerender]);
 
@@ -498,7 +531,12 @@ export default function FocusMusicPlayer() {
   const filteredTracks = TRACKS.filter(t => t.category === activeCategory);
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2" data-testid="focus-music-player">
+    <div
+      ref={containerRef}
+      className="fixed z-50 flex flex-col items-end gap-2"
+      style={pos ? { left: pos.x, top: pos.y } : { bottom: 20, right: 20 }}
+      data-testid="focus-music-player"
+    >
 
       {/* ── Expanded panel ── */}
       {open && (
@@ -522,6 +560,15 @@ export default function FocusMusicPlayer() {
                 <p className="text-[9px] text-zinc-600 mt-0.5 leading-none">Keeps playing across all pages</p>
               </div>
             </div>
+            {/* Drag handle in header */}
+            <button
+              onMouseDown={handleDragStart}
+              className="w-6 h-6 rounded flex items-center justify-center text-zinc-600 hover:text-zinc-400 transition-colors cursor-grab active:cursor-grabbing mr-1"
+              title="Drag to move"
+              data-testid="music-player-drag-handle"
+            >
+              <GripHorizontal className="w-3.5 h-3.5" />
+            </button>
             <button onClick={() => setOpen(false)} className="text-zinc-600 hover:text-zinc-400 transition-colors" data-testid="music-player-close">
               <X className="w-3.5 h-3.5" />
             </button>
@@ -651,33 +698,45 @@ export default function FocusMusicPlayer() {
         </div>
       )}
 
-      {/* ── Floating trigger ── */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        data-testid="music-player-trigger"
-        className="relative flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-2xl shadow-xl transition-all hover:scale-[1.04] active:scale-[0.97]"
-        style={{
-          background: open ? "rgba(212,180,97,0.12)" : "rgba(12,12,16,0.96)",
-          border: `1px solid ${_playing ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.08)"}`,
-          backdropFilter: "blur(16px)",
-          boxShadow: _playing ? "0 0 20px rgba(212,180,97,0.15), 0 4px 24px rgba(0,0,0,0.6)" : "0 4px 24px rgba(0,0,0,0.5)",
-        }}
-      >
-        {_playing && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black animate-pulse" />}
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,180,97,0.12)" }}>
-          {loading
-            ? <div className="w-3 h-3 border-2 border-[#d4b461]/40 border-t-[#d4b461] rounded-full animate-spin" />
-            : <Music2 className="w-3.5 h-3.5" style={{ color: "#d4b461" }} />
-          }
-        </div>
-        <div className="text-left leading-none">
-          {_playing
-            ? (<><p className="text-[10px] font-bold text-white">{track.emoji} {track.label}</p><p className="text-[9px] text-zinc-500 mt-0.5">Focus mode on</p></>)
-            : <p className="text-[11px] font-semibold text-zinc-400">Focus Music</p>
-          }
-        </div>
-        {open ? <ChevronDown className="w-3 h-3 text-zinc-600 ml-1" /> : <ChevronUp className="w-3 h-3 text-zinc-600 ml-1" />}
-      </button>
+      {/* ── Floating trigger row ── */}
+      <div className="flex items-center gap-1">
+        {/* Drag grip handle */}
+        <button
+          onMouseDown={handleDragStart}
+          className="w-7 h-8 rounded-xl flex items-center justify-center text-zinc-600 hover:text-zinc-400 transition-colors cursor-grab active:cursor-grabbing"
+          style={{ background: "rgba(12,12,16,0.85)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(16px)" }}
+          title="Drag to move"
+          data-testid="music-player-drag-trigger"
+        >
+          <GripHorizontal className="w-3 h-3" />
+        </button>
+        <button
+          onClick={() => setOpen(v => !v)}
+          data-testid="music-player-trigger"
+          className="relative flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-2xl shadow-xl transition-all hover:scale-[1.04] active:scale-[0.97]"
+          style={{
+            background: open ? "rgba(212,180,97,0.12)" : "rgba(12,12,16,0.96)",
+            border: `1px solid ${_playing ? "rgba(212,180,97,0.4)" : "rgba(255,255,255,0.08)"}`,
+            backdropFilter: "blur(16px)",
+            boxShadow: _playing ? "0 0 20px rgba(212,180,97,0.15), 0 4px 24px rgba(0,0,0,0.6)" : "0 4px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          {_playing && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-black animate-pulse" />}
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,180,97,0.12)" }}>
+            {loading
+              ? <div className="w-3 h-3 border-2 border-[#d4b461]/40 border-t-[#d4b461] rounded-full animate-spin" />
+              : <Music2 className="w-3.5 h-3.5" style={{ color: "#d4b461" }} />
+            }
+          </div>
+          <div className="text-left leading-none">
+            {_playing
+              ? (<><p className="text-[10px] font-bold text-white">{track.emoji} {track.label}</p><p className="text-[9px] text-zinc-500 mt-0.5">Focus mode on</p></>)
+              : <p className="text-[11px] font-semibold text-zinc-400">Focus Music</p>
+            }
+          </div>
+          {open ? <ChevronDown className="w-3 h-3 text-zinc-600 ml-1" /> : <ChevronUp className="w-3 h-3 text-zinc-600 ml-1" />}
+        </button>
+      </div>
 
       <style>{`
         @keyframes eq-bar { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }

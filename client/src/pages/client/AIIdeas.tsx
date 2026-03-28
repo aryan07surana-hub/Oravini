@@ -456,6 +456,311 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
   );
 }
 
+// ─── Platform Schedule Panel ────────────────────────────────────────────────────
+function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" | "youtube" | "instagram" }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [postText, setPostText] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const { data: twitterStatus, isLoading: twitterLoading } = useQuery<{ connected: boolean; handle: string | null }>({
+    queryKey: ["/api/twitter/status"],
+    enabled: platform === "twitter",
+  });
+  const { data: linkedinStatus, isLoading: linkedinLoading } = useQuery<{ connected: boolean; name: string | null }>({
+    queryKey: ["/api/linkedin/status"],
+    enabled: platform === "linkedin",
+  });
+  const { data: youtubeStatus, isLoading: youtubeLoading } = useQuery<any>({
+    queryKey: ["/api/youtube/status"],
+    enabled: platform === "youtube",
+  });
+
+  const twitterConnect = useMutation({
+    mutationFn: async () => { const d = await apiRequest("GET", "/api/twitter/connect"); return d; },
+    onSuccess: (d: any) => { window.open(d.url, "_blank", "width=600,height=700,scrollbars=yes"); },
+    onError: (e: any) => toast({ title: "Connection failed", description: e.message, variant: "destructive" }),
+  });
+
+  const twitterPost = useMutation({
+    mutationFn: (content: string) => apiRequest("POST", "/api/twitter/post", { content }),
+    onSuccess: () => { setPostText(""); toast({ title: "Tweet posted!", description: "Your tweet is live on X / Twitter." }); },
+    onError: (e: any) => toast({ title: "Failed to post", description: e.message, variant: "destructive" }),
+  });
+
+  const twitterDisconnect = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/twitter/disconnect"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/twitter/status"] }); toast({ title: "X / Twitter disconnected" }); },
+  });
+
+  const linkedinPost = useMutation({
+    mutationFn: (content: string) => apiRequest("POST", "/api/linkedin/post", { content }),
+    onSuccess: () => { setPostText(""); toast({ title: "Post published!", description: "Your post is live on LinkedIn." }); },
+    onError: (e: any) => toast({ title: "Failed to post", description: e.message, variant: "destructive" }),
+  });
+
+  const linkedinDisconnect = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/linkedin/disconnect"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/linkedin/status"] }); toast({ title: "LinkedIn disconnected" }); },
+  });
+
+  function copyText() {
+    if (!postText.trim()) return;
+    navigator.clipboard.writeText(postText.trim());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({ title: "Copied to clipboard", description: "Paste it directly into the platform." });
+  }
+
+  // ── Instagram — only scheduling is "coming soon"; idea generation works ──────
+  if (platform === "instagram") {
+    return (
+      <Card className="border border-card-border">
+        <CardContent className="p-6 space-y-5">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
+              <Instagram className="w-5 h-5 text-pink-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Instagram Auto-Scheduling</p>
+              <p className="text-xs text-muted-foreground">Coming soon — generate ideas above and post manually for now</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-dashed border-pink-500/20 bg-pink-500/5 p-4 text-center space-y-2">
+            <p className="text-xs text-pink-400 font-semibold">Auto-scheduling to Instagram is coming soon</p>
+            <p className="text-[11px] text-muted-foreground">Generate ideas in the Generate tab, copy them here, and post to Instagram yourself in the meantime.</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground font-medium">Paste your content here to copy it:</label>
+            <Textarea
+              value={postText}
+              onChange={e => setPostText(e.target.value)}
+              placeholder="Paste or type your Instagram caption here…"
+              className="min-h-[100px] resize-none text-sm"
+              data-testid="instagram-manual-textarea"
+            />
+          </div>
+          <Button onClick={copyText} variant="outline" className="w-full gap-2" disabled={!postText.trim()}>
+            {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copied ? "Copied!" : "Copy & Post Yourself on Instagram"}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── YouTube — video-based; redirect to full scheduler ────────────────────────
+  if (platform === "youtube") {
+    const isLoading = youtubeLoading;
+    const isConnected = youtubeStatus?.connected;
+    const channelTitle = youtubeStatus?.channelTitle;
+    return (
+      <Card className="border border-card-border">
+        <CardContent className="p-6 space-y-5">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <Youtube className="w-5 h-5 text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">YouTube</p>
+              <p className="text-xs text-muted-foreground">Upload & schedule videos to your channel</p>
+            </div>
+          </div>
+          {isLoading ? (
+            <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" /></div>
+          ) : isConnected ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground">Connected{channelTitle ? `: ${channelTitle}` : ""}</p>
+                <p className="text-xs text-muted-foreground">Go to YouTube Scheduler to upload and schedule videos.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-center space-y-3">
+              <p className="text-xs text-muted-foreground">Connect your YouTube channel to schedule video uploads directly from this platform.</p>
+              <Button
+                onClick={() => { window.location.href = "/api/auth/youtube"; }}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
+                data-testid="schedule-connect-youtube"
+              >
+                <Youtube className="w-4 h-4" /> Connect YouTube Channel
+              </Button>
+            </div>
+          )}
+          <Button
+            onClick={() => { window.location.href = "/youtube-scheduler"; }}
+            variant="outline"
+            className="w-full gap-2 border-red-500/20 text-red-400 hover:bg-red-500/10"
+            data-testid="open-youtube-scheduler"
+          >
+            <Send className="w-4 h-4" /> Open Full YouTube Scheduler
+          </Button>
+          <div className="border-t border-border pt-4 space-y-2">
+            <label className="text-xs text-muted-foreground font-medium">Or copy your video script / description:</label>
+            <Textarea
+              value={postText}
+              onChange={e => setPostText(e.target.value)}
+              placeholder="Paste your YouTube description or script here…"
+              className="min-h-[80px] resize-none text-sm"
+              data-testid="youtube-manual-textarea"
+            />
+            <Button onClick={copyText} variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-foreground" disabled={!postText.trim()}>
+              {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              {copied ? "Copied!" : "Copy & Use in YouTube Studio"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Twitter / LinkedIn — text posting ────────────────────────────────────────
+  const isTwitter = platform === "twitter";
+  const isLoading = isTwitter ? twitterLoading : linkedinLoading;
+  const status = isTwitter ? twitterStatus : linkedinStatus;
+  const isConnected = status?.connected;
+  const accountLabel = isTwitter ? (twitterStatus?.handle ? `@${twitterStatus.handle}` : "Connected") : (linkedinStatus?.name ?? "Connected");
+  const charLimit = isTwitter ? 280 : 3000;
+  const charOver = postText.length > charLimit;
+  const charNear = postText.length > charLimit * 0.85;
+  const platformColor = isTwitter ? "#1d9bf0" : "#0a66c2";
+  const platformLabel = isTwitter ? "X / Twitter" : "LinkedIn";
+
+  const handlePost = () => {
+    if (!postText.trim()) return;
+    if (isTwitter) twitterPost.mutate(postText.trim());
+    else linkedinPost.mutate(postText.trim());
+  };
+
+  const handleDisconnect = () => {
+    if (isTwitter) twitterDisconnect.mutate();
+    else linkedinDisconnect.mutate();
+  };
+
+  const handleConnect = () => {
+    if (isTwitter) twitterConnect.mutate();
+    else window.location.href = "/api/linkedin/connect";
+  };
+
+  const isPosting = isTwitter ? twitterPost.isPending : linkedinPost.isPending;
+  const isDisconnecting = isTwitter ? twitterDisconnect.isPending : linkedinDisconnect.isPending;
+  const isConnecting = isTwitter ? twitterConnect.isPending : false;
+
+  return (
+    <Card className="border border-card-border">
+      <CardContent className="p-6 space-y-5">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${platformColor}18`, border: `1px solid ${platformColor}33` }}>
+            {isTwitter ? <Twitter className="w-5 h-5" style={{ color: platformColor }} /> : <Linkedin className="w-5 h-5" style={{ color: platformColor }} />}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">{platformLabel}</p>
+            <p className="text-xs text-muted-foreground">
+              {isLoading ? "Checking connection…" : isConnected ? `Connected as ${accountLabel}` : `Connect your ${platformLabel} account to post directly`}
+            </p>
+          </div>
+          {isConnected && (
+            <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={isDisconnecting} className="text-muted-foreground hover:text-red-400 text-xs h-7 px-2">
+              Disconnect
+            </Button>
+          )}
+        </div>
+
+        {/* Connection state */}
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          </div>
+        ) : !isConnected ? (
+          <div className="rounded-xl border border-dashed p-5 text-center space-y-3" style={{ borderColor: `${platformColor}33`, background: `${platformColor}08` }}>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Connect your {platformLabel} account first — then you can post content directly from here without leaving the platform.
+            </p>
+            <Button
+              onClick={handleConnect}
+              disabled={isConnecting}
+              className="font-bold gap-2"
+              style={{ background: platformColor, color: "#fff" }}
+              data-testid={`connect-${platform}`}
+            >
+              {isTwitter ? <Twitter className="w-4 h-4" /> : <Linkedin className="w-4 h-4" />}
+              {isConnecting ? "Connecting…" : `Connect ${platformLabel}`}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <p className="text-xs text-emerald-400 font-medium">Account connected — you can post directly below</p>
+            </div>
+          </>
+        )}
+
+        {/* Post composer — shown always, but disabled when not connected */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-muted-foreground font-medium">
+              {isConnected ? "Write or paste your post:" : "Compose your post (connect to enable posting):"}
+            </label>
+            <span className={`text-xs font-mono tabular-nums ${charOver ? "text-red-400" : charNear ? "text-yellow-400" : "text-muted-foreground"}`}>
+              {postText.length}/{charLimit}
+            </span>
+          </div>
+          <Textarea
+            value={postText}
+            onChange={e => setPostText(e.target.value)}
+            placeholder={`Write your ${platformLabel} post here — or generate ideas above and paste your favourite…`}
+            className="min-h-[120px] resize-none text-sm"
+            data-testid={`${platform}-post-textarea`}
+          />
+          {charOver && <p className="text-[11px] text-red-400">Post exceeds character limit — please shorten it.</p>}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          {isConnected ? (
+            <Button
+              onClick={handlePost}
+              disabled={isPosting || !postText.trim() || charOver}
+              className="flex-1 gap-2 font-bold"
+              style={{ background: platformColor, color: "#fff" }}
+              data-testid={`${platform}-post-button`}
+            >
+              {isPosting ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Posting…</>
+              ) : (
+                <><Send className="w-4 h-4" /> Post Now to {platformLabel}</>
+              )}
+            </Button>
+          ) : (
+            <Button disabled className="flex-1 gap-2 font-bold opacity-40" data-testid={`${platform}-post-disabled`}>
+              <Send className="w-4 h-4" /> Connect account to post
+            </Button>
+          )}
+          <Button
+            onClick={copyText}
+            variant="outline"
+            className="gap-2 px-4"
+            disabled={!postText.trim()}
+            data-testid={`${platform}-copy-button`}
+            title="Copy & post yourself"
+          >
+            {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            {copied ? "Copied!" : "Copy"}
+          </Button>
+        </div>
+        {!isConnected && (
+          <p className="text-[11px] text-muted-foreground/60 text-center">
+            You can also compose here, copy, and paste directly into {platformLabel}.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AIIdeas() {
   const { toast } = useToast();
   const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">("twitter");
@@ -705,16 +1010,22 @@ export default function AIIdeas() {
                 <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
               )}
             </button>
-            {/* Instagram — Coming Soon */}
-            <div
-              data-testid="platform-instagram-soon"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground/40 cursor-not-allowed select-none"
-              title="Instagram — Coming Soon"
+            {/* Instagram */}
+            <button
+              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-instagram"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                platform === "instagram"
+                  ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
+                  : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
+              }`}
             >
               <Instagram className="w-4 h-4" />
               <span>Instagram</span>
-              <Badge className="h-4 px-1.5 text-[10px] bg-muted/30 text-muted-foreground/50 border-0">Soon</Badge>
-            </div>
+              {loadLiked("instagram").length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-pink-500/20 text-pink-400 border-0">{loadLiked("instagram").length}</Badge>
+              )}
+            </button>
           </div>
         </div>
 
@@ -741,33 +1052,7 @@ export default function AIIdeas() {
           </TabsList>
 
           <TabsContent value="schedule" className="space-y-4 mt-0">
-            <Card className="border border-card-border">
-              <CardContent className="p-8 text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
-                  <Send className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground mb-1.5">Publish Directly from Your Ideas</p>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                    Generate ideas in the <strong className="text-foreground">Generate Ideas</strong> tab, then click the publish button on any idea card to instantly post or schedule it to{" "}
-                    {platform === "twitter" ? "X / Twitter" : platform === "linkedin" ? "LinkedIn" : platform === "youtube" ? "YouTube" : "Instagram"}.
-                  </p>
-                </div>
-                <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
-                  {[
-                    { step: "1", label: "Generate", icon: "✨" },
-                    { step: "2", label: "Like & Save", icon: "❤️" },
-                    { step: "3", label: "Publish", icon: "🚀" },
-                  ].map(({ step, label, icon }) => (
-                    <div key={step} className="rounded-xl p-3 bg-muted/20 border border-border text-center">
-                      <p className="text-base mb-1">{icon}</p>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] text-muted-foreground/60">Full automated scheduling — coming soon</p>
-              </CardContent>
-            </Card>
+            <PlatformSchedulePanel platform={platform} />
           </TabsContent>
 
           <TabsContent value="history" className="space-y-3 mt-0">

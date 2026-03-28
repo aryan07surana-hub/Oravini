@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Instagram, Youtube, Calendar, BarChart2, Plus, Trash2, Pencil, ChevronLeft, ChevronRight,
-  Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp, Clock, Star, AlertTriangle, FileText
+  Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp, Star, AlertTriangle, FileText
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -618,20 +618,6 @@ export default function ContentTracking() {
           )}
         </Tabs>
 
-        {/* Coming Soon sections */}
-        <div className="mt-10 grid grid-cols-2 gap-4">
-          {[
-            { label: "Sales Tracking", desc: "Track deals, pipelines, and revenue" },
-            { label: "Ad Metrics", desc: "Monitor paid ad performance" },
-          ].map(({ label, desc }) => (
-            <div key={label} className="p-6 rounded-2xl border border-dashed border-border bg-card/50 text-center">
-              <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-              <p className="text-sm font-semibold text-foreground">{label}</p>
-              <p className="text-xs text-muted-foreground mt-1">{desc}</p>
-              <Badge variant="outline" className="mt-3 text-[10px]">Coming Soon</Badge>
-            </div>
-          ))}
-        </div>
       </div>
     </ClientLayout>
   );

@@ -562,8 +562,12 @@ export default function AIContentCoach() {
     addUserMsg(scriptToAnalyze ? `[Script] ${scriptToAnalyze.slice(0,100)}…` : userMsg);
     setThinking(true); setMood("thinking");
     try {
+      const minDelay = new Promise<void>(resolve => setTimeout(resolve, 20000 + Math.random() * 5000));
       const history = messages.slice(-8).map(m=>({ role:m.role==="coach"?"assistant":"user",content:m.content }));
-      const data = await apiRequest("POST","/api/coach/chat",{ message:userMsg||"Analyze this script",script:scriptToAnalyze||(userMsg.length>40?userMsg:undefined),mode,goal,history });
+      const [data] = await Promise.all([
+        apiRequest("POST","/api/coach/chat",{ message:userMsg||"Analyze this script",script:scriptToAnalyze||(userMsg.length>40?userMsg:undefined),mode,goal,history }),
+        minDelay,
+      ]);
       setMood(data.mood==="strong"?"strong":data.mood==="weak"?"weak":"decent");
       addCoachMsg(data.reply||"Let me check that out…",{ analysis:data.analysis||null });
     } catch(e:any) {
@@ -575,6 +579,25 @@ export default function AIContentCoach() {
       setMood("idle");
     }
     finally { setThinking(false); }
+  };
+
+  const restoreSession = (item: any) => {
+    saveSession();
+    const inp = item.inputs || {};
+    const out = item.output || {};
+    setScript(inp.script || "");
+    if (inp.mode) setMode(inp.mode);
+    if (inp.goal) setGoal(inp.goal);
+    const restoredMsgs: ChatMessage[] = (out.preview || []).map((m: any) => ({
+      role: m.role === "assistant" ? "coach" : m.role,
+      content: m.content,
+      timestamp: Date.now(),
+    }));
+    setMessages(restoredMsgs.length > 0 ? restoredMsgs : [{ role: "coach", content: "Session restored! Continue where you left off 🔄", timestamp: Date.now() }]);
+    setMood("idle");
+    setCreditError(null);
+    setHasGreeted(true);
+    toast({ title: "Session restored", description: `"${item.title?.slice(0, 40)}"` });
   };
 
   const handleQuickAction = async (action:string) => {
@@ -809,14 +832,14 @@ export default function AIContentCoach() {
                   <p className="text-[10px] text-zinc-600 text-center py-3">No saved sessions yet</p>
                 ) : (
                   coachHistory.map((item: any) => (
-                    <div key={item.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 transition-colors">
+                    <div key={item.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer" onClick={() => restoreSession(item)} data-testid={`restore-session-${item.id}`}>
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] text-zinc-300 truncate leading-snug">{item.title}</p>
                         <p className="text-[9px] text-zinc-600">{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} · {item.output?.messageCount ?? 0} msgs</p>
                       </div>
                       <button
                         className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
-                        onClick={() => apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {})}
+                        onClick={e => { e.stopPropagation(); apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {}); }}
                         data-testid={`delete-session-${item.id}`}
                       ><Trash2 className="w-3 h-3" /></button>
                     </div>
