@@ -36,7 +36,7 @@ const PLANS = [
     border: "rgba(99,102,241,0.28)",
     highlight: false,
     cta: "Get Starter",
-    features: ["150 AI credits / month", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
+    features: ["150 AI credits / month", "Full audit access", "Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
   },
   {
     slug: "growth",
@@ -64,7 +64,7 @@ const PLANS = [
     border: "rgba(52,211,153,0.22)",
     highlight: false,
     cta: "Go Pro",
-    features: ["700 AI credits / month", "AI Video Editor", "DM Tracker", "AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
+    features: ["700 AI credits / month", "Video Editor", "Content Coach", "SOP Generator", "Content Planner", "Direct team messaging", "Priority support"],
   },
 ];
 

@@ -458,7 +458,7 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
 
 export default function AIIdeas() {
   const { toast } = useToast();
-  const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">("instagram");
+  const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">("twitter");
   const [profileUrl, setProfileUrl] = useState("");
   const [niche, setNiche] = useState("");
   const [contentType, setContentType] = useState("");
@@ -646,76 +646,75 @@ export default function AIIdeas() {
             <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">AI Content Ideas</h1>
+            <h1 className="text-xl font-bold text-foreground">Content Ideas</h1>
             <p className="text-xs text-muted-foreground">Personalized ideas powered by AI — the more context you give, the smarter the ideas</p>
           </div>
         </div>
 
         {creditError && <CreditErrorBanner message={creditError} />}
 
+        {/* Platform Tabs */}
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="flex gap-2 flex-wrap">
+            {/* X / Twitter */}
             <button
-              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
-              data-testid="platform-instagram"
-              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
-                platform === "instagram"
-                  ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
-                  : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
+              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-twitter"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                platform === "twitter"
+                  ? "bg-zinc-100/10 border-zinc-400/40 text-zinc-200"
+                  : "border-border text-muted-foreground hover:border-zinc-400/30 hover:text-zinc-300"
               }`}
             >
-              <Instagram className="w-5 h-5" />
-              <span>Instagram</span>
-              {loadLiked("instagram").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("instagram").length} saved</Badge>
+              <Twitter className="w-4 h-4" />
+              <span>X / Twitter</span>
+              {loadLiked("twitter").length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length}</Badge>
               )}
             </button>
-            <button
-              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
-              data-testid="platform-youtube"
-              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
-                platform === "youtube"
-                  ? "bg-red-500/10 border-red-500/40 text-red-400"
-                  : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
-              }`}
-            >
-              <Youtube className="w-5 h-5" />
-              <span>YouTube</span>
-              {loadLiked("youtube").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length} saved</Badge>
-              )}
-            </button>
+            {/* LinkedIn */}
             <button
               onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
               data-testid="platform-linkedin"
-              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "linkedin"
                   ? "bg-blue-600/10 border-blue-600/40 text-blue-400"
                   : "border-border text-muted-foreground hover:border-blue-600/30 hover:text-blue-400"
               }`}
             >
-              <Linkedin className="w-5 h-5" />
+              <Linkedin className="w-4 h-4" />
               <span>LinkedIn</span>
               {loadLiked("linkedin").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length} saved</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length}</Badge>
               )}
             </button>
+            {/* YouTube */}
             <button
-              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
-              data-testid="platform-twitter"
-              className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border text-sm font-medium transition-all ${
-                platform === "twitter"
-                  ? "bg-zinc-100/10 border-zinc-400/40 text-zinc-300"
-                  : "border-border text-muted-foreground hover:border-zinc-400/30 hover:text-zinc-300"
+              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              data-testid="platform-youtube"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                platform === "youtube"
+                  ? "bg-red-500/10 border-red-500/40 text-red-400"
+                  : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
               }`}
             >
-              <Twitter className="w-5 h-5" />
-              <span>X / Twitter</span>
-              {loadLiked("twitter").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length} saved</Badge>
+              <Youtube className="w-4 h-4" />
+              <span>YouTube</span>
+              {loadLiked("youtube").length > 0 && (
+                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
               )}
             </button>
+            {/* Instagram — Coming Soon */}
+            <div
+              data-testid="platform-instagram-soon"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground/40 cursor-not-allowed select-none"
+              title="Instagram — Coming Soon"
+            >
+              <Instagram className="w-4 h-4" />
+              <span>Instagram</span>
+              <Badge className="h-4 px-1.5 text-[10px] bg-muted/30 text-muted-foreground/50 border-0">Soon</Badge>
+            </div>
           </div>
         </div>
 
@@ -730,6 +729,9 @@ export default function AIIdeas() {
                 <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{likedIdeas.length}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-1.5" data-testid="tab-auto-schedule">
+              <Send className="w-3.5 h-3.5" /> Auto Schedule
+            </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5" data-testid="tab-ideas-history">
               <History className="w-3.5 h-3.5" /> History
               {ideaHistory.length > 0 && (
@@ -737,6 +739,36 @@ export default function AIIdeas() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="schedule" className="space-y-4 mt-0">
+            <Card className="border border-card-border">
+              <CardContent className="p-8 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto">
+                  <Send className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground mb-1.5">Publish Directly from Your Ideas</p>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    Generate ideas in the <strong className="text-foreground">Generate Ideas</strong> tab, then click the publish button on any idea card to instantly post or schedule it to{" "}
+                    {platform === "twitter" ? "X / Twitter" : platform === "linkedin" ? "LinkedIn" : platform === "youtube" ? "YouTube" : "Instagram"}.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-3 max-w-xs mx-auto">
+                  {[
+                    { step: "1", label: "Generate", icon: "✨" },
+                    { step: "2", label: "Like & Save", icon: "❤️" },
+                    { step: "3", label: "Publish", icon: "🚀" },
+                  ].map(({ step, label, icon }) => (
+                    <div key={step} className="rounded-xl p-3 bg-muted/20 border border-border text-center">
+                      <p className="text-base mb-1">{icon}</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground/60">Full automated scheduling — coming soon</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="history" className="space-y-3 mt-0">
             {historyLoading ? (

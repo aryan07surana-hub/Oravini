@@ -131,8 +131,8 @@ export default function Brandverse() {
           <h1 style={{ fontSize: "clamp(42px, 7vw, 88px)", fontWeight: 900, letterSpacing: "0.04em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, lineHeight: 0.95 }}>
             BRANDVERSE
           </h1>
-          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", maxWidth: 600, margin: "0 auto 40px", lineHeight: 1.8 }}>
-            We don't just give creators tools — we build them a complete content system, growth strategy, and revenue framework from the ground up.
+          <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", maxWidth: 640, margin: "0 auto 40px", lineHeight: 1.8 }}>
+            We build complete growth ecosystems for influencers, consultants, and info product creators — content strategy, offer design, audience monetization, all done with you.
           </p>
           <button onClick={() => setShowStrategy(true)} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 40px", cursor: "pointer", animation: "bvPulse 2.5s ease 2s infinite" }}>
             Book a Free Strategy Call →
@@ -145,26 +145,33 @@ export default function Brandverse() {
         <Anim style={{ textAlign: "center", marginBottom: 56 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Our Mission</div>
           <h2 style={{ fontSize: "clamp(28px, 4.5vw, 50px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
-            We turn creators into <span style={{ color: GOLD }}>brands.</span>
+            We scale <span style={{ color: GOLD }}>info products, consulting & coaching offers.</span>
           </h2>
         </Anim>
         <Anim delay={100}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center" }} className="bv-mission-grid">
             <div>
               <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85, marginBottom: 20 }}>
-                Brandverse is a premium content growth agency built for serious creators and personal brands. We built Oravini — a suite of 9 AI-powered tools — so that every creator we work with has an unfair advantage.
+                Brandverse is the growth partner for influencers, consultants, and info product creators who are serious about turning their audience into a real business. We built Oravini — a suite of AI-powered tools — so every client we work with has an unfair advantage.
               </p>
               <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
-                Our approach is simple: we study your niche, map your audience, build your content system, and execute it with you until your numbers move. Not just advice — an actual system.
+                Whether you're launching a coaching offer, selling a course, or scaling a consulting brand — we combine content strategy, offer positioning, and audience psychology into one done-with-you system that actually moves numbers.
               </p>
             </div>
-            <div style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 20, padding: "36px 32px", textAlign: "center" }}>
-              <div style={{ fontSize: 40, fontWeight: 900, color: GOLD, marginBottom: 6 }}>150+</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 28 }}>Creators Scaled</div>
-              <div style={{ fontSize: 36, fontWeight: 900, color: GOLD, marginBottom: 6 }}>90 Days</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 28 }}>Average Results Timeline</div>
-              <div style={{ fontSize: 36, fontWeight: 900, color: GOLD, marginBottom: 6 }}>100%</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Results Guarantee</div>
+            <div style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 20, padding: "36px 32px" }}>
+              {[
+                { icon: "🎯", label: "Full-Stack Growth", desc: "Content + Offer + Monetization — built together, not in isolation" },
+                { icon: "🤝", label: "Done With You", desc: "Not courses or PDFs — we execute alongside you every step" },
+                { icon: "📱", label: "Platform-First", desc: "Built for where your audience actually lives and converts" },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 22 }}>
+                  <div style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>{icon}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: GOLD, marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <style>{`@media(max-width:700px){ .bv-mission-grid{ grid-template-columns:1fr !important; } }`}</style>
@@ -199,7 +206,7 @@ export default function Brandverse() {
               { icon: "🎯", title: "Custom Growth Strategy", desc: "We audit your current presence, map your audience psychology, and build a 90-day content roadmap designed around your specific niche and revenue goals.", tag: "Week 1" },
               { icon: "🤝", title: "Done-With-You Execution", desc: "You're not handed a PDF and left alone. We work alongside you every step of the way — from scripting hooks to reviewing your content calendar weekly.", tag: "Ongoing" },
               { icon: "📞", title: "Weekly Strategy Calls", desc: "Dedicated 1-on-1 calls with your Brandverse strategist to review performance, adjust the plan, and keep momentum going.", tag: "Weekly" },
-              { icon: "🛡️", title: "90-Day Results Guarantee", desc: "If we don't move your numbers in 90 days, we keep working at zero extra cost. We stand behind our results.", tag: "Guarantee" },
+              { icon: "🛡️", title: "Offer & Funnel Strategy", desc: "We help you design and position your core offer — whether it's a course, coaching program, or consulting package — for maximum conversion.", tag: "Strategy" },
               { icon: "⚡", title: "Full Platform Access", desc: "Unlimited access to all 9 AI tools in Oravini — content ideas, competitor intelligence, design studio, audience mapping, auto-posting, and more.", tag: "Unlimited" },
               { icon: "📱", title: "Direct Team Access", desc: "Message the Brandverse team directly through your Oravini dashboard. Real people, real answers — not a ticket system.", tag: "Always On" },
             ].map(({ icon, title, desc, tag }, i) => (

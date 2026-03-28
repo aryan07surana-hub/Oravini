@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
   TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check,
-  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2
+  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2, Bot, Clapperboard
 } from "lucide-react";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -804,6 +804,30 @@ export default function ClientDashboard() {
           )}
           <StatCard icon={Eye} label="Content Views" value={totalContentViews.toLocaleString()} sub={`${(contentPosts || []).length} posts`} color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
           <StatCard icon={Users} label="Followers Gained" value={`+${totalFollowers}`} sub="Total growth" color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
+        </div>
+
+        {/* Quick Tools */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Quick Tools</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { href: "/ai-ideas", label: "Content Ideas", desc: "AI-powered ideas for every platform", icon: Sparkles, color: "text-primary bg-primary/10 border-primary/20" },
+              { href: "/ai-coach", label: "Content Coach", desc: "Get personalised coaching & feedback", icon: Bot, color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+              { href: "/video-editor", label: "Video Editor", desc: "Edit & enhance your video content", icon: Clapperboard, color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+            ].map(({ href, label, desc, icon: Icon, color }) => (
+              <Link key={href} href={href}>
+                <div data-testid={`quick-tool-${label.toLowerCase().replace(/\s+/g, "-")}`} className="flex flex-col gap-3 p-4 rounded-2xl border border-card-border hover:border-primary/30 bg-card hover:shadow-md transition-all duration-200 cursor-pointer group h-full">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${color}`}>
+                    <Icon className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-tight">{label}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* Calendly Booking Banner — Elite only */}

@@ -452,6 +452,12 @@ export default function OraviniLanding() {
               onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
               See What's Inside
             </button>
+            <button onClick={() => window.location.href = "/preview"}
+              style={{ background: `rgba(212,180,97,0.07)`, color: GOLD, fontWeight: 600, fontSize: 15, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
+              onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.12)`; b.style.borderColor = `${GOLD}88`; }}
+              onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.07)`; b.style.borderColor = `${GOLD}44`; }}>
+              Get a Live Preview →
+            </button>
           </div>
         </div>
 
@@ -688,7 +694,7 @@ export default function OraviniLanding() {
                 <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 900, color: GOLD, marginBottom: 8, lineHeight: 1 }}>Apply</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 28 }}>Unlimited credits · Custom pricing</div>
                 <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 24, marginBottom: 36 }}>
-                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "90-day results guarantee", "Direct Brandverse access"].map(f => (
+                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Direct Brandverse access", "Priority platform support"].map(f => (
                     <div key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ color: GOLD, fontSize: 13 }}>✦</span>
                       <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{f}</span>

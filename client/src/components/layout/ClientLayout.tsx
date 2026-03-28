@@ -13,7 +13,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, Twitter, Linkedin, Youtube
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
@@ -45,13 +45,10 @@ const mainNavItems = [
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
-  { href: "/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
-  { href: "/ai-design", label: "AI Design", icon: Layers },
-  { href: "/ai-coach", label: "AI Content Coach", icon: Bot },
-  { href: "/video-editor", label: "AI Video Editor", icon: Clapperboard },
-  { href: "/twitter-scheduler", label: "X / Twitter", icon: Twitter },
-  { href: "/linkedin-scheduler", label: "LinkedIn", icon: Linkedin },
-  { href: "/youtube-scheduler", label: "YouTube", icon: Youtube },
+  { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
+  { href: "/ai-design", label: "Design Studio", icon: Layers },
+  { href: "/ai-coach", label: "Content Coach", icon: Bot },
+  { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/credits", label: "Credits", icon: Zap },
   { href: "/settings/plan", label: "Your Settings", icon: Settings },
 ];
