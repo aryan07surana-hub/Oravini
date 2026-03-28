@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { CustomCursor } from "@/components/GlobalUI";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -42,6 +43,7 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
+import Brandverse from "@/pages/Brandverse";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import PlanSettings from "@/pages/client/PlanSettings";
@@ -94,6 +96,7 @@ function Router() {
     <Switch>
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
@@ -250,6 +253,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <CustomCursor />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>
