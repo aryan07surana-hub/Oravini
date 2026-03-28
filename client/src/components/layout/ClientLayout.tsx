@@ -16,6 +16,7 @@ import {
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, Twitter, Linkedin, Youtube
 } from "lucide-react";
 import { useState } from "react";
+import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
 
 function CreditWidget() {
   const { data } = useQuery<any>({ queryKey: ["/api/credits"], staleTime: 60000 });
@@ -83,10 +84,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       )}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
-        <div className="px-6 py-5 border-b border-sidebar-border flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.25em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 tracking-wider uppercase">Client Portal</p>
+        <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(212,180,97,0.35))" }} />
+            <div>
+              <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: "#d4b461", letterSpacing: "0.15em" }}>ORAVINI</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
+            </div>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
             <X className="w-4 h-4" />
@@ -116,7 +120,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">{label}</span>
                 {badge > 0 && (
-                  <Badge className={`text-[10px] h-5 min-w-5 px-1.5 ${active ? "bg-white/20 text-white border-0" : "bg-primary text-primary-foreground border-0"}`}>
+                  <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
+                    style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: "#d4b461" }}>
                     {badge}
                   </Badge>
                 )}
@@ -198,7 +203,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-xs font-semibold tracking-[0.2em] uppercase" style={{ color: "#d4b461" }}>BRANDVERSEE</span>
+          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 24, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(212,180,97,0.3))" }} />
+          <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: "#d4b461" }}>ORAVINI</span>
         </header>
 
         <main className="flex-1 overflow-auto">
