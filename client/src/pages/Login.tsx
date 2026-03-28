@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft, User } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
-import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
+import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 const GOLD = "#d4b461";
 
@@ -174,7 +174,7 @@ export default function Login() {
         <span style={{ letterSpacing: "0.04em" }} className="group-hover:text-yellow-400 transition-colors">Back to Oravini</span>
       </button>
       <div className="relative z-10 flex flex-col items-center gap-6 text-center px-12">
-        <img src={oraviniLogoPath} alt="Oravini" style={{ width: 100, height: 100, objectFit: "contain", filter: "drop-shadow(0 0 30px rgba(212,180,97,0.4))" }} />
+        <img src={oraviniLogoPath} alt="Oravini" style={{ width: 110, height: 110, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 16, filter: "drop-shadow(0 0 30px rgba(212,180,97,0.4))" }} />
         <div>
           <div style={{ fontSize: "clamp(36px, 4vw, 52px)", fontWeight: 900, letterSpacing: "0.1em", background: `linear-gradient(135deg, #f0c84b 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase", lineHeight: 1 }}>
             ORAVINI
@@ -203,7 +203,7 @@ export default function Login() {
 
           {/* Mobile top */}
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
-            <img src={oraviniLogoPath} alt="Oravini" className="w-16 h-16 object-contain" style={{ filter: "drop-shadow(0 0 20px rgba(212,180,97,0.4))" }} />
+            <img src={oraviniLogoPath} alt="Oravini" className="w-16 h-16" style={{ objectFit: "cover", objectPosition: "50% 32%", borderRadius: 10, filter: "drop-shadow(0 0 20px rgba(212,180,97,0.4))" }} />
             <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.1em", background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Brandverse</div>
           </div>

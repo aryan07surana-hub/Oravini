@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
+import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
@@ -178,6 +178,141 @@ function TiltCard({ children, style = {} }: { children: React.ReactNode; style?:
   );
 }
 
+// ── Oravini Intro Screen (click-O-to-enter) ───────────────────────────────────
+const INTRO_COLS = 6;
+const INTRO_ROWS = 8;
+
+function OraviniIntroScreen({ onDone }: { onDone: () => void }) {
+  const [clicked, setClicked] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+  const [pieces] = useState<Array<{ dx: number; dy: number; rot: number; delay: number; scale: number }>>(() =>
+    Array.from({ length: INTRO_COLS * INTRO_ROWS }, () => ({
+      dx: (Math.random() - 0.5) * 460,
+      dy: 180 + Math.random() * 650,
+      rot: (Math.random() - 0.5) * 130,
+      delay: Math.random() * 260,
+      scale: 0.25 + Math.random() * 0.6,
+    }))
+  );
+
+  const handleClick = () => {
+    if (clicked) return;
+    setClicked(true);
+    setTimeout(() => setFadeOut(true), 880);
+    setTimeout(onDone, 1260);
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes oi-piece-fall {
+          0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+          12% { opacity: 1; }
+          100% { transform: translate(var(--oi-dx), var(--oi-dy)) rotate(var(--oi-rot)) scale(var(--oi-sc)); opacity: 0; }
+        }
+        @keyframes oi-breathe {
+          0%,100% { filter: drop-shadow(0 0 28px rgba(212,180,97,0.38)) drop-shadow(0 0 70px rgba(212,180,97,0.12)); }
+          50% { filter: drop-shadow(0 0 52px rgba(212,180,97,0.75)) drop-shadow(0 0 110px rgba(212,180,97,0.28)); }
+        }
+        @keyframes oi-o-pulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(212,180,97,0.55), 0 0 18px rgba(212,180,97,0.18); }
+          50% { box-shadow: 0 0 0 14px rgba(212,180,97,0), 0 0 38px rgba(212,180,97,0.42); }
+        }
+        @keyframes oi-hint-float {
+          0%,100% { transform: translateY(0); opacity: 0.55; }
+          50% { transform: translateY(-6px); opacity: 0.85; }
+        }
+        @keyframes oi-arrow-bounce {
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+      `}</style>
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 999999,
+          background: "#141008",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          opacity: fadeOut ? 0 : 1,
+          transition: fadeOut ? "opacity 0.38s ease" : "none",
+          pointerEvents: fadeOut ? "none" : "auto",
+        }}
+      >
+        {/* Subtle radial ambient glow behind logo */}
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 45% at 50% 42%, rgba(212,180,97,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ position: "relative", width: "min(340px, 80vw)" }}>
+          {!clicked ? (
+            <>
+              {/* Full logo — breathing glow */}
+              <img
+                src={oraviniLogoPath}
+                alt="Oravini"
+                style={{ width: "100%", display: "block", animation: "oi-breathe 3.2s ease-in-out infinite", userSelect: "none", pointerEvents: "none" }}
+                draggable={false}
+              />
+              {/* Invisible clickable hotspot over the O */}
+              <div
+                onClick={handleClick}
+                title="Click to enter"
+                style={{
+                  position: "absolute",
+                  left: "22%", top: "9%",
+                  width: "56%", height: "38%",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  animation: "oi-o-pulse 2.2s ease-in-out infinite",
+                }}
+              />
+            </>
+          ) : (
+            /* Shattered pieces grid */
+            <div style={{ position: "relative", width: "100%", paddingBottom: `${(900 / 570) * 100}%` }}>
+              {pieces.map((p, i) => {
+                const col = i % INTRO_COLS;
+                const row = Math.floor(i / INTRO_COLS);
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: `${(col / INTRO_COLS) * 100}%`,
+                      top: `${(row / INTRO_ROWS) * 100}%`,
+                      width: `${100 / INTRO_COLS}%`,
+                      height: `${100 / INTRO_ROWS}%`,
+                      backgroundImage: `url(${oraviniLogoPath})`,
+                      backgroundSize: `${INTRO_COLS * 100}% ${INTRO_ROWS * 100}%`,
+                      backgroundPosition: `${col === 0 ? 0 : (col / (INTRO_COLS - 1)) * 100}% ${row === 0 ? 0 : (row / (INTRO_ROWS - 1)) * 100}%`,
+                      "--oi-dx": `${p.dx}px`,
+                      "--oi-dy": `${p.dy}px`,
+                      "--oi-rot": `${p.rot}deg`,
+                      "--oi-sc": p.scale,
+                      animation: `oi-piece-fall 1.05s cubic-bezier(0.42,0,1,1) ${p.delay}ms forwards`,
+                    } as React.CSSProperties}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* "Click the O" hint — fades out when clicked */}
+        {!clicked && (
+          <div style={{ marginTop: 36, textAlign: "center", animation: "oi-hint-float 2.6s ease-in-out infinite" }}>
+            <div style={{ animation: "oi-arrow-bounce 1.3s ease-in-out infinite", marginBottom: 6 }}>
+              <svg width="20" height="14" viewBox="0 0 20 14" fill="none" style={{ margin: "0 auto", display: "block" }}>
+                <path d="M10 0 L10 10 M4 6 L10 12 L16 6" stroke="#d4b461" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+              </svg>
+            </div>
+            <p style={{ color: "rgba(212,180,97,0.55)", fontSize: 11, letterSpacing: "0.22em", fontFamily: "serif", textTransform: "uppercase", margin: 0 }}>
+              Click the O to enter
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ── Splash Modal ─────────────────────────────────────────────────────────────
 function SplashModal({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState(0);
@@ -335,7 +470,7 @@ function Navbar() {
   return (
     <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 500, background: scrolled ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: scrolled ? "blur(20px)" : "none", borderBottom: scrolled ? "1px solid rgba(212,180,97,0.1)" : "none", transition: "all 0.4s ease" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <img src={oraviniLogoPath} alt="Oravini" style={{ height: 62, objectFit: "contain", filter: "drop-shadow(0 0 12px rgba(212,180,97,0.3))" }} />
+        <img src={oraviniLogoPath} alt="Oravini" style={{ height: 46, width: 46, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 8, filter: "drop-shadow(0 0 12px rgba(212,180,97,0.35))" }} />
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button
             onClick={() => {
@@ -366,6 +501,7 @@ function Navbar() {
 export default function OraviniLanding() {
   const [, nav] = useLocation();
   const { user } = useAuth();
+  const [showIntro, setShowIntro] = useState(() => !sessionStorage.getItem("oravini-intro-seen"));
   const [showSplash, setShowSplash] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
@@ -417,6 +553,14 @@ export default function OraviniLanding() {
         input:focus { border-color: rgba(212,180,97,0.5) !important; }
       `}</style>
 
+      {showIntro && (
+        <OraviniIntroScreen
+          onDone={() => {
+            sessionStorage.setItem("oravini-intro-seen", "1");
+            setShowIntro(false);
+          }}
+        />
+      )}
       {showSplash && <SplashModal onDone={handleSplashDone} />}
       {showEmailPopup && <EmailPopup onClose={() => setShowEmailPopup(false)} />}
       {showStrategy && <StrategyModal onClose={() => setShowStrategy(false)} />}
@@ -713,7 +857,7 @@ export default function OraviniLanding() {
       {/* ── FINAL CTA ─────────────────────────────────────────────────────────── */}
       <section style={{ padding: "120px 24px", textAlign: "center", background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212,180,97,0.06) 0%, transparent 70%)" }}>
         <Anim>
-          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 80, objectFit: "contain", marginBottom: 28, animation: "logoFloat 5s ease-in-out infinite", filter: "drop-shadow(0 0 40px rgba(212,180,97,0.45)) drop-shadow(0 0 80px rgba(212,180,97,0.2))" }} />
+          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 180, width: 140, objectFit: "cover", objectPosition: "50% 33%", borderRadius: 14, marginBottom: 28, animation: "logoFloat 5s ease-in-out infinite", filter: "drop-shadow(0 0 40px rgba(212,180,97,0.45)) drop-shadow(0 0 80px rgba(212,180,97,0.2))" }} />
         </Anim>
         <Anim delay={100}>
           <h2 style={{ fontSize: "clamp(32px, 5.5vw, 64px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.03em", marginBottom: 18 }}>
@@ -742,7 +886,7 @@ export default function OraviniLanding() {
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "40px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, objectFit: "contain" }} />
+            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 30, width: 30, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Brandverse</span>
           </div>
           <div style={{ display: "flex", gap: 28 }}>

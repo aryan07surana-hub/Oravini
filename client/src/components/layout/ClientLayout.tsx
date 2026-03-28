@@ -17,7 +17,7 @@ import {
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
 } from "lucide-react";
 import { useState } from "react";
-import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
+import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 function CreditWidget() {
   const { data } = useQuery<any>({ queryKey: ["/api/credits"], staleTime: 60000 });
@@ -85,7 +85,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
         <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(212,180,97,0.35))" }} />
+            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
             <div>
               <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: "#d4b461", letterSpacing: "0.15em" }}>ORAVINI</p>
               <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
@@ -208,7 +208,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
             <Menu className="w-5 h-5" />
           </button>
-          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 24, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(212,180,97,0.3))" }} />
+          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, flexShrink: 0 }} />
           <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: "#d4b461" }}>ORAVINI</span>
         </header>
 

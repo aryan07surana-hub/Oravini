@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import oraviniLogoPath from "@assets/ORAVINI_FINAL_LOGO_1774695199024.png";
+import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 import {
   LayoutDashboard, FileText, MessageSquare, BarChart2, Sparkles,
   Users, Bot, Clapperboard, Zap, Layers, Settings, ChevronRight,
@@ -129,7 +129,7 @@ export default function DashboardPreview() {
         }}>
           {/* Logo */}
           <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(212,180,97,0.35))" }} />
+            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, filter: "drop-shadow(0 0 8px rgba(212,180,97,0.35))" }} />
             <div>
               <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, lineHeight: 1 }}>ORAVINI</p>
               <p style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}>Powered by Brandverse</p>
