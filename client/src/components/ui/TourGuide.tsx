@@ -227,12 +227,154 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
+// ── Page-specific mini-tours ──────────────────────────────────────────────────
+const PAGE_TOURS: Record<string, TourStep[]> = {
+  "ai-ideas": [
+    {
+      id: "pt-ideas-1", route: "/ai-ideas", target: '[data-tour="ai-ideas-header"]',
+      title: "Content Ideas — What it does",
+      description: "This tool generates 6 non-generic, platform-specific content ideas tailored to your niche, audience, and goal. It's connected to your logged posts so it learns what's already worked for you and won't repeat it.",
+      position: "bottom",
+    },
+    {
+      id: "pt-ideas-2", route: "/ai-ideas", target: '[data-tour="ai-ideas-tabs"]',
+      title: "Your 4 Tabs",
+      description: "Generate Ideas creates new content. Liked Ideas is your saved library — heart any idea to store it here. Auto Schedule lets you publish directly to connected platforms. History shows everything you've generated before so nothing gets lost.",
+      position: "bottom",
+      tip: "Heart ideas you won't use today — build up a backlog in Liked Ideas so you always have content ready.",
+    },
+    {
+      id: "pt-ideas-3", route: "/ai-ideas", target: '[data-tour="ai-ideas-form"]',
+      title: "Niche & Targeting",
+      description: "This is the most important part. Enter your niche as specifically as possible — 'fitness for busy mums over 35' beats 'fitness'. Choose your content type (Reel, Carousel, Thread), set your goal (viral reach, authority, leads), and optionally add your target audience for even sharper ideas.",
+      position: "bottom",
+      tip: "The more specific your niche, the more specific the ideas. Vague input = generic output.",
+    },
+    {
+      id: "pt-ideas-4", route: "/ai-ideas", target: '[data-tour="ai-ideas-generate"]',
+      title: "Generate Your Ideas",
+      description: "Hit Generate and the AI scans what's performing right now in your niche, applies your targeting, and returns 6 ready-to-use ideas — each with a hook, caption direction, and posting tips. Paste your Instagram or YouTube profile URL at the top to get ideas personalised to your actual content.",
+      position: "top",
+    },
+  ],
+
+  "ai-coach": [
+    {
+      id: "pt-coach-1", route: "/ai-coach", target: '[data-tour="coach-header"]',
+      title: "AI Content Coach — Overview",
+      description: "This is your personal AI mentor. It reviews scripts, builds your brand positioning, creates 90-day growth roadmaps, analyses competitors, and answers any content strategy question in real time. Every conversation is saved and restorable.",
+      position: "bottom",
+    },
+    {
+      id: "pt-coach-2", route: "/ai-coach", target: '[data-tour="coach-modes"]',
+      title: "Coaching Modes",
+      description: "Chat is open conversation. Script Review pastes and analyses your content. Competitor Analysis studies a handle or URL. Brand Builder creates your positioning, bio, and pillars. Roadmap Generator gives you a step-by-step 90-day plan. Switch modes based on what you need each session.",
+      position: "right",
+      tip: "Start with Brand Builder on your first session — it sets the foundation everything else builds on.",
+    },
+    {
+      id: "pt-coach-3", route: "/ai-coach", target: '[data-tour="coach-sessions"]',
+      title: "Saved Sessions",
+      description: "Every coaching conversation is automatically saved here the moment you send your first message. Click any session to restore it and pick up exactly where you left off. Sessions are organised by mode — so your Brand Builder work stays separate from your Script Review sessions.",
+      position: "right",
+    },
+    {
+      id: "pt-coach-4", route: "/ai-coach", target: '[data-tour="coach-chat-input"]',
+      title: "Chat with Your Coach",
+      description: "Type anything here — ask for a hook rewrite, paste a script for brutal feedback, request a posting strategy, or ask 'why isn't my content growing?' The coach holds the full conversation context so you can have a real back-and-forth. Press Enter or click Send.",
+      position: "top",
+      tip: "Paste a script and type 'be brutal' — the coach will tell you exactly what's broken and how to fix it.",
+    },
+  ],
+
+  "video-editor": [
+    {
+      id: "pt-video-1", route: "/video-editor", target: '[data-tour="video-editor-main"]',
+      title: "AI Video Editor — Overview",
+      description: "This tool generates complete video production plans. Give it an idea, a script, a competitor video URL, or a quick description — and it returns a full shoot plan: hook, script, B-roll list, captions, audio recommendations, and a posting checklist. No editing experience needed.",
+      position: "bottom",
+    },
+    {
+      id: "pt-video-2", route: "/video-editor", target: '[data-tour="video-editor-input"]',
+      title: "4 Ways to Work",
+      description: "Idea Builder — describe your concept and the AI writes everything from scratch. Paste Script — drop in your existing script for a critique and enhancement. Video URL — paste an Instagram or YouTube link and the AI reverse-engineers why it worked. Quick Describe — a one-liner gets you a fast plan back.",
+      position: "bottom",
+      tip: "Paste a competitor video URL that went viral in your niche — the AI will break down exactly why it worked and how to replicate it.",
+    },
+    {
+      id: "pt-video-3", route: "/video-editor", target: '[data-tour="video-editor-platform"]',
+      title: "Platform & Duration",
+      description: "Select which platform you're creating for and how long your video needs to be. Instagram Reels, YouTube Shorts, LinkedIn videos, and X posts each have different optimal pacing, hook styles, and CTAs. The AI adapts the entire production plan to match the platform's algorithm.",
+      position: "top",
+    },
+  ],
+
+  "ai-design": [
+    {
+      id: "pt-design-1", route: "/ai-design", target: '[data-tour="design-studio-main"]',
+      title: "AI Design Studio — Overview",
+      description: "Create professional branded content without design experience. Carousels, social graphics, thumbnails, lead magnets — all AI-generated and tailored to your brand. No Canva skills needed. Pick a tool below and the AI guides you through the rest.",
+      position: "bottom",
+    },
+    {
+      id: "pt-design-2", route: "/ai-design", target: '[data-tour="design-studio-tools"]',
+      title: "Your Design Tools",
+      description: "Carousel Creator builds multi-slide carousels with hooks and CTA slides — perfect for Instagram and LinkedIn saves. Social Graphics generates single-post visuals for any platform. Audience Psychology creates visuals built around emotional triggers. Brand Kit stores your colours, fonts, and logo for consistent branding across everything.",
+      position: "bottom",
+      tip: "Carousels get 3-5x more saves than single images. Run one per week for consistent reach and authority growth.",
+    },
+  ],
+
+  "tracking": [
+    {
+      id: "pt-tracking-1", route: "/tracking", target: '[data-tour="tracking-home"]',
+      title: "Your Tracking Hub",
+      description: "Four dashboards in one place. Content Tracking logs every post and tracks views, likes, and comments over time. DM Pipeline manages your sales conversations and follow-ups. Content Calendar shows your scheduled and planned content. Competitor Study gives you research tools — all accessible from here.",
+      position: "bottom",
+      tip: "Log every post you publish — even if results look small early on. The data compounds and shows you exactly what content type is growing your account.",
+    },
+  ],
+
+  "competitor": [
+    {
+      id: "pt-comp-1", route: "/tracking/competitor", target: '[data-tour="competitor-main"]',
+      title: "Competitor Study — Overview",
+      description: "Research any creator, brand, or competitor in your niche. Enter their Instagram handle or a reel URL and the AI analyses their content, identifies what's performing best, spots their posting patterns, and gives you actionable takeaways you can apply immediately.",
+      position: "bottom",
+      tip: "Pick 3 accounts that are 6-12 months ahead of you. Study them weekly — not the biggest accounts in the niche, the ones just ahead of you.",
+    },
+    {
+      id: "pt-comp-2", route: "/tracking/competitor", target: '[data-tour="competitor-sections"]',
+      title: "6 Analysis Sections",
+      description: "Content Strategy breaks down their best-performing formats and topics. Hook Library extracts their top opening lines. Niche Trends shows what's heating up right now. Virality Score compares your content against theirs. Content Steal generates new ideas inspired by their top posts — but made uniquely yours.",
+      position: "bottom",
+    },
+  ],
+
+  "credits": [
+    {
+      id: "pt-credits-1", route: "/credits", target: '[data-tour="credits-main"]',
+      title: "Credits — How They Work",
+      description: "Every AI action uses credits — generating ideas, coaching sessions, video plans, image generation, competitor analysis. Your monthly allocation resets every billing cycle. Bonus credits from top-ups never expire and are spent only after your monthly credits run out.",
+      position: "bottom",
+    },
+    {
+      id: "pt-credits-2", route: "/credits", target: '[data-tour="credits-balance"]',
+      title: "Your Credit Balance",
+      description: "Total Available shows everything you have right now. Monthly Credits (gold) are your plan's included allowance — the bar shows how much you've used this cycle. Bonus Credits (purple) are purchased top-ups that never expire. Scroll down to buy top-ups anytime.",
+      position: "bottom",
+      tip: "Top up before a big content push — competitor analysis and video planning use more credits than standard idea generation.",
+    },
+  ],
+};
+
 interface TourContextType {
   startTour: () => void;
+  startPageTour: (pageKey: string) => void;
   isActive: boolean;
 }
 
-const TourContext = createContext<TourContextType>({ startTour: () => {}, isActive: false });
+const TourContext = createContext<TourContextType>({ startTour: () => {}, startPageTour: () => {}, isActive: false });
 
 export function useTour() {
   return useContext(TourContext);
@@ -431,15 +573,19 @@ function TourCard({
 export function TourProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [activeSteps, setActiveSteps] = useState<TourStep[]>(TOUR_STEPS);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [, navigate] = useLocation();
   const busyRef = useRef(false);
-  const currentStep = TOUR_STEPS[stepIndex];
+  const activeStepsRef = useRef<TourStep[]>(TOUR_STEPS);
+  const currentStep = activeSteps[stepIndex];
+
+  // Keep ref in sync so goToStep always sees the latest steps
+  useEffect(() => { activeStepsRef.current = activeSteps; }, [activeSteps]);
 
   const locateTarget = useCallback(async (target: string | null) => {
     if (!target) { setRect(null); return; }
 
-    // Retry finding the element (handles async-rendered content)
     let el: Element | null = null;
     for (let i = 0; i < 20; i++) {
       el = document.querySelector(target);
@@ -449,17 +595,13 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
     if (!el) { setRect(null); return; }
 
-    // Scroll instantly so getBoundingClientRect is accurate immediately
     el.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "center" });
 
-    // Give the browser one frame + a buffer to finish layout
     await new Promise(r => setTimeout(r, 100));
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => setTimeout(r, 80));
 
     const r = (el as HTMLElement).getBoundingClientRect();
-
-    // If element has no dimensions (hidden / collapsed), don't show spotlight
     if (r.width === 0 && r.height === 0) {
       setRect(null);
     } else {
@@ -467,34 +609,45 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const goToStep = useCallback(async (index: number) => {
+  const goToStep = useCallback(async (index: number, steps?: TourStep[]) => {
     if (busyRef.current) return;
-    const s = TOUR_STEPS[index];
+    const stepsToUse = steps ?? activeStepsRef.current;
+    const s = stepsToUse[index];
     if (!s) { setActive(false); return; }
     busyRef.current = true;
     setRect(null);
     setStepIndex(index);
 
-    const prevRoute = TOUR_STEPS[index - 1]?.route;
+    const prevRoute = stepsToUse[index - 1]?.route;
     const isNewPage = s.route !== prevRoute;
 
     navigate(s.route);
-
-    // Wait longer when navigating to a new page, shorter when already there
     await new Promise(r => setTimeout(r, isNewPage ? 600 : 120));
-
     await locateTarget(s.target);
     busyRef.current = false;
   }, [navigate, locateTarget]);
 
   const startTour = useCallback(() => {
+    activeStepsRef.current = TOUR_STEPS;
+    setActiveSteps(TOUR_STEPS);
     setStepIndex(0);
     setActive(true);
-    goToStep(0);
+    goToStep(0, TOUR_STEPS);
+  }, [goToStep]);
+
+  const startPageTour = useCallback((pageKey: string) => {
+    const steps = PAGE_TOURS[pageKey];
+    if (!steps || steps.length === 0) return;
+    activeStepsRef.current = steps;
+    setActiveSteps(steps);
+    setStepIndex(0);
+    setActive(true);
+    goToStep(0, steps);
   }, [goToStep]);
 
   const next = useCallback(() => {
-    if (stepIndex < TOUR_STEPS.length - 1) goToStep(stepIndex + 1);
+    const steps = activeStepsRef.current;
+    if (stepIndex < steps.length - 1) goToStep(stepIndex + 1);
     else setActive(false);
   }, [stepIndex, goToStep]);
 
@@ -533,7 +686,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, [active, close, next, prev]);
 
   return (
-    <TourContext.Provider value={{ startTour, isActive: active }}>
+    <TourContext.Provider value={{ startTour, startPageTour, isActive: active }}>
       {children}
       {active && currentStep && (
         <>
@@ -541,7 +694,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
           <TourCard
             step={currentStep}
             stepIndex={stepIndex}
-            totalSteps={TOUR_STEPS.length}
+            totalSteps={activeSteps.length}
             rect={rect}
             onNext={next}
             onPrev={prev}
@@ -563,6 +716,21 @@ export function TourButton({ className }: { className?: string }) {
       style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.3)", color: "#d4b461" }}
     >
       <Map className="w-4 h-4" />
+      Take a Tour
+    </button>
+  );
+}
+
+export function PageTourButton({ pageKey, className }: { pageKey: string; className?: string }) {
+  const { startPageTour } = useTour();
+  return (
+    <button
+      onClick={() => startPageTour(pageKey)}
+      data-testid={`btn-page-tour-${pageKey}`}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-95 flex-shrink-0 ${className ?? ""}`}
+      style={{ background: "rgba(212,180,97,0.08)", border: "1px solid rgba(212,180,97,0.25)", color: "#d4b461" }}
+    >
+      <Map className="w-3.5 h-3.5" />
       Take a Tour
     </button>
   );

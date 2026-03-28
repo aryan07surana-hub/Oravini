@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -134,12 +135,15 @@ export default function Credits() {
             <p className="text-zinc-400 text-sm mt-1">Manage your AI feature credits and purchase top-ups</p>
           </div>
         </div>
-        <Badge
-          className={`text-sm px-3 py-1 ${plan === "pro" ? "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40" : plan === "starter" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-700/50 text-zinc-300 border border-zinc-600"}`}
-          data-testid="badge-plan"
-        >
-          {PLAN_LABELS[plan]} Plan
-        </Badge>
+        <div className="flex items-center gap-2">
+          <PageTourButton pageKey="credits" />
+          <Badge
+            className={`text-sm px-3 py-1 ${plan === "pro" ? "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40" : plan === "starter" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-700/50 text-zinc-300 border border-zinc-600"}`}
+            data-testid="badge-plan"
+          >
+            {PLAN_LABELS[plan]} Plan
+          </Badge>
+        </div>
       </div>
 
       {/* Balance cards */}

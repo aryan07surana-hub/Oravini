@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
 import {
@@ -271,6 +272,9 @@ export default function AIDesign() {
             <p className="text-zinc-400 text-base max-w-lg mx-auto">
               Choose a design tool below to create branded content in minutes — no design experience needed.
             </p>
+            <div className="flex justify-center mt-4">
+              <PageTourButton pageKey="ai-design" />
+            </div>
           </div>
 
           {/* 3-column grid — 6 tools (2×3 perfect) */}

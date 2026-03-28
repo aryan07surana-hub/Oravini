@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Button } from "@/components/ui/button";
@@ -738,6 +739,7 @@ export default function AIContentCoach() {
                 {g.label}
               </button>
             ))}
+            <PageTourButton pageKey="ai-coach" />
           </div>
         </div>
 

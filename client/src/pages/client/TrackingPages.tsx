@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1620,6 +1621,9 @@ export function TrackingHome() {
             </div>
             <h1 className="text-3xl font-bold text-foreground">Tracking</h1>
             <p className="text-muted-foreground mt-2">Select a metrics dashboard to get started</p>
+            <div className="flex justify-center mt-3">
+              <PageTourButton pageKey="tracking" />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" data-tour="tracking-home">

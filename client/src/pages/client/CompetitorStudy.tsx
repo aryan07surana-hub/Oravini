@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import ViralityTester from "@/pages/client/ViralityTester";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
@@ -3788,7 +3789,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
           <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
             <Target className="w-5 h-5 text-primary" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">
                 {activeSection === "competitor"
@@ -3814,6 +3815,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 : "Choose a study mode below"}
             </p>
           </div>
+          <PageTourButton pageKey="competitor" className="ml-auto flex-shrink-0" />
         </div>
 
         {/* Landing — four option cards */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { PageTourButton } from "@/components/ui/TourGuide";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
@@ -748,11 +749,14 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               <p className="text-sm text-muted-foreground mt-0.5">Your intelligent creative partner — build from idea or optimize existing content</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" data-testid="btn-templates" onClick={() => setShowTemplates(v => !v)} className="border-primary/30 text-primary hover:bg-primary/10 gap-2">
-            <Layers className="w-4 h-4" />
-            Template Library
-            {showTemplates ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            <PageTourButton pageKey="video-editor" />
+            <Button variant="outline" size="sm" data-testid="btn-templates" onClick={() => setShowTemplates(v => !v)} className="border-primary/30 text-primary hover:bg-primary/10 gap-2">
+              <Layers className="w-4 h-4" />
+              Template Library
+              {showTemplates ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
+          </div>
         </div>
 
         {/* ── Template Library ─────────────────────────────────────────────────── */}
