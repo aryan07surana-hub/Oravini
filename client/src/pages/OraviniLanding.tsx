@@ -10,7 +10,8 @@ const CALENDLY = "https://calendly.com/brandversee/30min";
 // ── Particle Canvas ──────────────────────────────────────────────────────────
 function ParticleCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
-  const mouseRef = useRef({ x: -999, y: -999 });
+  const mouseRef = useRef({ x: -9999, y: -9999 });
+  const activeRef = useRef(false);
 
   useEffect(() => {
     const canvas = ref.current!;
@@ -25,27 +26,44 @@ function ParticleCanvas() {
     window.addEventListener("resize", resize);
 
     const N = 90;
-    type P = { x: number; y: number; vx: number; vy: number; r: number; o: number };
-    const ps: P[] = Array.from({ length: N }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35,
-      r: Math.random() * 1.8 + 0.4,
-      o: Math.random() * 0.5 + 0.1,
-    }));
+    const CONNECT_DIST = 150;
+    const CURSOR_PULL_DIST = 160;
+    const CURSOR_PUSH_DIST = 55;
 
-    const onMouse = (e: MouseEvent) => { mouseRef.current = { x: e.clientX, y: e.clientY }; };
+    type P = { x: number; y: number; vx: number; vy: number; r: number; o: number; ox: number; oy: number };
+    const ps: P[] = Array.from({ length: N }, () => {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      return { x, y, ox: x, oy: y, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3, r: Math.random() * 1.6 + 0.4, o: Math.random() * 0.45 + 0.12 };
+    });
+
+    const onMouse = (e: MouseEvent) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+      activeRef.current = true;
+    };
     window.addEventListener("mousemove", onMouse);
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const mx = mouseRef.current.x, my = mouseRef.current.y;
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+      const active = activeRef.current;
 
       ps.forEach(p => {
-        const dx = p.x - mx, dy = p.y - my, dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 120) { p.vx += (dx / dist) * 0.04; p.vy += (dy / dist) * 0.04; }
-        p.vx *= 0.99; p.vy *= 0.99;
+        if (active) {
+          const dx = p.x - mx, dy = p.y - my;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < CURSOR_PUSH_DIST && dist > 0) {
+            const force = (CURSOR_PUSH_DIST - dist) / CURSOR_PUSH_DIST;
+            p.vx += (dx / dist) * force * 0.6;
+            p.vy += (dy / dist) * force * 0.6;
+          } else if (dist < CURSOR_PULL_DIST && dist > 0) {
+            const pull = (1 - dist / CURSOR_PULL_DIST) * 0.018;
+            p.vx -= (dx / dist) * pull;
+            p.vy -= (dy / dist) * pull;
+          }
+        }
+        p.vx *= 0.97; p.vy *= 0.97;
         p.x += p.vx; p.y += p.vy;
         if (p.x < 0) p.x = canvas.width;
         if (p.x > canvas.width) p.x = 0;
@@ -61,16 +79,34 @@ function ParticleCanvas() {
         for (let j = i + 1; j < ps.length; j++) {
           const dx = ps[i].x - ps[j].x, dy = ps[i].y - ps[j].y;
           const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < 110) {
+          if (d < CONNECT_DIST) {
+            const alpha = 0.22 * (1 - d / CONNECT_DIST);
             ctx.beginPath();
             ctx.moveTo(ps[i].x, ps[i].y);
             ctx.lineTo(ps[j].x, ps[j].y);
-            ctx.strokeStyle = `rgba(212,180,97,${0.15 * (1 - d / 110)})`;
-            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = `rgba(212,180,97,${alpha})`;
+            ctx.lineWidth = 0.6;
             ctx.stroke();
           }
         }
       }
+
+      if (active) {
+        ps.forEach(p => {
+          const dx = p.x - mx, dy = p.y - my;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < CURSOR_PULL_DIST) {
+            const alpha = 0.3 * (1 - d / CURSOR_PULL_DIST);
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(mx, my);
+            ctx.strokeStyle = `rgba(212,180,97,${alpha})`;
+            ctx.lineWidth = 0.4;
+            ctx.stroke();
+          }
+        });
+      }
+
       raf = requestAnimationFrame(draw);
     };
     draw();
@@ -315,6 +351,17 @@ function Navbar() {
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <img src={oraviniLogoPath} alt="Oravini" style={{ height: 44, objectFit: "contain" }} />
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button
+            onClick={() => {
+              const el = document.getElementById("pricing");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+              else { nav("/"); setTimeout(() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" }), 400); }
+            }}
+            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: 600, padding: "8px 14px", cursor: "pointer", transition: "color 0.2s" }}
+            onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.55)")}>
+            Pricing
+          </button>
           <button onClick={() => nav("/login")} style={{ background: "none", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer", transition: "all 0.2s" }}
             onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = `${GOLD}66`; b.style.color = GOLD; }}
             onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.15)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
@@ -552,7 +599,7 @@ export default function OraviniLanding() {
 
 
       {/* ── PRICING ──────────────────────────────────────────────────────────── */}
-      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+      <section id="pricing" style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Simple Pricing</div>
