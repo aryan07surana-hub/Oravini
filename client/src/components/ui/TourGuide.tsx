@@ -394,17 +394,18 @@ function TourMascot() {
   );
 }
 
-function SpotlightOverlay({ rect, onSkip }: { rect: DOMRect | null; onSkip: () => void }) {
+function SpotlightOverlay({ rect, onNext }: { rect: DOMRect | null; onNext: () => void }) {
   const pad = 12;
 
+  const overlayStyle = (extra: React.CSSProperties): React.CSSProperties => ({
+    background: "rgba(0,0,0,0.74)",
+    zIndex: 9994,
+    cursor: "default",
+    ...extra,
+  });
+
   if (!rect) {
-    return (
-      <div
-        className="fixed inset-0"
-        style={{ zIndex: 9994, background: "rgba(0,0,0,0.72)" }}
-        onClick={onSkip}
-      />
-    );
+    return <div className="fixed inset-0" style={{ zIndex: 9994, background: "rgba(0,0,0,0.74)" }} />;
   }
 
   const x = rect.left - pad;
@@ -414,22 +415,23 @@ function SpotlightOverlay({ rect, onSkip }: { rect: DOMRect | null; onSkip: () =
 
   return (
     <>
-      <div className="fixed left-0 right-0 top-0" style={{ height: Math.max(0, y), background: "rgba(0,0,0,0.72)", zIndex: 9994 }} onClick={onSkip} />
-      <div className="fixed left-0" style={{ top: Math.max(0, y), height: h, width: Math.max(0, x), background: "rgba(0,0,0,0.72)", zIndex: 9994 }} onClick={onSkip} />
-      <div className="fixed right-0" style={{ top: Math.max(0, y), height: h, left: x + w, background: "rgba(0,0,0,0.72)", zIndex: 9994 }} onClick={onSkip} />
-      <div className="fixed left-0 right-0 bottom-0" style={{ top: y + h, background: "rgba(0,0,0,0.72)", zIndex: 9994 }} onClick={onSkip} />
+      <div className="fixed left-0 right-0 top-0" style={overlayStyle({ height: Math.max(0, y) })} />
+      <div className="fixed left-0" style={overlayStyle({ top: Math.max(0, y), height: h, width: Math.max(0, x) })} />
+      <div className="fixed right-0" style={overlayStyle({ top: Math.max(0, y), height: h, left: x + w })} />
+      <div className="fixed left-0 right-0 bottom-0" style={overlayStyle({ top: y + h })} />
+      {/* Spotlight hole — clicking it advances to the next step */}
       <div
-        className="fixed pointer-events-none"
+        onClick={onNext}
         style={{
-          left: x,
-          top: y,
-          width: w,
-          height: h,
+          position: "fixed",
+          left: x, top: y, width: w, height: h,
           zIndex: 9995,
           borderRadius: 14,
-          border: "2px solid #d4b461",
-          boxShadow: "0 0 0 2px rgba(212,180,97,0.15), 0 0 24px rgba(212,180,97,0.35), inset 0 0 24px rgba(212,180,97,0.04)",
+          border: "2.5px solid #d4b461",
+          boxShadow: "0 0 0 3px rgba(212,180,97,0.18), 0 0 28px rgba(212,180,97,0.4), inset 0 0 20px rgba(212,180,97,0.05)",
+          cursor: "pointer",
         }}
+        title="Click to continue"
       />
     </>
   );
@@ -504,6 +506,7 @@ function TourCard({
   return (
     <div style={cardStyle}>
       <div className="p-5">
+        {/* Header row */}
         <div className="flex items-start gap-3 mb-3">
           <TourMascot />
           <div className="flex-1 min-w-0">
@@ -511,7 +514,12 @@ function TourCard({
               <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#d4b461" }}>
                 Step {stepIndex + 1} of {totalSteps}
               </p>
-              <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors" title="Exit tour">
+              <button
+                onClick={onClose}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all"
+                title="Exit tour (Esc)"
+                style={{ cursor: "pointer" }}
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -533,36 +541,47 @@ function TourCard({
           </div>
         )}
 
-        <div className="mt-4 mb-4 h-1 bg-zinc-800 rounded-full overflow-hidden">
+        {/* Progress bar */}
+        <div className="mt-4 mb-4 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{ width: `${progress}%`, background: "linear-gradient(90deg, #b89848, #d4b461)" }}
           />
         </div>
 
+        {/* Navigation hint */}
+        {!isLast && (
+          <p className="text-[10px] text-zinc-600 text-center mb-3">
+            Click the highlighted area or press <span className="text-zinc-500">→</span> to continue
+          </p>
+        )}
+
+        {/* Action buttons */}
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors px-1 py-1 flex-shrink-0"
+            style={{ cursor: "pointer" }}
           >
-            Exit tour
+            Exit
           </button>
           <div className="flex-1" />
           {!isFirst && (
             <button
               onClick={onPrev}
-              className="flex items-center gap-1 text-[12px] text-zinc-400 hover:text-white transition-colors px-3 py-2 rounded-lg hover:bg-zinc-800"
+              className="flex items-center gap-1.5 text-[12px] font-semibold text-zinc-300 hover:text-white transition-all px-4 py-2.5 rounded-xl border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 active:scale-95"
+              style={{ cursor: "pointer" }}
             >
-              <ChevronLeft className="w-3.5 h-3.5" /> Back
+              <ChevronLeft className="w-4 h-4" /> Back
             </button>
           )}
           <button
             onClick={onNext}
-            className="flex items-center gap-1.5 text-[13px] font-bold px-4 py-2 rounded-xl transition-all hover:opacity-90 active:scale-95"
-            style={{ background: "#d4b461", color: "#000" }}
+            className="flex items-center gap-2 text-[14px] font-black px-6 py-2.5 rounded-xl transition-all active:scale-95 select-none"
+            style={{ background: "linear-gradient(135deg, #c9a94e, #d4b461, #e8ca77)", color: "#000", cursor: "pointer", boxShadow: "0 4px 16px rgba(212,180,97,0.35), 0 2px 4px rgba(0,0,0,0.4)" }}
           >
-            {isLast ? "Finish" : "Next"}
-            {!isLast && <ChevronRight className="w-3.5 h-3.5" />}
+            {isLast ? "Finish ✓" : "Next"}
+            {!isLast && <ChevronRight className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -690,7 +709,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       {children}
       {active && currentStep && (
         <>
-          <SpotlightOverlay rect={rect} onSkip={close} />
+          <SpotlightOverlay rect={rect} onNext={next} />
           <TourCard
             step={currentStep}
             stepIndex={stepIndex}
