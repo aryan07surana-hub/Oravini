@@ -1606,6 +1606,8 @@ export function ContentTrackingIndex() {
 }
 
 export function TrackingHome() {
+  const { user } = useAuth();
+  const isElite = (user as any)?.plan === "elite";
   const [salesExpanded, setSalesExpanded] = useState(false);
 
   return (
@@ -1680,18 +1682,20 @@ export function TrackingHome() {
               </div>
             </div>
 
-            <Link href="/progress">
-              <div data-testid="card-tracking-progress" className="group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
-                  <TrendingUp className="w-6 h-6 text-primary" />
+            {isElite && (
+              <Link href="/progress">
+                <div data-testid="card-tracking-progress" className="group cursor-pointer p-6 rounded-2xl border border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                  <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                    <TrendingUp className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-foreground text-sm">Progress</h3>
+                  <p className="text-[11px] text-muted-foreground mt-1">Program milestones</p>
+                  <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-primary">
+                    <span>Open</span><ChevronRight className="w-3 h-3" />
+                  </div>
                 </div>
-                <h3 className="font-semibold text-foreground text-sm">Progress</h3>
-                <p className="text-[11px] text-muted-foreground mt-1">Program milestones</p>
-                <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-primary">
-                  <span>Open</span><ChevronRight className="w-3 h-3" />
-                </div>
-              </div>
-            </Link>
+              </Link>
+            )}
           </div>
         </div>
       </div>
