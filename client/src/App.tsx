@@ -41,6 +41,7 @@ import AdminCRM from "@/pages/admin/AdminCRM";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
+import OraviniLanding from "@/pages/OraviniLanding";
 import Apply from "@/pages/Apply";
 import Audit from "@/pages/Audit";
 import PlanSettings from "@/pages/client/PlanSettings";
@@ -81,10 +82,10 @@ function HomeRedirect() {
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
-  if (!user) return <Landing />;
+  if (!user) return <OraviniLanding />;
   if (user.role === "admin") return <Redirect to="/admin" />;
-  // Client logged in but hasn't chosen a plan yet — show landing so they can pick one
-  if (!user.planConfirmed) return <Landing />;
+  // Client logged in but hasn't chosen a plan yet — show Oravini landing so they can pick one
+  if (!user.planConfirmed) return <OraviniLanding />;
   return <Redirect to="/dashboard" />;
 }
 
@@ -92,6 +93,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomeRedirect} />
+      <Route path="/oravini" component={OraviniLanding} />
       <Route path="/login" component={Login} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

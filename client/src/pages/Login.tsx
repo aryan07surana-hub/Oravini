@@ -127,6 +127,10 @@ export default function Login() {
   const leftPanel = (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col items-center justify-center" style={{ background: "#1c1c1a" }}>
       <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, rgba(212,180,97,0.07) 0%, transparent 70%)" }} />
+      <button onClick={() => navigate("/")} className="absolute top-6 left-6 flex items-center gap-1.5 z-10 group" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>
+        <ArrowLeft className="w-3.5 h-3.5 group-hover:text-yellow-400 transition-colors" />
+        <span style={{ letterSpacing: "0.04em" }} className="group-hover:text-yellow-400 transition-colors">Back to Oravini</span>
+      </button>
       <div className="relative z-10 flex flex-col items-center gap-10">
         <img src={logoImg} alt="Brandverse" className="w-80 h-auto select-none" draggable={false} />
         <div className="w-16 h-px" style={{ background: "linear-gradient(to right, transparent, rgba(212,180,97,0.5), transparent)" }} />
@@ -252,6 +256,10 @@ export default function Login() {
           <div className="flex justify-center mb-10 lg:hidden">
             <img src={logoImg} alt="Brandverse" className="w-48 h-auto" />
           </div>
+          <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-6 group lg:hidden" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+            <ArrowLeft className="w-3.5 h-3.5 group-hover:text-yellow-400 transition-colors" />
+            <span className="group-hover:text-yellow-400 transition-colors" style={{ letterSpacing: "0.04em" }}>Back to Oravini</span>
+          </button>
 
           {/* Tabs */}
           <div className="flex rounded-xl p-1 mb-8" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
