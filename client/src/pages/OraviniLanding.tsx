@@ -335,7 +335,7 @@ function Navbar() {
   return (
     <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 500, background: scrolled ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: scrolled ? "blur(20px)" : "none", borderBottom: scrolled ? "1px solid rgba(212,180,97,0.1)" : "none", transition: "all 0.4s ease" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <img src={oraviniLogoPath} alt="Oravini" style={{ height: 44, objectFit: "contain" }} />
+        <img src={oraviniLogoPath} alt="Oravini" style={{ height: 62, objectFit: "contain", filter: "drop-shadow(0 0 12px rgba(212,180,97,0.3))" }} />
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button
             onClick={() => {
