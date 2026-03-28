@@ -1748,6 +1748,11 @@ Rules:
     try {
       const { prompt } = req.body;
       if (!prompt) return res.status(400).json({ message: "Prompt required" });
+      const _uImg = req.user as any;
+      if (_uImg?.role !== "admin") {
+        const imgCredit = await storage.deductCredits(_uImg.id, 2, "carousel_image", "Carousel AI image generation", _uImg.plan || "free");
+        if (!imgCredit.success) return res.status(402).json({ message: imgCredit.message, insufficientCredits: true, balance: imgCredit.balance });
+      }
 
       const gKey = process.env.GOOGLE__API_KEYIMAGE;
       let imageBase64: string | null = null;
@@ -1899,7 +1904,7 @@ Return JSON:
 
       const _u3 = req.user as any;
       if (_u3.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u3.id, 5, "ai_report", "AI Content Report analysis", _u3.plan || "free");
+        const creditResult = await storage.deductCredits(_u3.id, 8, "ai_report", "AI Content Report analysis", _u3.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -2165,7 +2170,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
       const _u4 = req.user as any;
       if (_u4.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u4.id, 5, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
+        const creditResult = await storage.deductCredits(_u4.id, 10, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -2854,6 +2859,11 @@ Return ONLY this exact JSON:
   app.post("/api/virality/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
       const { mode, script, reelUrl, platform, audience } = req.body;
+      const _uVir = req.user as any;
+      if (_uVir?.role !== "admin") {
+        const virCredit = await storage.deductCredits(_uVir.id, 3, "virality", "Virality analysis", _uVir.plan || "free");
+        if (!virCredit.success) return res.status(402).json({ message: virCredit.message, insufficientCredits: true, balance: virCredit.balance });
+      }
       let contentToAnalyze = script;
 
       if (mode === "reel" && reelUrl) {
@@ -2962,6 +2972,11 @@ Scoring rules:
   app.post("/api/virality/hooks", requireAuth, async (req: Request, res: Response) => {
     try {
       const { script, platform } = req.body;
+      const _uHooks = req.user as any;
+      if (_uHooks?.role !== "admin") {
+        const hooksCredit = await storage.deductCredits(_uHooks.id, 1, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
+        if (!hooksCredit.success) return res.status(402).json({ message: hooksCredit.message, insufficientCredits: true, balance: hooksCredit.balance });
+      }
       const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
@@ -3006,6 +3021,11 @@ Return ONLY a JSON array of 5 strings:
   app.post("/api/virality/rewrite", requireAuth, async (req: Request, res: Response) => {
     try {
       const { script, platform, audience, score, fixes } = req.body;
+      const _uRew = req.user as any;
+      if (_uRew?.role !== "admin") {
+        const rewCredit = await storage.deductCredits(_uRew.id, 1, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
+        if (!rewCredit.success) return res.status(402).json({ message: rewCredit.message, insufficientCredits: true, balance: rewCredit.balance });
+      }
       const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
@@ -5209,6 +5229,11 @@ Generate their personalised audit. Be specific to their situation.`;
     try {
       const { niche, type, topic, audience, goal, ctaType, calendlyUrl, referenceUrl, pageCount = 8 } = req.body;
       if (!topic?.trim()) return res.status(400).json({ message: "Topic is required" });
+      const _uLm = req.user as any;
+      if (_uLm?.role !== "admin") {
+        const lmCredit = await storage.deductCredits(_uLm.id, 4, "lead_magnet", "Lead Magnet generation", _uLm.plan || "free");
+        if (!lmCredit.success) return res.status(402).json({ message: lmCredit.message, insufficientCredits: true, balance: lmCredit.balance });
+      }
 
       const targetPages = Math.min(Math.max(Number(pageCount) || 8, 5), 25);
       const contentPages = Math.max(targetPages - 4, 1); // cover + problem + content(s) + cta
@@ -5430,6 +5455,11 @@ Rules:
     try {
       const { businessDescription, targetAudience, platforms, platformUrls, style, goal, industry, revenueModel, contentFrequency, mainCompetitor, brandHero, existingBrandColors } = req.body;
       if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
+      const _uBk = req.user as any;
+      if (_uBk?.role !== "admin") {
+        const bkCredit = await storage.deductCredits(_uBk.id, 4, "brand_kit", "Brand Kit generation", _uBk.plan || "free");
+        if (!bkCredit.success) return res.status(402).json({ message: bkCredit.message, insufficientCredits: true, balance: bkCredit.balance });
+      }
 
       const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms : ["Instagram"];
       const urlsText = platformUrls && typeof platformUrls === "object"
@@ -5584,6 +5614,11 @@ Make it specific, strategic, and cohesive — not generic. Optimise for modern s
   app.post("/api/ai/story/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style, tone, hookStyle, contentDepth } = req.body;
+      const _uSt = req.user as any;
+      if (_uSt?.role !== "admin") {
+        const stCredit = await storage.deductCredits(_uSt.id, 2, "story", "Instagram Story sequence generation", _uSt.plan || "free");
+        if (!stCredit.success) return res.status(402).json({ message: stCredit.message, insufficientCredits: true, balance: stCredit.balance });
+      }
       const hookStyleMap: Record<string, string> = {
         "curiosity": "Start with a powerful curiosity question that makes them want to keep tapping (e.g. 'What if I told you...' / 'Have you ever wondered why...')",
         "bold-stat": "Open with a surprising, specific statistic or data point that challenges assumptions",
@@ -5696,6 +5731,11 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
     try {
       const { text, context } = req.body;
       if (!text?.trim()) return res.status(400).json({ error: "text required" });
+      const _uEnh = req.user as any;
+      if (_uEnh?.role !== "admin") {
+        const enhCredit = await storage.deductCredits(_uEnh.id, 1, "enhance_text", "Write With AI text enhancement", _uEnh.plan || "free");
+        if (!enhCredit.success) return res.status(402).json({ error: enhCredit.message, insufficientCredits: true });
+      }
       const systemPrompt = `You are an elite copywriter. Rewrite the user's text to be clearer, more compelling, more specific and more persuasive — while keeping their core meaning and voice. ${context ? `Context: ${context}` : ""} Return ONLY the improved text. No explanations, no quotation marks wrapping the whole response.`;
       const enhanced = await callGroq(systemPrompt, text, 600);
       return res.json({ enhanced: enhanced.trim() });
@@ -5708,6 +5748,11 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
   app.post("/api/ai/sop/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { businessType, niche, platform, contentType, experienceLevel, teamSetup, goal, postingFrequency, biggestStruggle } = req.body;
+      const _uSop = req.user as any;
+      if (_uSop?.role !== "admin") {
+        const sopCredit = await storage.deductCredits(_uSop.id, 3, "sop", "Content System SOP generation", _uSop.plan || "free");
+        if (!sopCredit.success) return res.status(402).json({ message: sopCredit.message, insufficientCredits: true, balance: sopCredit.balance });
+      }
       const systemPrompt = `You are an elite operations architect and systems designer who builds premium, agency-level SOPs for creators, personal brands, and online businesses. Your SOPs are extremely structured, step-by-step actionable, and immediately implementable. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
       const userPrompt = `Build a complete, hyper-detailed Content System SOP for this creator/business.
 
@@ -5838,6 +5883,11 @@ CRITICAL: Make every step hyper-specific to their niche (${niche}), platform (${
   app.post("/api/ai/icp/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { businessName, whatYouSell, targetAudience, coreTransformation, priceRange } = req.body;
+      const _uIcp = req.user as any;
+      if (_uIcp?.role !== "admin") {
+        const icpCredit = await storage.deductCredits(_uIcp.id, 4, "icp", "Ideal Customer Profile generation", _uIcp.plan || "free");
+        if (!icpCredit.success) return res.status(402).json({ message: icpCredit.message, insufficientCredits: true, balance: icpCredit.balance });
+      }
       const systemPrompt = `You are a world-class customer research strategist, behavioral psychologist, and direct response marketer. Build deeply researched Ideal Customer Profiles with extreme precision and real-world applicability. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
       const userPrompt = `Build a complete, deeply researched Ideal Customer Profile (ICP) for this business.
 
@@ -5944,6 +5994,11 @@ CRITICAL: Return exactly 5 pain points with real severity/urgency/frequency scor
   app.post("/api/ai/audience-psychology/generate", requireAuth, async (req: Request, res: Response) => {
     try {
       const { businessDescription, targetAudienceDescription, icpSummary } = req.body;
+      const _uApm = req.user as any;
+      if (_uApm?.role !== "admin") {
+        const apmCredit = await storage.deductCredits(_uApm.id, 4, "audience_psychology", "Audience Psychology Map generation", _uApm.plan || "free");
+        if (!apmCredit.success) return res.status(402).json({ message: apmCredit.message, insufficientCredits: true, balance: apmCredit.balance });
+      }
       const systemPrompt = `You are a world-class behavioral psychologist, direct response marketer, and audience strategist. Map audience psychology with extreme depth — buying behaviour, identity, emotions, beliefs, messaging, and content strategy. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
       const userPrompt = `Generate a complete Audience Psychology Map for this business.
 
@@ -6036,6 +6091,11 @@ CRITICAL: Be hyper-specific and deeply human. Avoid generic advice entirely. Wri
     try {
       const { niche, targetAudience, goal, platforms, postingFrequency, contentStyle, brandVoice, contentPillars, biggestChallenge, weeklyFocus } = req.body;
       if (!niche?.trim()) return res.status(400).json({ message: "niche required" });
+      const _uCp = req.user as any;
+      if (_uCp?.role !== "admin") {
+        const cpCredit = await storage.deductCredits(_uCp.id, 5, "content_planner", "AI Content Planner weekly plan", _uCp.plan || "free");
+        if (!cpCredit.success) return res.status(402).json({ message: cpCredit.message, insufficientCredits: true, balance: cpCredit.balance });
+      }
 
       const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms.join(", ") : "Instagram";
       const freqMap: Record<string, number> = { daily: 7, frequent: 6, moderate: 4, light: 2 };
@@ -6123,6 +6183,11 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
     try {
       const { dayName, role, niche, goal, platforms, contentStyle, brandVoice, contentPillars } = req.body;
       if (!dayName || !niche) return res.status(400).json({ message: "dayName and niche required" });
+      const _uRd = req.user as any;
+      if (_uRd?.role !== "admin") {
+        const rdCredit = await storage.deductCredits(_uRd.id, 2, "content_planner", "Content Planner day regeneration", _uRd.plan || "free");
+        if (!rdCredit.success) return res.status(402).json({ message: rdCredit.message, insufficientCredits: true, balance: rdCredit.balance });
+      }
 
       const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
       const systemPrompt = `You are an elite content strategist. Regenerate a SINGLE content day with a fresh, specific idea. Return ONLY valid JSON with this structure:
@@ -6156,6 +6221,11 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
     try {
       const { dayName, currentIdea, niche, platforms, targetAudience } = req.body;
       if (!dayName || !currentIdea) return res.status(400).json({ message: "dayName and currentIdea required" });
+      const _uMv = req.user as any;
+      if (_uMv?.role !== "admin") {
+        const mvCredit = await storage.deductCredits(_uMv.id, 2, "content_planner", "Content Planner make-viral", _uMv.plan || "free");
+        if (!mvCredit.success) return res.status(402).json({ message: mvCredit.message, insufficientCredits: true, balance: mvCredit.balance });
+      }
 
       const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
       const systemPrompt = `You are an elite viral content strategist. Your ONLY job is to rewrite a content idea to maximize reach, shares, and new audience growth. Make it controversial-enough-to-share, emotionally charged, and platform-optimized. Return ONLY valid JSON:

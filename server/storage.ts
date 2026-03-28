@@ -665,19 +665,14 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── Credit system ──────────────────────────────────────────────────────────
-  // Tier 1 (free)=10/day, Tier 2 (starter)=50/week, Tier 3 (growth)=200/month
-  // Tier 4 (pro)=500/month, Tier 5 (elite)=unlimited (bypass all checks)
-  private readonly PLAN_CREDITS: Record<string, number> = { free: 10, starter: 50, growth: 200, pro: 500, elite: 99999 };
+  // Tier 1 (free)=5/day, Tier 2 (starter)=150/month, Tier 3 (growth)=350/month
+  // Tier 4 (pro)=700/month, Tier 5 (elite)=unlimited (bypass all checks)
+  private readonly PLAN_CREDITS: Record<string, number> = { free: 5, starter: 150, growth: 350, pro: 700, elite: 99999 };
 
   private currentPeriodKey(plan: string): string {
     const d = new Date();
     if (plan === "free") {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    }
-    if (plan === "starter") {
-      const startOfYear = new Date(d.getFullYear(), 0, 1);
-      const weekNum = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
-      return `${d.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
     }
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }
@@ -696,7 +691,7 @@ class DatabaseStorage implements IStorage {
     const periodKey = this.currentPeriodKey(plan);
     const allowance = this.PLAN_CREDITS[plan] ?? 10;
     const existing = await this.getCreditBalance(userId);
-    const periodLabel = plan === "free" ? "Daily" : plan === "starter" ? "Weekly" : "Monthly";
+    const periodLabel = plan === "free" ? "Daily" : "Monthly";
     // Elite tier: always return a very large balance without resetting (unlimited)
     if (!existing) {
       const [row] = await db.insert(creditBalances)
