@@ -143,7 +143,7 @@ export default function Credits() {
       </div>
 
       {/* Balance cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-tour="credits-balance">
         <Card className="bg-zinc-900 border-zinc-800">
           <CardContent className="pt-5">
             <p className="text-zinc-400 text-xs uppercase tracking-wider mb-1">Total Available</p>

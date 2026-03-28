@@ -1030,7 +1030,7 @@ export default function AIIdeas() {
         </div>
 
         <Tabs defaultValue="generate" className="space-y-6">
-          <TabsList className="bg-card border border-card-border">
+          <TabsList className="bg-card border border-card-border" data-tour="ai-ideas-tabs">
             <TabsTrigger value="generate" className="gap-1.5" data-testid="tab-generate-ideas">
               <Sparkles className="w-3.5 h-3.5" /> Generate Ideas
             </TabsTrigger>
@@ -1247,7 +1247,7 @@ export default function AIIdeas() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-tour="ai-ideas-form">
               <div className="space-y-1.5">
                 <Label htmlFor="niche" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <Lightbulb className="w-3 h-3" /> Your Niche *
@@ -1427,6 +1427,7 @@ export default function AIIdeas() {
               disabled={loading}
               className="w-full"
               data-testid="button-generate"
+              data-tour="ai-ideas-generate"
               size="lg"
             >
               {loading ? (

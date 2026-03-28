@@ -864,7 +864,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
         )}
 
         {/* ── Input Zone ──────────────────────────────────────────────────────── */}
-        <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
+        <div className="bg-card border border-card-border rounded-2xl overflow-hidden" data-tour="video-editor-input">
           {/* Input type tabs */}
           <div className="flex border-b border-card-border overflow-x-auto">
             {([
@@ -888,7 +888,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   placeholder='e.g. "I want to make a 30-second reel about why most people fail at dieting, targeting busy professionals. Make it high energy like Alex Hormozi."'
                   className="bg-background border-border text-sm min-h-[110px] resize-none" />
                 <AiRefineButton text={concept} onAccept={setConcept} context="video concept description for a social media reel or video" />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3" data-tour="video-editor-platform">
                   <div>
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Platform</p>
                     <div className="flex gap-1.5">

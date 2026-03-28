@@ -759,7 +759,7 @@ export default function AIContentCoach() {
             </div>
 
             {/* Modes */}
-            <div className="p-3 border-b border-border">
+            <div className="p-3 border-b border-border" data-tour="coach-modes">
               <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Mode</p>
               <div className="space-y-1">
                 {MODES.map(m=>{
@@ -817,7 +817,7 @@ export default function AIContentCoach() {
           </div>
 
           {/* Session History */}
-          <div className="p-3 border-b border-border">
+          <div className="p-3 border-b border-border" data-tour="coach-sessions">
             <button
               onClick={() => setShowSessionHistory(v => !v)}
               className="w-full flex items-center justify-between text-[10px] font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"
@@ -970,7 +970,7 @@ export default function AIContentCoach() {
               )}
 
               {/* Chat input — always visible */}
-              <div className="flex gap-2">
+              <div className="flex gap-2" data-tour="coach-chat-input">
                 <Input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleChat()}
                   placeholder="Ask Coach anything… (e.g. &quot;how do I improve my hook?&quot;)"
                   className="flex-1 h-9 text-sm bg-zinc-900/80 border-zinc-700/60" disabled={thinking} data-testid="input-chat"/>

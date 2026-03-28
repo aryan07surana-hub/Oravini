@@ -2024,7 +2024,7 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
       </div>
 
       {/* Section grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3" data-tour="competitor-sections">
         {SECTIONS.map((sec) => {
           const Icon = sec.icon;
           const isActive = activeSection === sec.id;

@@ -274,7 +274,7 @@ export default function AIDesign() {
           </div>
 
           {/* 3-column grid — 6 tools (2×3 perfect) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 mb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 mb-10" data-tour="design-studio-tools">
             {MAIN_TOOLS.map((tool) => (
               <SquareTile
                 key={tool.id}
