@@ -92,6 +92,387 @@ function StatCard({ icon: Icon, label, value, sub, color }: any) {
   );
 }
 
+/* ─────────────────────────────────────────────
+   CONTENT MASTERY MODULE
+───────────────────────────────────────────── */
+const LESSONS = [
+  {
+    id: "content-triad",
+    title: "The Content Triad",
+    subtitle: "Views → Connection → Trust",
+    emoji: "🔥",
+    duration: "8 min read",
+    tag: "Foundation",
+    tagColor: "#d4b461",
+    sections: [
+      {
+        heading: "🔥 The Content Triad",
+        subheading: "Every piece of content you create should fall into one of these 3 buckets.",
+        blocks: [
+          {
+            icon: "👁️", title: "1. Views (Attention)", goal: "Stop the scroll",
+            desc: "This is what gets people in.",
+            items: ["Transformation videos", "Day-in-the-life content", "Rapid-fire edits", "Reaction videos", "Trend-based clips"],
+            color: "#f97316",
+          },
+          {
+            icon: "❤️", title: "2. Connection (Relatability)", goal: "Make them feel understood",
+            desc: "This is what makes people stay.",
+            items: ["B-roll storytelling", "Raw talking head videos", "Podcast-style clips", "Voiceover + visuals", "Personal experiences"],
+            color: "#a78bfa",
+          },
+          {
+            icon: "🏆", title: "3. Trust (Authority)", goal: "Make them believe you can help them",
+            desc: "This is what makes people buy.",
+            items: ["Educational (green screen) content", "Coaching call breakdowns", "Live work sessions", "Case studies", "Proof-based content"],
+            color: "#34d399",
+          },
+        ],
+      },
+      {
+        heading: "⚡ Content → Business Pipeline",
+        subheading: null,
+        pipeline: ["Content → gets you views", "Story → builds connection", "Value → builds trust", "CTA → generates leads", "DMs → convert to sales"],
+      },
+      {
+        heading: "🎯 Format Breakdown",
+        subheading: "What each type does",
+        formats: [
+          {
+            label: "👁️ Views Formats", color: "#f97316",
+            items: [
+              { name: "Transformation content", note: "humans are wired to follow progress" },
+              { name: "Reaction videos", note: "fast dopamine" },
+              { name: "Rapid-fire edits", note: "high retention" },
+            ],
+            warning: "⚠️ Problem: High views, low conversion if not structured properly",
+          },
+          {
+            label: "❤️ Connection Formats", color: "#a78bfa",
+            items: [
+              { name: "Raw talking head (unscripted)", note: null },
+              { name: "B-roll + storytelling", note: null },
+              { name: "Podcast clips", note: null },
+            ],
+            note: "👉 These build emotional attachment",
+          },
+          {
+            label: "🏆 Trust Formats", color: "#34d399",
+            items: [
+              { name: "Educational breakdowns", note: null },
+              { name: "Coaching calls", note: null },
+              { name: "Live execution videos", note: null },
+            ],
+            note: "👉 These build authority and credibility",
+          },
+        ],
+      },
+      {
+        heading: "🧠 Raw Talking Head Truth",
+        subheading: null,
+        truth: {
+          points: ["Build deep trust", "Feel authentic", "But don't go viral easily at the start"],
+          recommendation: "Only double down on this after you've built consistency (roughly 6–24 months of posting)",
+        },
+      },
+      {
+        heading: "🏆 Content Tier List",
+        subheading: null,
+        tiers: [
+          { tier: "S-Tier", label: "Best", color: "#d4b461", items: ["Parables / storytelling frameworks", '"Gun to the head" bold opinion content'] },
+          { tier: "A-Tier", label: "Great", color: "#34d399", items: ["Myth-busting", "Case studies", "History-style breakdowns", '"Find the mistake" / analysis content'] },
+          { tier: "B-Tier", label: "Good", color: "#60a5fa", items: ["Explanations", "Educational breakdowns"] },
+          { tier: "C-Tier", label: "Average", color: "#a78bfa", items: ["Basic talking head"] },
+          { tier: "D-Tier", label: "Weak", color: "#71717a", items: ["Trivia / low-depth content"] },
+        ],
+      },
+      {
+        heading: "💰 Revenue Mindset Shift",
+        subheading: null,
+        revenue: [
+          { icon: "❌", label: "Keeps you at $0/month", color: "#f87171", items: ["Chasing views", "Posting randomly", "Taking random actions", 'Being "busy"'] },
+          { icon: "✅", label: "Gets you to $10K/month", color: "#34d399", items: ["Building proof", "Figuring out what works", "Consistency", "Being intentional"] },
+          { icon: "🚀", label: "Gets you to $30K+/month", color: "#d4b461", items: ["Building authority", "Understanding outliers", "Leveraging systems", "Scaling what already works"] },
+        ],
+      },
+      {
+        heading: "🧠 Final Framework",
+        subheading: null,
+        finale: [
+          { text: "Views bring attention", icon: "👁️" },
+          { text: "Trust builds belief", icon: "🤝" },
+          { text: "Proof drives sales", icon: "💰" },
+        ],
+        warnings: [
+          { label: "If you only chase views →", result: "you stay broke", bad: true },
+          { label: "If you build proof →", result: "you start earning", bad: false },
+          { label: "If you build authority →", result: "you scale", bad: false },
+        ],
+      },
+    ],
+  },
+];
+
+const COMING_SOON_MODULES = [
+  { title: "Brand Foundation", desc: "Define your brand identity and positioning", icon: "🎯" },
+  { title: "Audience Growth", desc: "Proven strategies to grow your audience", icon: "📈" },
+];
+
+function ContentMasteryModule() {
+  const [openLesson, setOpenLesson] = useState<string | null>(null);
+  const lesson = LESSONS.find(l => l.id === openLesson);
+
+  return (
+    <>
+      <Card className="border border-card-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-primary" /> Course Modules
+            </CardTitle>
+            <Badge className="text-[10px]" style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.3)" }}>
+              1 Lesson Live
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Live lessons */}
+            {LESSONS.map(l => (
+              <button
+                key={l.id}
+                data-testid={`lesson-card-${l.id}`}
+                onClick={() => setOpenLesson(l.id)}
+                className="relative p-4 rounded-xl text-left overflow-hidden group transition-all hover:scale-[1.02] active:scale-[0.99]"
+                style={{
+                  background: "rgba(212,180,97,0.06)",
+                  border: "1px solid rgba(212,180,97,0.25)",
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-start gap-3">
+                  <span className="text-xl flex-shrink-0">{l.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-sm font-semibold text-foreground">{l.title}</p>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461" }}>{l.tag}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{l.subtitle}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <Clock className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] text-primary font-medium">{l.duration}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </button>
+            ))}
+
+            {/* Coming soon */}
+            {COMING_SOON_MODULES.map(({ title, desc, icon }) => (
+              <div key={title} className="relative p-4 rounded-xl border border-dashed border-border bg-card/50 overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="flex items-start gap-3">
+                  <span className="text-xl flex-shrink-0">{icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                    <span className="inline-block mt-2 text-[9px] font-bold text-zinc-600 border border-zinc-700 rounded-full px-2 py-0.5">Coming Soon</span>
+                  </div>
+                  <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Lesson Dialog ── */}
+      <Dialog open={!!openLesson} onOpenChange={v => !v && setOpenLesson(null)}>
+        <DialogContent
+          className="max-w-2xl w-full p-0 overflow-hidden"
+          style={{ background: "#0a0a0f", border: "1px solid rgba(255,255,255,0.08)", maxHeight: "90vh" }}
+          data-testid="lesson-dialog"
+        >
+          {lesson && (
+            <div className="flex flex-col h-full" style={{ maxHeight: "90vh" }}>
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-white/[0.07] flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.08) 0%, transparent 60%)" }}>
+                <div className="flex items-start gap-3">
+                  <span className="text-3xl">{lesson.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.3)" }}>
+                        {lesson.tag}
+                      </span>
+                      <span className="text-[10px] text-zinc-600">{lesson.duration}</span>
+                    </div>
+                    <DialogTitle className="text-xl font-bold text-white mb-0.5">{lesson.title}</DialogTitle>
+                    <p className="text-sm text-zinc-500">{lesson.subtitle}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+                {lesson.sections.map((sec, si) => (
+                  <div key={si}>
+                    <h3 className="text-base font-bold text-white mb-1">{sec.heading}</h3>
+                    {sec.subheading && <p className="text-xs text-zinc-500 mb-4">{sec.subheading}</p>}
+
+                    {/* Triad blocks */}
+                    {"blocks" in sec && sec.blocks && (
+                      <div className="space-y-3">
+                        {sec.blocks.map((b: any, bi: number) => (
+                          <div key={bi} className="rounded-xl p-4" style={{ background: `${b.color}0d`, border: `1px solid ${b.color}25` }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-base">{b.icon}</span>
+                              <p className="text-sm font-bold text-white">{b.title}</p>
+                            </div>
+                            <p className="text-xs text-zinc-500 mb-2">{b.desc}</p>
+                            <ul className="space-y-1 mb-2">
+                              {b.items.map((item: string, ii: number) => (
+                                <li key={ii} className="flex items-center gap-2 text-xs text-zinc-400">
+                                  <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: b.color }} />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                            <p className="text-xs font-semibold" style={{ color: b.color }}>👉 Goal: {b.goal}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Pipeline */}
+                    {"pipeline" in sec && sec.pipeline && (
+                      <div className="flex flex-col gap-0">
+                        {sec.pipeline.map((step: string, pi: number) => (
+                          <div key={pi} className="flex items-center gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-black" style={{ background: "#d4b461" }}>
+                                {pi + 1}
+                              </div>
+                              {pi < sec.pipeline!.length - 1 && <div className="w-0.5 h-4 bg-primary/20" />}
+                            </div>
+                            <p className="text-sm text-zinc-300 py-1">{step}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Format blocks */}
+                    {"formats" in sec && sec.formats && (
+                      <div className="space-y-3">
+                        {sec.formats.map((f: any, fi: number) => (
+                          <div key={fi} className="rounded-xl p-4" style={{ background: `${f.color}0d`, border: `1px solid ${f.color}25` }}>
+                            <p className="text-xs font-bold mb-2" style={{ color: f.color }}>{f.label}</p>
+                            <ul className="space-y-1 mb-2">
+                              {f.items.map((item: any, ii: number) => (
+                                <li key={ii} className="flex items-start gap-2 text-xs text-zinc-400">
+                                  <span className="w-1 h-1 rounded-full flex-shrink-0 mt-1.5" style={{ background: f.color }} />
+                                  <span>{item.name}{item.note ? <span className="text-zinc-600"> — {item.note}</span> : null}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {f.warning && <p className="text-[11px] text-orange-400 font-medium">{f.warning}</p>}
+                            {f.note && <p className="text-[11px] text-zinc-500">{f.note}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Truth */}
+                    {"truth" in sec && sec.truth && (
+                      <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                        <p className="text-xs font-semibold text-indigo-400 mb-2">Raw, unscripted talking head videos:</p>
+                        <ul className="space-y-1 mb-3">
+                          {sec.truth.points.map((p: string, pi: number) => (
+                            <li key={pi} className="flex items-center gap-2 text-xs text-zinc-300">
+                              <span className="text-indigo-400">•</span> {p}
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="rounded-lg px-3 py-2" style={{ background: "rgba(212,180,97,0.08)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                          <p className="text-xs font-semibold text-yellow-500 mb-0.5">👉 Recommendation:</p>
+                          <p className="text-xs text-zinc-400">{sec.truth.recommendation}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tier list */}
+                    {"tiers" in sec && sec.tiers && (
+                      <div className="space-y-2">
+                        {sec.tiers.map((t: any, ti: number) => (
+                          <div key={ti} className="flex items-start gap-3 rounded-xl px-4 py-3" style={{ background: `${t.color}0d`, border: `1px solid ${t.color}22` }}>
+                            <div className="w-14 flex-shrink-0 text-center">
+                              <span className="text-xs font-bold" style={{ color: t.color }}>{t.tier}</span>
+                              <p className="text-[9px] text-zinc-600">{t.label}</p>
+                            </div>
+                            <div className="flex-1">
+                              {t.items.map((item: string, ii: number) => (
+                                <p key={ii} className="text-xs text-zinc-300 leading-5">{item}</p>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Revenue */}
+                    {"revenue" in sec && sec.revenue && (
+                      <div className="space-y-3">
+                        {sec.revenue.map((r: any, ri: number) => (
+                          <div key={ri} className="rounded-xl p-4" style={{ background: `${r.color}0d`, border: `1px solid ${r.color}25` }}>
+                            <p className="text-xs font-bold mb-2" style={{ color: r.color }}>{r.icon} {r.label}</p>
+                            <ul className="space-y-1">
+                              {r.items.map((item: string, ii: number) => (
+                                <li key={ii} className="flex items-center gap-2 text-xs text-zinc-400">
+                                  <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Finale */}
+                    {"finale" in sec && sec.finale && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          {sec.finale.map((f: any, fi: number) => (
+                            <div key={fi} className="rounded-xl p-3 text-center" style={{ background: "rgba(212,180,97,0.07)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                              <span className="text-2xl">{f.icon}</span>
+                              <p className="text-xs text-zinc-300 mt-1 font-medium">{f.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="rounded-xl p-4 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          {sec.warnings.map((w: any, wi: number) => (
+                            <div key={wi} className="flex items-center gap-2 text-xs">
+                              <span className="text-zinc-500">{w.label}</span>
+                              <span className="font-bold" style={{ color: w.bad ? "#f87171" : "#34d399" }}>{w.result}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="pb-2" />
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function GoalDialog({ userId, autoOpen }: { userId: string; autoOpen: boolean }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -633,41 +1014,8 @@ export default function ClientDashboard() {
           </Card>
         )}
 
-        {/* Course Modules — Elite only */}
-        {isElite && (
-          <Card className="border border-card-border">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-primary" /> Course Modules
-                </CardTitle>
-                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[
-                  { title: "Brand Foundation", desc: "Define your brand identity and positioning", icon: "🎯" },
-                  { title: "Content Mastery", desc: "Create high-converting content consistently", icon: "📱" },
-                  { title: "Audience Growth", desc: "Proven strategies to grow your audience", icon: "📈" },
-                ].map(({ title, desc, icon }) => (
-                  <div key={title} className="relative p-4 rounded-xl border border-dashed border-border bg-card/50 overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="flex items-start gap-3">
-                      <span className="text-xl flex-shrink-0">{icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-                      </div>
-                      <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground text-center mt-4 pb-1">Course content will be available soon. Stay tuned!</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Course Modules — available to all clients */}
+        <ContentMasteryModule />
 
       </div>
     </ClientLayout>
