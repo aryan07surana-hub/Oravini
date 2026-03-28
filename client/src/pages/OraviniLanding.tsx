@@ -206,45 +206,31 @@ function SplashModal({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ── Email Popup ──────────────────────────────────────────────────────────────
+// ── Credits Popup (account-gated) ────────────────────────────────────────────
 function EmailPopup({ onClose }: { onClose: () => void }) {
-  const [email, setEmail] = useState("");
-  const [done, setDone] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const submit = async () => {
-    if (!email.trim()) return;
-    setLoading(true);
-    try { await fetch("/api/landing-leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) }); } catch {}
-    setDone(true); setLoading(false);
-    setTimeout(onClose, 2500);
-  };
+  const [, nav] = useLocation();
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ background: "#0a0a0a", border: `1px solid ${GOLD}44`, borderRadius: 20, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", position: "relative", boxShadow: `0 0 80px rgba(212,180,97,0.12)` }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 20, cursor: "pointer" }}>✕</button>
-        {done ? (
-          <div>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>✨</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: GOLD, marginBottom: 8 }}>You're in!</div>
-            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>10 free credits added to your account.</div>
-            <div style={{ marginTop: 20, display: "flex", justifyContent: "center", gap: 8 }}>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: GOLD, opacity: 0, animation: `popIn 0.1s ease ${i * 80}ms forwards` }} />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Get 10 Free Credits</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 28, lineHeight: 1.6 }}>Drop your email below and we'll instantly add 10 AI credits to your account — no strings attached.</div>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} placeholder="your@email.com"
-              style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}33`, borderRadius: 10, padding: "12px 16px", color: "#fff", fontSize: 14, marginBottom: 14, outline: "none", boxSizing: "border-box" }} />
-            <button onClick={submit} disabled={loading || !email.trim()} style={{ width: "100%", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 10, padding: "13px 0", cursor: "pointer", opacity: loading || !email.trim() ? 0.6 : 1 }}>
-              {loading ? "Claiming..." : "Claim My Free Credits →"}
-            </button>
-          </>
-        )}
+    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(14px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ background: "#0a0a0a", border: `1px solid ${GOLD}44`, borderRadius: 22, padding: "44px 38px", maxWidth: 420, width: "100%", textAlign: "center", position: "relative", boxShadow: `0 0 80px rgba(212,180,97,0.12)` }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 20, cursor: "pointer" }}>✕</button>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>🎁</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Get 10 Free AI Credits</div>
+        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.42)", marginBottom: 28, lineHeight: 1.7 }}>
+          Create a free account and 10 AI credits will be added to your balance instantly — no credit card required.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => { onClose(); nav("/login?tab=register"); }}
+            style={{ width: "100%", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 11, padding: "14px 0", cursor: "pointer" }}>
+            Create Free Account →
+          </button>
+          <button onClick={() => { onClose(); nav("/login"); }}
+            style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 13, borderRadius: 11, padding: "12px 0", cursor: "pointer" }}>
+            I already have an account
+          </button>
+        </div>
+        <div style={{ marginTop: 20, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
+          Credits appear in your dashboard sidebar after sign-up.
+        </div>
       </div>
     </div>
   );
@@ -550,6 +536,53 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── QUICK PREVIEW ────────────────────────────────────────────────────── */}
+      <section style={{ padding: "100px 24px", background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(212,180,97,0.05) 0%, transparent 70%)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }} className="preview-grid">
+          <Anim from="translateX(-40px)">
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14, fontWeight: 700 }}>Interactive Preview</div>
+            <h2 style={{ fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 18 }}>
+              See the dashboard<br /><span style={{ color: GOLD }}>before you commit.</span>
+            </h2>
+            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, marginBottom: 32 }}>
+              Explore the full tool suite — every AI feature, explained. Browse freely, no sign-up needed. When you're ready, create a free account and start using them instantly.
+            </p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button onClick={() => nav("/preview")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 32px", cursor: "pointer" }}>
+                Get a Quick Preview →
+              </button>
+              <button onClick={() => nav("/login?tab=register")} style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.6)", fontWeight: 600, fontSize: 14, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "15px 24px", cursor: "pointer" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}>
+                Start Free
+              </button>
+            </div>
+          </Anim>
+          <Anim from="translateX(40px)">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[
+                { icon: "💡", label: "AI Content Ideas" },
+                { icon: "🎨", label: "Carousel Studio" },
+                { icon: "🕵️", label: "Competitor Intel" },
+                { icon: "🧬", label: "Brand Kit Builder" },
+                { icon: "🎯", label: "ICP Builder" },
+                { icon: "🤖", label: "AI Content Coach" },
+              ].map(({ icon, label }) => (
+                <div key={label} onClick={() => nav("/preview")} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "18px 16px", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 10 }}
+                  onMouseEnter={e => { const t = e.currentTarget; t.style.borderColor = "rgba(212,180,97,0.3)"; t.style.background = "rgba(212,180,97,0.04)"; }}
+                  onMouseLeave={e => { const t = e.currentTarget; t.style.borderColor = "rgba(255,255,255,0.07)"; t.style.background = "rgba(255,255,255,0.025)"; }}>
+                  <span style={{ fontSize: 22 }}>{icon}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>{label}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.2)" }}>🔒</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>+ 6 more tools in preview</div>
+          </Anim>
+        </div>
+        <style>{`@media(max-width:768px){ .preview-grid{ grid-template-columns:1fr !important; gap:40px !important; } }`}</style>
+      </section>
+
       {/* ── OUTCOMES ─────────────────────────────────────────────────────────── */}
       <section style={{ padding: "100px 24px", background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(212,180,97,0.05) 0%, transparent 70%)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }} className="outcomes-grid">
@@ -692,6 +725,12 @@ export default function OraviniLanding() {
           </button>
         </Anim>
       </section>
+
+      {/* ── MOBILE DEVICE NOTICE ─────────────────────────────────────────────── */}
+      <div className="mobile-device-notice" style={{ display: "none", background: "rgba(212,180,97,0.06)", borderTop: "1px solid rgba(212,180,97,0.12)", padding: "12px 24px", textAlign: "center" }}>
+        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>💻 This platform is best experienced on a laptop or desktop for full functionality</span>
+      </div>
+      <style>{`@media(max-width:768px){ .mobile-device-notice{ display:block !important; } }`}</style>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "40px 24px" }}>

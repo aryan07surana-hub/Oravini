@@ -55,6 +55,7 @@ import ICPBuilder from "@/pages/client/ICPBuilder";
 import SOPGenerator from "@/pages/client/SOPGenerator";
 import AudiencePsychologyMap from "@/pages/client/AudiencePsychologyMap";
 import AIContentPlanner from "@/pages/client/AIContentPlanner";
+import DashboardPreview from "@/pages/DashboardPreview";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
+      <Route path="/preview" component={DashboardPreview} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={ClientDashboard} />}
       </Route>
