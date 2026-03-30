@@ -16,48 +16,35 @@ import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 function WatermarkOverlay({ email, name }: { email: string; name?: string }) {
-  const [tile, setTile] = useState("");
-
-  useEffect(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 420;
-    canvas.height = 280;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(210, 140);
-    ctx.rotate(-Math.PI / 6);
-    ctx.font = "600 12px 'Inter', system-ui, sans-serif";
-    ctx.fillStyle = "rgba(212,180,97,0.055)";
-    ctx.textAlign = "center";
-    if (name) ctx.fillText(name, 0, -12);
-    ctx.fillText(email, 0, 8);
-    ctx.font = "500 10px 'Inter', system-ui, sans-serif";
-    ctx.fillStyle = "rgba(212,180,97,0.04)";
-    ctx.fillText("ORAVINI · CONFIDENTIAL", 0, 26);
-    ctx.restore();
-    setTile(canvas.toDataURL());
-  }, [email, name]);
-
-  if (!tile) return null;
+  const label = name ? `${name} · ${email}` : email;
+  const shared: React.CSSProperties = {
+    position: "fixed",
+    zIndex: 9990,
+    pointerEvents: "none",
+    userSelect: "none",
+    color: "rgba(212,180,97,0.18)",
+    fontSize: 10,
+    fontWeight: 600,
+    fontFamily: "'Inter', system-ui, sans-serif",
+    letterSpacing: "0.06em",
+    lineHeight: 1.6,
+    textAlign: "right",
+  };
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9990,
-        pointerEvents: "none",
-        userSelect: "none",
-        backgroundImage: `url(${tile})`,
-        backgroundRepeat: "repeat",
-        backgroundSize: "420px 280px",
-      }}
-    />
+    <>
+      <div aria-hidden="true" style={{ ...shared, top: 14, right: 18 }}>
+        <div>{label}</div>
+        <div style={{ fontSize: 9, opacity: 0.75 }}>ORAVINI · CONFIDENTIAL</div>
+      </div>
+      <div aria-hidden="true" style={{ ...shared, bottom: 14, right: 18 }}>
+        <div>{label}</div>
+        <div style={{ fontSize: 9, opacity: 0.75 }}>ORAVINI · CONFIDENTIAL</div>
+      </div>
+    </>
   );
 }
 
