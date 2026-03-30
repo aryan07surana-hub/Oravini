@@ -16,8 +16,50 @@ import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+
+function WatermarkOverlay({ email, name }: { email: string; name?: string }) {
+  const [tile, setTile] = useState("");
+
+  useEffect(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 420;
+    canvas.height = 280;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(210, 140);
+    ctx.rotate(-Math.PI / 6);
+    ctx.font = "600 12px 'Inter', system-ui, sans-serif";
+    ctx.fillStyle = "rgba(212,180,97,0.055)";
+    ctx.textAlign = "center";
+    if (name) ctx.fillText(name, 0, -12);
+    ctx.fillText(email, 0, 8);
+    ctx.font = "500 10px 'Inter', system-ui, sans-serif";
+    ctx.fillStyle = "rgba(212,180,97,0.04)";
+    ctx.fillText("ORAVINI · CONFIDENTIAL", 0, 26);
+    ctx.restore();
+    setTile(canvas.toDataURL());
+  }, [email, name]);
+
+  if (!tile) return null;
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9990,
+        pointerEvents: "none",
+        userSelect: "none",
+        backgroundImage: `url(${tile})`,
+        backgroundRepeat: "repeat",
+        backgroundSize: "420px 280px",
+      }}
+    />
+  );
+}
 
 function CreditWidget() {
   const { data } = useQuery<any>({ queryKey: ["/api/credits"], staleTime: 60000 });
@@ -75,9 +117,17 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
 
+  const isAdmin = user?.role === "admin";
+
   return (
     <TourProvider>
-    <div className="min-h-screen bg-background flex">
+    {!isAdmin && user?.email && (
+      <WatermarkOverlay email={user.email} name={user.name} />
+    )}
+    <div
+      className="min-h-screen bg-background flex"
+      onContextMenu={!isAdmin ? (e) => e.preventDefault() : undefined}
+    >
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
@@ -212,7 +262,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: "#d4b461" }}>ORAVINI</span>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main
+          className="flex-1 overflow-auto"
+          style={!isAdmin ? { userSelect: "none" } : undefined}
+        >
           {children}
         </main>
       </div>
