@@ -17,8 +17,8 @@ export default function Privacy() {
             </p>
             <p className="mt-2">
               For any privacy-related questions, contact us at:{" "}
-              <a href="mailto:privacy@brandverse.co" className="text-[#d4b461] hover:underline">
-                privacy@brandverse.co
+              <a href="mailto:support.oravini@gmail.com" className="text-[#d4b461] hover:underline">
+                support.oravini@gmail.com
               </a>
             </p>
           </section>
@@ -178,8 +178,8 @@ export default function Privacy() {
             </ul>
             <p className="mt-3">
               To exercise any of these rights, email us at{" "}
-              <a href="mailto:privacy@brandverse.co" className="text-[#d4b461] hover:underline">
-                privacy@brandverse.co
+              <a href="mailto:support.oravini@gmail.com" className="text-[#d4b461] hover:underline">
+                support.oravini@gmail.com
               </a>
               .
             </p>
@@ -217,8 +217,8 @@ export default function Privacy() {
             </p>
             <p className="mt-2">
               Email:{" "}
-              <a href="mailto:privacy@brandverse.co" className="text-[#d4b461] hover:underline">
-                privacy@brandverse.co
+              <a href="mailto:support.oravini@gmail.com" className="text-[#d4b461] hover:underline">
+                support.oravini@gmail.com
               </a>
             </p>
           </section>
