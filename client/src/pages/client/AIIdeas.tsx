@@ -861,7 +861,7 @@ export default function AIIdeas() {
   const contentTypes = platform === "instagram" ? IG_CONTENT_TYPES : platform === "youtube" ? YT_CONTENT_TYPES : platform === "linkedin" ? LI_CONTENT_TYPES : TW_CONTENT_TYPES;
   const showProfileUrl = platform === "instagram" || platform === "youtube";
 
-  const detectedHandle = useMemo(() => extractHandle(profileUrl, platform), [profileUrl, platform]);
+  const detectedHandle = useMemo(() => extractHandle(profileUrl, platform as "youtube" | "instagram"), [profileUrl, platform]);
 
   const { data: me } = useQuery<any>({ queryKey: ["/api/auth/me"] });
   const { data: allPosts } = useQuery<any[]>({

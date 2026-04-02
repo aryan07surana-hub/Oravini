@@ -2153,7 +2153,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   className="flex-1 bg-background border border-border rounded-xl px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 transition-colors"
                   disabled={isChatPending}
                 />
-                <Button size="sm" onClick={sendChatMessage} disabled={isChatPending || !chatInput.trim()}
+                <Button size="sm" onClick={() => sendChatMessage()} disabled={isChatPending || !chatInput.trim()}
                   className="bg-primary text-black hover:bg-primary/90 h-auto px-3 rounded-xl" data-testid="btn-chat-send">
                   <Send className="w-3.5 h-3.5" />
                 </Button>

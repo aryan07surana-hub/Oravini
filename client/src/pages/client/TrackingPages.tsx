@@ -795,7 +795,7 @@ function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: s
                       <div key={i} className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
                         <span className="text-xs text-foreground flex-1">{d.name}</span>
-                        <span className="text-xs font-semibold text-foreground">{d.value}</span>
+                        <span className="text-xs font-semibold text-foreground">{d.value as any}</span>
                       </div>
                     ))}
                   </div>

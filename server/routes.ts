@@ -42,6 +42,9 @@ function requireAdmin(req: Request, res: Response, next: Function) {
 
 const clients = new Map<string, WebSocket>();
 
+// Express 5 types req.params values as string | string[]; this helper always returns a string
+const p = (param: string | string[]): string => Array.isArray(param) ? param[0] : param;
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
 
@@ -234,7 +237,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/clients/:id", requireAdmin, async (req, res) => {
-    const user = await storage.getUser(req.params.id);
+    const user = await storage.getUser(p(req.params.id));
     if (!user) return res.status(404).json({ message: "Not found" });
     const { password, ...safe } = user;
     res.json(safe);
@@ -254,21 +257,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
     const { password, ...data } = req.body;
-    const updated = await storage.updateUser(req.params.id, data);
+    const updated = await storage.updateUser(p(req.params.id), data);
     const { password: _p, ...safe } = updated;
     res.json(safe);
   });
 
   app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
-    await storage.deleteUser(req.params.id);
-    res.json({ message: "Deleted" });
+    try {
+      await storage.deleteUser(p(req.params.id) as string);
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      console.log("[deleteUser] error:", err?.message);
+      res.status(500).json({ message: err?.message || "Failed to delete client" });
+    }
   });
 
   app.patch("/api/clients/:id/reset-password", requireAdmin, async (req, res) => {
     const { newPassword } = req.body;
     if (!newPassword) return res.status(400).json({ message: "newPassword required" });
     const hashed = await hashPassword(newPassword);
-    await storage.updateUser(req.params.id, { password: hashed });
+    await storage.updateUser(p(req.params.id), { password: hashed });
     res.json({ message: "Password reset" });
   });
 
@@ -300,7 +308,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/documents/:id", requireAuth, async (req, res) => {
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(p(req.params.id));
     if (!doc) return res.status(404).json({ message: "Not found" });
     res.json(doc);
   });
@@ -325,14 +333,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.delete("/api/documents/:id", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(p(req.params.id));
     if (!doc) return res.status(404).json({ message: "Not found" });
     if (user.role === "client" && doc.uploadedBy !== user.id) return res.status(403).json({ message: "Forbidden" });
     if (doc.fileUrl.startsWith("/uploads/")) {
       const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
-    await storage.deleteDocument(req.params.id);
+    await storage.deleteDocument(p(req.params.id));
     res.json({ message: "Deleted" });
   });
 
@@ -361,21 +369,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.delete("/api/materials/:id", requireAuth, async (req, res) => {
     const user = req.user as any;
     if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(p(req.params.id));
     if (!doc) return res.status(404).json({ message: "Not found" });
     if (doc.fileUrl.startsWith("/uploads/")) {
       const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
-    await storage.deleteDocument(req.params.id);
+    await storage.deleteDocument(p(req.params.id));
     res.json({ message: "Deleted" });
   });
 
   // Messages / Chat
   app.get("/api/messages/:otherUserId", requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
-    const msgs = await storage.getMessagesBetween(userId, req.params.otherUserId);
-    await storage.markMessagesRead(req.params.otherUserId, userId);
+    const msgs = await storage.getMessagesBetween(userId, p(req.params.otherUserId));
+    await storage.markMessagesRead(p(req.params.otherUserId), userId);
     res.json(msgs);
   });
 
@@ -403,22 +411,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/messages/:id", requireAuth, async (req, res) => {
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ message: "Content required" });
-    const msg = await storage.getMessage(req.params.id);
+    const msg = await storage.getMessage(p(req.params.id));
     if (!msg) return res.status(404).json({ message: "Not found" });
     if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
-    const updated = await storage.updateMessage(req.params.id, content.trim());
+    const updated = await storage.updateMessage(p(req.params.id), content.trim());
     const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
     sendToUser(otherId, { type: "message_updated", message: updated });
     res.json(updated);
   });
 
   app.delete("/api/messages/:id", requireAuth, async (req, res) => {
-    const msg = await storage.getMessage(req.params.id);
+    const msg = await storage.getMessage(p(req.params.id));
     if (!msg) return res.status(404).json({ message: "Not found" });
     if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
-    await storage.deleteMessage(req.params.id);
+    await storage.deleteMessage(p(req.params.id));
     const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
-    sendToUser(otherId, { type: "message_deleted", messageId: req.params.id });
+    sendToUser(otherId, { type: "message_deleted", messageId: p(req.params.id) });
     res.json({ message: "Deleted" });
   });
 
@@ -430,22 +438,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Progress
   app.get("/api/progress/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const prog = await storage.getProgress(req.params.clientId);
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const prog = await storage.getProgress(p(req.params.clientId));
     res.json(prog || { offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
   });
 
   app.put("/api/progress/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const data = { ...req.body, clientId: req.params.clientId };
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const data = { ...req.body, clientId: p(req.params.clientId) };
     const parsed = insertProgressSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const prog = await storage.upsertProgress(parsed.data);
-    sendToUser(req.params.clientId, { type: "progress_update" });
+    sendToUser(p(req.params.clientId), { type: "progress_update" });
     if (user.role === "client") {
       const admin = await storage.getUserByEmail("admin@brandverse.com");
-      if (admin) sendToUser(admin.id, { type: "progress_update", clientId: req.params.clientId });
+      if (admin) sendToUser(admin.id, { type: "progress_update", clientId: p(req.params.clientId) });
     }
     res.json(prog);
   });
@@ -453,8 +461,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Call Feedback
   app.get("/api/calls/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const calls = await storage.getCallFeedbackByClient(req.params.clientId);
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const calls = await storage.getCallFeedbackByClient(p(req.params.clientId));
     res.json(calls);
   });
 
@@ -468,20 +476,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/calls/:id", requireAdmin, async (req, res) => {
-    const cf = await storage.updateCallFeedback(req.params.id, req.body);
+    const cf = await storage.updateCallFeedback(p(req.params.id), req.body);
     res.json(cf);
   });
 
   app.delete("/api/calls/:id", requireAdmin, async (req, res) => {
-    await storage.deleteCallFeedback(req.params.id);
+    await storage.deleteCallFeedback(p(req.params.id));
     res.json({ message: "Deleted" });
   });
 
   // Tasks
   app.get("/api/tasks/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const list = await storage.getTasksByClient(req.params.clientId);
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const list = await storage.getTasksByClient(p(req.params.clientId));
     res.json(list);
   });
 
@@ -495,12 +503,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/tasks/:id", requireAuth, async (req, res) => {
-    const task = await storage.updateTask(req.params.id, req.body);
+    const task = await storage.updateTask(p(req.params.id), req.body);
     res.json(task);
   });
 
   app.delete("/api/tasks/:id", requireAdmin, async (req, res) => {
-    await storage.deleteTask(req.params.id);
+    await storage.deleteTask(p(req.params.id));
     res.json({ message: "Deleted" });
   });
 
@@ -519,7 +527,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
-    await storage.markNotificationRead(req.params.id);
+    await storage.markNotificationRead(p(req.params.id));
     res.json({ message: "Marked read" });
   });
 
@@ -529,26 +537,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
-    await storage.deleteNotification(req.params.id);
+    await storage.deleteNotification(p(req.params.id));
     res.json({ message: "Notification deleted" });
   });
 
   // Client submits their own call feedback
   app.patch("/api/calls/:id/client-feedback", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const cf = await storage.getCallFeedback(req.params.id);
+    const cf = await storage.getCallFeedback(p(req.params.id));
     if (!cf) return res.status(404).json({ message: "Not found" });
     if (user.role === "client" && user.id !== cf.clientId) return res.status(403).json({ message: "Forbidden" });
     const { clientFeedback, clientLearnings } = req.body;
-    const updated = await storage.updateCallFeedback(req.params.id, { clientFeedback, clientLearnings });
+    const updated = await storage.updateCallFeedback(p(req.params.id), { clientFeedback, clientLearnings });
     res.json(updated);
   });
 
   // Content Posts
   app.get("/api/content/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const posts = await storage.getContentPostsByClient(req.params.clientId);
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const posts = await storage.getContentPostsByClient(p(req.params.clientId));
     res.json(posts);
   });
 
@@ -568,23 +576,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.patch("/api/content/:id", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const post = await storage.getContentPost(req.params.id);
+    const post = await storage.getContentPost(p(req.params.id));
     if (!post) return res.status(404).json({ message: "Not found" });
     if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
     const body = { ...req.body };
     if (body.postDate && typeof body.postDate === "string") {
       body.postDate = new Date(body.postDate);
     }
-    const updated = await storage.updateContentPost(req.params.id, body);
+    const updated = await storage.updateContentPost(p(req.params.id), body);
     res.json(updated);
   });
 
   app.delete("/api/content/:id", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const post = await storage.getContentPost(req.params.id);
+    const post = await storage.getContentPost(p(req.params.id));
     if (!post) return res.status(404).json({ message: "Not found" });
     if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
-    await storage.deleteContentPost(req.params.id);
+    await storage.deleteContentPost(p(req.params.id));
     res.json({ message: "Deleted" });
   });
 
@@ -804,7 +812,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             clientId, platform: platform ?? "instagram",
             title: p.caption ? p.caption.slice(0, 120) : "Untitled",
             postUrl: p.postUrl, postDate: p.postDate,
-            contentType: p.contentType, funnelStage: "top",
+            contentType: p.contentType as any, funnelStage: "top",
             views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
             followersGained: 0, subscribersGained: 0,
           });
@@ -897,12 +905,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             title: vid.title ? vid.title.slice(0, 120) : "Untitled",
             postUrl: vid.videoUrl,
             postDate: vid.publishedAt ? new Date(vid.publishedAt) : new Date(),
-            contentType: vid.contentType === "short" ? "reel" : "post",
+            contentType: vid.contentType === "short" ? "reel" : "video",
             views: vid.views,
             likes: vid.likes,
             comments: vid.comments,
             saves: 0,
-            notes: vid.description ? vid.description.slice(0, 500) : "",
           });
           created.push(post);
         } catch (_) { /* skip duplicates */ }
@@ -916,8 +923,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Income Goals
   app.get("/api/income-goal/:clientId", requireAuth, async (req, res) => {
     const user = req.user as any;
-    if (user.role === "client" && user.id !== req.params.clientId) return res.status(403).json({ message: "Forbidden" });
-    const goal = await storage.getIncomeGoal(req.params.clientId);
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const goal = await storage.getIncomeGoal(p(req.params.clientId));
     res.json(goal || null);
   });
 
@@ -1213,7 +1220,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             clientId, platform: "instagram",
             title: p.caption ? p.caption.slice(0, 120) : "Untitled",
             postUrl: p.postUrl, postDate: p.postDate,
-            contentType: p.contentType, funnelStage: "top",
+            contentType: p.contentType as any, funnelStage: "top",
             views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
             followersGained: 0, subscribersGained: 0,
           });
@@ -2059,14 +2066,14 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.patch("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const lead = await storage.updateDmLead(req.params.id, req.body);
+      const lead = await storage.updateDmLead(p(req.params.id), req.body);
       return res.json(lead);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteDmLead(req.params.id);
+      await storage.deleteDmLead(p(req.params.id));
       return res.json({ success: true });
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
@@ -2091,7 +2098,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.delete("/api/dm/quick-replies/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteDmQuickReply(req.params.id);
+      await storage.deleteDmQuickReply(p(req.params.id));
       return res.json({ success: true });
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
@@ -2489,7 +2496,7 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
 
   app.delete("/api/competitor/analyses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteCompetitorAnalysis(req.params.id);
+      await storage.deleteCompetitorAnalysis(p(req.params.id));
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -2643,7 +2650,7 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
 
   app.delete("/api/niche/analyses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteNicheAnalysis(req.params.id);
+      await storage.deleteNicheAnalysis(p(req.params.id));
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -3939,7 +3946,7 @@ Return ONLY valid JSON:
   app.patch("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { title, description, url, category, platform, thumbnailUrl } = req.body;
-      const item = await storage.updateVideoResource(req.params.id, { title, description, url, category, platform, thumbnailUrl });
+      const item = await storage.updateVideoResource(p(req.params.id), { title, description, url, category, platform, thumbnailUrl });
       if (!item) return res.status(404).json({ message: "Not found" });
       return res.json(item);
     } catch (err: any) {
@@ -3950,7 +3957,7 @@ Return ONLY valid JSON:
   // DELETE /api/video-resources/:id — admin delete
   app.delete("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
-      await storage.deleteVideoResource(req.params.id);
+      await storage.deleteVideoResource(p(req.params.id));
       return res.json({ message: "Deleted" });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4166,7 +4173,7 @@ Return ONLY valid JSON:
   app.get("/api/canva/assets/:assetId", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const data = await canvaFetch(user.id, `/assets/${req.params.assetId}`);
+      const data = await canvaFetch(user.id, `/assets/${p(req.params.assetId)}`);
       return res.json(data);
     } catch (err: any) {
       return res.status(400).json({ message: err.message });
@@ -4564,7 +4571,7 @@ Generate their personalised audit. Be specific to their situation.`;
   // GET /api/sessions/:id
   app.get("/api/sessions/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const session = await storage.getSession(req.params.id);
+      const session = await storage.getSession(p(req.params.id));
       if (!session) return res.status(404).json({ message: "Session not found" });
       const user = req.user as any;
       if (user.role !== "admin") {
@@ -4593,7 +4600,7 @@ Generate their personalised audit. Be specific to their situation.`;
   // PATCH /api/sessions/:id — admin update
   app.patch("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const session = await storage.updateSession(req.params.id, req.body);
+      const session = await storage.updateSession(p(req.params.id), req.body);
       if (!session) return res.status(404).json({ message: "Session not found" });
       return res.json(session);
     } catch (err: any) {
@@ -4604,7 +4611,7 @@ Generate their personalised audit. Be specific to their situation.`;
   // DELETE /api/sessions/:id — admin delete
   app.delete("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
-      await storage.deleteSession(req.params.id);
+      await storage.deleteSession(p(req.params.id));
       return res.json({ message: "Deleted" });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4618,8 +4625,8 @@ Generate their personalised audit. Be specific to their situation.`;
       if (!["free", "starter", "growth", "pro", "elite"].includes(plan)) {
         return res.status(400).json({ message: "Invalid plan" });
       }
-      const existing = await storage.getUser(req.params.id);
-      const user = await storage.updateUser(req.params.id, { plan } as any);
+      const existing = await storage.getUser(p(req.params.id));
+      const user = await storage.updateUser(p(req.params.id), { plan } as any);
       // Sync upgrade event to Oravini CRM
       if (existing && existing.plan !== plan) {
         const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
@@ -4646,16 +4653,16 @@ Generate their personalised audit. Be specific to their situation.`;
       const { niche, platform } = req.body;
       if (!niche) return res.status(400).json({ message: "Niche is required" });
 
-      const Groq = (await import("groq-sdk")).default;
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const groqApiKey = process.env.GROQ_API_KEY;
+      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
       const prompt = `Generate 3 creative content ideas for a ${platform || "social media"} creator in the ${niche} niche. For each idea give: a punchy title, a one-line hook, and the content format (reel, carousel, etc.). Keep it actionable and viral-focused. Format as JSON array: [{title, hook, format}]`;
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.85,
-        max_tokens: 600,
+      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
       });
-      const text = completion.choices[0]?.message?.content || "[]";
+      const groqData = await groqResp.json() as any;
+      const text = groqData.choices?.[0]?.message?.content || "[]";
       let ideas: any[] = [];
       try { ideas = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { ideas = []; }
       const newCount = await storage.incrementFreeAiUsage(identifier, today);
@@ -4691,7 +4698,7 @@ Generate their personalised audit. Be specific to their situation.`;
 
   app.delete("/api/ai/history/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteAiHistory(req.params.id, (req.user as any).id);
+      await storage.deleteAiHistory(p(req.params.id), (req.user as any).id);
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -4878,7 +4885,7 @@ Generate their personalised audit. Be specific to their situation.`;
 
   app.delete("/api/linkedin/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteScheduledLinkedinPost(req.params.id, (req.user as any).id);
+      await storage.deleteScheduledLinkedinPost(p(req.params.id), (req.user as any).id);
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -5028,7 +5035,7 @@ Generate their personalised audit. Be specific to their situation.`;
   app.delete("/api/twitter/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      await storage.deleteScheduledTweet(req.params.id, userId);
+      await storage.deleteScheduledTweet(p(req.params.id), userId);
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -5217,7 +5224,7 @@ Generate their personalised audit. Be specific to their situation.`;
 
   app.delete("/api/youtube/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await storage.deleteScheduledYoutubePost(req.params.id, (req.user as any).id);
+      await storage.deleteScheduledYoutubePost(p(req.params.id), (req.user as any).id);
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });

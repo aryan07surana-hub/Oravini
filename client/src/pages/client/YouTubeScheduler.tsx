@@ -127,11 +127,11 @@ export default function YouTubeScheduler() {
   const isConnected = status?.connected;
   const isPending = postNowMutation.isPending || scheduleMutation.isPending;
 
-  const tabs = [
+  const tabs: { id: string; label: string; disabled?: boolean }[] = [
     { id: "connect", label: "Connect" },
     { id: "post", label: "Post / Schedule", disabled: !isConnected },
     { id: "scheduled", label: "Scheduled" },
-  ] as const;
+  ];
 
   return (
     <ClientLayout>

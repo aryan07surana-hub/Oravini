@@ -185,7 +185,7 @@ function HistorySidePanel({ onLoad }: { onLoad: (e: any) => void }) {
           <span className="text-[10px] font-bold bg-primary/15 text-primary border border-primary/25 rounded-full px-1.5">{history.length}</span>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto divide-y" style={{ divideColor: "rgba(255,255,255,0.05)" }}>
+      <div className="flex-1 overflow-y-auto divide-y divide-white/5">
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -683,7 +683,7 @@ export default function SOPGenerator() {
                   <div className="px-5 py-3" style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                     <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Metrics to Track</p>
                   </div>
-                  <div className="divide-y" style={{ divideColor: "rgba(255,255,255,0.05)" }}>
+                  <div className="divide-y divide-white/5">
                     {result.optimizationLoop.metricsToTrack.map((m, i) => (
                       <div key={i} className="px-5 py-4 grid grid-cols-4 gap-3 text-xs">
                         <div><p className="font-bold text-white">{m.metric}</p><p className="text-zinc-600 text-[10px] mt-0.5">{m.why}</p></div>

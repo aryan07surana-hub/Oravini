@@ -227,7 +227,18 @@ class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: string) {
-    // Cascade delete all related data before removing user
+    // Delete all FK-referencing records that don't have onDelete: cascade
+    await db.delete(contentPosts).where(eq(contentPosts.clientId, id));
+    await db.delete(incomeGoals).where(eq(incomeGoals.clientId, id));
+    await db.delete(callBookings).where(eq(callBookings.clientId, id));
+    await db.delete(dmLeads).where(eq(dmLeads.clientId, id));
+    await db.delete(dmQuickReplies).where(eq(dmQuickReplies.clientId, id));
+    await db.delete(instagramProfileReports).where(eq(instagramProfileReports.clientId, id));
+    await db.delete(nicheAnalyses).where(eq(nicheAnalyses.clientId, id));
+    await db.delete(competitorAnalyses).where(eq(competitorAnalyses.clientId, id));
+    await db.delete(canvaTokens).where(eq(canvaTokens.userId, id));
+    await db.delete(creditTransactions).where(eq(creditTransactions.userId, id));
+    await db.delete(creditBalances).where(eq(creditBalances.userId, id));
     await db.delete(notifications).where(eq(notifications.clientId, id));
     await db.delete(tasks).where(eq(tasks.clientId, id));
     await db.delete(callFeedback).where(eq(callFeedback.clientId, id));

@@ -906,7 +906,7 @@ export default function InstagramStoryGenerator() {
   if (!result) return null;
 
   return (
-    <ClientLayout fullWidth>
+    <ClientLayout>
       <div className="h-screen flex flex-col bg-background overflow-hidden">
         {/* Top bar */}
         <div className="flex-shrink-0 h-12 flex items-center justify-between px-4 border-b border-zinc-800 bg-zinc-950">
