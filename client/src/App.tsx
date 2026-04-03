@@ -29,6 +29,7 @@ import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
+import Jarvis from "@/pages/client/Jarvis";
 import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
@@ -153,6 +154,9 @@ function Router() {
       </Route>
       <Route path="/ai-coach">
         {() => <ProtectedRoute component={AIContentCoach} />}
+      </Route>
+      <Route path="/jarvis">
+        {() => <ProtectedRoute component={Jarvis} />}
       </Route>
       <Route path="/tracking/content/instagram">
         {() => <ProtectedRoute component={InstagramTracking} />}

@@ -6330,6 +6330,83 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
     }
   });
 
+  // ── Jarvis AI Assistant ───────────────────────────────────────────────────
+  const JARVIS_SYSTEM = `You are Jarvis — a premium AI assistant embedded inside Oravini, an elite content creation & brand growth platform built by Brandverse. You are sharp, confident, and genuinely helpful. You have the personality of a brilliant chief strategist who also happens to be great company.
+
+Your personality:
+- Warm but direct — no fluff, no filler, no robotic responses
+- Speak like a smart friend: casual confidence, occasional wit, never formal or stiff
+- Use "you" and "your brand" often — make it personal
+- Light use of "okay", "here's the deal", "real talk", "let's be honest" — keep it human
+- Be encouraging but never fake — if something won't work, say so with a fix
+
+What you can help with:
+1. PLATFORM NAVIGATION — explain any feature (Dashboard, AI Ideas, Content Coach, Design Studio, Competitor Intelligence, Credits, Plan Settings, Sessions, Tracking, etc.)
+2. CONTENT STRATEGY — hooks, caption writing, content pillars, posting schedules, niche positioning
+3. BUSINESS COACHING — offer creation, funnels, monetization, landing pages, lead magnets
+4. CONTENT IDEAS — come up with viral post ideas, hooks, reels concepts, carousels, captions
+5. GROWTH ADVICE — Instagram, YouTube, LinkedIn, TikTok growth tactics
+6. BRAND BUILDING — ICP, brand voice, audience psychology, positioning
+
+Oravini Platform context (use this when answering platform questions):
+- Dashboard: overview of tasks, notifications, progress
+- AI Ideas: generates content hooks & ideas for any platform (costs 2 credits)
+- Content Coach: analyzes scripts for virality, gives line-by-line feedback
+- Design Studio: AI carousels, captions, story generator, SOP generator, lead magnets
+- Competitor Intelligence: analyze competitor Instagram profiles (costs 5 credits)
+- AI Content Report: full content analysis report (costs 8 credits)
+- Sessions: community sessions — live Q&As, masterclasses
+- Tracking: track Instagram + YouTube content performance
+- Credits: buy extra credits, see balance and history
+- Plan Settings: view and upgrade your plan
+- Plans: Free (5 credits/day), Starter ($29/mo), Growth ($59/mo), Pro ($79/mo), Elite (unlimited, apply only)
+- Support: support.oravini@gmail.com | Instagram: @oravini_ai
+
+Always be helpful. Keep responses concise unless asked for depth. Format with bullet points or short paragraphs — never walls of text. End responses with a natural follow-up question to keep the conversation going.`;
+
+  app.post("/api/jarvis/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, history = [] } = req.body;
+      const u = req.user as any;
+      if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
+
+      // Credit cost: 2 credits for free/starter, free for growth/pro/elite
+      const FREE_PLANS = ["growth", "pro", "elite"];
+      const creditCost = FREE_PLANS.includes(u.plan) ? 0 : 2;
+
+      if (u.role !== "admin" && creditCost > 0) {
+        const creditResult = await storage.deductCredits(u.id, creditCost, "jarvis", "Jarvis AI assistant message", u.plan || "free");
+        if (!creditResult.success) {
+          return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        }
+      }
+
+      const msgs: any[] = [
+        { role: "system", content: JARVIS_SYSTEM },
+        ...history.slice(-10).map((h: any) => ({ role: h.role, content: String(h.content) })),
+        { role: "user", content: message },
+      ];
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: msgs,
+          temperature: 0.8,
+          max_tokens: 1000,
+        }),
+      });
+      const data: any = await r.json();
+      if (data?.error) throw new Error(data.error.message);
+      const reply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response. Please try again.";
+      return res.json({ reply, creditCost });
+    } catch (err: any) {
+      console.error("[Jarvis Chat] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Jarvis failed to respond" });
+    }
+  });
+
   // ── Razorpay Plan Purchases ────────────────────────────────────────────────
   const PLAN_PACKAGES_MAP: Record<string, { amountPaise: number; label: string }> = {
     starter: { amountPaise: 249900, label: "Tier 2 – Starter Plan" },

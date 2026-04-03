@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import { TourProvider } from "@/components/ui/TourGuide";
+import JarvisBubble from "@/components/JarvisBubble";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -71,6 +72,7 @@ function CreditWidget() {
 
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/jarvis", label: "Jarvis AI", icon: Wand2 },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
@@ -258,6 +260,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </div>
 
       <FocusMusicPlayer />
+      <JarvisBubble />
     </div>
     </TourProvider>
   );
