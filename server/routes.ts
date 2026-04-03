@@ -6261,5 +6261,74 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
     }
   });
 
+  // ── Razorpay Payments ────────────────────────────────────────────────────────
+  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountPaise: number; label: string }> = {
+    starter: { credits: 25,  amountPaise: 74900,  label: "Starter Pack – 25 Credits" },
+    growth:  { credits: 75,  amountPaise: 199900, label: "Growth Pack – 75 Credits" },
+    power:   { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
+  };
+
+  app.post("/api/payment/create-order", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { packageId } = req.body;
+      const pkg = CREDIT_PACKAGES_MAP[packageId];
+      if (!pkg) return res.status(400).json({ message: "Invalid package" });
+
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+
+      const order = await rzp.orders.create({
+        amount: pkg.amountPaise,
+        currency: "INR",
+        receipt: `credits_${userId}_${Date.now()}`,
+        notes: { userId, packageId, credits: String(pkg.credits) },
+      });
+
+      return res.json({
+        orderId: order.id,
+        amount: pkg.amountPaise,
+        currency: "INR",
+        keyId: process.env.RAZORPAY_KEY_ID,
+        packageLabel: pkg.label,
+        credits: pkg.credits,
+      });
+    } catch (err: any) {
+      console.log("[razorpay create-order] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Failed to create order" });
+    }
+  });
+
+  app.post("/api/payment/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, packageId } = req.body;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !packageId) {
+        return res.status(400).json({ message: "Missing payment fields" });
+      }
+
+      const crypto = await import("crypto");
+      const expectedSig = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+
+      if (expectedSig !== razorpay_signature) {
+        return res.status(400).json({ message: "Payment verification failed — invalid signature" });
+      }
+
+      const pkg = CREDIT_PACKAGES_MAP[packageId];
+      if (!pkg) return res.status(400).json({ message: "Invalid package" });
+
+      const balance = await storage.addBonusCredits(userId, pkg.credits, `Razorpay purchase: ${pkg.label} (${razorpay_payment_id})`);
+      return res.json({ success: true, credits: pkg.credits, balance });
+    } catch (err: any) {
+      console.log("[razorpay verify] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Payment verification failed" });
+    }
+  });
+
   return httpServer;
 }

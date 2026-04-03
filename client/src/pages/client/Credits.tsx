@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -8,15 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   Zap, TrendingUp, Star, ShoppingCart, ArrowDownCircle, ArrowUpCircle,
-  Sparkles, Brain, Target, Video, RefreshCw, Crown, ArrowLeft
+  Sparkles, Brain, Target, Video, RefreshCw, Crown, ArrowLeft, Loader2
 } from "lucide-react";
 import { useLocation } from "wouter";
-
-const WHOP_LINKS = {
-  starter: "https://whop.com/brandversee",
-  growth: "https://whop.com/brandversee",
-  power: "https://whop.com/brandversee",
-};
+import { apiRequest } from "@/lib/queryClient";
 
 const FEATURE_ICONS: Record<string, any> = {
   ai_ideas: Sparkles,
@@ -36,7 +32,7 @@ const FEATURE_LABELS: Record<string, string> = {
   hashtag: "Hashtag Suggestions",
 };
 
-const PLAN_LABELS: Record<string, string> = { free: "Tier 1 — Free", starter: "Tier 2 — $29", growth: "Tier 3 — $59", pro: "Tier 4 — $79", elite: "Tier 5 — Elite" };
+const PLAN_LABELS: Record<string, string> = { free: "Tier 1 — Free", starter: "Tier 2 — ₹749/mo", growth: "Tier 3 — ₹1,999/mo", pro: "Tier 4 — ₹4,999/mo", elite: "Tier 5 — Elite" };
 const PLAN_COLORS: Record<string, string> = { free: "text-zinc-400", starter: "text-blue-400", growth: "text-violet-400", pro: "text-emerald-400", elite: "text-[#d4b461]" };
 
 const CREDIT_PACKAGES = [
@@ -44,7 +40,7 @@ const CREDIT_PACKAGES = [
     id: "starter",
     name: "Starter Pack",
     credits: 25,
-    price: "$9",
+    price: "₹749",
     description: "Perfect for a quick top-up",
     icon: Zap,
     color: "from-blue-600/20 to-blue-500/10 border-blue-500/30",
@@ -53,7 +49,7 @@ const CREDIT_PACKAGES = [
     id: "growth",
     name: "Growth Pack",
     credits: 75,
-    price: "$24",
+    price: "₹1,999",
     description: "Most popular — great value",
     icon: TrendingUp,
     color: "from-[#d4b461]/20 to-[#d4b461]/10 border-[#d4b461]/30",
@@ -63,30 +59,91 @@ const CREDIT_PACKAGES = [
     id: "power",
     name: "Power Pack",
     credits: 200,
-    price: "$59",
+    price: "₹4,999",
     description: "For heavy AI usage",
     icon: Crown,
     color: "from-purple-600/20 to-purple-500/10 border-purple-500/30",
   },
 ];
 
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise(resolve => {
+    if ((window as any).Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 export default function Credits() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const queryClient = useQueryClient();
   const plan = (user as any)?.plan || "free";
+  const [buyingId, setBuyingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/credits"],
   });
 
-  const handleBuyCredits = (packageId: string) => {
-    const link = WHOP_LINKS[packageId as keyof typeof WHOP_LINKS];
-    window.open(link, "_blank");
-    toast({
-      title: "Redirecting to checkout",
-      description: "After purchase, contact us and credits will be added within 24 hours.",
-    });
+  const handleBuyCredits = async (packageId: string) => {
+    try {
+      setBuyingId(packageId);
+
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
+        return;
+      }
+
+      const order = await apiRequest("POST", "/api/payment/create-order", { packageId });
+
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new (window as any).Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Oravini",
+          description: order.packageLabel,
+          order_id: order.orderId,
+          theme: { color: "#d4b461" },
+          prefill: {
+            name: (user as any)?.name || "",
+            email: (user as any)?.email || "",
+          },
+          handler: async (response: any) => {
+            try {
+              const result = await apiRequest("POST", "/api/payment/verify", {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                packageId,
+              });
+              toast({
+                title: `✅ ${result.credits} credits added!`,
+                description: "Your bonus credits are now available in your account.",
+              });
+              queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
+              resolve();
+            } catch (err: any) {
+              toast({ title: "Payment verification failed", description: err?.message || "Please contact support.", variant: "destructive" });
+              reject(err);
+            }
+          },
+          modal: {
+            ondismiss: () => resolve(),
+          },
+        });
+        rzp.open();
+      });
+    } catch (err: any) {
+      toast({ title: "Payment failed", description: err?.message || "Something went wrong. Please try again.", variant: "destructive" });
+    } finally {
+      setBuyingId(null);
+    }
   };
 
   const total = data ? data.balance.monthlyCredits + data.balance.bonusCredits : 0;
@@ -96,6 +153,7 @@ export default function Credits() {
   const formatTxType = (type: string) => {
     const map: Record<string, string> = {
       monthly_reset: "Monthly Refill",
+      period_reset: "Period Refill",
       bonus_added: "Credits Added",
       ai_ideas: "AI Content Ideas",
       ai_coach: "AI Coach / Script",
@@ -141,7 +199,7 @@ export default function Credits() {
             className={`text-sm px-3 py-1 ${plan === "pro" ? "bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/40" : plan === "starter" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-700/50 text-zinc-300 border border-zinc-600"}`}
             data-testid="badge-plan"
           >
-            {PLAN_LABELS[plan]} Plan
+            {PLAN_LABELS[plan] || plan} Plan
           </Badge>
         </div>
       </div>
@@ -199,10 +257,12 @@ export default function Credits() {
 
       {/* Buy Credits */}
       <div>
-        <h2 className="text-lg font-semibold text-white mb-4">Buy Extra Credits</h2>
+        <h2 className="text-lg font-semibold text-white mb-1">Buy Extra Credits</h2>
+        <p className="text-zinc-500 text-sm mb-4">Instant delivery — credits appear in your account immediately after payment.</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {CREDIT_PACKAGES.map((pkg) => {
             const Icon = pkg.icon;
+            const isBuying = buyingId === pkg.id;
             return (
               <div
                 key={pkg.id}
@@ -229,18 +289,22 @@ export default function Credits() {
                     size="sm"
                     className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold"
                     onClick={() => handleBuyCredits(pkg.id)}
+                    disabled={buyingId !== null}
                     data-testid={`button-buy-${pkg.id}`}
                   >
-                    <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
-                    Buy Now
+                    {isBuying ? (
+                      <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Processing…</>
+                    ) : (
+                      <><ShoppingCart className="w-3.5 h-3.5 mr-1.5" />Buy Now</>
+                    )}
                   </Button>
                 </div>
               </div>
             );
           })}
         </div>
-        <p className="text-zinc-500 text-xs mt-3">
-          After purchase on Whop, message us and your credits will be added within 24 hours.
+        <p className="text-zinc-600 text-xs mt-3 flex items-center gap-1.5">
+          <span>🔒</span> Payments secured by Razorpay. Credits are added instantly after successful payment.
         </p>
       </div>
 
@@ -287,7 +351,7 @@ export default function Credits() {
       </Card>
 
       {/* Upgrade CTA for free/starter */}
-      {plan !== "pro" && (
+      {plan !== "pro" && plan !== "elite" && (
         <Card className="bg-gradient-to-r from-[#d4b461]/10 to-[#d4b461]/5 border border-[#d4b461]/30">
           <CardContent className="pt-5 flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -298,7 +362,7 @@ export default function Credits() {
             </div>
             <Button
               className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold shrink-0"
-              onClick={() => window.open("https://whop.com/brandversee", "_blank")}
+              onClick={() => navigate("/select-plan")}
               data-testid="button-upgrade-plan"
             >
               <Crown className="w-4 h-4 mr-2" />
