@@ -788,6 +788,26 @@ export default function AIIdeas() {
   const [publishIdea, setPublishIdea] = useState<ContentIdea | null>(null);
   const qc = useQueryClient();
 
+  // Pre-fill from Jarvis navigation (URL params)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get("platform");
+    const n = params.get("niche");
+    const g = params.get("goal");
+    const a = params.get("audience");
+    const ct = params.get("contentType");
+    const VALID_PLATFORMS = ["instagram", "youtube", "linkedin", "twitter"];
+    if (p && VALID_PLATFORMS.includes(p)) setPlatform(p as any);
+    if (n) setNiche(decodeURIComponent(n));
+    if (g) setGoal(decodeURIComponent(g));
+    if (a) setAudience(decodeURIComponent(a));
+    if (ct) setContentType(decodeURIComponent(ct));
+    // Clean URL without reload
+    if ([p, n, g, a, ct].some(Boolean)) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const { data: ideaHistory = [], isLoading: historyLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=ideas"],
   });

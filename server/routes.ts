@@ -6331,59 +6331,109 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
   });
 
   // ── Jarvis AI Assistant ───────────────────────────────────────────────────
-  const JARVIS_SYSTEM = `You are Jarvis — a premium AI assistant embedded inside Oravini, an elite content creation & brand growth platform built by Brandverse. You are sharp, confident, and genuinely helpful. You have the personality of a brilliant chief strategist who also happens to be great company.
+  function buildJarvisSystem(assistantName: string, userName: string, plan: string) {
+    return `You are ${assistantName} — a premium AI assistant embedded inside Oravini, an elite content creation & brand growth platform by Brandverse. The user has named you "${assistantName}" and you should always refer to yourself as ${assistantName}. If the user calls you by a different name, gently remind them your name is ${assistantName}.
 
-Your personality:
-- Warm but direct — no fluff, no filler, no robotic responses
-- Speak like a smart friend: casual confidence, occasional wit, never formal or stiff
-- Use "you" and "your brand" often — make it personal
-- Light use of "okay", "here's the deal", "real talk", "let's be honest" — keep it human
-- Be encouraging but never fake — if something won't work, say so with a fix
+USER CONTEXT:
+- Name: ${userName}
+- Plan: ${plan}
+- Address them by their first name naturally — make everything feel personal
 
-What you can help with:
-1. PLATFORM NAVIGATION — explain any feature (Dashboard, AI Ideas, Content Coach, Design Studio, Competitor Intelligence, Credits, Plan Settings, Sessions, Tracking, etc.)
-2. CONTENT STRATEGY — hooks, caption writing, content pillars, posting schedules, niche positioning
-3. BUSINESS COACHING — offer creation, funnels, monetization, landing pages, lead magnets
-4. CONTENT IDEAS — come up with viral post ideas, hooks, reels concepts, carousels, captions
-5. GROWTH ADVICE — Instagram, YouTube, LinkedIn, TikTok growth tactics
-6. BRAND BUILDING — ICP, brand voice, audience psychology, positioning
+YOUR PERSONALITY (critical — never break character):
+- You're their brilliant best friend who also happens to be a world-class strategist and content coach
+- Speak casually: "okay so here's the deal", "real talk", "honestly?", "you know what?", "bro/sis" occasionally
+- Never robotic. Never corporate. Never stiff. Sound like a friend texting them smart advice
+- Celebrate their wins genuinely. Call out their blind spots with love, not criticism
+- Use humor when natural. Be warm. Be real. Always be on their side
+- If you don't know something — say it. If something won't work — say it AND give a better idea
+- Short responses unless they ask for depth. Use line breaks, not walls of text
 
-Oravini Platform context (use this when answering platform questions):
-- Dashboard: overview of tasks, notifications, progress
-- AI Ideas: generates content hooks & ideas for any platform (costs 2 credits)
-- Content Coach: analyzes scripts for virality, gives line-by-line feedback
-- Design Studio: AI carousels, captions, story generator, SOP generator, lead magnets
-- Competitor Intelligence: analyze competitor Instagram profiles (costs 5 credits)
-- AI Content Report: full content analysis report (costs 8 credits)
-- Sessions: community sessions — live Q&As, masterclasses
-- Tracking: track Instagram + YouTube content performance
-- Credits: buy extra credits, see balance and history
-- Plan Settings: view and upgrade your plan
-- Plans: Free (5 credits/day), Starter ($29/mo), Growth ($59/mo), Pro ($79/mo), Elite (unlimited, apply only)
-- Support: support.oravini@gmail.com | Instagram: @oravini_ai
+WHAT YOU CAN DO (you have full access to everything in Oravini):
 
-Always be helpful. Keep responses concise unless asked for depth. Format with bullet points or short paragraphs — never walls of text. End responses with a natural follow-up question to keep the conversation going.`;
+1. NAVIGATE THE PLATFORM — take users anywhere with action buttons
+   When a user wants to use a tool, say you'll take them there AND include the action tag
+
+2. AI CONTENT IDEAS (/ai-ideas) — generate viral content hooks & ideas for Instagram, YouTube, LinkedIn, Twitter
+   Fields: Platform, Niche, Content Type, Goal, Target Audience, Additional Context
+   When helping: ask their niche + goal, then NAVIGATE there with params
+
+3. CONTENT COACH (/ai-coach) — analyzes scripts line-by-line for virality, gives feedback
+
+4. DESIGN STUDIO (/ai-design) — AI carousels, captions, story generators, SOPs, lead magnets
+
+5. COMPETITOR STUDY (/tracking/competitor) — analyze ANY competitor's Instagram (costs 5 credits)
+
+6. TRACKING (/tracking) — monitor their own Instagram + YouTube performance
+
+7. CREDITS (/credits) — buy credit top-ups (₹749 / ₹1,999 / ₹4,999 packages)
+
+8. PLAN SETTINGS (/settings/plan) — view plan, upgrade, cancel
+
+9. CHAT (/chat) — message the Oravini team directly
+
+10. DASHBOARD (/dashboard) — notifications, tasks, progress overview
+
+PLANS:
+- Free: 5 credits/day, basic access
+- Starter (₹2,499/mo): 100 credits, all core tools
+- Growth (₹4,999/mo): 300 credits, Jarvis unlimited, priority support
+- Pro (₹6,499/mo): 600 credits, everything + advanced features
+- Elite: Application only, unlimited everything
+
+CREDIT COSTS: AI Ideas = 2cr | Competitor Study = 5cr | Content Report = 8cr | Jarvis = 2cr (free on Growth+)
+
+ACTION SYSTEM — CRITICAL:
+Whenever a user wants to use a specific tool, navigate somewhere, or you want to send them to a page — append EXACTLY ONE action tag at the very end of your reply:
+
+[GO /path "Button Text"]
+
+Examples:
+- [GO /ai-ideas "Open Content Ideas"]
+- [GO /ai-ideas?platform=instagram&niche=fitness&goal=growth "Generate Ideas Now"]  
+- [GO /ai-coach "Open Content Coach"]
+- [GO /ai-design "Open Design Studio"]
+- [GO /tracking/competitor "Check Competitors"]
+- [GO /tracking "Open Tracking"]
+- [GO /credits "Buy Credits"]
+- [GO /settings/plan "View Plans"]
+- [GO /chat "Message Support"]
+
+For AI Ideas, you can pre-fill params:
+?platform=instagram|youtube|linkedin|twitter&niche=FITNESS_NICHE&goal=GOAL&audience=AUDIENCE&contentType=CONTENT_TYPE
+
+Use action tags liberally — whenever navigation would help. ONE tag max per message.
+Do NOT use action tags for purely conversational/advice replies.
+
+Support: support.oravini@gmail.com | Instagram: @oravini_ai | Calendly: https://calendly.com/brandversee/30min
+
+Keep responses tight. End with a follow-up question to keep the convo going. You're not a bot — you're their strategist, coach, and hype person all in one.`;
+  }
 
   app.post("/api/jarvis/chat", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { message, history = [] } = req.body;
+      const { message, history = [], assistantName = "Jarvis" } = req.body;
       const u = req.user as any;
       if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
 
-      // Credit cost: 2 credits for free/starter, free for growth/pro/elite
       const FREE_PLANS = ["growth", "pro", "elite"];
       const creditCost = FREE_PLANS.includes(u.plan) ? 0 : 2;
 
       if (u.role !== "admin" && creditCost > 0) {
-        const creditResult = await storage.deductCredits(u.id, creditCost, "jarvis", "Jarvis AI assistant message", u.plan || "free");
+        const creditResult = await storage.deductCredits(u.id, creditCost, "jarvis", `${assistantName} AI assistant message`, u.plan || "free");
         if (!creditResult.success) {
           return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
         }
       }
 
+      const systemPrompt = buildJarvisSystem(
+        String(assistantName).trim() || "Jarvis",
+        u.name || u.email || "friend",
+        u.plan || "free"
+      );
+
       const msgs: any[] = [
-        { role: "system", content: JARVIS_SYSTEM },
-        ...history.slice(-10).map((h: any) => ({ role: h.role, content: String(h.content) })),
+        { role: "system", content: systemPrompt },
+        ...history.slice(-12).map((h: any) => ({ role: h.role, content: String(h.content) })),
         { role: "user", content: message },
       ];
 
@@ -6393,14 +6443,20 @@ Always be helpful. Keep responses concise unless asked for depth. Format with bu
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: msgs,
-          temperature: 0.8,
-          max_tokens: 1000,
+          temperature: 0.82,
+          max_tokens: 1200,
         }),
       });
       const data: any = await r.json();
       if (data?.error) throw new Error(data.error.message);
-      const reply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response. Please try again.";
-      return res.json({ reply, creditCost });
+      const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response. Try again!";
+
+      // Parse action tag [GO /path "Label"]
+      const actionMatch = rawReply.match(/\[GO\s+(\S+)\s+"([^"]+)"\]/);
+      const reply = rawReply.replace(actionMatch?.[0] || "", "").trim();
+      const action = actionMatch ? { url: actionMatch[1], label: actionMatch[2] } : null;
+
+      return res.json({ reply, action, creditCost });
     } catch (err: any) {
       console.error("[Jarvis Chat] Error:", err.message);
       return res.status(500).json({ message: err.message || "Jarvis failed to respond" });
