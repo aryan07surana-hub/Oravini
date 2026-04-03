@@ -542,6 +542,16 @@ export default function AIContentCoach() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
 
+  // Pre-fill from Jarvis navigation (URL params)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get("script");
+    if (s) {
+      setScript(decodeURIComponent(s));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (hasGreeted) return;
     setHasGreeted(true);

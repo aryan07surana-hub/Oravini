@@ -788,6 +788,9 @@ export default function AIIdeas() {
   const [publishIdea, setPublishIdea] = useState<ContentIdea | null>(null);
   const qc = useQueryClient();
 
+  // Auto-run ref — set when Jarvis navigates here with autoRun=true
+  const autoRunRef = useRef(false);
+
   // Pre-fill from Jarvis navigation (URL params)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -796,14 +799,16 @@ export default function AIIdeas() {
     const g = params.get("goal");
     const a = params.get("audience");
     const ct = params.get("contentType");
+    const ar = params.get("autoRun");
     const VALID_PLATFORMS = ["instagram", "youtube", "linkedin", "twitter"];
     if (p && VALID_PLATFORMS.includes(p)) setPlatform(p as any);
     if (n) setNiche(decodeURIComponent(n));
-    if (g) setGoal(decodeURIComponent(g));
+    if (g) setGoal(decodeURIComponent(g.replace(/\+/g, " ")));
     if (a) setAudience(decodeURIComponent(a));
     if (ct) setContentType(decodeURIComponent(ct));
+    if (ar === "true") autoRunRef.current = true;
     // Clean URL without reload
-    if ([p, n, g, a, ct].some(Boolean)) {
+    if ([p, n, g, a, ct, ar].some(Boolean)) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -946,6 +951,15 @@ export default function AIIdeas() {
       setApiDone(true);
     }
   };
+
+  // Auto-run: when Jarvis navigates here with autoRun=true + prefills niche, trigger generate
+  useEffect(() => {
+    if (autoRunRef.current && niche.trim()) {
+      autoRunRef.current = false;
+      const timer = setTimeout(() => handleGenerate(), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [niche]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isProfileLinked = !!detectedHandle;
 
