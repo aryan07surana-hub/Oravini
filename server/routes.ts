@@ -6262,10 +6262,10 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
   });
 
   // ── Razorpay Payments ────────────────────────────────────────────────────────
-  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountCents: number; label: string }> = {
-    starter: { credits: 25,  amountCents: 900,  label: "Starter Pack – 25 Credits" },
-    growth:  { credits: 75,  amountCents: 2400, label: "Growth Pack – 75 Credits" },
-    power:   { credits: 200, amountCents: 5900, label: "Power Pack – 200 Credits" },
+  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountPaise: number; label: string }> = {
+    starter: { credits: 25,  amountPaise: 74900,  label: "Starter Pack – 25 Credits" },
+    growth:  { credits: 75,  amountPaise: 199900, label: "Growth Pack – 75 Credits" },
+    power:   { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
   };
 
   app.post("/api/payment/create-order", requireAuth, async (req: Request, res: Response) => {
@@ -6282,23 +6282,23 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
       });
 
       const order = await rzp.orders.create({
-        amount: pkg.amountCents,
-        currency: "USD",
+        amount: pkg.amountPaise,
+        currency: "INR",
         receipt: `credits_${userId}_${Date.now()}`,
         notes: { userId, packageId, credits: String(pkg.credits) },
       });
 
       return res.json({
         orderId: order.id,
-        amount: pkg.amountCents,
-        currency: "USD",
+        amount: pkg.amountPaise,
+        currency: "INR",
         keyId: process.env.RAZORPAY_KEY_ID,
         packageLabel: pkg.label,
         credits: pkg.credits,
       });
     } catch (err: any) {
-      console.log("[razorpay create-order] error:", err?.message);
-      return res.status(500).json({ message: err?.message || "Failed to create order" });
+      console.log("[razorpay create-order] error:", JSON.stringify(err));
+      return res.status(500).json({ message: (err as any)?.error?.description || err?.message || "Failed to create order" });
     }
   });
 
@@ -6331,10 +6331,10 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
   });
 
   // ── Razorpay Plan Purchases ────────────────────────────────────────────────
-  const PLAN_PACKAGES_MAP: Record<string, { amountCents: number; label: string }> = {
-    starter: { amountCents: 2900, label: "Tier 2 – Starter Plan" },
-    growth:  { amountCents: 5900, label: "Tier 3 – Growth Plan" },
-    pro:     { amountCents: 7900, label: "Tier 4 – Pro Plan" },
+  const PLAN_PACKAGES_MAP: Record<string, { amountPaise: number; label: string }> = {
+    starter: { amountPaise: 249900, label: "Tier 2 – Starter Plan" },
+    growth:  { amountPaise: 499900, label: "Tier 3 – Growth Plan" },
+    pro:     { amountPaise: 649900, label: "Tier 4 – Pro Plan" },
   };
 
   app.post("/api/payment/create-plan-order", requireAuth, async (req: Request, res: Response) => {
@@ -6351,23 +6351,23 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
       });
 
       const order = await rzp.orders.create({
-        amount: plan.amountCents,
-        currency: "USD",
+        amount: plan.amountPaise,
+        currency: "INR",
         receipt: `plan_${userId}_${Date.now()}`,
         notes: { userId, planSlug },
       });
 
       return res.json({
         orderId: order.id,
-        amount: plan.amountCents,
-        currency: "USD",
+        amount: plan.amountPaise,
+        currency: "INR",
         keyId: process.env.RAZORPAY_KEY_ID,
         planLabel: plan.label,
         planSlug,
       });
     } catch (err: any) {
-      console.log("[razorpay create-plan-order] error:", err?.message);
-      return res.status(500).json({ message: err?.message || "Failed to create plan order" });
+      console.log("[razorpay create-plan-order] error:", JSON.stringify(err));
+      return res.status(500).json({ message: (err as any)?.error?.description || err?.message || "Failed to create plan order" });
     }
   });
 

@@ -313,12 +313,15 @@ function PricingSection() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [choiceModal, setChoiceModal] = useState<{ open: boolean; planName: string; link: string }>({ open: false, planName: "", link: "" });
 
+  const PAID_PLANS = ["Tier 2", "Tier 3", "Tier 4"];
   const PLAN_SLUG: Record<string, string> = {
     "Tier 1": "free", "Tier 2": "starter", "Tier 3": "growth", "Tier 4": "pro", "Tier 5": "elite",
   };
 
   const handlePlanClick = async (planName: string, defaultLink: string, e: React.MouseEvent) => {
+    // Logged-in user without confirmed plan → fast-confirm and redirect
     if (user && !user.planConfirmed && planName !== "Tier 5") {
       e.preventDefault();
       const slug = PLAN_SLUG[planName] || "free";
@@ -326,10 +329,16 @@ function PricingSection() {
       try {
         const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: slug });
         queryClient.setQueryData(["/api/auth/me"], updated);
-        navigate("/dashboard");
+        navigate("/select-plan");
       } catch {
         setConfirming(null);
       }
+      return;
+    }
+    // Non-logged-in clicking a paid plan → show choice modal
+    if (!user && PAID_PLANS.includes(planName)) {
+      e.preventDefault();
+      setChoiceModal({ open: true, planName, link: defaultLink });
     }
   };
 
@@ -508,6 +517,51 @@ function PricingSection() {
           </p>
         </FadeIn>
       </div>
+
+      {/* Choice Modal */}
+      {choiceModal.open && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={() => setChoiceModal({ open: false, planName: "", link: "" })}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: "#0e0e0e", border: "1px solid rgba(212,180,97,0.25)", borderRadius: 20, padding: "36px 32px", maxWidth: 420, width: "100%", textAlign: "center" }}
+          >
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <span style={{ fontSize: 22 }}>✨</span>
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>How would you like to start?</h3>
+            <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", marginBottom: 28, lineHeight: 1.6 }}>
+              Not sure which plan is right for you? Get a free brand audit first — or jump straight to {choiceModal.planName}.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button
+                onClick={() => { navigate("/audit"); setChoiceModal({ open: false, planName: "", link: "" }); }}
+                style={{ width: "100%", padding: "14px 20px", borderRadius: 12, border: "1px solid rgba(212,180,97,0.3)", background: "rgba(212,180,97,0.08)", color: GOLD, fontWeight: 700, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "rgba(212,180,97,0.15)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "rgba(212,180,97,0.08)")}
+              >
+                🔍 Get My Free Audit First
+              </button>
+              <button
+                onClick={() => { navigate("/register"); setChoiceModal({ open: false, planName: "", link: "" }); }}
+                style={{ width: "100%", padding: "14px 20px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              >
+                🚀 Sign Up & Get {choiceModal.planName}
+              </button>
+            </div>
+            <button
+              onClick={() => setChoiceModal({ open: false, planName: "", link: "" })}
+              style={{ marginTop: 16, background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 12, cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
