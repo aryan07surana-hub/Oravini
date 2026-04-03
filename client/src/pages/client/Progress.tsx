@@ -93,9 +93,7 @@ export default function ClientProgress() {
               </p>
             </div>
             <a
-              href="https://whop.com/brandversee"
-              target="_blank"
-              rel="noreferrer"
+              href="/select-plan"
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm"
               style={{ background: "#d4b461", color: "#000" }}
             >

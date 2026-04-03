@@ -238,7 +238,7 @@ function FreeAIPanel({ userPlan }: { userPlan: string }) {
           {userPlan === "free" && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-center mt-2">
               <p className="text-xs text-muted-foreground mb-2">Want unlimited ideas + all AI tools?</p>
-              <a href="https://whop.com/brandversee" target="_blank" rel="noopener noreferrer">
+              <a href="/select-plan">
                 <Button size="sm" style={{ background: GOLD, color: "#000" }} className="text-xs h-7">
                   Upgrade Your Plan →
                 </Button>
@@ -264,7 +264,7 @@ function PlanBanner({ plan }: { plan: string }) {
         <p className="text-sm font-semibold text-foreground">You're on the <span style={{ color: GOLD }}>{info.label}</span> plan</p>
         <p className="text-xs text-muted-foreground mt-0.5">{info.desc}. Some sessions require an upgrade.</p>
       </div>
-      <a href="https://whop.com/brandversee" target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+      <a href="/select-plan" className="flex-shrink-0">
         <Button size="sm" variant="outline" className="text-xs h-8 border-primary/30 hover:border-primary">
           Upgrade <ChevronRight className="w-3 h-3 ml-1" />
         </Button>
@@ -412,7 +412,7 @@ export default function Sessions() {
               Get access to Starter and Pro sessions, unlimited AI features, live Q&As, masterclasses, and everything Brandverse has to offer.
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <a href="https://whop.com/brandversee" target="_blank" rel="noopener noreferrer">
+              <a href="/select-plan">
                 <Button style={{ background: GOLD, color: "#000" }} className="font-bold">
                   Upgrade Your Plan →
                 </Button>

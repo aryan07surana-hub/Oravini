@@ -4,8 +4,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
-const WHOP_LINK = "https://whop.com/brandversee";
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise(resolve => {
+    if ((window as any).Razorpay) { resolve(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
 
 const PLANS = [
   {
@@ -81,10 +91,53 @@ export default function PlanSettings() {
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
   const currentPlanData = PLANS[currentIdx];
 
-  const handleUpgrade = (targetSlug: string, targetName: string) => {
+  const handleUpgrade = async (targetSlug: string, targetName: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
-    window.open(WHOP_LINK, "_blank");
-    toast({ title: `Upgrading to ${targetName}`, description: "You're being redirected to Whop. Come back after payment to enjoy your new plan." });
+
+    const loaded = await loadRazorpayScript();
+    if (!loaded) {
+      toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const order = await apiRequest("POST", "/api/payment/create-plan-order", { planSlug: targetSlug });
+
+      await new Promise<void>((resolve) => {
+        const rzp = new (window as any).Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Oravini",
+          description: order.planLabel,
+          order_id: order.orderId,
+          theme: { color: "#d4b461" },
+          prefill: {
+            name: (user as any)?.name || "",
+            email: (user as any)?.email || "",
+          },
+          handler: async (response: any) => {
+            try {
+              const result = await apiRequest("POST", "/api/payment/verify-plan", {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                planSlug: targetSlug,
+              });
+              queryClient.setQueryData(["/api/auth/me"], result.user);
+              toast({ title: "Plan upgraded!", description: `You're now on ${targetName}. Enjoy your new features!` });
+            } catch {
+              toast({ title: "Payment verification failed", description: "Contact support if your payment was deducted.", variant: "destructive" });
+            }
+            resolve();
+          },
+          modal: { ondismiss: () => resolve() },
+        });
+        rzp.open();
+      });
+    } catch {
+      toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
+    }
   };
 
   return (
@@ -238,7 +291,7 @@ export default function PlanSettings() {
             </div>
 
             <p className="text-center text-xs text-muted-foreground pt-2">
-              Payments via Whop · Contact support to downgrade
+              Payments via Razorpay · Contact support to downgrade
             </p>
           </div>
         )}

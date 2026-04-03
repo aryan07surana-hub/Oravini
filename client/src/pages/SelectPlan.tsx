@@ -1,13 +1,24 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
-const WHOP_LINK = "https://whop.com/brandversee";
 const CALENDLY = "https://calendly.com/brandversee/30min";
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise(resolve => {
+    if ((window as any).Razorpay) { resolve(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
 
 const PLANS = [
   {
@@ -70,6 +81,7 @@ const PLANS = [
 
 export default function SelectPlan() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -80,12 +92,52 @@ export default function SelectPlan() {
         const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: "free" });
         queryClient.setQueryData(["/api/auth/me"], updated);
         navigate("/dashboard");
-      } else {
-        const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: slug });
-        queryClient.setQueryData(["/api/auth/me"], updated);
-        window.open(WHOP_LINK, "_blank");
-        navigate("/dashboard");
+        return;
       }
+
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
+        setConfirming(null);
+        return;
+      }
+
+      const order = await apiRequest("POST", "/api/payment/create-plan-order", { planSlug: slug });
+
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new (window as any).Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Oravini",
+          description: order.planLabel,
+          order_id: order.orderId,
+          theme: { color: "#d4b461" },
+          prefill: {
+            name: (user as any)?.name || "",
+            email: (user as any)?.email || "",
+          },
+          handler: async (response: any) => {
+            try {
+              const result = await apiRequest("POST", "/api/payment/verify-plan", {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                planSlug: slug,
+              });
+              queryClient.setQueryData(["/api/auth/me"], result.user);
+              toast({ title: "Plan activated!", description: `Welcome to ${order.planLabel}. Your plan is now active.` });
+              navigate("/dashboard");
+              resolve();
+            } catch {
+              toast({ title: "Payment verification failed", description: "Contact support if your payment was deducted.", variant: "destructive" });
+              reject();
+            }
+          },
+          modal: { ondismiss: () => { setConfirming(null); resolve(); } },
+        });
+        rzp.open();
+      });
     } catch {
       setConfirming(null);
     }

@@ -29,7 +29,7 @@ export default function CreditErrorBanner({ message }: CreditErrorBannerProps) {
         <Button
           size="sm"
           className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold text-xs"
-          onClick={() => window.open("https://whop.com/brandversee", "_blank")}
+          onClick={() => window.location.href = "/credits"}
           data-testid="button-buy-credits-banner"
         >
           <ShoppingCart className="w-3 h-3 mr-1.5" />

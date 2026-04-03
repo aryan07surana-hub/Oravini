@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-const WHOP_LINK = "https://whop.com/brandversee";
 
 const GOLD = "#d4b461";
 const GOLD_DIM = "#d4b46180";
@@ -348,7 +347,7 @@ function PricingSection() {
       features: ["Group chat community access", "Free resources & lead magnets", "5 AI credits per day", "Access to all AI tools", "Basic content ideas", "Partial audit preview"],
       limitations: ["Watermark on exports", "Slower processing"],
       cta: "Join Free",
-      link: WHOP_LINK,
+      link: "/register",
     },
     {
       name: "Tier 2",
@@ -363,7 +362,7 @@ function PricingSection() {
       features: ["Everything in Tier 1", "150 AI credits per month", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
       limitations: ["Watermark on exports"],
       cta: "Get Tier 2",
-      link: WHOP_LINK,
+      link: "/register",
     },
     {
       name: "Tier 3",
@@ -378,7 +377,7 @@ function PricingSection() {
       features: ["Everything in Tier 2", "350 AI credits/month", "No watermarks", "Competitor Intelligence", "AI Content Report", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
       limitations: [],
       cta: "Get Tier 3",
-      link: WHOP_LINK,
+      link: "/register",
     },
     {
       name: "Tier 4",
@@ -393,7 +392,7 @@ function PricingSection() {
       features: ["Everything in Tier 3", "700 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
       limitations: [],
       cta: "Get Tier 4",
-      link: WHOP_LINK,
+      link: "/register",
     },
     {
       name: "Tier 5",
@@ -505,7 +504,7 @@ function PricingSection() {
 
         <FadeIn delay={300}>
           <p style={{ textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.25)", marginTop: 32 }}>
-            All plans include access to the Brandverse portal · Payments processed securely via Whop
+            All plans include access to the Brandverse portal · Payments processed securely via Razorpay
           </p>
         </FadeIn>
       </div>

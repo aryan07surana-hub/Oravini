@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 
 const GOLD = "#d4b461";
-const WHOP = "https://whop.com/brandversee";
 const CALENDLY = "https://calendly.com/brandversee/30min";
 
 const PLATFORMS = ["Instagram", "YouTube", "TikTok", "LinkedIn", "Multiple"];
@@ -424,7 +423,7 @@ export default function Audit() {
                     {report.upgradeTeaser}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <a href={WHOP} target="_blank" rel="noopener noreferrer">
+                    <a href="/select-plan">
                       <span style={{ display: "block", background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, padding: "13px 24px", borderRadius: 10, cursor: "pointer" }}>
                         Upgrade to Unlock Full Report →
                       </span>

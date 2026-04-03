@@ -6330,5 +6330,73 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
     }
   });
 
+  // ── Razorpay Plan Purchases ────────────────────────────────────────────────
+  const PLAN_PACKAGES_MAP: Record<string, { amountCents: number; label: string }> = {
+    starter: { amountCents: 2900, label: "Tier 2 – Starter Plan" },
+    growth:  { amountCents: 5900, label: "Tier 3 – Growth Plan" },
+    pro:     { amountCents: 7900, label: "Tier 4 – Pro Plan" },
+  };
+
+  app.post("/api/payment/create-plan-order", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { planSlug } = req.body;
+      const plan = PLAN_PACKAGES_MAP[planSlug];
+      if (!plan) return res.status(400).json({ message: "Invalid plan" });
+
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+
+      const order = await rzp.orders.create({
+        amount: plan.amountCents,
+        currency: "USD",
+        receipt: `plan_${userId}_${Date.now()}`,
+        notes: { userId, planSlug },
+      });
+
+      return res.json({
+        orderId: order.id,
+        amount: plan.amountCents,
+        currency: "USD",
+        keyId: process.env.RAZORPAY_KEY_ID,
+        planLabel: plan.label,
+        planSlug,
+      });
+    } catch (err: any) {
+      console.log("[razorpay create-plan-order] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Failed to create plan order" });
+    }
+  });
+
+  app.post("/api/payment/verify-plan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planSlug } = req.body;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !planSlug) {
+        return res.status(400).json({ message: "Missing payment fields" });
+      }
+
+      const crypto = await import("crypto");
+      const expectedSig = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+
+      if (expectedSig !== razorpay_signature) {
+        return res.status(400).json({ message: "Payment verification failed — invalid signature" });
+      }
+
+      if (!PLAN_PACKAGES_MAP[planSlug]) return res.status(400).json({ message: "Invalid plan" });
+
+      const updated = await storage.updateUser(userId, { plan: planSlug });
+      return res.json({ success: true, plan: planSlug, user: updated });
+    } catch (err: any) {
+      console.log("[razorpay verify-plan] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Plan verification failed" });
+    }
+  });
+
   return httpServer;
 }

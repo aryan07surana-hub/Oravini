@@ -2,7 +2,6 @@ import { Link } from "wouter";
 
 const GOLD = "#d4b461";
 const CALENDLY = "https://calendly.com/brandversee/30min";
-const WHOP = "https://whop.com/brandversee";
 
 function CheckItem({ children }: { children: React.ReactNode }) {
   return (
