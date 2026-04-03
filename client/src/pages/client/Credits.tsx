@@ -32,7 +32,7 @@ const FEATURE_LABELS: Record<string, string> = {
   hashtag: "Hashtag Suggestions",
 };
 
-const PLAN_LABELS: Record<string, string> = { free: "Tier 1 — Free", starter: "Tier 2 — ₹749/mo", growth: "Tier 3 — ₹1,999/mo", pro: "Tier 4 — ₹4,999/mo", elite: "Tier 5 — Elite" };
+const PLAN_LABELS: Record<string, string> = { free: "Tier 1 — Free", starter: "Tier 2 — $29/mo", growth: "Tier 3 — $59/mo", pro: "Tier 4 — $79/mo", elite: "Tier 5 — Elite" };
 const PLAN_COLORS: Record<string, string> = { free: "text-zinc-400", starter: "text-blue-400", growth: "text-violet-400", pro: "text-emerald-400", elite: "text-[#d4b461]" };
 
 const CREDIT_PACKAGES = [
@@ -40,7 +40,7 @@ const CREDIT_PACKAGES = [
     id: "starter",
     name: "Starter Pack",
     credits: 25,
-    price: "₹749",
+    price: "$9",
     description: "Perfect for a quick top-up",
     icon: Zap,
     color: "from-blue-600/20 to-blue-500/10 border-blue-500/30",
@@ -49,7 +49,7 @@ const CREDIT_PACKAGES = [
     id: "growth",
     name: "Growth Pack",
     credits: 75,
-    price: "₹1,999",
+    price: "$24",
     description: "Most popular — great value",
     icon: TrendingUp,
     color: "from-[#d4b461]/20 to-[#d4b461]/10 border-[#d4b461]/30",
@@ -59,7 +59,7 @@ const CREDIT_PACKAGES = [
     id: "power",
     name: "Power Pack",
     credits: 200,
-    price: "₹4,999",
+    price: "$59",
     description: "For heavy AI usage",
     icon: Crown,
     color: "from-purple-600/20 to-purple-500/10 border-purple-500/30",

@@ -6262,10 +6262,10 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
   });
 
   // ── Razorpay Payments ────────────────────────────────────────────────────────
-  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountPaise: number; label: string }> = {
-    starter: { credits: 25,  amountPaise: 74900,  label: "Starter Pack – 25 Credits" },
-    growth:  { credits: 75,  amountPaise: 199900, label: "Growth Pack – 75 Credits" },
-    power:   { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
+  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountCents: number; label: string }> = {
+    starter: { credits: 25,  amountCents: 900,  label: "Starter Pack – 25 Credits" },
+    growth:  { credits: 75,  amountCents: 2400, label: "Growth Pack – 75 Credits" },
+    power:   { credits: 200, amountCents: 5900, label: "Power Pack – 200 Credits" },
   };
 
   app.post("/api/payment/create-order", requireAuth, async (req: Request, res: Response) => {
@@ -6282,16 +6282,16 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
       });
 
       const order = await rzp.orders.create({
-        amount: pkg.amountPaise,
-        currency: "INR",
+        amount: pkg.amountCents,
+        currency: "USD",
         receipt: `credits_${userId}_${Date.now()}`,
         notes: { userId, packageId, credits: String(pkg.credits) },
       });
 
       return res.json({
         orderId: order.id,
-        amount: pkg.amountPaise,
-        currency: "INR",
+        amount: pkg.amountCents,
+        currency: "USD",
         keyId: process.env.RAZORPAY_KEY_ID,
         packageLabel: pkg.label,
         credits: pkg.credits,
