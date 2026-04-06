@@ -16,7 +16,7 @@ import JarvisBubble from "@/components/JarvisBubble";
 import { JarvisProvider } from "@/contexts/JarvisContext";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -81,6 +81,7 @@ const mainNavItems = [
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
+  { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/credits", label: "Credits", icon: Zap },
   { href: "/settings/plan", label: "Your Settings", icon: Settings },
@@ -149,6 +150,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               ? (location === "/tracking" || location.startsWith("/tracking/content"))
               : href === "/tracking/competitor"
               ? location.startsWith("/tracking/competitor")
+              : href === "/content-analyser"
+              ? location.startsWith("/content-analyser")
               : location === href;
             const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
             return (

@@ -6467,6 +6467,102 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
     }
   });
 
+  // ── Content Analyser ──────────────────────────────────────────────────────
+  app.post("/api/analyse/youtube", requireAuth, async (req: Request, res: Response) => {
+    const { url } = req.body;
+    if (!url?.trim()) return res.status(400).json({ message: "YouTube URL required" });
+    const u = req.user as any;
+    if (u.role !== "admin") {
+      const cr = await storage.deductCredits(u.id, 2, "analyse", "YouTube Content Analysis", u.plan || "free");
+      if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
+    }
+    try {
+      let videoData: any = {};
+      // Step 1: oEmbed for guaranteed basic info
+      try {
+        const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+        if (oe.ok) { const d = await oe.json(); videoData = { title: d.title, channel: d.author_name, thumbnail: d.thumbnail_url }; }
+      } catch {}
+      // Step 2: Apify for enriched data
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (apifyToken) {
+        try {
+          const aRes = await fetch(`https://api.apify.com/v2/acts/bernardo~youtube-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=45`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ startUrls: [{ url }], maxResults: 1 }),
+          });
+          if (aRes.ok) {
+            const items = await aRes.json();
+            const item = Array.isArray(items) ? items[0] : null;
+            if (item) videoData = { ...videoData, title: item.title || videoData.title, channel: item.channelName || item.channelTitle || videoData.channel, thumbnail: item.thumbnailUrl || videoData.thumbnail, views: item.viewCount, likes: item.likes, duration: item.duration, description: item.description?.slice(0, 2000), uploadDate: item.date, tags: item.hashtags?.slice(0, 10).join(", ") };
+          }
+        } catch {}
+      }
+      if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Check the URL and try again." });
+      // Step 3: AI Analysis
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are an expert content analyst. Analyze YouTube video data and return ONLY valid JSON — no markdown, no extra text." },
+            { role: "user", content: `Analyze this YouTube video and return exactly this JSON structure:\n{\n  "summary": "3-4 paragraph comprehensive summary",\n  "keyTakeaways": ["5 key takeaways as strings"],\n  "breakdown": [{"section":"Title","content":"What it covers","keyPoints":["point1","point2"]}],\n  "mindmap": {"center":"Main Topic (3-4 words)","branches":[{"label":"Branch","nodes":["Node A","Node B","Node C"]}]}\n}\n\nVIDEO:\nTitle: ${videoData.title}\nChannel: ${videoData.channel}\nViews: ${videoData.views || "N/A"}\nLikes: ${videoData.likes || "N/A"}\nDuration: ${videoData.duration || "N/A"}\nDescription: ${videoData.description || "(not available)"}\nTags: ${videoData.tags || "(not available)"}` },
+          ],
+          temperature: 0.7, max_tokens: 3000, response_format: { type: "json_object" },
+        }),
+      });
+      const aiData: any = await aiRes.json();
+      if (aiData?.error) throw new Error(aiData.error.message);
+      const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+      return res.json({ video: videoData, ...analysis });
+    } catch (err: any) {
+      console.error("[YouTube Analyse]", err.message);
+      return res.status(500).json({ message: "Analysis failed. Please try again." });
+    }
+  });
+
+  app.post("/api/analyse/instagram", requireAuth, async (req: Request, res: Response) => {
+    const { urls } = req.body;
+    if (!urls?.length) return res.status(400).json({ message: "At least one Instagram URL required" });
+    const u = req.user as any;
+    if (u.role !== "admin") {
+      const cr = await storage.deductCredits(u.id, 3, "analyse", "Instagram Content Analysis", u.plan || "free");
+      if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
+    }
+    try {
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
+      const aRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directUrls: urls.slice(0, 6), resultsType: "posts", resultsLimit: 6 }),
+      });
+      const items = await aRes.json();
+      if (!Array.isArray(items) || !items.length) return res.status(404).json({ message: "Could not fetch Instagram data. Make sure the posts/profiles are public." });
+      const postsContext = items.slice(0, 6).map((p: any, i: number) => `Post ${i + 1}:\nCaption: ${p.caption?.slice(0, 300) || "(none)"}\nLikes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0}\nType: ${p.type || "post"}`).join("\n\n");
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are a social media content analyst. Analyze Instagram posts and return ONLY valid JSON." },
+            { role: "user", content: `Analyze these Instagram posts and return exactly this JSON:\n{\n  "summary": "2-3 paragraph analysis of the content strategy and themes",\n  "keyTakeaways": ["5 insights as strings"],\n  "breakdown": [{"section":"Title","content":"Analysis","keyPoints":["point1","point2"]}],\n  "contentStrategy": "1-2 paragraph content strategy analysis",\n  "mindmap": {"center":"Main Theme (3-4 words)","branches":[{"label":"Branch","nodes":["Node A","Node B"]}]}\n}\n\nPOSTS:\n${postsContext}` },
+          ],
+          temperature: 0.7, max_tokens: 3000, response_format: { type: "json_object" },
+        }),
+      });
+      const aiData: any = await aiRes.json();
+      if (aiData?.error) throw new Error(aiData.error.message);
+      const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+      const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption?.slice(0, 120) + (p.caption?.length > 120 ? "…" : "") || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, type: p.type || "post", url: p.url }));
+      return res.json({ posts, ...analysis });
+    } catch (err: any) {
+      console.error("[Instagram Analyse]", err.message);
+      return res.status(500).json({ message: "Analysis failed. Please try again." });
+    }
+  });
+
   // ── Razorpay Plan Purchases ────────────────────────────────────────────────
   const PLAN_PACKAGES_MAP: Record<string, { amountPaise: number; label: string }> = {
     starter: { amountPaise: 249900, label: "Tier 2 – Starter Plan" },

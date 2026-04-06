@@ -57,6 +57,9 @@ import SOPGenerator from "@/pages/client/SOPGenerator";
 import AudiencePsychologyMap from "@/pages/client/AudiencePsychologyMap";
 import AIContentPlanner from "@/pages/client/AIContentPlanner";
 import DashboardPreview from "@/pages/DashboardPreview";
+import ContentAnalyser from "@/pages/client/ContentAnalyser";
+import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
+import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -157,6 +160,15 @@ function Router() {
       </Route>
       <Route path="/jarvis">
         {() => <ProtectedRoute component={Jarvis} />}
+      </Route>
+      <Route path="/content-analyser/youtube">
+        {() => <ProtectedRoute component={ContentAnalyserYouTube} />}
+      </Route>
+      <Route path="/content-analyser/instagram">
+        {() => <ProtectedRoute component={ContentAnalyserInstagram} />}
+      </Route>
+      <Route path="/content-analyser">
+        {() => <ProtectedRoute component={ContentAnalyser} />}
       </Route>
       <Route path="/tracking/content/instagram">
         {() => <ProtectedRoute component={InstagramTracking} />}
