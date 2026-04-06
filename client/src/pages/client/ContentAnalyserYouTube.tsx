@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import ClientLayout from "@/components/layout/ClientLayout";
-import MindMap from "@/components/MindMap";
+import MindMap, { buildMindMapSVGString } from "@/components/MindMap";
 import type { MindMapData } from "@/components/MindMap";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -78,18 +78,20 @@ function exportPDF(result: any) {
   const escHtml = (str = "") => String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const bold = (str = "") => parseBoldHTML(String(str));
 
-  const mbmBlocks = (result.minuteByMinute || []).map((seg: any) => {
+  const mbmBlocks = (result.minuteByMinute || []).map((seg: any, idx: number) => {
     const bullets = (seg.bullets || []).map((b: string) => {
       const lines = b.split("\n");
       const main = bold(escHtml(lines[0]));
       const subs = lines.slice(1).filter((l: string) => l.trim().match(/^[-•]/))
         .map((l: string) => `<li>${bold(escHtml(l.replace(/^[-•]\s*/, "")))}</li>`).join("");
-      return `<li>${main}${subs ? `<ul class="subs">${subs}</ul>` : ""}</li>`;
+      return `<li class="bullet-item">${main}${subs ? `<ul class="subs">${subs}</ul>` : ""}</li>`;
     }).join("");
     return `
       <div class="seg">
-        <div class="ts">[${escHtml(seg.timestamp)}]</div>
-        <div class="seg-title">${escHtml(seg.title)}</div>
+        <div class="seg-header">
+          <span class="ts">[${escHtml(seg.timestamp || `${String(Math.floor(idx * 1.5)).padStart(2,"0")}:00`)}]</span>
+          <span class="seg-title">${escHtml(seg.title)}</span>
+        </div>
         <ul class="bullets">${bullets}</ul>
       </div>`;
   }).join("");
@@ -101,6 +103,31 @@ function exportPDF(result: any) {
   const scriptParas = (result.speakerScript || "").split("\n").filter(Boolean)
     .map((p: string) => `<p>${bold(escHtml(p))}</p>`).join("");
 
+  const mindmapSVG = result.mindmap?.branches?.length
+    ? buildMindMapSVGString(result.mindmap, 1100, 650)
+    : "";
+
+  const mindmapSection = mindmapSVG ? `
+    <div style="page-break-before: always;">
+      <h2>🧠 Mind Map <span class="badge2">${result.mindmap.branches.length} branches</span></h2>
+      <p style="font-family:Arial,sans-serif;font-size:11px;color:#888;margin-bottom:16px;">Visual concept map — all branches derived from actual video content</p>
+      <div style="background:#060d22;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);">
+        ${mindmapSVG}
+      </div>
+      <div style="margin-top:22px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">
+        ${(result.mindmap.branches || []).map((br: any, i: number) => {
+          const colors = ['#4A7CF7','#F7A94A','#4AC88E','#EF4F7A','#A14AF7','#4ADAF7'];
+          const c = colors[i % colors.length];
+          return `<div style="border-left:3px solid ${c};background:#f9f9fd;border-radius:0 8px 8px 0;padding:12px 16px;page-break-inside:avoid;">
+            <div style="font-family:Arial,sans-serif;font-size:12px;font-weight:800;color:${c};margin-bottom:8px;">${escHtml((br.emoji||'') + ' ' + (br.label||''))}</div>
+            <ul style="padding-left:16px;margin:0;">
+              ${(br.nodes||[]).map((n: string) => `<li style="font-size:11.5px;color:#2a2a3e;line-height:1.6;margin-bottom:3px;">${escHtml(n)}</li>`).join('')}
+            </ul>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : "";
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -109,32 +136,33 @@ function exportPDF(result: any) {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Georgia, "Times New Roman", serif; background: #fff; color: #1a1a2e; }
-  .cover { background: linear-gradient(135deg, #0a0e22 0%, #111630 100%); color: #fff; padding: 48px 56px; page-break-after: always; }
-  .brand { font-size: 11px; font-family: Arial, sans-serif; font-weight: 800; letter-spacing: 0.18em; color: ${GOLD}; text-transform: uppercase; margin-bottom: 40px; }
-  .cover h1 { font-size: 28px; font-weight: 700; line-height: 1.3; margin-bottom: 16px; color: #fff; }
-  .meta-row { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; }
-  .meta-pill { font-family: Arial, sans-serif; font-size: 11px; color: rgba(255,255,255,0.45); display: flex; gap: 5px; align-items: center; }
-  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 28px 0; }
-  .summary-preview { font-family: Arial, sans-serif; font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.7; max-width: 680px; }
-  .badge { display: inline-block; font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; background: ${GOLD}22; border: 1px solid ${GOLD}55; color: ${GOLD}; border-radius: 4px; padding: 2px 8px; }
-  .gen-date { font-family: Arial, sans-serif; font-size: 10px; color: rgba(255,255,255,0.28); margin-top: 32px; }
-  .body { padding: 40px 56px; }
-  h2 { font-size: 18px; font-weight: 700; color: #1a1a2e; margin: 40px 0 16px; padding-bottom: 10px; border-bottom: 2px solid #f0e8d4; display: flex; align-items: center; gap: 10px; font-family: Arial, sans-serif; }
-  h2 .badge2 { font-size: 9px; background: ${GOLD}; color: #000; border-radius: 4px; padding: 2px 7px; font-weight: 800; }
-  .summary p { font-size: 14px; line-height: 1.8; margin-bottom: 14px; color: #2a2a3e; }
-  .kt { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
-  .ktn { width: 26px; height: 26px; border-radius: 50%; background: ${GOLD}; color: #000; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: Arial, sans-serif; }
-  .kt > span:last-child { font-size: 13px; line-height: 1.65; color: #2a2a3e; padding-top: 3px; }
-  .seg { margin-bottom: 22px; padding: 16px 20px; border-left: 3px solid ${GOLD}; background: #fafaf6; border-radius: 0 8px 8px 0; page-break-inside: avoid; }
-  .ts { font-family: "Courier New", monospace; font-size: 11px; font-weight: 800; color: ${GOLD}; background: ${GOLD}18; border: 1px solid ${GOLD}40; border-radius: 4px; display: inline-block; padding: 1px 8px; margin-bottom: 6px; }
-  .seg-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 10px; font-family: Arial, sans-serif; }
-  .bullets { padding-left: 18px; }
-  .bullets > li { font-size: 13px; line-height: 1.68; color: #2a2a3e; margin-bottom: 6px; }
-  .subs { padding-left: 16px; margin-top: 4px; list-style: none; }
+  .cover { background: linear-gradient(135deg, #080d20 0%, #101630 100%); color: #fff; padding: 52px 60px; page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { font-size: 11px; font-family: Arial, sans-serif; font-weight: 800; letter-spacing: 0.2em; color: ${GOLD}; text-transform: uppercase; margin-bottom: 48px; }
+  .cover h1 { font-size: 30px; font-weight: 700; line-height: 1.3; color: #fff; max-width: 720px; }
+  .meta-row { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 20px; }
+  .meta-pill { font-family: Arial, sans-serif; font-size: 12px; color: rgba(255,255,255,0.48); }
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 30px 0; }
+  .summary-preview { font-family: Arial, sans-serif; font-size: 13.5px; color: rgba(255,255,255,0.62); line-height: 1.72; max-width: 700px; }
+  .badge { display: inline-block; font-family: Arial, sans-serif; font-size: 10.5px; font-weight: 700; background: rgba(212,180,97,0.12); border: 1px solid rgba(212,180,97,0.35); color: ${GOLD}; border-radius: 4px; padding: 3px 10px; }
+  .gen-date { font-family: Arial, sans-serif; font-size: 10px; color: rgba(255,255,255,0.25); margin-top: 36px; }
+  .body { padding: 44px 60px; }
+  h2 { font-size: 19px; font-weight: 700; color: #1a1a2e; margin: 44px 0 18px; padding-bottom: 11px; border-bottom: 2px solid #ede8d8; display: flex; align-items: center; gap: 10px; font-family: Arial, sans-serif; }
+  h2 .badge2 { font-size: 9.5px; background: ${GOLD}; color: #000; border-radius: 4px; padding: 2px 8px; font-weight: 800; }
+  .summary p { font-size: 14.5px; line-height: 1.82; margin-bottom: 16px; color: #2a2a3e; }
+  .kt { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .ktn { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: ${GOLD}; color: #000; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; font-family: Arial, sans-serif; }
+  .kt > span:last-child { font-size: 13.5px; line-height: 1.68; color: #2a2a3e; padding-top: 4px; }
+  .seg { margin-bottom: 24px; padding: 18px 22px; border-left: 4px solid ${GOLD}; background: #fafaf5; border-radius: 0 10px 10px 0; page-break-inside: avoid; }
+  .seg-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ts { font-family: "Courier New", monospace; font-size: 11.5px; font-weight: 800; color: ${GOLD}; background: rgba(212,180,97,0.1); border: 1px solid rgba(212,180,97,0.28); border-radius: 5px; padding: 2px 10px; white-space: nowrap; }
+  .seg-title { font-size: 16.5px; font-weight: 700; color: #1a1a2e; font-family: Arial, sans-serif; }
+  .bullets { padding-left: 20px; }
+  .bullet-item { font-size: 13.5px; line-height: 1.72; color: #2a2a3e; margin-bottom: 8px; }
+  .subs { padding-left: 18px; margin-top: 6px; list-style: none; }
   .subs li::before { content: "— "; color: ${GOLD}; font-weight: 700; }
-  .subs li { font-size: 12px; color: #444; margin-bottom: 4px; }
-  .script p { font-size: 13.5px; line-height: 1.8; color: #2a2a3e; margin-bottom: 14px; border-left: 2px solid #e8ddc8; padding-left: 14px; }
-  .footer { font-family: Arial, sans-serif; font-size: 10px; color: #aaa; text-align: center; margin-top: 48px; padding-top: 16px; border-top: 1px solid #eee; }
+  .subs li { font-size: 12.5px; color: #444; margin-bottom: 5px; line-height: 1.6; }
+  .script p { font-size: 14px; line-height: 1.82; color: #2a2a3e; margin-bottom: 16px; border-left: 3px solid #e8ddc0; padding-left: 16px; }
+  .footer { font-family: Arial, sans-serif; font-size: 10.5px; color: #bbb; text-align: center; margin-top: 52px; padding-top: 18px; border-top: 1px solid #eee; }
   @media print {
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .cover { page-break-after: always; }
@@ -143,52 +171,60 @@ function exportPDF(result: any) {
 </style>
 </head>
 <body>
-<!-- COVER PAGE -->
+
+<!-- COVER -->
 <div class="cover">
-  <div class="brand">⬡ Oravini AI — Content Analysis Report</div>
-  <h1>${escHtml(video.title || "Video Analysis")}</h1>
-  <div class="meta-row">
-    ${video.channel ? `<div class="meta-pill">📺 ${escHtml(video.channel)}</div>` : ""}
-    ${video.duration ? `<div class="meta-pill">⏱ ${escHtml(video.duration)}</div>` : ""}
-    ${video.views ? `<div class="meta-pill">👁 ${formatNum(video.views)} views</div>` : ""}
-    ${video.likes ? `<div class="meta-pill">👍 ${formatNum(video.likes)} likes</div>` : ""}
-    ${video.uploadDate ? `<div class="meta-pill">📅 ${escHtml(video.uploadDate)}</div>` : ""}
-  </div>
-  <hr class="divider"/>
-  ${result.overallSummary ? `<p class="summary-preview">${escHtml(result.overallSummary.split("\n")[0]?.slice(0, 280) || "")}…</p>` : ""}
-  <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
-    ${result.hasTranscript ? `<span class="badge">✓ Real transcript · ${result.transcriptSegments} segments</span>` : `<span class="badge">⚠ Metadata analysis</span>`}
-    ${result.minuteByMinute?.length ? `<span class="badge">${result.minuteByMinute.length} segments</span>` : ""}
-    ${result.keyTakeaways?.length ? `<span class="badge">${result.keyTakeaways.length} key takeaways</span>` : ""}
+  <div>
+    <div class="brand">⬡ Oravini AI — Content Analysis Report</div>
+    <h1>${escHtml(video.title || "Video Analysis")}</h1>
+    <div class="meta-row">
+      ${video.channel ? `<div class="meta-pill">📺 ${escHtml(video.channel)}</div>` : ""}
+      ${video.duration ? `<div class="meta-pill">⏱ ${escHtml(video.duration)}</div>` : ""}
+      ${video.views ? `<div class="meta-pill">👁 ${formatNum(video.views)} views</div>` : ""}
+      ${video.likes ? `<div class="meta-pill">👍 ${formatNum(video.likes)} likes</div>` : ""}
+      ${video.uploadDate ? `<div class="meta-pill">📅 ${escHtml(video.uploadDate)}</div>` : ""}
+    </div>
+    <hr class="divider"/>
+    ${result.overallSummary ? `<p class="summary-preview">${escHtml((result.overallSummary.split("\n")[0] || "").slice(0, 320))}…</p>` : ""}
+    <div style="margin-top:28px;display:flex;gap:10px;flex-wrap:wrap;">
+      ${result.hasTranscript ? `<span class="badge">✓ Real transcript · ${result.transcriptSegments} segments</span>` : `<span class="badge">⚠ Metadata analysis</span>`}
+      ${result.minuteByMinute?.length ? `<span class="badge">${result.minuteByMinute.length} time segments</span>` : ""}
+      ${result.keyTakeaways?.length ? `<span class="badge">${result.keyTakeaways.length} key takeaways</span>` : ""}
+      ${result.mindmap?.branches?.length ? `<span class="badge">${result.mindmap.branches.length}-branch mind map</span>` : ""}
+    </div>
   </div>
   <p class="gen-date">Generated ${new Date().toLocaleDateString("en-US", { year:"numeric", month:"long", day:"numeric", hour:"2-digit", minute:"2-digit" })} · Oravini AI Platform</p>
 </div>
 
 <!-- BODY -->
 <div class="body">
+
   ${result.overallSummary ? `
-    <h2>📋 Overview <span class="badge2">Summary</span></h2>
-    <div class="summary">
-      ${result.overallSummary.split("\n").filter(Boolean).map((p: string) => `<p>${bold(escHtml(p))}</p>`).join("")}
-    </div>` : ""}
+  <h2>📋 Overview <span class="badge2">Summary</span></h2>
+  <div class="summary">
+    ${result.overallSummary.split("\n").filter(Boolean).map((p: string) => `<p>${bold(escHtml(p))}</p>`).join("")}
+  </div>` : ""}
 
   ${tkHTML ? `
-    <h2>💡 Key Takeaways <span class="badge2">${result.keyTakeaways?.length}</span></h2>
-    ${tkHTML}` : ""}
+  <h2>💡 Key Takeaways <span class="badge2">${result.keyTakeaways?.length}</span></h2>
+  ${tkHTML}` : ""}
 
   ${mbmBlocks ? `
-    <h2>🕐 Minute-by-Minute Breakdown <span class="badge2">${result.minuteByMinute?.length} segments</span></h2>
-    ${mbmBlocks}` : ""}
+  <h2>🕐 Minute-by-Minute Breakdown <span class="badge2">${result.minuteByMinute?.length} segments</span></h2>
+  ${mbmBlocks}` : ""}
+
+  ${mindmapSection}
 
   ${scriptParas ? `
+  <div style="page-break-before: always;">
     <h2>🎙 Speaker Script</h2>
-    <div class="script">${scriptParas}</div>` : ""}
+    <div class="script">${scriptParas}</div>
+  </div>` : ""}
 
-  <div class="footer">
-    Generated by Oravini AI · oravini_ai · Analysis powered by Groq AI
-  </div>
+  <div class="footer">Generated by Oravini AI · @oravini_ai · Analysis powered by Groq AI + Llama 3.3 70B</div>
 </div>
-<script>window.onload = function() { setTimeout(function() { window.print(); }, 600); };</script>
+
+<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script>
 </body>
 </html>`;
 
