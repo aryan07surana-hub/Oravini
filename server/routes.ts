@@ -6604,21 +6604,28 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
         ? `You are a world-class content analyst. You have the COMPLETE TRANSCRIPT of this YouTube video — analyze EVERY SECTION thoroughly.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (grouped by 90-second blocks):\n${transcriptStr}\n\nReturn ONLY a valid JSON object — no markdown, no commentary:\n{\n  "overallSummary": "5-6 rich, specific paragraphs summarizing this video. First paragraph: what the video is fundamentally about and who the speaker is/their credibility. Second paragraph: the main argument or thesis. Third paragraph: the specific strategies/frameworks/methods discussed. Fourth paragraph: the concrete examples, stories, or case studies used. Fifth paragraph: the conclusion and call to action.",\n  "keyTakeaways": ["7 highly specific, actionable takeaways — each a full sentence quoting or closely paraphrasing what the speaker actually taught. No generic advice.", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title (what actually happens here):", "bullets": ["Specific detail from transcript with **bold key term**", "What speaker says here and why it matters:\\n- exact point 1\\n- exact point 2\\n- exact point 3"]}\n  ],\n  "speakerScript": "Full first-person script reconstruction — minimum 700 words. Write as if you ARE the speaker, using their exact phrases and examples from the transcript. Every paragraph must contain specific details from the video.",\n  "mindmap": {\n    "center": "Video Core Topic (5-7 words)",\n    "branches": [\n      {"label": "Specific Branch Theme", "emoji": "🎯", "nodes": ["Exact concept/strategy from video", "Named framework or method used", "Specific example mentioned", "Key quote or insight", "Actionable technique revealed"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create ONE segment per 90-second block in the transcript (use the === timestamps). Cover the ENTIRE transcript — do not skip any section. ${bulletFmt}\nFor mindmap: 5-6 branches using SPECIFIC themes from this video. 5-6 nodes per branch — all specific to this content.\nFor overallSummary and speakerScript: reference specific quotes, examples, and moments from the video — not general summaries.`
         : `You are a world-class content analyst. Analyze this YouTube video based on its metadata and description.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "5-6 paragraphs analyzing this specific video's likely content, argument, and approach based on the title, description, and tags.",\n  "keyTakeaways": ["7 specific takeaways likely from this video based on the title and description", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and specific detail", "Detail with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Detailed mock script of what the speaker likely says — minimum 500 words. Specific and realistic to the topic.",\n  "mindmap": {"center": "Core Topic (5-7 words)", "branches": [{"label": "Theme", "emoji": "🎯", "nodes": ["specific node 1","specific node 2","specific node 3","specific node 4","specific node 5"]}]}\n}\n\nFor minuteByMinute: 8-10 estimated segments. ${bulletFmt}\nFor mindmap: 5-6 branches, 5 nodes each.`;
 
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://oravini.ai",
+          "X-Title": "Oravini AI Content Analyser",
+        },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "anthropic/claude-3.5-sonnet",
           messages: [
-            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting specific phrases, naming specific frameworks, citing specific examples. Return ONLY valid JSON with zero markdown, zero commentary." },
+            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting specific phrases, naming specific frameworks, citing specific examples with exact details. CRITICAL: Return ONLY raw JSON with NO markdown code blocks, NO backticks, NO text before or after. Just the raw JSON object starting with { and ending with }." },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.55, max_tokens: 8000, response_format: { type: "json_object" },
+          temperature: 0.4, max_tokens: 8000,
         }),
       });
       const aiData: any = await aiRes.json();
-      if (aiData?.error) throw new Error(aiData.error.message);
-      const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+      if (aiData?.error) throw new Error(aiData.error.message || JSON.stringify(aiData.error));
+      const rawContent = aiData.choices?.[0]?.message?.content || "{}";
+      const cleanContent = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      const analysis = JSON.parse(cleanContent);
 
       return res.json({ video: videoData, hasTranscript, transcriptSegments: transcript.length, ...analysis });
     } catch (err: any) {
@@ -6648,21 +6655,92 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
         `POST ${i + 1} (${p.type || "post"}):\nCaption (full): ${p.caption || "(none)"}\nLikes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0} | Video Views: ${p.videoViewCount || "N/A"}\nHashtags: ${p.hashtags?.join(" ") || "none"}\nMentions: ${p.mentions?.join(" ") || "none"}\nPosted: ${p.timestamp ? new Date(p.timestamp).toLocaleDateString() : "unknown"}`
       ).join("\n\n---\n\n");
 
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const igStrictRules = `CRITICAL RULES — FOLLOW EXACTLY:
+1. Every insight must be grounded in the ACTUAL CAPTION TEXT provided. Quote specific words, phrases, hooks from the captions.
+2. Do NOT write generic social media advice. Write what THIS specific creator does in these specific posts.
+3. For engagement insights: use the actual like/comment numbers provided. Reference specific ratios.
+4. For hook analysis: quote the ACTUAL opening lines of the captions — the exact words they use.
+5. For keyPoints in each post: cite specific techniques observable in that exact post's data.
+6. Mindmap nodes must reflect specific strategies, themes, or patterns actually seen in these posts.`;
+
+      const igPrompt = `You are a world-class Instagram content strategist and analyst with deep expertise in viral content, engagement psychology, and creator strategy.
+
+${igStrictRules}
+
+POSTS TO ANALYZE (${items.length} posts):
+${postsContext}
+
+Return ONLY raw JSON — no markdown code blocks, no backticks, no text before or after. Start directly with {:
+
+{
+  "overallSummary": "6-7 paragraph DEEP analysis. Para 1: Who is this creator and what is their niche/positioning based on these posts? Para 2: What specific content themes and topics dominate — and what exact language/vocabulary do they use? Para 3: What is the storytelling structure across these posts — how do they open, develop, and close? Para 4: What emotional triggers and psychological hooks are they deploying, with specific examples from captions? Para 5: How does their engagement (actual like/comment numbers) compare across post types and why? Para 6: What gaps or weaknesses are observable from the caption data? Para 7: What specific opportunities exist for this creator to scale?",
+
+  "keyTakeaways": [
+    "Specific insight 1 grounded in actual caption data from these posts",
+    "Specific insight 2 about engagement patterns with actual numbers",
+    "Specific insight 3 about the hook strategy with quoted examples",
+    "Specific insight 4 about content structure observable in multiple posts",
+    "Specific insight 5 about audience psychology being exploited",
+    "Specific insight 6 about positioning and brand voice patterns",
+    "Specific insight 7 about the biggest opportunity or risk visible in this content set"
+  ],
+
+  "postByPost": [
+    {
+      "postNumber": 1,
+      "title": "The core theme or hook of this post in 6-8 words",
+      "captionAnalysis": "3-4 sentence deep-dive: What is the hook (quote it exactly)? What storytelling structure is used? What emotional trigger? What CTA or implied next step? How does the caption length and formatting serve the content type?",
+      "engagementInsight": "2-3 sentences: Given the actual like and comment numbers for this post, why did it perform this way? What specific elements drove or limited engagement? Compare to the other posts in this set.",
+      "contentType": "Educational / Entertaining / Inspirational / Promotional / Personal story / Controversial / etc",
+      "keyPoints": [
+        "Specific strength or technique used in this exact post",
+        "What the caption structure reveals about the creator's strategy",
+        "One concrete thing that could make this post perform better"
+      ]
+    }
+  ],
+
+  "contentStrategy": "5-6 paragraph comprehensive strategy analysis. Para 1: The core content pillars this creator operates in, and how consistently they execute. Para 2: The posting cadence and content mix patterns visible across these posts. Para 3: The brand voice — tone, vocabulary, personality, and how they talk to their audience. Para 4: The audience targeting strategy — who are they trying to reach and what pain points/desires are they addressing? Para 5: How their strategy compares to best practices in this niche — what they're doing right and what elite creators do that this creator doesn't. Para 6: Three specific strategic shifts that would significantly increase their performance.",
+
+  "hookAnalysis": "4-5 paragraph deep hook analysis. Para 1: What types of hooks are used across these posts — question hooks, statement hooks, number hooks, story hooks? Quote specific opening lines. Para 2: Which hooks generated the best engagement and why — analyze the psychology. Para 3: What patterns emerge in how they open their content — what's their 'hook formula'? Para 4: What makes their best hooks work or fail — specific linguistic and psychological elements. Para 5: Three specific hook templates they should adopt based on what's working in their niche.",
+
+  "mindmap": {
+    "center": "Core Content Theme (5-7 words max)",
+    "branches": [
+      {"label": "Content Pillars", "emoji": "📌", "nodes": ["specific pillar from posts", "another theme", "recurring topic", "content category", "format used"]},
+      {"label": "Hook Strategies", "emoji": "🪝", "nodes": ["specific hook type used", "opening pattern observed", "psychological trigger", "hook formula", "what to test next"]},
+      {"label": "Engagement Drivers", "emoji": "⚡", "nodes": ["specific driver from data", "engagement pattern", "comment trigger", "save-worthy element", "share mechanic"]},
+      {"label": "Brand Voice", "emoji": "🎙", "nodes": ["tone descriptor", "vocabulary pattern", "personality trait", "communication style", "audience relationship"]},
+      {"label": "Growth Opportunities", "emoji": "🚀", "nodes": ["content gap to fill", "format to test", "topic to explore", "strategy to adopt", "audience segment to target"]}
+    ]
+  }
+}
+
+For postByPost: include ALL ${items.length} posts — do not skip any.
+For every field: be SPECIFIC to these actual posts. Quote captions. Use actual numbers. Name specific techniques.`;
+
+      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://oravini.ai",
+          "X-Title": "Oravini AI Instagram Analyser",
+        },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "anthropic/claude-3.5-sonnet",
           messages: [
-            { role: "system", content: "You are a world-class social media content strategist. Analyze Instagram posts in extreme detail and return ONLY valid JSON — no markdown, no extra text." },
-            { role: "user", content: `Analyze these ${items.length} Instagram posts IN EXTREME DETAIL and return exactly this JSON structure:\n{\n  "overallSummary": "4-5 paragraph comprehensive analysis of the account's content strategy, brand voice, topics covered, and what makes this content effective or ineffective",\n  "keyTakeaways": ["7 highly detailed, actionable insights about this creator's strategy and approach — full sentences", "insight2", "insight3", "insight4", "insight5", "insight6", "insight7"],\n  "postByPost": [\n    {"postNumber": 1, "title": "Hook or Theme of This Post", "captionAnalysis": "Detailed analysis of what this caption does — the hook, storytelling, CTA, tone", "engagementInsight": "Why this post performed the way it did — specific reasons", "contentType": "Educational/Entertaining/Promotional/etc", "keyPoints": ["specific strength 1", "specific strategy used", "what could be improved"]}\n  ],\n  "contentStrategy": "Write 3-4 detailed paragraphs analyzing the overall content strategy — posting patterns, content mix, brand positioning, audience targeting, and what makes this account stand out or fall short",\n  "hookAnalysis": "Detailed analysis of the hook/opening lines used across posts — patterns, what works, examples from the captions",\n  "mindmap": {\n    "center": "Content Strategy Theme (4-6 words)",\n    "branches": [\n      {"label": "Branch Name", "emoji": "📌", "nodes": ["detailed node 1", "detailed node 2", "detailed node 3", "detailed node 4", "detailed node 5"]}\n    ]\n  }\n}\n\nFor postByPost: include ALL ${items.length} posts.\nFor mindmap: create 5-6 branches with 5 nodes each covering all themes.\n\nPOSTS DATA:\n${postsContext}` },
+            { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY raw JSON — no markdown, no backticks, no preamble." },
+            { role: "user", content: igPrompt },
           ],
-          temperature: 0.65, max_tokens: 6000, response_format: { type: "json_object" },
+          temperature: 0.4, max_tokens: 8000,
         }),
       });
       const aiData: any = await aiRes.json();
-      if (aiData?.error) throw new Error(aiData.error.message);
-      const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+      if (aiData?.error) throw new Error(aiData.error.message || JSON.stringify(aiData.error));
+      const rawIgContent = aiData.choices?.[0]?.message?.content || "{}";
+      const cleanIgContent = rawIgContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      const analysis = JSON.parse(cleanIgContent);
       const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, views: p.videoViewCount, type: p.type || "post", url: p.url, hashtags: p.hashtags?.slice(0, 5), timestamp: p.timestamp }));
       return res.json({ posts, ...analysis });
     } catch (err: any) {
