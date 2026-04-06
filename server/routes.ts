@@ -6566,23 +6566,43 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
 
       if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Please check the URL." });
 
-      // Build transcript string with timestamps
+      // Build full transcript — group into 2-minute chunks for better AI comprehension
       const transcript: Array<{time: number, dur: number, text: string}> = transcriptData.status === "fulfilled" ? transcriptData.value : [];
       const hasTranscript = transcript.length > 5;
       let transcriptStr = "";
       if (hasTranscript) {
-        transcriptStr = transcript.map(t => `[${fmtTime(t.time)}] ${t.text}`).join("\n");
-        if (transcriptStr.length > 9000) transcriptStr = transcriptStr.slice(0, 9000) + "\n...(continued)";
+        // Group transcript into 90-second chunks with timestamps
+        const CHUNK_SECS = 90;
+        const chunks: { startTime: number; lines: string[] }[] = [];
+        let currentChunk: { startTime: number; lines: string[] } | null = null;
+        for (const t of transcript) {
+          const chunkIdx = Math.floor(t.time / CHUNK_SECS);
+          if (!currentChunk || Math.floor(currentChunk.startTime / CHUNK_SECS) !== chunkIdx) {
+            currentChunk = { startTime: t.time, lines: [] };
+            chunks.push(currentChunk);
+          }
+          currentChunk.lines.push(t.text);
+        }
+        transcriptStr = chunks.map(c => `\n=== [${fmtTime(c.startTime)}] ===\n${c.lines.join(" ")}`).join("\n");
+        if (transcriptStr.length > 22000) transcriptStr = transcriptStr.slice(0, 22000) + "\n\n[transcript continues — ensure you cover the above in full]";
       }
 
       // Step 3: Comprehensive AI Analysis
       const videoContext = `Title: ${videoData.title}\nChannel: ${videoData.channel}\nViews: ${videoData.views || "N/A"}\nLikes: ${videoData.likes || "N/A"}\nDuration: ${videoData.duration || "N/A"}\nDescription: ${videoData.description || "(not available)"}\nTags: ${videoData.tags || "N/A"}`;
 
-      const mbmBulletFormat = `Each bullet is a plain string. Use **double asterisks** around KEY TERMS to bold them. If a bullet has sub-points, include them inline as: "Main statement about the topic:\\n- Sub-point one\\n- Sub-point two\\n- Sub-point three". Create 3-5 bullets per segment with real depth.`;
+      const strictRules = `CRITICAL RULES — FOLLOW EXACTLY:
+1. Do NOT write generic advice. Write WHAT THE SPEAKER ACTUALLY SAYS in this specific transcript.
+2. Quote their exact words when relevant (use "quotes"). Use phrases like "The speaker reveals...", "They explain that...", "The example given is...", "They specifically say..."
+3. Every bullet must contain SPECIFIC information pulled from that timestamp — not advice that could apply to any video.
+4. Include specific: numbers, percentages, names, frameworks, stories, examples, strategies the speaker names.
+5. If you write something generic like "the speaker discusses the importance of X" — that is WRONG. Instead write WHAT they actually say about X, HOW they explain it, WHAT example they use.
+6. The mindmap nodes must reflect SPECIFIC concepts from THIS video — named frameworks, specific strategies, exact topics discussed.`;
+
+      const bulletFmt = `Bullets are plain strings. Use **bold** around KEY TERMS. For bullets with sub-points: "Main point — context:\\n- specific sub-point from transcript\\n- another specific detail\\n- third detail". Write 4-6 bullets per segment with maximum specificity.`;
 
       const userPrompt = hasTranscript
-        ? `You are a world-class content analyst. Analyze this YouTube video IN EXTREME DETAIL using the full transcript provided.\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (${transcript.length} segments):\n${transcriptStr}\n\nReturn ONLY a valid JSON object with EXACTLY this structure — no markdown code blocks, no explanation:\n{\n  "overallSummary": "Write 4-5 rich detailed paragraphs summarizing the ENTIRE video — cover the main argument, key strategies, specific examples given, and the conclusion.",\n  "keyTakeaways": ["7 detailed, actionable key takeaways — complete sentences teaching what the speaker covered", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Bullet with **bold key term** explained in detail", "Another bullet with context:\\n- Sub-point 1\\n- Sub-point 2\\n- Sub-point 3"]}\n  ],\n  "speakerScript": "Reconstruct the full script — paragraph form, first person voice matching the speaker, covering every major point. Minimum 500 words.",\n  "mindmap": {\n    "center": "Main Topic (4-6 words)",\n    "branches": [\n      {"label": "Branch Name", "emoji": "🎯", "nodes": ["Detailed sub-point 1", "Detailed sub-point 2", "Detailed sub-point 3", "Detailed sub-point 4", "Detailed sub-point 5"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create 8-12 segments covering the ENTIRE video in chronological order. Timestamps in MM:SS format from transcript. ${mbmBulletFormat}\nFor mindmap: 5-6 branches, 5 nodes each covering all major themes.`
-        : `You are a world-class content analyst. Analyze this YouTube video based on its metadata.\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "Write 4-5 comprehensive paragraphs about what this video covers based on the title and description.",\n  "keyTakeaways": ["7 detailed key takeaways based on the topic", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and detail", "Another point with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Write a detailed mock script of what the speaker likely says. Realistic and detailed — minimum 400 words.",\n  "mindmap": {"center": "Main Topic (4-6 words)", "branches": [{"label": "Branch", "emoji": "🎯", "nodes": ["node1","node2","node3","node4","node5"]}]}\n}\n\nFor minuteByMinute: 6-8 estimated time segments. ${mbmBulletFormat}\nFor mindmap: 5 branches, 5 nodes each.`;
+        ? `You are a world-class content analyst. You have the COMPLETE TRANSCRIPT of this YouTube video — analyze EVERY SECTION thoroughly.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (grouped by 90-second blocks):\n${transcriptStr}\n\nReturn ONLY a valid JSON object — no markdown, no commentary:\n{\n  "overallSummary": "5-6 rich, specific paragraphs summarizing this video. First paragraph: what the video is fundamentally about and who the speaker is/their credibility. Second paragraph: the main argument or thesis. Third paragraph: the specific strategies/frameworks/methods discussed. Fourth paragraph: the concrete examples, stories, or case studies used. Fifth paragraph: the conclusion and call to action.",\n  "keyTakeaways": ["7 highly specific, actionable takeaways — each a full sentence quoting or closely paraphrasing what the speaker actually taught. No generic advice.", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title (what actually happens here):", "bullets": ["Specific detail from transcript with **bold key term**", "What speaker says here and why it matters:\\n- exact point 1\\n- exact point 2\\n- exact point 3"]}\n  ],\n  "speakerScript": "Full first-person script reconstruction — minimum 700 words. Write as if you ARE the speaker, using their exact phrases and examples from the transcript. Every paragraph must contain specific details from the video.",\n  "mindmap": {\n    "center": "Video Core Topic (5-7 words)",\n    "branches": [\n      {"label": "Specific Branch Theme", "emoji": "🎯", "nodes": ["Exact concept/strategy from video", "Named framework or method used", "Specific example mentioned", "Key quote or insight", "Actionable technique revealed"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create ONE segment per 90-second block in the transcript (use the === timestamps). Cover the ENTIRE transcript — do not skip any section. ${bulletFmt}\nFor mindmap: 5-6 branches using SPECIFIC themes from this video. 5-6 nodes per branch — all specific to this content.\nFor overallSummary and speakerScript: reference specific quotes, examples, and moments from the video — not general summaries.`
+        : `You are a world-class content analyst. Analyze this YouTube video based on its metadata and description.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "5-6 paragraphs analyzing this specific video's likely content, argument, and approach based on the title, description, and tags.",\n  "keyTakeaways": ["7 specific takeaways likely from this video based on the title and description", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and specific detail", "Detail with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Detailed mock script of what the speaker likely says — minimum 500 words. Specific and realistic to the topic.",\n  "mindmap": {"center": "Core Topic (5-7 words)", "branches": [{"label": "Theme", "emoji": "🎯", "nodes": ["specific node 1","specific node 2","specific node 3","specific node 4","specific node 5"]}]}\n}\n\nFor minuteByMinute: 8-10 estimated segments. ${bulletFmt}\nFor mindmap: 5-6 branches, 5 nodes each.`;
 
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -6590,10 +6610,10 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are an expert content analyst. Always return ONLY valid JSON with no markdown code blocks, no commentary, no extra text before or after the JSON." },
+            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting specific phrases, naming specific frameworks, citing specific examples. Return ONLY valid JSON with zero markdown, zero commentary." },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.65, max_tokens: 6000, response_format: { type: "json_object" },
+          temperature: 0.55, max_tokens: 8000, response_format: { type: "json_object" },
         }),
       });
       const aiData: any = await aiRes.json();
