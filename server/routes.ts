@@ -6613,7 +6613,7 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
             { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.4, max_tokens: 8000, response_format: { type: "json_object" },
+          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
         }),
       });
       console.log("[YouTube Analyse] Groq HTTP status:", aiRes.status);
@@ -6733,7 +6733,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
             { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
             { role: "user", content: igPrompt },
           ],
-          temperature: 0.4, max_tokens: 8000, response_format: { type: "json_object" },
+          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
         }),
       });
       console.log("[Instagram Analyse] Groq HTTP status:", aiRes.status);

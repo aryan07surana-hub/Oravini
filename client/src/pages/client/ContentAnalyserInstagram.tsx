@@ -52,9 +52,9 @@ export default function ContentAnalyserInstagram() {
   useEffect(() => {
     if (!loading) { setLoadingPhase(0); return; }
     setLoadingPhase(0);
-    const t1 = setTimeout(() => setLoadingPhase(1), 4000);
-    const t2 = setTimeout(() => setLoadingPhase(2), 14000);
-    const t3 = setTimeout(() => setLoadingPhase(3), 28000);
+    const t1 = setTimeout(() => setLoadingPhase(1), 6000);
+    const t2 = setTimeout(() => setLoadingPhase(2), 16000);
+    const t3 = setTimeout(() => setLoadingPhase(3), 30000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [loading]);
 
