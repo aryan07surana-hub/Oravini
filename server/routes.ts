@@ -6613,7 +6613,7 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
           "X-Title": "Oravini AI Content Analyser",
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3.5-sonnet",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [
             { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting specific phrases, naming specific frameworks, citing specific examples with exact details. CRITICAL: Return ONLY raw JSON with NO markdown code blocks, NO backticks, NO text before or after. Just the raw JSON object starting with { and ending with }." },
             { role: "user", content: userPrompt },
@@ -6621,16 +6621,27 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
           temperature: 0.4, max_tokens: 8000,
         }),
       });
+      console.log("[YouTube Analyse] OpenRouter HTTP status:", aiRes.status);
       const aiData: any = await aiRes.json();
-      if (aiData?.error) throw new Error(aiData.error.message || JSON.stringify(aiData.error));
+      if (!aiRes.ok || aiData?.error) {
+        console.error("[YouTube Analyse] OpenRouter error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `OpenRouter HTTP ${aiRes.status}`);
+      }
       const rawContent = aiData.choices?.[0]?.message?.content || "{}";
+      console.log("[YouTube Analyse] AI response length:", rawContent.length, "first 100:", rawContent.slice(0, 100));
       const cleanContent = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-      const analysis = JSON.parse(cleanContent);
+      let analysis: any = {};
+      try {
+        analysis = JSON.parse(cleanContent);
+      } catch (parseErr: any) {
+        console.error("[YouTube Analyse] JSON parse error:", parseErr.message, "Content start:", cleanContent.slice(0, 200));
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
 
       return res.json({ video: videoData, hasTranscript, transcriptSegments: transcript.length, ...analysis });
     } catch (err: any) {
-      console.error("[YouTube Analyse]", err.message);
-      return res.status(500).json({ message: "Analysis failed. Please try again." });
+      console.error("[YouTube Analyse] FULL ERROR:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed. Please try again." });
     }
   });
 
@@ -6728,7 +6739,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
           "X-Title": "Oravini AI Instagram Analyser",
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3.5-sonnet",
+          model: "anthropic/claude-sonnet-4.6",
           messages: [
             { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY raw JSON — no markdown, no backticks, no preamble." },
             { role: "user", content: igPrompt },
@@ -6736,16 +6747,27 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
           temperature: 0.4, max_tokens: 8000,
         }),
       });
+      console.log("[Instagram Analyse] OpenRouter HTTP status:", aiRes.status);
       const aiData: any = await aiRes.json();
-      if (aiData?.error) throw new Error(aiData.error.message || JSON.stringify(aiData.error));
+      if (!aiRes.ok || aiData?.error) {
+        console.error("[Instagram Analyse] OpenRouter error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `OpenRouter HTTP ${aiRes.status}`);
+      }
       const rawIgContent = aiData.choices?.[0]?.message?.content || "{}";
+      console.log("[Instagram Analyse] AI response length:", rawIgContent.length);
       const cleanIgContent = rawIgContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-      const analysis = JSON.parse(cleanIgContent);
+      let analysis: any = {};
+      try {
+        analysis = JSON.parse(cleanIgContent);
+      } catch (parseErr: any) {
+        console.error("[Instagram Analyse] JSON parse error:", parseErr.message, "Content start:", cleanIgContent.slice(0, 200));
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
       const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, views: p.videoViewCount, type: p.type || "post", url: p.url, hashtags: p.hashtags?.slice(0, 5), timestamp: p.timestamp }));
       return res.json({ posts, ...analysis });
     } catch (err: any) {
-      console.error("[Instagram Analyse]", err.message);
-      return res.status(500).json({ message: "Analysis failed. Please try again." });
+      console.error("[Instagram Analyse] FULL ERROR:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed. Please try again." });
     }
   });
 
