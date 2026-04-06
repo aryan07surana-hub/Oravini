@@ -6604,37 +6604,31 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
         ? `You are a world-class content analyst. You have the COMPLETE TRANSCRIPT of this YouTube video — analyze EVERY SECTION thoroughly.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (grouped by 90-second blocks):\n${transcriptStr}\n\nReturn ONLY a valid JSON object — no markdown, no commentary:\n{\n  "overallSummary": "5-6 rich, specific paragraphs summarizing this video. First paragraph: what the video is fundamentally about and who the speaker is/their credibility. Second paragraph: the main argument or thesis. Third paragraph: the specific strategies/frameworks/methods discussed. Fourth paragraph: the concrete examples, stories, or case studies used. Fifth paragraph: the conclusion and call to action.",\n  "keyTakeaways": ["7 highly specific, actionable takeaways — each a full sentence quoting or closely paraphrasing what the speaker actually taught. No generic advice.", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title (what actually happens here):", "bullets": ["Specific detail from transcript with **bold key term**", "What speaker says here and why it matters:\\n- exact point 1\\n- exact point 2\\n- exact point 3"]}\n  ],\n  "speakerScript": "Full first-person script reconstruction — minimum 700 words. Write as if you ARE the speaker, using their exact phrases and examples from the transcript. Every paragraph must contain specific details from the video.",\n  "mindmap": {\n    "center": "Video Core Topic (5-7 words)",\n    "branches": [\n      {"label": "Specific Branch Theme", "emoji": "🎯", "nodes": ["Exact concept/strategy from video", "Named framework or method used", "Specific example mentioned", "Key quote or insight", "Actionable technique revealed"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create ONE segment per 90-second block in the transcript (use the === timestamps). Cover the ENTIRE transcript — do not skip any section. ${bulletFmt}\nFor mindmap: 5-6 branches using SPECIFIC themes from this video. 5-6 nodes per branch — all specific to this content.\nFor overallSummary and speakerScript: reference specific quotes, examples, and moments from the video — not general summaries.`
         : `You are a world-class content analyst. Analyze this YouTube video based on its metadata and description.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "5-6 paragraphs analyzing this specific video's likely content, argument, and approach based on the title, description, and tags.",\n  "keyTakeaways": ["7 specific takeaways likely from this video based on the title and description", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and specific detail", "Detail with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Detailed mock script of what the speaker likely says — minimum 500 words. Specific and realistic to the topic.",\n  "mindmap": {"center": "Core Topic (5-7 words)", "branches": [{"label": "Theme", "emoji": "🎯", "nodes": ["specific node 1","specific node 2","specific node 3","specific node 4","specific node 5"]}]}\n}\n\nFor minuteByMinute: 8-10 estimated segments. ${bulletFmt}\nFor mindmap: 5-6 branches, 5 nodes each.`;
 
-      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://oravini.ai",
-          "X-Title": "Oravini AI Content Analyser",
-        },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "anthropic/claude-sonnet-4.6",
+          model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting specific phrases, naming specific frameworks, citing specific examples with exact details. CRITICAL: Return ONLY raw JSON with NO markdown code blocks, NO backticks, NO text before or after. Just the raw JSON object starting with { and ending with }." },
+            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.4, max_tokens: 8000,
+          temperature: 0.4, max_tokens: 8000, response_format: { type: "json_object" },
         }),
       });
-      console.log("[YouTube Analyse] OpenRouter HTTP status:", aiRes.status);
+      console.log("[YouTube Analyse] Groq HTTP status:", aiRes.status);
       const aiData: any = await aiRes.json();
       if (!aiRes.ok || aiData?.error) {
-        console.error("[YouTube Analyse] OpenRouter error:", JSON.stringify(aiData));
-        throw new Error(aiData?.error?.message || aiData?.message || `OpenRouter HTTP ${aiRes.status}`);
+        console.error("[YouTube Analyse] Groq error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
       }
       const rawContent = aiData.choices?.[0]?.message?.content || "{}";
-      console.log("[YouTube Analyse] AI response length:", rawContent.length, "first 100:", rawContent.slice(0, 100));
-      const cleanContent = rawContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      console.log("[YouTube Analyse] AI response length:", rawContent.length);
       let analysis: any = {};
       try {
-        analysis = JSON.parse(cleanContent);
+        analysis = JSON.parse(rawContent);
       } catch (parseErr: any) {
-        console.error("[YouTube Analyse] JSON parse error:", parseErr.message, "Content start:", cleanContent.slice(0, 200));
+        console.error("[YouTube Analyse] JSON parse error:", parseErr.message, "Content start:", rawContent.slice(0, 200));
         throw new Error("AI returned invalid JSON. Please try again.");
       }
 
@@ -6730,28 +6724,23 @@ Return ONLY raw JSON — no markdown code blocks, no backticks, no text before o
 For postByPost: include ALL ${items.length} posts — do not skip any.
 For every field: be SPECIFIC to these actual posts. Quote captions. Use actual numbers. Name specific techniques.`;
 
-      const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://oravini.ai",
-          "X-Title": "Oravini AI Instagram Analyser",
-        },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "anthropic/claude-sonnet-4.6",
+          model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY raw JSON — no markdown, no backticks, no preamble." },
+            { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
             { role: "user", content: igPrompt },
           ],
-          temperature: 0.4, max_tokens: 8000,
+          temperature: 0.4, max_tokens: 8000, response_format: { type: "json_object" },
         }),
       });
-      console.log("[Instagram Analyse] OpenRouter HTTP status:", aiRes.status);
+      console.log("[Instagram Analyse] Groq HTTP status:", aiRes.status);
       const aiData: any = await aiRes.json();
       if (!aiRes.ok || aiData?.error) {
-        console.error("[Instagram Analyse] OpenRouter error:", JSON.stringify(aiData));
-        throw new Error(aiData?.error?.message || aiData?.message || `OpenRouter HTTP ${aiRes.status}`);
+        console.error("[Instagram Analyse] Groq error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
       }
       const rawIgContent = aiData.choices?.[0]?.message?.content || "{}";
       console.log("[Instagram Analyse] AI response length:", rawIgContent.length);
