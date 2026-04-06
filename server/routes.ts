@@ -6468,6 +6468,56 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
   });
 
   // ── Content Analyser ──────────────────────────────────────────────────────
+  // YouTube transcript extractor (no external package needed)
+  async function extractYouTubeTranscript(videoId: string): Promise<Array<{time: number, dur: number, text: string}>> {
+    // Method 1: Parse caption tracks from video page
+    try {
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36", "Accept-Language": "en-US,en;q=0.9" }
+      });
+      const html = await pageRes.text();
+      const captionMatch = html.match(/"captionTracks":(\[.*?\])(?=,|\})/);
+      if (captionMatch) {
+        let tracks: any[] = [];
+        try { tracks = JSON.parse(captionMatch[1]); } catch {}
+        const track = tracks.find((t: any) => t.languageCode === "en") || tracks.find((t: any) => t.languageCode?.startsWith("en")) || tracks[0];
+        if (track?.baseUrl) {
+          // Try JSON3 format
+          const cRes = await fetch(track.baseUrl + "&fmt=json3");
+          if (cRes.ok) {
+            try {
+              const d = await cRes.json();
+              const result = (d.events || []).filter((e: any) => e.segs && e.tStartMs != null).map((e: any) => ({
+                time: Math.round(e.tStartMs / 1000),
+                dur: Math.round((e.dDurationMs || 3000) / 1000),
+                text: e.segs.map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim()
+              })).filter((t: any) => t.text.length > 1);
+              if (result.length > 5) return result;
+            } catch {}
+          }
+          // Fallback: XML format
+          const xRes = await fetch(track.baseUrl);
+          if (xRes.ok) {
+            const xml = await xRes.text();
+            const matches = [...xml.matchAll(/<text start="([\d.]+)" dur="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g)];
+            return matches.map(m => ({
+              time: Math.round(parseFloat(m[1])),
+              dur: Math.round(parseFloat(m[2])),
+              text: m[3].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").trim()
+            })).filter(t => t.text.length > 1);
+          }
+        }
+      }
+    } catch (e: any) { console.error("[Transcript Page]", e.message); }
+    return [];
+  }
+
+  function fmtTime(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
   app.post("/api/analyse/youtube", requireAuth, async (req: Request, res: Response) => {
     const { url } = req.body;
     if (!url?.trim()) return res.status(400).json({ message: "YouTube URL required" });
@@ -6477,45 +6527,78 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
       if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
     }
     try {
+      // Extract video ID
+      const vidMatch = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+      const videoId = vidMatch?.[1];
+
+      // Step 1: oEmbed (fast, always works)
       let videoData: any = {};
-      // Step 1: oEmbed for guaranteed basic info
       try {
         const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-        if (oe.ok) { const d = await oe.json(); videoData = { title: d.title, channel: d.author_name, thumbnail: d.thumbnail_url }; }
+        if (oe.ok) { const d = await oe.json(); videoData = { title: d.title, channel: d.author_name, thumbnail: d.thumbnail_url, videoId }; }
       } catch {}
-      // Step 2: Apify for enriched data
+
+      // Use higher-res thumbnail if we have videoId
+      if (videoId && !videoData.thumbnail) videoData.thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      if (videoId && videoData.thumbnail) videoData.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+
+      // Step 2: Apify for metadata (parallel with transcript extraction)
       const apifyToken = process.env.APIFY_TOKEN;
-      if (apifyToken) {
-        try {
-          const aRes = await fetch(`https://api.apify.com/v2/acts/bernardo~youtube-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=45`, {
+      const [apifyResult, transcriptData] = await Promise.allSettled([
+        (async () => {
+          if (!apifyToken) return null;
+          const aRes = await fetch(`https://api.apify.com/v2/acts/bernardo~youtube-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=50`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ startUrls: [{ url }], maxResults: 1 }),
           });
-          if (aRes.ok) {
-            const items = await aRes.json();
-            const item = Array.isArray(items) ? items[0] : null;
-            if (item) videoData = { ...videoData, title: item.title || videoData.title, channel: item.channelName || item.channelTitle || videoData.channel, thumbnail: item.thumbnailUrl || videoData.thumbnail, views: item.viewCount, likes: item.likes, duration: item.duration, description: item.description?.slice(0, 2000), uploadDate: item.date, tags: item.hashtags?.slice(0, 10).join(", ") };
-          }
-        } catch {}
+          if (!aRes.ok) return null;
+          const items = await aRes.json();
+          return Array.isArray(items) ? items[0] : null;
+        })(),
+        videoId ? extractYouTubeTranscript(videoId) : Promise.resolve([]),
+      ]);
+
+      // Merge Apify metadata
+      if (apifyResult.status === "fulfilled" && apifyResult.value) {
+        const item = apifyResult.value;
+        videoData = { ...videoData, title: item.title || videoData.title, channel: item.channelName || item.channelTitle || videoData.channel, thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` || item.thumbnailUrl || videoData.thumbnail, views: item.viewCount, likes: item.likes, duration: item.duration, description: item.description?.slice(0, 3000), uploadDate: item.date, tags: item.hashtags?.slice(0, 12).join(", ") };
       }
-      if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Check the URL and try again." });
-      // Step 3: AI Analysis
+
+      if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Please check the URL." });
+
+      // Build transcript string with timestamps
+      const transcript: Array<{time: number, dur: number, text: string}> = transcriptData.status === "fulfilled" ? transcriptData.value : [];
+      const hasTranscript = transcript.length > 5;
+      let transcriptStr = "";
+      if (hasTranscript) {
+        transcriptStr = transcript.map(t => `[${fmtTime(t.time)}] ${t.text}`).join("\n");
+        if (transcriptStr.length > 9000) transcriptStr = transcriptStr.slice(0, 9000) + "\n...(continued)";
+      }
+
+      // Step 3: Comprehensive AI Analysis
+      const videoContext = `Title: ${videoData.title}\nChannel: ${videoData.channel}\nViews: ${videoData.views || "N/A"}\nLikes: ${videoData.likes || "N/A"}\nDuration: ${videoData.duration || "N/A"}\nDescription: ${videoData.description || "(not available)"}\nTags: ${videoData.tags || "N/A"}`;
+
+      const userPrompt = hasTranscript
+        ? `You are a world-class content analyst. Analyze this YouTube video IN EXTREME DETAIL using the full transcript provided.\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (${transcript.length} segments):\n${transcriptStr}\n\nReturn ONLY a valid JSON object with EXACTLY this structure — no markdown, no explanation:\n{\n  "overallSummary": "Write 4-5 rich detailed paragraphs summarizing the ENTIRE video — cover the main argument, the key strategies discussed, the examples given, and the conclusion. Be thorough.",\n  "keyTakeaways": ["Write 7 detailed, actionable key takeaways — each should be a complete sentence explaining what the speaker taught", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title Based on What Was Said", "bullets": ["Detailed point 1 — what exactly the speaker said/taught here", "Detailed point 2 with specific examples if mentioned", "Detailed point 3 with context"]}\n  ],\n  "speakerScript": "Reconstruct the full detailed script of what the speaker said — paragraph form, in first person voice matching the speaker, covering every major point they made. Minimum 500 words.",\n  "mindmap": {\n    "center": "Main Topic (4-6 words)",\n    "branches": [\n      {"label": "Branch 1 Name", "emoji": "🎯", "nodes": ["Detailed sub-point 1", "Detailed sub-point 2", "Detailed sub-point 3", "Detailed sub-point 4", "Detailed sub-point 5"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create 8-12 segments covering the ENTIRE video. Each segment must have 3-5 detailed bullets pulling SPECIFIC information from the transcript at that timestamp. Timestamps must be in MM:SS format matching the actual transcript times.\nFor mindmap: Create 5-6 branches covering all major themes. Each branch must have 5-6 detailed nodes.`
+        : `You are a world-class content analyst. Analyze this YouTube video based on its metadata.\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "Write 4-5 comprehensive paragraphs about what this video likely covers based on the title, description and tags.",\n  "keyTakeaways": ["7 detailed key takeaways based on the video topic", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Estimated Section Title", "bullets": ["What likely happens here based on content", "Key concept", "Example or strategy mentioned"]}\n  ],\n  "speakerScript": "Write a detailed mock script of what the speaker likely says in this video based on the title and description. Make it detailed and realistic — minimum 400 words.",\n  "mindmap": {"center": "Main Topic", "branches": [{"label": "Branch", "emoji": "🎯", "nodes": ["node1","node2","node3","node4","node5"]}]}\n}\n\nFor minuteByMinute: Create 6-8 estimated time segments. For mindmap: 5 branches, 5 nodes each.`;
+
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are an expert content analyst. Analyze YouTube video data and return ONLY valid JSON — no markdown, no extra text." },
-            { role: "user", content: `Analyze this YouTube video and return exactly this JSON structure:\n{\n  "summary": "3-4 paragraph comprehensive summary",\n  "keyTakeaways": ["5 key takeaways as strings"],\n  "breakdown": [{"section":"Title","content":"What it covers","keyPoints":["point1","point2"]}],\n  "mindmap": {"center":"Main Topic (3-4 words)","branches":[{"label":"Branch","nodes":["Node A","Node B","Node C"]}]}\n}\n\nVIDEO:\nTitle: ${videoData.title}\nChannel: ${videoData.channel}\nViews: ${videoData.views || "N/A"}\nLikes: ${videoData.likes || "N/A"}\nDuration: ${videoData.duration || "N/A"}\nDescription: ${videoData.description || "(not available)"}\nTags: ${videoData.tags || "(not available)"}` },
+            { role: "system", content: "You are an expert content analyst. Always return ONLY valid JSON with no markdown code blocks, no commentary, no extra text before or after the JSON." },
+            { role: "user", content: userPrompt },
           ],
-          temperature: 0.7, max_tokens: 3000, response_format: { type: "json_object" },
+          temperature: 0.65, max_tokens: 6000, response_format: { type: "json_object" },
         }),
       });
       const aiData: any = await aiRes.json();
       if (aiData?.error) throw new Error(aiData.error.message);
       const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
-      return res.json({ video: videoData, ...analysis });
+
+      return res.json({ video: videoData, hasTranscript, transcriptSegments: transcript.length, ...analysis });
     } catch (err: any) {
       console.error("[YouTube Analyse]", err.message);
       return res.status(500).json({ message: "Analysis failed. Please try again." });
@@ -6539,23 +6622,26 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
       });
       const items = await aRes.json();
       if (!Array.isArray(items) || !items.length) return res.status(404).json({ message: "Could not fetch Instagram data. Make sure the posts/profiles are public." });
-      const postsContext = items.slice(0, 6).map((p: any, i: number) => `Post ${i + 1}:\nCaption: ${p.caption?.slice(0, 300) || "(none)"}\nLikes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0}\nType: ${p.type || "post"}`).join("\n\n");
+      const postsContext = items.slice(0, 6).map((p: any, i: number) =>
+        `POST ${i + 1} (${p.type || "post"}):\nCaption (full): ${p.caption || "(none)"}\nLikes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0} | Video Views: ${p.videoViewCount || "N/A"}\nHashtags: ${p.hashtags?.join(" ") || "none"}\nMentions: ${p.mentions?.join(" ") || "none"}\nPosted: ${p.timestamp ? new Date(p.timestamp).toLocaleDateString() : "unknown"}`
+      ).join("\n\n---\n\n");
+
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: [
-            { role: "system", content: "You are a social media content analyst. Analyze Instagram posts and return ONLY valid JSON." },
-            { role: "user", content: `Analyze these Instagram posts and return exactly this JSON:\n{\n  "summary": "2-3 paragraph analysis of the content strategy and themes",\n  "keyTakeaways": ["5 insights as strings"],\n  "breakdown": [{"section":"Title","content":"Analysis","keyPoints":["point1","point2"]}],\n  "contentStrategy": "1-2 paragraph content strategy analysis",\n  "mindmap": {"center":"Main Theme (3-4 words)","branches":[{"label":"Branch","nodes":["Node A","Node B"]}]}\n}\n\nPOSTS:\n${postsContext}` },
+            { role: "system", content: "You are a world-class social media content strategist. Analyze Instagram posts in extreme detail and return ONLY valid JSON — no markdown, no extra text." },
+            { role: "user", content: `Analyze these ${items.length} Instagram posts IN EXTREME DETAIL and return exactly this JSON structure:\n{\n  "overallSummary": "4-5 paragraph comprehensive analysis of the account's content strategy, brand voice, topics covered, and what makes this content effective or ineffective",\n  "keyTakeaways": ["7 highly detailed, actionable insights about this creator's strategy and approach — full sentences", "insight2", "insight3", "insight4", "insight5", "insight6", "insight7"],\n  "postByPost": [\n    {"postNumber": 1, "title": "Hook or Theme of This Post", "captionAnalysis": "Detailed analysis of what this caption does — the hook, storytelling, CTA, tone", "engagementInsight": "Why this post performed the way it did — specific reasons", "contentType": "Educational/Entertaining/Promotional/etc", "keyPoints": ["specific strength 1", "specific strategy used", "what could be improved"]}\n  ],\n  "contentStrategy": "Write 3-4 detailed paragraphs analyzing the overall content strategy — posting patterns, content mix, brand positioning, audience targeting, and what makes this account stand out or fall short",\n  "hookAnalysis": "Detailed analysis of the hook/opening lines used across posts — patterns, what works, examples from the captions",\n  "mindmap": {\n    "center": "Content Strategy Theme (4-6 words)",\n    "branches": [\n      {"label": "Branch Name", "emoji": "📌", "nodes": ["detailed node 1", "detailed node 2", "detailed node 3", "detailed node 4", "detailed node 5"]}\n    ]\n  }\n}\n\nFor postByPost: include ALL ${items.length} posts.\nFor mindmap: create 5-6 branches with 5 nodes each covering all themes.\n\nPOSTS DATA:\n${postsContext}` },
           ],
-          temperature: 0.7, max_tokens: 3000, response_format: { type: "json_object" },
+          temperature: 0.65, max_tokens: 6000, response_format: { type: "json_object" },
         }),
       });
       const aiData: any = await aiRes.json();
       if (aiData?.error) throw new Error(aiData.error.message);
       const analysis = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
-      const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption?.slice(0, 120) + (p.caption?.length > 120 ? "…" : "") || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, type: p.type || "post", url: p.url }));
+      const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, views: p.videoViewCount, type: p.type || "post", url: p.url, hashtags: p.hashtags?.slice(0, 5), timestamp: p.timestamp }));
       return res.json({ posts, ...analysis });
     } catch (err: any) {
       console.error("[Instagram Analyse]", err.message);

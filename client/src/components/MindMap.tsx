@@ -1,88 +1,105 @@
-const GOLD = "#d4b461";
+const BRANCH_COLORS = ['#4A7CF7', '#F7A94A', '#4AC88E', '#EF4F7A', '#A14AF7', '#4ADAF7'];
+const GOLD = '#d4b461';
 
 interface MindMapData {
   center: string;
-  branches: { label: string; nodes: string[] }[];
+  branches: { label: string; emoji?: string; nodes: string[] }[];
 }
 
-interface MindMapProps {
-  data: MindMapData;
-}
-
-export default function MindMap({ data }: MindMapProps) {
+export default function MindMap({ data }: { data: MindMapData }) {
   const { center, branches } = data;
-  const W = 800;
-  const H = Math.max(400, branches.length * 90 + 80);
-  const rootX = 130;
-  const rootY = H / 2;
-  const branchX = 340;
-  const leafX = 590;
-  const padding = 60;
+  if (!branches?.length) return null;
 
-  const branchSpacing = (H - padding * 2) / Math.max(branches.length - 1, 1);
-  const branchYs = branches.map((_, i) =>
-    branches.length === 1 ? H / 2 : padding + i * branchSpacing
-  );
+  const W = 1000, H = 640;
+  const cx = W / 2, cy = H / 2;
+  const BR = 185;   // center → branch radius
+  const LR = 135;   // branch → leaf distance
+  const LS = 42;    // perpendicular leaf spread
+  const N = branches.length;
 
   return (
-    <div style={{ overflowX: "auto", overflowY: "hidden" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", minWidth: 560, height: "auto", display: "block" }}>
-        {/* Lines root → branches */}
-        {branchYs.map((by, i) => (
-          <path key={`rb-${i}`}
-            d={`M ${rootX + 56} ${rootY} C ${(rootX + branchX) / 2 + 20} ${rootY} ${(rootX + branchX) / 2 - 20} ${by} ${branchX - 68} ${by}`}
-            fill="none" stroke={GOLD} strokeWidth="1.5" strokeOpacity="0.45"
-          />
-        ))}
+    <div style={{ width: '100%', overflowX: 'auto', background: '#080d1e', borderRadius: 14 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 640, display: 'block', padding: 8 }}>
+        <defs>
+          <pattern id="mmgrid" width="32" height="32" patternUnits="userSpaceOnUse">
+            <circle cx="16" cy="16" r="0.7" fill="rgba(255,255,255,0.04)" />
+          </pattern>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#1e2550" />
+            <stop offset="100%" stopColor="#0f1428" />
+          </radialGradient>
+        </defs>
+        <rect width={W} height={H} fill="url(#mmgrid)" rx={12} />
 
-        {/* Lines branches → leaves */}
-        {branches.map((branch, bi) => {
-          const by = branchYs[bi];
-          const count = branch.nodes.length;
-          const leafSpacing = Math.min(48, (H - 60) / Math.max(count, 1));
-          return branch.nodes.map((_, ni) => {
-            const ly = by + (ni - (count - 1) / 2) * leafSpacing;
-            return (
-              <line key={`bl-${bi}-${ni}`}
-                x1={branchX + 68} y1={by}
-                x2={leafX - 66} y2={ly}
-                stroke="rgba(255,255,255,0.12)" strokeWidth="1.2"
-              />
-            );
-          });
-        })}
+        {branches.map((branch, i) => {
+          const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+          const cosA = Math.cos(angle), sinA = Math.sin(angle);
+          const bx = cx + cosA * BR, by = cy + sinA * BR;
+          const color = BRANCH_COLORS[i % BRANCH_COLORS.length];
+          const M = branch.nodes.length;
+          const pX = -sinA, pY = cosA; // perpendicular
 
-        {/* Root node */}
-        <rect x={rootX - 56} y={rootY - 22} width={112} height={44} rx={10}
-          fill={GOLD} />
-        <text x={rootX} y={rootY - 4} textAnchor="middle" fill="#000" fontSize="10" fontWeight="800" dominantBaseline="middle">
-          {center.length > 18 ? center.slice(0, 16) + "…" : center}
-        </text>
-        <Sparkle cx={rootX} cy={rootY + 9} />
+          // Bezier: smooth curve from center to branch
+          const cp1x = cx + cosA * 75, cp1y = cy + sinA * 75;
+          const cp2x = bx - cosA * 55, cp2y = by - sinA * 55;
 
-        {/* Branch nodes + leaves */}
-        {branches.map((branch, bi) => {
-          const by = branchYs[bi];
-          const count = branch.nodes.length;
-          const leafSpacing = Math.min(48, (H - 60) / Math.max(count, 1));
+          // Branch label positioning
+          const isRight = cosA > 0.28;
+          const isLeft = cosA < -0.28;
+          const isTop = !isRight && !isLeft && sinA < 0;
+          let lblX: number, lblY: number, lblAnchor: string;
+          if (isRight)     { lblX = bx + 16; lblY = by; lblAnchor = 'start'; }
+          else if (isLeft) { lblX = bx - 16; lblY = by; lblAnchor = 'end'; }
+          else if (isTop)  { lblX = bx; lblY = by - 18; lblAnchor = 'middle'; }
+          else             { lblX = bx; lblY = by + 18; lblAnchor = 'middle'; }
+
+          const labelText = (branch.emoji ? branch.emoji + ' ' : '') + branch.label;
+
           return (
-            <g key={`branch-${bi}`}>
-              {/* Branch box */}
-              <rect x={branchX - 68} y={by - 18} width={136} height={36} rx={8}
-                fill={`${GOLD}20`} stroke={`${GOLD}55`} strokeWidth="1" />
-              <text x={branchX} y={by + 1} textAnchor="middle" fill={GOLD} fontSize="10" fontWeight="700" dominantBaseline="middle">
-                {branch.label.length > 19 ? branch.label.slice(0, 17) + "…" : branch.label}
+            <g key={i}>
+              {/* Animated-style line from root to branch */}
+              <path d={`M ${cx} ${cy} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${bx} ${by}`}
+                fill="none" stroke={color} strokeWidth="2" strokeOpacity="0.55" strokeLinecap="round" />
+
+              {/* Branch glow dot */}
+              <circle cx={bx} cy={by} r={9} fill={color} opacity="0.15" filter="url(#glow)" />
+              <circle cx={bx} cy={by} r={7} fill={color} opacity="0.9" />
+
+              {/* Branch label */}
+              <text x={lblX} y={lblY} textAnchor={lblAnchor} dominantBaseline="middle"
+                fill={color} fontSize="11.5" fontWeight="800" letterSpacing="-0.01em">
+                {labelText.length > 24 ? labelText.slice(0, 22) + '…' : labelText}
               </text>
 
               {/* Leaf nodes */}
-              {branch.nodes.map((node, ni) => {
-                const ly = by + (ni - (count - 1) / 2) * leafSpacing;
+              {branch.nodes.map((node, j) => {
+                const offset = (j - (M - 1) / 2) * LS;
+                const lx = bx + cosA * LR + pX * offset;
+                const ly = by + sinA * LR + pY * offset;
+
+                // Text anchor/position for leaf
+                let tAnchor: string, tx: number, ty: number;
+                if (cosA > 0.25)      { tAnchor = 'start'; tx = lx + 8; ty = ly; }
+                else if (cosA < -0.25){ tAnchor = 'end';   tx = lx - 8; ty = ly; }
+                else if (sinA < 0)    { tAnchor = 'middle';tx = lx;     ty = ly - 8; }
+                else                  { tAnchor = 'middle';tx = lx;     ty = ly + 8; }
+
+                // Clamp to SVG bounds
+                const clampedTx = Math.min(Math.max(tx, 10), W - 10);
+                const clampedTy = Math.min(Math.max(ty, 12), H - 12);
+
                 return (
-                  <g key={`leaf-${bi}-${ni}`}>
-                    <rect x={leafX - 66} y={ly - 15} width={132} height={30} rx={6}
-                      fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.13)" strokeWidth="1" />
-                    <text x={leafX} y={ly + 1} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize="9.5" dominantBaseline="middle">
-                      {node.length > 20 ? node.slice(0, 18) + "…" : node}
+                  <g key={j}>
+                    <line x1={bx} y1={by} x2={lx} y2={ly}
+                      stroke={`${color}38`} strokeWidth="1.2" strokeLinecap="round" />
+                    <circle cx={lx} cy={ly} r={3.5} fill={color} opacity="0.65" />
+                    <text x={clampedTx} y={clampedTy} textAnchor={tAnchor}
+                      dominantBaseline="middle" fill="rgba(255,255,255,0.7)" fontSize="9.5">
+                      {node.length > 36 ? node.slice(0, 34) + '…' : node}
                     </text>
                   </g>
                 );
@@ -90,16 +107,14 @@ export default function MindMap({ data }: MindMapProps) {
             </g>
           );
         })}
+
+        {/* Center node */}
+        <ellipse cx={cx} cy={cy} rx={85} ry={30} fill="url(#centerGrad)" stroke={GOLD} strokeWidth="2" filter="url(#glow)" />
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+          fill={GOLD} fontSize="12" fontWeight="900" letterSpacing="-0.01em">
+          {center.length > 22 ? center.slice(0, 20) + '…' : center}
+        </text>
       </svg>
     </div>
-  );
-}
-
-function Sparkle({ cx, cy }: { cx: number; cy: number }) {
-  return (
-    <g transform={`translate(${cx - 5},${cy - 5})`}>
-      <polygon points="5,0 6.2,3.8 10,3.8 6.9,6.2 8.1,10 5,7.6 1.9,10 3.1,6.2 0,3.8 3.8,3.8"
-        fill="rgba(0,0,0,0.3)" />
-    </g>
   );
 }
