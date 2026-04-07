@@ -113,9 +113,9 @@ export function CustomCursor() {
 
   return (
     <>
-      <canvas ref={trailRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9996 }} />
-      <div ref={ringRef} style={{ position: "fixed", width: 30, height: 30, borderRadius: "50%", border: `1px solid rgba(${GOLD},0.35)`, pointerEvents: "none", zIndex: 9997, transform: "translate(-50%,-50%)", opacity: 0, transition: "left 0.07s ease, top 0.07s ease, opacity 0.2s, transform 0.15s ease, border-color 0.15s ease" }} />
-      <div ref={dotRef} style={{ position: "fixed", width: 6, height: 6, borderRadius: "50%", background: `#d4b461`, pointerEvents: "none", zIndex: 9999, transform: "translate(-50%,-50%) scale(1)", boxShadow: `0 0 10px rgba(${GOLD},0.9)`, opacity: 0, transition: "transform 0.1s ease, opacity 0.2s" }} />
+      <canvas ref={trailRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 10000 }} />
+      <div ref={ringRef} style={{ position: "fixed", width: 30, height: 30, borderRadius: "50%", border: `1px solid rgba(${GOLD},0.35)`, pointerEvents: "none", zIndex: 10001, transform: "translate(-50%,-50%)", opacity: 0, transition: "left 0.07s ease, top 0.07s ease, opacity 0.2s, transform 0.15s ease, border-color 0.15s ease" }} />
+      <div ref={dotRef} style={{ position: "fixed", width: 6, height: 6, borderRadius: "50%", background: `#d4b461`, pointerEvents: "none", zIndex: 10002, transform: "translate(-50%,-50%) scale(1)", boxShadow: `0 0 10px rgba(${GOLD},0.9)`, opacity: 0, transition: "transform 0.1s ease, opacity 0.2s" }} />
     </>
   );
 }

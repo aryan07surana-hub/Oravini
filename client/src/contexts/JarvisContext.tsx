@@ -61,6 +61,9 @@ interface JarvisContextType {
   // Global mic listening state (for bubble glow)
   isListening: boolean;
   setIsListening: (v: boolean) => void;
+  // Wake word control (for coordinating with bubble/page mic)
+  pauseWake: () => void;
+  resumeWake: () => void;
 }
 
 const JarvisContext = createContext<JarvisContextType>({
@@ -86,6 +89,8 @@ const JarvisContext = createContext<JarvisContextType>({
   setPendingInject: () => {},
   isListening: false,
   setIsListening: () => {},
+  pauseWake: () => {},
+  resumeWake: () => {},
 });
 
 export function useJarvis() { return useContext(JarvisContext); }
@@ -173,6 +178,9 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(HISTORY_KEY);
   }, []);
 
+  // Tracks whether an external component (bubble/Jarvis page) has claimed the mic
+  const micPausedRef = useRef(false);
+
   const stopWake = useCallback(() => {
     try { recognitionRef.current?.abort(); } catch {}
     recognitionRef.current = null;
@@ -180,7 +188,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
 
   const startWake = useCallback(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR || !enabledRef.current || recognitionRef.current || !nameRef.current) return;
+    // Don't start if: disabled, already running, no name, or bubble/page has claimed mic
+    if (!SR || !enabledRef.current || recognitionRef.current || !nameRef.current || micPausedRef.current) return;
     try {
       const rec = new SR();
       rec.lang = "en-US"; rec.continuous = true; rec.interimResults = false;
@@ -189,15 +198,10 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
           if (!e.results[i].isFinal) continue;
           const t = e.results[i][0].transcript.trim().toLowerCase();
           const n = nameRef.current.toLowerCase();
-          // Follow-up / session mode: any speech is a command
           if (followUpUntilRef.current > Date.now()) {
-            if (t.length >= 3) {
-              setBubbleOpen(true);
-              setPendingWakeMessage(t);
-            }
+            if (t.length >= 3) { setBubbleOpen(true); setPendingWakeMessage(t); }
             return;
           }
-          // Normal wake word mode
           for (const pat of [`hey ${n}`, `hi ${n}`, `ok ${n}`, `yo ${n}`, `${n},`, n]) {
             if (t.includes(pat)) {
               const cmd = t.slice(t.indexOf(pat) + pat.length).replace(/^[,\s]+/, "").trim();
@@ -208,22 +212,43 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
           }
         }
       };
-      rec.onend = () => { recognitionRef.current = null; if (enabledRef.current) setTimeout(startWake, 800); };
+      rec.onend = () => {
+        recognitionRef.current = null;
+        // Only restart if wake is still enabled AND mic not paused
+        if (enabledRef.current && !micPausedRef.current) setTimeout(startWake, 1200);
+      };
       rec.onerror = (e: any) => {
         recognitionRef.current = null;
-        if (e.error === "not-allowed") { setWakeWordEnabledState(false); enabledRef.current = false; localStorage.setItem("jarvis_wake", "false"); }
-        else if (enabledRef.current) setTimeout(startWake, 2000);
+        if (e.error === "not-allowed") {
+          setWakeWordEnabledState(false); enabledRef.current = false;
+          localStorage.setItem("jarvis_wake", "false");
+        } else if (enabledRef.current && !micPausedRef.current) {
+          setTimeout(startWake, 2500);
+        }
       };
       rec.start();
       recognitionRef.current = rec;
     } catch {}
   }, []);
 
+  // Pause wake word listener — called by bubble/Jarvis page when THEY take the mic
+  const pauseWake = useCallback(() => {
+    micPausedRef.current = true;
+    stopWake();
+  }, [stopWake]);
+
+  // Resume wake word listener — called when bubble/Jarvis page release the mic
+  const resumeWake = useCallback(() => {
+    micPausedRef.current = false;
+    if (wakeWordEnabled && jarvisName) setTimeout(startWake, 600);
+  }, [startWake, wakeWordEnabled, jarvisName]);
+
   const setWakeWordEnabled = useCallback((enabled: boolean) => {
     setWakeWordEnabledState(enabled);
     enabledRef.current = enabled;
     localStorage.setItem("jarvis_wake", String(enabled));
-    if (!enabled) stopWake(); else startWake();
+    if (!enabled) stopWake();
+    else if (!micPausedRef.current) startWake();
   }, [startWake, stopWake]);
 
   const startSession = useCallback(() => {
@@ -247,7 +272,9 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     followUpUntilRef.current = 0;
   }, []);
 
-  useEffect(() => { if (wakeWordEnabled && jarvisName) startWake(); return () => stopWake(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // DO NOT auto-start on mount — only request mic when user explicitly interacts with Jarvis
+  // Wake listener starts when: bubble opens, session resumes, or wake toggle enabled by user
+  useEffect(() => { return () => stopWake(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When AI finishes speaking, extend follow-up window
   const prevSpeakingRef = useRef(isSpeaking);
@@ -272,6 +299,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       sessionActive, startSession, stopSession,
       pendingInject, setPendingInject,
       isListening, setIsListening,
+      pauseWake, resumeWake,
     }}>
       {children}
     </JarvisContext.Provider>

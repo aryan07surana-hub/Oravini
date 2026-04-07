@@ -127,7 +127,7 @@ const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="video-editor-input"]',
     title: "AI Video Editor — Input Methods",
     description: "There are four ways to work here. Idea Builder — describe a concept and the AI writes everything. Paste Script — drop in your existing script for a full critique and enhancement. Video URL — paste an Instagram or YouTube link and the AI analyses what made it work. Quick Describe — a one-liner and you get a fast plan back.",
-    position: "bottom",
+    position: "top",
     tip: "Use Video URL on competitor videos that went viral in your niche — the AI reverse-engineers exactly why it worked.",
   },
   {
@@ -478,9 +478,10 @@ function TourCard({
   const isLast = stepIndex === totalSteps - 1;
   const isCentered = step.position === "center" || !rect;
   const pad = 12;
-  const margin = 18;
+  const margin = 16;
   const cardW = 370;
-  const cardH = 260;
+  // Overestimate height to avoid going off-screen (tips add ~80px)
+  const cardH = step.tip ? 360 : 290;
 
   let cardStyle: React.CSSProperties = {
     position: "fixed",
@@ -504,18 +505,26 @@ function TourCard({
     let top: number;
     let left: number = Math.max(margin, Math.min(rect.left + rect.width / 2 - cardW / 2, viewW - cardW - margin));
 
-    if (step.position === "top" && spaceAbove > cardH) {
-      top = rect.top - pad - cardH - margin;
-    } else if (spaceBelow > cardH) {
-      top = rect.bottom + pad + margin;
-    } else if (spaceAbove > cardH) {
-      top = rect.top - pad - cardH - margin;
+    // Prefer "top" hint OR when below doesn't fit
+    if (step.position === "top" || spaceBelow < cardH) {
+      if (spaceAbove >= cardH) {
+        // Enough room above — place above
+        top = rect.top - pad - cardH - margin;
+      } else if (spaceBelow >= cardH) {
+        // Enough room below after all
+        top = rect.bottom + pad + margin;
+      } else {
+        // Tight both sides — center vertically, shift to the side
+        top = Math.max(margin, viewH / 2 - cardH / 2);
+        const sideLeft = rect.right + margin;
+        left = sideLeft + cardW + margin <= viewW ? sideLeft : Math.max(margin, rect.left - cardW - margin);
+      }
     } else {
-      top = Math.max(margin, viewH / 2 - cardH / 2);
-      left = Math.min(rect.right + margin, viewW - cardW - margin);
-      if (left < margin) left = margin;
+      // Default: place below
+      top = rect.bottom + pad + margin;
     }
 
+    // Hard clamp to viewport
     top = Math.max(margin, Math.min(top, viewH - cardH - margin));
     left = Math.max(margin, Math.min(left, viewW - cardW - margin));
     cardStyle = { ...cardStyle, top, left };

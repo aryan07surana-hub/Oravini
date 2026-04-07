@@ -271,7 +271,7 @@ export default function Jarvis() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject, setIsListening } = useJarvis();
+  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject, setIsListening, pauseWake, resumeWake } = useJarvis();
   const { voiceOn, toggleVoice, speaking, listening, speak, stopSpeaking, startListening, stopListening, hasSR } = useVoice();
 
   const plan = (user as any)?.plan || "free";
@@ -313,6 +313,12 @@ export default function Jarvis() {
   const hasSpokenRef = useRef(false);
   const autoMicRef = useRef(false);
   const recAutoRef = useRef<any>(null);
+
+  // Jarvis page owns the mic — pause the wake listener on mount, restore on unmount
+  useEffect(() => {
+    pauseWake();
+    return () => { resumeWake(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync speaking/listening state to global context
   useEffect(() => { setIsSpeaking(speaking); }, [speaking, setIsSpeaking]);

@@ -35,6 +35,7 @@ function JarvisBubbleInner({ user }: { user: any }) {
     sessionActive, stopSession,
     pendingInject, setPendingInject,
     isListening: globalIsListening, setIsListening,
+    pauseWake, resumeWake,
   } = useJarvis();
 
   const firstName = (user as any)?.name?.split(" ")[0] || "";
@@ -63,28 +64,55 @@ function JarvisBubbleInner({ user }: { user: any }) {
     return () => { synthRef.current?.cancel(); };
   }, []);
 
-  // Greet + auto-start mic on open
+  // Stop mic completely — shared cleanup helper
+  const stopMic = useCallback(() => {
+    autoMicRef.current = false;
+    if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
+    setListening(false);
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopMic();
+      synthRef.current?.cancel();
+      resumeWake();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Greet + auto-start mic on open; release on close
   useEffect(() => {
     if (bubbleOpen && isNamed) {
+      // Claim the mic — stop wake word listener so they don't conflict
+      pauseWake();
       if (!lastReply) {
         const quote = getDailyQuote();
         const greeting = `Hey${firstName ? " " + firstName : ""}! "${quote}" What do you need?`;
         setLastReply(greeting);
-        autoMicRef.current = true; // Must be set before speakText so onend restarts mic
+        autoMicRef.current = true;
         if (voiceOn) speakText(greeting);
         else setTimeout(() => startMicAuto(), 300);
       } else {
-        // Re-opened with existing reply — just restart mic
         autoMicRef.current = true;
         setTimeout(() => { if (!speaking) startMicAuto(); }, 600);
       }
     }
     if (!bubbleOpen) {
-      autoMicRef.current = false;
-      if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
-      setListening(false);
+      // Release the mic — let wake word listener resume
+      stopMic();
+      resumeWake();
     }
   }, [bubbleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop bubble mic when user navigates to the Jarvis page (Jarvis page handles its own mic)
+  useEffect(() => {
+    if (isOnJarvisPage && bubbleOpen) {
+      setBubbleOpen(false);
+    }
+    if (isOnJarvisPage) {
+      stopMic();
+    }
+  }, [isOnJarvisPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle pending wake message
   useEffect(() => {
