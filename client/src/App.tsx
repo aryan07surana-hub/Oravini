@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { CustomCursor, GlobalBackground } from "@/components/GlobalUI";
+import { JarvisProvider } from "@/contexts/JarvisContext";
+import { TourProvider } from "@/components/ui/TourGuide";
+import JarvisBubble from "@/components/JarvisBubble";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -272,10 +275,15 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <GlobalBackground />
-        <CustomCursor />
-        <Router />
+        <JarvisProvider>
+          <TourProvider>
+            <Toaster />
+            <GlobalBackground />
+            <CustomCursor />
+            <Router />
+            <JarvisBubble />
+          </TourProvider>
+        </JarvisProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

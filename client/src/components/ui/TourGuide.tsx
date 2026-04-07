@@ -158,6 +158,26 @@ const TOUR_STEPS: TourStep[] = [
     tip: "Carousels consistently get 3-5x more saves than single images — run them weekly for reach and authority building.",
   },
 
+  // ── Jarvis AI ──────────────────────────────────────────────────────────────
+  {
+    id: "jarvis-intro",
+    route: "/jarvis",
+    target: '[data-tour="jarvis-orb"]',
+    title: "Jarvis AI — Your Voice Command Centre",
+    description: "This is Jarvis AI — a pure voice agent with full access to the entire platform. No typing needed. Just speak and Jarvis navigates, writes, generates, and controls every tool for you. Say 'go to content ideas', 'write my hook for Instagram', 'open competitor study' — and it happens instantly.",
+    position: "bottom",
+    tip: "Jarvis is always listening on any page. The gold sparkle button in the corner is live — tap it or just start speaking.",
+  },
+  {
+    id: "jarvis-session",
+    route: "/jarvis",
+    target: '[data-tour="jarvis-session"]',
+    title: "Jarvis AI — Session Mode",
+    description: "Hit START SESSION and Jarvis enters always-on mode. Your microphone stays live for 24 hours — no need to re-open it. Jarvis can write text into any field across any page, navigate anywhere, and execute any command hands-free. A red LIVE badge appears in the header when a session is active. END SESSION closes it.",
+    position: "top",
+    tip: "Session mode is the fastest way to use the platform — it's designed so you never have to touch the keyboard.",
+  },
+
   // ── Tracking ──────────────────────────────────────────────────────────────
   {
     id: "tracking-home",
@@ -560,10 +580,10 @@ function TourCard({
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors px-1 py-1 flex-shrink-0"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-950/30 flex-shrink-0"
             style={{ cursor: "pointer" }}
           >
-            Exit
+            <X className="w-3.5 h-3.5" /> Quit Tour
           </button>
           <div className="flex-1" />
           {!isFirst && (
@@ -606,7 +626,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     if (!target) { setRect(null); return; }
 
     let el: Element | null = null;
-    for (let i = 0; i < 20; i++) {
+    // Retry up to 30 times (4.5 seconds) to handle slow-loading pages
+    for (let i = 0; i < 30; i++) {
       el = document.querySelector(target);
       if (el) break;
       await new Promise(r => setTimeout(r, 150));
@@ -616,7 +637,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
     el.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "center" });
 
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 120));
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => setTimeout(r, 80));
 
@@ -629,19 +650,21 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const goToStep = useCallback(async (index: number, steps?: TourStep[]) => {
-    if (busyRef.current) return;
+    // Don't guard on busyRef — allow fast clicking to queue next step
     const stepsToUse = steps ?? activeStepsRef.current;
     const s = stepsToUse[index];
     if (!s) { setActive(false); return; }
+    if (busyRef.current) return; // Still navigating — drop duplicate click
     busyRef.current = true;
     setRect(null);
     setStepIndex(index);
 
-    const prevRoute = stepsToUse[index - 1]?.route;
-    const isNewPage = s.route !== prevRoute;
+    const currentRoute = window.location.pathname;
+    const isNewPage = s.route !== currentRoute;
 
     navigate(s.route);
-    await new Promise(r => setTimeout(r, isNewPage ? 600 : 120));
+    // Give new pages 1.4s to mount their components before looking for targets
+    await new Promise(r => setTimeout(r, isNewPage ? 1400 : 180));
     await locateTarget(s.target);
     busyRef.current = false;
   }, [navigate, locateTarget]);

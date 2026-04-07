@@ -506,7 +506,7 @@ export default function Jarvis() {
         {/* Main */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 24px", position: "relative", zIndex: 1 }}>
           {/* Orb */}
-          <div style={{ position: "relative", marginBottom: 26 }}>
+          <div data-tour="jarvis-orb" style={{ position: "relative", marginBottom: 26 }}>
             <div style={{ width: 114, height: 114, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${GOLD}48, ${GOLD}16, transparent)`, border: `1.5px solid ${GOLD}${speaking ? "80" : "32"}`, boxShadow: speaking ? `0 0 65px ${GOLD}70, 0 0 130px ${GOLD}35, 0 0 200px ${GOLD}15` : status === "processing" ? `0 0 40px #818cf850, 0 0 80px #818cf820` : status === "listening" ? `0 0 45px ${GOLD}40, 0 0 90px ${GOLD}20` : `0 0 38px ${GOLD}18, 0 0 76px ${GOLD}10`, animation: `${orbAnimation} ${speaking ? "0.4s" : status === "processing" ? "0.8s" : "3s"} ease-in-out infinite`, display: "flex", alignItems: "center", justifyContent: "center", transition: "box-shadow 0.4s, border-color 0.4s" }}>
               {status === "processing" ? <Loader2 style={{ width: 38, height: 38, color: GOLD, animation: "spin 1s linear infinite" }} /> : <Sparkles style={{ width: 38, height: 38, color: GOLD, opacity: 0.88, animation: speaking ? "sparkle-talk 0.45s ease-in-out infinite alternate" : "none" }} />}
             </div>
@@ -593,7 +593,7 @@ export default function Jarvis() {
           </div>
 
           {/* Session Control */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 20 }}>
+          <div data-tour="jarvis-session" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 20 }}>
             {!sessionActive ? (
               <button
                 onClick={() => { startSession(); autoMicRef.current = true; startAutoListen(); }}

@@ -11,9 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
-import { TourProvider } from "@/components/ui/TourGuide";
-import JarvisBubble from "@/components/JarvisBubble";
-import { JarvisProvider, useJarvis } from "@/contexts/JarvisContext";
+import { useJarvis } from "@/contexts/JarvisContext";
 import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch
@@ -152,8 +150,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const isAdmin = user?.role === "admin";
 
   return (
-    <JarvisProvider>
-    <TourProvider>
+    <>
     {!isAdmin && user?.email && (
       <WatermarkOverlay email={user.email} name={user.name} />
     )}
@@ -310,9 +307,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </div>
 
       <FocusMusicPlayer />
-      <JarvisBubble />
     </div>
-    </TourProvider>
-    </JarvisProvider>
+    </>
   );
 }

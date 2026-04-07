@@ -16,6 +16,14 @@ function stripForSpeech(text: string) {
 
 export default function JarvisBubble() {
   const { user } = useAuth();
+
+  // Only render for logged-in non-admin clients
+  if (!user || (user as any).role === "admin") return null;
+
+  return <JarvisBubbleInner user={user} />;
+}
+
+function JarvisBubbleInner({ user }: { user: any }) {
   const { toast } = useToast();
   const [location, navigate] = useLocation();
   const {
