@@ -89,7 +89,12 @@ export function getDailyQuote() {
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const [jarvisName, setJarvisNameState] = useState(() => localStorage.getItem("jarvis_name") || "");
   const [bubbleOpen, setBubbleOpen] = useState(false);
-  const [wakeWordEnabled, setWakeWordEnabledState] = useState(() => localStorage.getItem("jarvis_wake") === "true");
+  // Wake word on by default if user has a name set
+  const [wakeWordEnabled, setWakeWordEnabledState] = useState(() => {
+    const saved = localStorage.getItem("jarvis_wake");
+    if (saved !== null) return saved === "true";
+    return !!localStorage.getItem("jarvis_name"); // auto-on if named
+  });
   const [pendingWakeMessage, setPendingWakeMessage] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -97,6 +102,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const recognitionRef = useRef<any>(null);
   const enabledRef = useRef(wakeWordEnabled);
   const nameRef = useRef(jarvisName);
+  // Timestamp until which ANY speech (no wake word needed) is treated as a command
+  const followUpUntilRef = useRef<number>(0);
 
   useEffect(() => { nameRef.current = jarvisName; }, [jarvisName]);
   useEffect(() => { enabledRef.current = wakeWordEnabled; }, [wakeWordEnabled]);
@@ -109,6 +116,12 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     const clean = name.trim();
     setJarvisNameState(clean);
     localStorage.setItem("jarvis_name", clean);
+    // Auto-enable wake word the first time a name is set
+    if (clean && !localStorage.getItem("jarvis_wake")) {
+      setWakeWordEnabledState(true);
+      enabledRef.current = true;
+      localStorage.setItem("jarvis_wake", "true");
+    }
   }, []);
 
   const addToHistory = useCallback((entry: Omit<HistoryEntry, "id" | "ts">) => {
@@ -141,6 +154,16 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
           if (!e.results[i].isFinal) continue;
           const t = e.results[i][0].transcript.trim().toLowerCase();
           const n = nameRef.current.toLowerCase();
+          // Follow-up mode: within 15s of last AI response, ANY speech is a command
+          if (followUpUntilRef.current > Date.now()) {
+            // Ignore very short noise (< 3 chars)
+            if (t.length >= 3) {
+              setBubbleOpen(true);
+              setPendingWakeMessage(t);
+            }
+            return;
+          }
+          // Normal wake word mode
           for (const pat of [`hey ${n}`, `hi ${n}`, `ok ${n}`, `yo ${n}`, `${n},`, n]) {
             if (t.includes(pat)) {
               const cmd = t.slice(t.indexOf(pat) + pat.length).replace(/^[,\s]+/, "").trim();
@@ -170,6 +193,17 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   }, [startWake, stopWake]);
 
   useEffect(() => { if (wakeWordEnabled && jarvisName) startWake(); return () => stopWake(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When AI finishes speaking, open a 15-second follow-up window on all pages
+  const prevSpeakingRef = useRef(isSpeaking);
+  useEffect(() => {
+    const wasOn = prevSpeakingRef.current;
+    prevSpeakingRef.current = isSpeaking;
+    if (wasOn && !isSpeaking) {
+      // AI just finished speaking — extend follow-up window to 15 seconds
+      followUpUntilRef.current = Date.now() + 15000;
+    }
+  }, [isSpeaking]);
 
   return (
     <JarvisContext.Provider value={{
