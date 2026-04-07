@@ -26,6 +26,7 @@ export default function JarvisBubble() {
     isSpeaking: globalSpeaking, setIsSpeaking,
     sessionActive, stopSession,
     pendingInject, setPendingInject,
+    isListening: globalIsListening, setIsListening,
   } = useJarvis();
 
   const firstName = (user as any)?.name?.split(" ")[0] || "";
@@ -87,8 +88,9 @@ export default function JarvisBubble() {
     }
   }, [pendingWakeMessage, bubbleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync local speaking state → global context
+  // Sync local speaking/listening state → global context
   useEffect(() => { setIsSpeaking(speaking); }, [speaking, setIsSpeaking]);
+  useEffect(() => { setIsListening(listening); }, [listening, setIsListening]);
 
   // Global text injection — types content into any field by data-testid, with retries after navigation
   useEffect(() => {
@@ -160,26 +162,36 @@ export default function JarvisBubble() {
 
   const hasSR = !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition;
 
-  // Auto-mic: start listening and auto-execute whatever user says
+  // Ref to check speaking without stale closure
+  const speakingRef = useRef(speaking);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+
+  // Auto-mic: always-on — restarts itself via onend
   const startMicAuto = useCallback(() => {
-    if (!hasSR || !autoMicRef.current) return;
+    if (!hasSR || !autoMicRef.current || speakingRef.current) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    stopSpeaking();
     if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
     const rec = new SR();
     rec.lang = "en-US"; rec.interimResults = false; rec.continuous = false;
     rec.onresult = (e: any) => {
       const t = e.results[0]?.[0]?.transcript || "";
-      if (t.trim()) {
+      if (t.trim() && t.trim().length >= 2) {
         setListening(false);
         executeCommandRef.current(t.trim());
       }
     };
-    rec.onerror = () => { setListening(false); };
-    rec.onend = () => { setListening(false); };
+    rec.onerror = () => {
+      recRef.current = null; setListening(false);
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startMicAuto(), 800);
+    };
+    rec.onend = () => {
+      recRef.current = null; setListening(false);
+      // Restart immediately — mic always on
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startMicAuto(), 100);
+    };
     rec.start(); recRef.current = rec; setListening(true);
-  }, [stopSpeaking, hasSR]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasSR]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Keep a ref to executeCommand to avoid stale closure in startMicAuto
@@ -187,18 +199,15 @@ export default function JarvisBubble() {
 
   const startNavCountdown = (url: string, label: string) => {
     setStatus("navigating");
-    setLastAction(`Navigating to ${label}…`);
-    let c = 2;
-    countdownRef.current = setInterval(() => {
-      c--;
-      if (c <= 0) {
-        if (countdownRef.current) clearInterval(countdownRef.current);
-        navigate(url);
-        // DO NOT close bubble — keep it alive across page changes
-        setStatus("idle");
-        setLastAction("");
-      }
-    }, 1000);
+    setLastAction(`Going to ${label}…`);
+    // Navigate immediately — no 2-second wait
+    setTimeout(() => {
+      navigate(url);
+      setStatus("idle");
+      setLastAction("");
+      autoMicRef.current = true;
+      setTimeout(() => startMicAuto(), 500);
+    }, 350);
   };
 
   const executeCommand = async (text: string) => {
@@ -282,21 +291,28 @@ export default function JarvisBubble() {
             position: "fixed", bottom: 24, right: 24, zIndex: 9990,
             width: 56, height: 56, borderRadius: "50%",
             background: `linear-gradient(135deg, ${GOLD}, #f0c84b)`,
-            border: globalSpeaking ? `2px solid ${GOLD}` : "none",
+            border: (globalIsListening || globalSpeaking) ? `2px solid #fff4` : "none",
             cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: globalSpeaking
+            // Pulse gold rings while user is speaking, steady glow when AI speaks
+            boxShadow: globalIsListening
+              ? `0 0 0 6px ${GOLD}45, 0 0 0 12px ${GOLD}22, 0 0 40px ${GOLD}90, 0 8px 32px ${GOLD}70`
+              : globalSpeaking
               ? `0 0 0 4px ${GOLD}30, 0 0 24px ${GOLD}70, 0 8px 32px ${GOLD}55`
               : `0 8px 32px ${GOLD}55`,
-            animation: globalSpeaking ? "bubble-speak 0.6s ease-in-out infinite alternate" : "none",
-            transition: "all 0.3s",
+            animation: globalIsListening
+              ? "bubble-listen-pulse 0.55s ease-in-out infinite alternate"
+              : globalSpeaking
+              ? "bubble-speak 0.6s ease-in-out infinite alternate"
+              : "none",
+            transition: "box-shadow 0.2s, border 0.2s",
           }}
           onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.08)")}
-          onMouseLeave={e => (e.currentTarget.style.transform = globalSpeaking ? "scale(1.04)" : "scale(1)")}
+          onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
           title={`Open ${jarvisName || "AI"}`}
         >
           <Sparkles style={{
             width: 22, height: 22, color: "#000",
-            animation: globalSpeaking ? "sparkle-talk 0.5s ease-in-out infinite alternate" : "none",
+            animation: (globalIsListening || globalSpeaking) ? "sparkle-talk 0.5s ease-in-out infinite alternate" : "none",
           }} />
         </button>
       )}
@@ -451,6 +467,7 @@ export default function JarvisBubble() {
         @keyframes sparkle-talk { 0%{transform:scale(1) rotate(0deg);opacity:0.85} 100%{transform:scale(1.22) rotate(18deg);opacity:1} }
         @keyframes dot-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
         @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes bubble-listen-pulse { 0%{transform:scale(1);filter:brightness(1)} 100%{transform:scale(1.1);filter:brightness(1.35)} }
       `}</style>
     </>
   );

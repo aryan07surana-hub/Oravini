@@ -271,20 +271,38 @@ export default function Jarvis() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject } = useJarvis();
+  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject, setIsListening } = useJarvis();
   const { voiceOn, toggleVoice, speaking, listening, speak, stopSpeaking, startListening, stopListening, hasSR } = useVoice();
 
   const plan = (user as any)?.plan || "free";
   const isFree = !["growth", "pro", "elite"].includes(plan);
   const firstName = (user as any)?.name?.split(" ")[0] || "";
 
-  // Only show cinematic once per device
+  // No setup screen — always "Jarvis AI". Show cinematic only on first visit.
   const [phase, setPhase] = useState<Phase>(() => {
-    if (!localStorage.getItem("jarvis_name")) return "setup";
     if (!localStorage.getItem("jarvis_cinematic_seen")) return "cinematic";
     return "ready";
   });
-  const [pendingName, setPendingName] = useState("");
+  const [pendingName] = useState("Jarvis AI");
+
+  // Session timer
+  const [sessionDuration, setSessionDuration] = useState(0);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (sessionActive) {
+      setSessionDuration(0);
+      sessionTimerRef.current = setInterval(() => setSessionDuration(d => d + 1), 1000);
+    } else {
+      if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
+      setSessionDuration(0);
+    }
+    return () => { if (sessionTimerRef.current) clearInterval(sessionTimerRef.current); };
+  }, [sessionActive]);
+
+  const fmtDuration = (s: number) => {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  };
 
   const [lastReply, setLastReply] = useState("");
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "navigating" | "done">("idle");
@@ -296,12 +314,17 @@ export default function Jarvis() {
   const autoMicRef = useRef(false);
   const recAutoRef = useRef<any>(null);
 
-  // Sync speaking state to global context (for sidebar icon animation)
+  // Sync speaking/listening state to global context
   useEffect(() => { setIsSpeaking(speaking); }, [speaking, setIsSpeaking]);
+  useEffect(() => { setIsListening(listening || status === "listening"); }, [listening, status, setIsListening]);
 
-  // Auto-mic: starts listening and auto-executes
+  // Ref so we can check speaking inside callbacks without stale closure
+  const speakingRef = useRef(speaking);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
+
+  // Auto-mic: always-on listening — restarts itself after every utterance
   const startAutoListen = useCallback(() => {
-    if (!autoMicRef.current || !hasSR) return;
+    if (!autoMicRef.current || !hasSR || speakingRef.current) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
@@ -309,16 +332,25 @@ export default function Jarvis() {
     rec.lang = "en-US"; rec.interimResults = false; rec.continuous = false;
     rec.onresult = (e: any) => {
       const t = e.results[0]?.[0]?.transcript || "";
-      if (t.trim()) {
-        setStatus("idle"); setStatusLabel("");
+      if (t.trim() && t.trim().length >= 2) {
         executeCommandRef.current(t.trim());
       }
     };
-    rec.onerror = () => { setStatus("idle"); setStatusLabel(""); };
-    rec.onend = () => { setStatus("idle"); setStatusLabel(""); };
+    rec.onerror = () => {
+      recAutoRef.current = null;
+      setStatus("idle"); setStatusLabel("");
+      // Always restart on error (unless AI is speaking)
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startAutoListen(), 800);
+    };
+    rec.onend = () => {
+      recAutoRef.current = null;
+      setStatus("idle"); setStatusLabel("");
+      // Always restart — keeps mic on at all times
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startAutoListen(), 100);
+    };
     rec.start(); recAutoRef.current = rec;
     setStatus("listening"); setStatusLabel("Listening…");
-  }, [hasSR]);
+  }, [hasSR]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Speak greeting once on ready and start mic loop
   useEffect(() => {
@@ -345,12 +377,6 @@ export default function Jarvis() {
     }
   }, [speaking]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSetupComplete = (name: string) => {
-    setJarvisName(name);
-    setPendingName(name);
-    setPhase("cinematic");
-  };
-
   const handleCinematicDone = () => {
     localStorage.setItem("jarvis_cinematic_seen", "true");
     setPhase("ready");
@@ -363,18 +389,14 @@ export default function Jarvis() {
 
   const startNavCountdown = (url: string, label: string) => {
     setStatus("navigating");
-    setStatusLabel(`Taking you to ${label}`);
-    setCountdown(2);
-    let c = 2;
-    countdownRef.current = setInterval(() => {
-      c--; setCountdown(c);
-      if (c <= 0) {
-        if (countdownRef.current) clearInterval(countdownRef.current);
-        navigate(url);
-        setStatus("done"); setStatusLabel(`Opened ${label}`);
-        setTimeout(() => { setStatus("idle"); setStatusLabel(""); }, 2000);
-      }
-    }, 1000);
+    setStatusLabel(`Going to ${label}…`);
+    // Navigate instantly — no countdown delay
+    setTimeout(() => {
+      navigate(url);
+      setStatus("done"); setStatusLabel(`Opened ${label}`);
+      autoMicRef.current = true;
+      setTimeout(() => { setStatus("idle"); setStatusLabel(""); }, 1200);
+    }, 350);
   };
 
   const executeCommand = async (text: string) => {
@@ -434,10 +456,6 @@ export default function Jarvis() {
   const orbAnimation = speaking ? "orb-speak" : status === "processing" ? "orb-fast" : status === "listening" ? "orb-pulse" : "orb-breathe";
 
   const currentAgentName = pendingName || jarvisName || "AI";
-
-  if (phase === "setup") {
-    return <ClientLayout><SetupScreen onName={handleSetupComplete} /></ClientLayout>;
-  }
 
   if (phase === "cinematic") {
     return (
@@ -589,9 +607,10 @@ export default function Jarvis() {
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 50, padding: "7px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 50, padding: "7px 20px" }}>
                   <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#ef4444", animation: "dot-pulse 0.7s ease-in-out infinite" }} />
-                  <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 800, letterSpacing: "0.08em" }}>LIVE · FULL ACCESS</span>
+                  <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 800, letterSpacing: "0.08em" }}>LIVE</span>
+                  <span style={{ fontSize: 11, color: "rgba(239,68,68,0.6)", fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: "0.06em" }}>{fmtDuration(sessionDuration)}</span>
                 </div>
                 <button
                   onClick={() => { stopSession(); autoMicRef.current = false; }}

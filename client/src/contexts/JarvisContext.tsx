@@ -58,6 +58,9 @@ interface JarvisContextType {
   // Text injection
   pendingInject: PendingInject | null;
   setPendingInject: (v: PendingInject | null) => void;
+  // Global mic listening state (for bubble glow)
+  isListening: boolean;
+  setIsListening: (v: boolean) => void;
 }
 
 const JarvisContext = createContext<JarvisContextType>({
@@ -81,6 +84,8 @@ const JarvisContext = createContext<JarvisContextType>({
   stopSession: () => {},
   pendingInject: null,
   setPendingInject: () => {},
+  isListening: false,
+  setIsListening: () => {},
 });
 
 export function useJarvis() { return useContext(JarvisContext); }
@@ -104,7 +109,15 @@ export function getDailyQuote() {
 }
 
 export function JarvisProvider({ children }: { children: ReactNode }) {
-  const [jarvisName, setJarvisNameState] = useState(() => localStorage.getItem("jarvis_name") || "");
+  // Always "Jarvis AI" — no custom naming
+  const [jarvisName, setJarvisNameState] = useState(() => {
+    const saved = localStorage.getItem("jarvis_name");
+    if (!saved) {
+      localStorage.setItem("jarvis_name", "Jarvis AI");
+      localStorage.setItem("jarvis_wake", "true");
+    }
+    return saved || "Jarvis AI";
+  });
   const [bubbleOpen, setBubbleOpen] = useState(false);
   const [wakeWordEnabled, setWakeWordEnabledState] = useState(() => {
     const saved = localStorage.getItem("jarvis_wake");
@@ -116,6 +129,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [sessionActive, setSessionActiveState] = useState(() => localStorage.getItem("jarvis_session") === "true");
   const [pendingInject, setPendingInject] = useState<PendingInject | null>(null);
+  const [isListening, setIsListening] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const enabledRef = useRef(wakeWordEnabled);
@@ -257,6 +271,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       isSpeaking, setIsSpeaking,
       sessionActive, startSession, stopSession,
       pendingInject, setPendingInject,
+      isListening, setIsListening,
     }}>
       {children}
     </JarvisContext.Provider>
