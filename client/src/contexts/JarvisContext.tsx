@@ -44,6 +44,8 @@ interface JarvisContextType {
   history: HistoryEntry[];
   addToHistory: (entry: Omit<HistoryEntry, "id" | "ts">) => void;
   clearHistory: () => void;
+  isSpeaking: boolean;
+  setIsSpeaking: (v: boolean) => void;
 }
 
 const JarvisContext = createContext<JarvisContextType>({
@@ -60,6 +62,8 @@ const JarvisContext = createContext<JarvisContextType>({
   history: [],
   addToHistory: () => {},
   clearHistory: () => {},
+  isSpeaking: false,
+  setIsSpeaking: () => {},
 });
 
 export function useJarvis() { return useContext(JarvisContext); }
@@ -88,6 +92,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   const [wakeWordEnabled, setWakeWordEnabledState] = useState(() => localStorage.getItem("jarvis_wake") === "true");
   const [pendingWakeMessage, setPendingWakeMessage] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const enabledRef = useRef(wakeWordEnabled);
@@ -173,6 +178,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       wakeWordEnabled, setWakeWordEnabled,
       pendingWakeMessage, clearPendingWakeMessage: () => setPendingWakeMessage(""),
       hasSpeechRecognition, history, addToHistory, clearHistory,
+      isSpeaking, setIsSpeaking,
     }}>
       {children}
     </JarvisContext.Provider>

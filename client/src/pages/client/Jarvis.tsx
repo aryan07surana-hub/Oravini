@@ -272,14 +272,19 @@ export default function Jarvis() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory } = useJarvis();
+  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking } = useJarvis();
   const { voiceOn, toggleVoice, speaking, listening, speak, stopSpeaking, startListening, stopListening, hasSR } = useVoice();
 
   const plan = (user as any)?.plan || "free";
   const isFree = !["growth", "pro", "elite"].includes(plan);
   const firstName = (user as any)?.name?.split(" ")[0] || "";
 
-  const [phase, setPhase] = useState<Phase>(() => !localStorage.getItem("jarvis_name") ? "setup" : "cinematic");
+  // Only show cinematic once per device
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (!localStorage.getItem("jarvis_name")) return "setup";
+    if (!localStorage.getItem("jarvis_cinematic_seen")) return "cinematic";
+    return "ready";
+  });
   const [pendingName, setPendingName] = useState("");
 
   const [input, setInput] = useState("");
@@ -289,16 +294,57 @@ export default function Jarvis() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const hasSpokenRef = useRef(false);
+  const autoMicRef = useRef(false);
+  const recAutoRef = useRef<any>(null);
 
-  // Speak greeting once on ready
+  // Sync speaking state to global context (for sidebar icon animation)
+  useEffect(() => { setIsSpeaking(speaking); }, [speaking, setIsSpeaking]);
+
+  // Auto-mic: starts listening and auto-executes
+  const startAutoListen = useCallback(() => {
+    if (!autoMicRef.current || !hasSR) return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
+    const rec = new SR();
+    rec.lang = "en-US"; rec.interimResults = false; rec.continuous = false;
+    rec.onresult = (e: any) => {
+      const t = e.results[0]?.[0]?.transcript || "";
+      if (t.trim()) {
+        setStatus("idle"); setStatusLabel("");
+        executeCommandRef.current(t.trim());
+      }
+    };
+    rec.onerror = () => { setStatus("idle"); setStatusLabel(""); };
+    rec.onend = () => { setStatus("idle"); setStatusLabel(""); };
+    rec.start(); recAutoRef.current = rec;
+    setStatus("listening"); setStatusLabel("Listening…");
+  }, [hasSR]);
+
+  // Speak greeting once on ready and start mic loop
   useEffect(() => {
-    if (phase === "ready" && voiceOn && !hasSpokenRef.current) {
+    if (phase === "ready" && !hasSpokenRef.current) {
       hasSpokenRef.current = true;
-      setTimeout(() => {
-        speak(`Hey${firstName ? " " + firstName : ""}! "${getDailyQuote()}" — What are we working on today?`, true);
-      }, 800);
+      autoMicRef.current = true;
+      if (voiceOn) {
+        setTimeout(() => {
+          speak(`Hey${firstName ? " " + firstName : ""}! "${getDailyQuote()}" — Ready when you are.`, true);
+          // After greeting finishes (≈4s), start listening
+          setTimeout(() => { if (autoMicRef.current) startAutoListen(); }, 4500);
+        }, 800);
+      } else {
+        setTimeout(() => startAutoListen(), 1000);
+      }
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Watch speaking state → restart mic when done speaking
+  useEffect(() => {
+    if (!speaking && autoMicRef.current && phase === "ready" && status === "idle" && !listening) {
+      const t = setTimeout(() => { if (autoMicRef.current) startAutoListen(); }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [speaking]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSetupComplete = (name: string) => {
     setJarvisName(name);
@@ -306,7 +352,10 @@ export default function Jarvis() {
     setPhase("cinematic");
   };
 
-  const handleCinematicDone = () => setPhase("ready");
+  const handleCinematicDone = () => {
+    localStorage.setItem("jarvis_cinematic_seen", "true");
+    setPhase("ready");
+  };
 
   const cancelNav = () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -332,16 +381,29 @@ export default function Jarvis() {
   const executeCommand = async (text: string) => {
     if (!text.trim() || status === "processing") return;
     setInput(""); stopSpeaking();
+    autoMicRef.current = false;
     setStatus("processing"); setStatusLabel("Thinking…");
     try {
       const data = await apiRequest("POST", "/api/jarvis/chat", { message: text, history: history.slice(0, 8).map(h => ({ role: "user", content: h.command })), assistantName: jarvisName });
       const { reply, action } = data;
       setStatus("idle"); setStatusLabel("");
-      if (voiceOn && reply) speak(reply, voiceOn);
       addToHistory({ command: text, response: reply || "", action: action ? action.label : undefined });
-      if (action?.url) startNavCountdown(action.url, action.label);
+      if (action?.url) {
+        if (voiceOn && reply) {
+          speak(reply, true);
+          setTimeout(() => startNavCountdown(action.url, action.label), 800);
+        } else {
+          startNavCountdown(action.url, action.label);
+        }
+      } else {
+        if (voiceOn && reply) speak(reply, true);
+        // Re-enable auto-mic after a short delay (speech will trigger it via the useEffect above)
+        autoMicRef.current = true;
+        if (!voiceOn) setTimeout(() => startAutoListen(), 400);
+      }
     } catch (err: any) {
       setStatus("idle"); setStatusLabel("");
+      autoMicRef.current = true;
       if (err?.status === 402) {
         toast({ title: "Out of credits", description: `Upgrade to Growth+ for unlimited ${jarvisName}.`, variant: "destructive" });
         addToHistory({ command: text, response: "Out of credits", action: "Upgrade needed" });
@@ -351,15 +413,22 @@ export default function Jarvis() {
     }
   };
 
+  // Keep ref current to avoid stale closure in startAutoListen
+  const executeCommandRef = useRef<(t: string) => void>(() => {});
+  executeCommandRef.current = executeCommand;
+
   const handleMic = () => {
-    if (listening) { stopListening(); setStatus("idle"); return; }
-    setStatus("listening"); setStatusLabel("Listening…");
-    const ok = startListening(t => { setInput(t); setStatus("idle"); setStatusLabel(""); });
-    if (!ok) { setStatus("idle"); toast({ title: "Mic not supported", description: "Use Chrome or Edge.", variant: "destructive" }); }
+    if (listening || status === "listening") {
+      // Manual stop — disable auto-mic too
+      if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
+      stopListening(); autoMicRef.current = false; setStatus("idle"); setStatusLabel(""); return;
+    }
+    autoMicRef.current = true;
+    startAutoListen();
   };
 
   const statusColor = { idle: "#22c55e", listening: GOLD, processing: "#818cf8", navigating: GOLD, done: "#22c55e" }[status];
-  const orbAnimation = status === "processing" ? "orb-fast" : status === "listening" ? "orb-pulse" : "orb-breathe";
+  const orbAnimation = speaking ? "orb-speak" : status === "processing" ? "orb-fast" : status === "listening" ? "orb-pulse" : "orb-breathe";
 
   const currentAgentName = pendingName || jarvisName || "AI";
 
@@ -410,8 +479,8 @@ export default function Jarvis() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px 24px", position: "relative", zIndex: 1 }}>
           {/* Orb */}
           <div style={{ position: "relative", marginBottom: 26 }}>
-            <div style={{ width: 114, height: 114, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${GOLD}48, ${GOLD}16, transparent)`, border: `1.5px solid ${GOLD}32`, boxShadow: speaking ? `0 0 55px ${GOLD}55, 0 0 110px ${GOLD}28` : status === "processing" ? `0 0 40px #818cf850, 0 0 80px #818cf820` : `0 0 38px ${GOLD}18, 0 0 76px ${GOLD}10`, animation: `${orbAnimation} ${status === "processing" ? "0.8s" : "3s"} ease-in-out infinite`, display: "flex", alignItems: "center", justifyContent: "center", transition: "box-shadow 0.4s" }}>
-              {status === "processing" ? <Loader2 style={{ width: 38, height: 38, color: GOLD, animation: "spin 1s linear infinite" }} /> : <Sparkles style={{ width: 38, height: 38, color: GOLD, opacity: 0.88 }} />}
+            <div style={{ width: 114, height: 114, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${GOLD}48, ${GOLD}16, transparent)`, border: `1.5px solid ${GOLD}${speaking ? "80" : "32"}`, boxShadow: speaking ? `0 0 65px ${GOLD}70, 0 0 130px ${GOLD}35, 0 0 200px ${GOLD}15` : status === "processing" ? `0 0 40px #818cf850, 0 0 80px #818cf820` : status === "listening" ? `0 0 45px ${GOLD}40, 0 0 90px ${GOLD}20` : `0 0 38px ${GOLD}18, 0 0 76px ${GOLD}10`, animation: `${orbAnimation} ${speaking ? "0.4s" : status === "processing" ? "0.8s" : "3s"} ease-in-out infinite`, display: "flex", alignItems: "center", justifyContent: "center", transition: "box-shadow 0.4s, border-color 0.4s" }}>
+              {status === "processing" ? <Loader2 style={{ width: 38, height: 38, color: GOLD, animation: "spin 1s linear infinite" }} /> : <Sparkles style={{ width: 38, height: 38, color: GOLD, opacity: 0.88, animation: speaking ? "sparkle-talk 0.45s ease-in-out infinite alternate" : "none" }} />}
             </div>
           </div>
 
@@ -495,6 +564,8 @@ export default function Jarvis() {
         @keyframes orb-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
         @keyframes orb-fast{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
         @keyframes orb-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(1.05)}}
+        @keyframes orb-speak{0%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.1);filter:brightness(1.45)}100%{transform:scale(1.04);filter:brightness(1.15)}}
+        @keyframes sparkle-talk{0%{transform:scale(1) rotate(0deg);opacity:0.85}100%{transform:scale(1.25) rotate(20deg);opacity:1}}
         @keyframes spin{to{transform:rotate(360deg)}}
       `}</style>
     </ClientLayout>
