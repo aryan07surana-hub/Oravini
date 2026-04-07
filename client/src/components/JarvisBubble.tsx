@@ -8,6 +8,23 @@ import { useJarvis, getDailyQuote } from "@/contexts/JarvisContext";
 
 const GOLD = "#d4b461";
 
+// Contextual arrival messages spoken by Jarvis after navigating to a section
+const ARRIVAL_MESSAGES: Record<string, string> = {
+  "/dashboard": "We're back at your Dashboard! This is your home base — tasks, stats, and your whole setup are right here. What are we doing?",
+  "/ai-ideas": "We're in Content Ideas! Tell me your platform and niche and I'll generate hooks, captions, and reel concepts for you right now.",
+  "/ai-coach": "We're in the Content Coach! Drop in a script or idea — I'll go through it with you and help make it hit.",
+  "/ai-design": "We're in the Design Studio! Tell me what you're creating — carousels, captions, stories — and I'll build it out.",
+  "/tracking/competitor": "We're in Competitor Analysis! Give me any Instagram username and I'll break down exactly what they're doing right.",
+  "/tracking": "We're in Performance Tracking! Your Instagram and YouTube metrics are right here.",
+  "/credits": "We're at Credits! You can top up anytime — pick the pack that works for you.",
+  "/settings/plan": "We're at Plans! Pick the right tier for where you're at and I'll help you through it.",
+  "/chat": "We're in Chat! You can message the Oravini team directly from right here.",
+  "/content-calendar": "We're in your Content Calendar! Let's schedule your posts and plan your content ahead.",
+  "/sessions": "We're in Sessions! Your coaching calls and recordings are all right here.",
+  "/progress": "We're in Progress! Let's see how far you've come.",
+  "/jarvis": "Back on my home turf! Start a session and I'll stay with you wherever you go. What do we need?",
+};
+
 function stripForSpeech(text: string) {
   return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1")
     .replace(/#{1,6}\s/g, "").replace(/[•\-]\s/g, "")
@@ -53,8 +70,9 @@ function JarvisBubbleInner({ user }: { user: any }) {
   const recRef = useRef<any>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeProcessed = useRef(false);
-  // Whether to auto-restart mic after the AI finishes speaking
   const autoMicRef = useRef(false);
+  // Tracks the URL Jarvis just navigated to — used to trigger arrival announcement
+  const justNavigatedRef = useRef<string | null>(null);
 
   const isOnJarvisPage = location === "/jarvis";
 
@@ -83,11 +101,18 @@ function JarvisBubbleInner({ user }: { user: any }) {
   // Greet + auto-start mic on open; release on close
   useEffect(() => {
     if (bubbleOpen && isNamed) {
-      // Claim the mic — stop wake word listener so they don't conflict
       pauseWake();
       if (!lastReply) {
-        const quote = getDailyQuote();
-        const greeting = `Hey${firstName ? " " + firstName : ""}! "${quote}" What do you need?`;
+        // Quote only on the very first bubble open — after that, casual re-greeting
+        const hasGreeted = localStorage.getItem("jarvis_greeted");
+        let greeting: string;
+        if (!hasGreeted) {
+          const quote = getDailyQuote();
+          greeting = `Hey${firstName ? " " + firstName : ""}! Here's one for you — "${quote}". I'm right here, what do we need?`;
+          localStorage.setItem("jarvis_greeted", "true");
+        } else {
+          greeting = `Hey${firstName ? " " + firstName : ""}! I'm right here with you. What are we doing?`;
+        }
         setLastReply(greeting);
         autoMicRef.current = true;
         if (voiceOn) speakText(greeting);
@@ -98,7 +123,6 @@ function JarvisBubbleInner({ user }: { user: any }) {
       }
     }
     if (!bubbleOpen) {
-      // Release the mic — let wake word listener resume
       stopMic();
       resumeWake();
     }
@@ -113,6 +137,35 @@ function JarvisBubbleInner({ user }: { user: any }) {
       stopMic();
     }
   }, [isOnJarvisPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Arrival announcement — fires when Jarvis navigates the user to a new section
+  // Works for both bubble-initiated and full-Jarvis-page-initiated navigations
+  useEffect(() => {
+    const cleanLoc = location.split("?")[0];
+
+    // Check bubble ref first, then fall back to sessionStorage (set by Jarvis page)
+    const bubbleTarget = justNavigatedRef.current ? justNavigatedRef.current.split("?")[0] : null;
+    const sessionTarget = sessionStorage.getItem("jarvis_nav_dest");
+    const matchedTarget = (bubbleTarget && cleanLoc === bubbleTarget) ? bubbleTarget
+      : (sessionTarget && cleanLoc === sessionTarget) ? sessionTarget
+      : null;
+
+    if (!matchedTarget) return;
+
+    // Clear both sources
+    justNavigatedRef.current = null;
+    sessionStorage.removeItem("jarvis_nav_dest");
+
+    setTimeout(() => {
+      const arrivalMsg = ARRIVAL_MESSAGES[cleanLoc]
+        || Object.entries(ARRIVAL_MESSAGES).find(([k]) => cleanLoc.startsWith(k))?.[1]
+        || "You're here! What do you need?";
+      setLastReply(arrivalMsg);
+      autoMicRef.current = true;
+      if (voiceOn) speakText(arrivalMsg);
+      else setTimeout(() => startMicAuto(), 400);
+    }, 700);
+  }, [location]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle pending wake message
   useEffect(() => {
@@ -235,14 +288,16 @@ function JarvisBubbleInner({ user }: { user: any }) {
 
   const startNavCountdown = (url: string, label: string) => {
     setStatus("navigating");
-    setLastAction(`Going to ${label}…`);
-    // Navigate immediately — no 2-second wait
+    setLastAction(`Taking you to ${label}…`);
+    // Mark destination so the arrival effect fires once we land
+    const cleanUrl = url.split("?")[0];
+    justNavigatedRef.current = cleanUrl;
     setTimeout(() => {
       navigate(url);
       setStatus("idle");
       setLastAction("");
+      // Mic stays enabled — arrival message will restart it once page loads
       autoMicRef.current = true;
-      setTimeout(() => startMicAuto(), 500);
     }, 350);
   };
 

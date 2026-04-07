@@ -320,20 +320,24 @@ export default function Jarvis() {
   const [showMicPicker, setShowMicPicker] = useState(false);
   const micPickerRef = useRef<HTMLDivElement>(null);
 
-  // Enumerate audio input devices (requires at least one prior getUserMedia grant)
+  // Enumerate audio input devices — NEVER auto-requests permission
+  // Labels show when permission was already granted; shows generic names otherwise
   const refreshMicDevices = useCallback(async () => {
     if (!navigator?.mediaDevices?.enumerateDevices) return;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter(d => d.kind === "audioinput");
       setMicDevices(inputs);
-      // If no labels yet, we need to request permission first
-      if (inputs.length > 0 && !inputs[0].label) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop());
-        const labeled = await navigator.mediaDevices.enumerateDevices();
-        setMicDevices(labeled.filter(d => d.kind === "audioinput"));
-      }
+    } catch {}
+  }, []);
+
+  // Called ONLY when user explicitly clicks Start Session or the mic button
+  // to refresh labels after the browser grants mic permission
+  const refreshMicDevicesAfterPermission = useCallback(async () => {
+    if (!navigator?.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setMicDevices(devices.filter(d => d.kind === "audioinput"));
     } catch {}
   }, []);
 
@@ -462,13 +466,14 @@ export default function Jarvis() {
 
   const startNavCountdown = (url: string, label: string) => {
     setStatus("navigating");
-    setStatusLabel(`Going to ${label}…`);
-    // Navigate instantly — no countdown delay
+    setStatusLabel(`Taking you to ${label}…`);
+    // Store destination so bubble's arrival effect fires when we land
+    sessionStorage.setItem("jarvis_nav_dest", url.split("?")[0]);
     setTimeout(() => {
       navigate(url);
-      setStatus("done"); setStatusLabel(`Opened ${label}`);
+      setStatus("done"); setStatusLabel(`Arrived at ${label}!`);
       autoMicRef.current = true;
-      setTimeout(() => { setStatus("idle"); setStatusLabel(""); }, 1200);
+      setTimeout(() => { setStatus("idle"); setStatusLabel(""); }, 1400);
     }, 350);
   };
 
@@ -518,12 +523,13 @@ export default function Jarvis() {
 
   const handleMic = () => {
     if (listening || status === "listening") {
-      // Manual stop — disable auto-mic too
       if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
       stopListening(); autoMicRef.current = false; setStatus("idle"); setStatusLabel(""); return;
     }
     autoMicRef.current = true;
     startAutoListen();
+    // After a brief delay the browser will have granted mic permission — refresh labels
+    setTimeout(() => refreshMicDevicesAfterPermission(), 1200);
   };
 
   const statusColor = { idle: "#22c55e", listening: GOLD, processing: "#818cf8", navigating: GOLD, done: "#22c55e" }[status];
@@ -733,7 +739,13 @@ export default function Jarvis() {
           <div data-tour="jarvis-session" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 20 }}>
             {!sessionActive ? (
               <button
-                onClick={() => { startSession(); autoMicRef.current = true; startAutoListen(); }}
+                onClick={() => {
+                  startSession();
+                  autoMicRef.current = true;
+                  startAutoListen();
+                  // Refresh mic labels now that permission will be granted
+                  setTimeout(() => refreshMicDevicesAfterPermission(), 1200);
+                }}
                 data-testid="button-start-session"
                 style={{ background: `linear-gradient(135deg, ${GOLD}22, ${GOLD}10)`, border: `1.5px solid ${GOLD}50`, borderRadius: 50, padding: "11px 30px", fontSize: 12, fontWeight: 800, color: GOLD, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.07em", transition: "all 0.2s", boxShadow: `0 0 20px ${GOLD}15` }}
                 onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${GOLD}33, ${GOLD}18)`; e.currentTarget.style.boxShadow = `0 0 30px ${GOLD}35`; }}
