@@ -3,9 +3,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Send, Sparkles, Volume2, VolumeX, Trash2, Radio, CheckCircle, Loader2, X } from "lucide-react";
+import { Mic, MicOff, Sparkles, Volume2, VolumeX, Trash2, Radio, CheckCircle, Loader2, X } from "lucide-react";
 import { useJarvis, getDailyQuote } from "@/contexts/JarvisContext";
 import { useLocation } from "wouter";
 
@@ -287,7 +286,7 @@ export default function Jarvis() {
   });
   const [pendingName, setPendingName] = useState("");
 
-  const [input, setInput] = useState("");
+  const [lastReply, setLastReply] = useState("");
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "navigating" | "done">("idle");
   const [statusLabel, setStatusLabel] = useState("");
   const [countdown, setCountdown] = useState(0);
@@ -380,12 +379,13 @@ export default function Jarvis() {
 
   const executeCommand = async (text: string) => {
     if (!text.trim() || status === "processing") return;
-    setInput(""); stopSpeaking();
+    stopSpeaking();
     autoMicRef.current = false;
     setStatus("processing"); setStatusLabel("Thinking…");
     try {
       const data = await apiRequest("POST", "/api/jarvis/chat", { message: text, history: history.slice(0, 8).map(h => ({ role: "user", content: h.command })), assistantName: jarvisName });
       const { reply, action } = data;
+      setLastReply(reply || "");
       setStatus("idle"); setStatusLabel("");
       addToHistory({ command: text, response: reply || "", action: action ? action.label : undefined });
       if (action?.url) {
@@ -533,28 +533,34 @@ export default function Jarvis() {
             </div>
           )}
 
-          {/* Input */}
-          <div style={{ width: "100%", maxWidth: 540 }}>
-            <div style={{ display: "flex", gap: 9, alignItems: "flex-end", background: listening ? "rgba(212,180,97,0.05)" : "rgba(255,255,255,0.03)", border: `1.5px solid ${listening ? GOLD + "45" : status === "processing" ? "#818cf840" : "rgba(255,255,255,0.08)"}`, borderRadius: 17, padding: "9px 9px 9px 18px", transition: "all 0.2s" }}>
-              <Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); executeCommand(input); } }}
-                placeholder={listening ? "Listening… speak your command" : `Command ${jarvisName}…`}
-                disabled={status === "processing" || status === "navigating"}
-                data-testid="input-jarvis-command"
-                style={{ background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 14, color: listening ? GOLD : "rgba(255,255,255,0.82)", minHeight: 34, maxHeight: 110, padding: 0, boxShadow: "none", flex: 1, fontWeight: 500 }}
-                className="placeholder:text-white/18 placeholder:font-normal focus-visible:ring-0 focus-visible:ring-offset-0" rows={1} />
-              <div style={{ display: "flex", gap: 7, alignItems: "center", flexShrink: 0 }}>
-                {hasSR && (
-                  <button onClick={handleMic} disabled={status === "processing" || status === "navigating"} data-testid="button-jarvis-mic"
-                    style={{ width: 40, height: 40, borderRadius: 11, border: "none", background: listening ? `${GOLD}20` : "rgba(255,255,255,0.05)", color: listening ? GOLD : "rgba(255,255,255,0.38)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.2s", boxShadow: listening ? `0 0 14px ${GOLD}35` : "none" }}
-                  >{listening ? <MicOff style={{ width: 16, height: 16 }} /> : <Mic style={{ width: 16, height: 16 }} />}</button>
-                )}
-                <button onClick={() => executeCommand(input)} disabled={!input.trim() || status === "processing" || status === "navigating"} data-testid="button-jarvis-send"
-                  style={{ width: 40, height: 40, borderRadius: 11, border: "none", background: input.trim() && status === "idle" ? `linear-gradient(135deg, ${GOLD}, #f0c84b)` : "rgba(255,255,255,0.06)", color: input.trim() && status === "idle" ? "#000" : "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", cursor: input.trim() && status === "idle" ? "pointer" : "not-allowed", transition: "all 0.2s" }}
-                ><Send style={{ width: 15, height: 15 }} /></button>
+          {/* Last AI reply */}
+          {lastReply && (
+            <div style={{ width: "100%", maxWidth: 520, marginBottom: 20 }}>
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "12px 18px" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", lineHeight: 1.65, margin: 0 }}>{lastReply}</p>
               </div>
             </div>
-            <p style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.14)", marginTop: 8 }}>
-              {isFree ? "2 credits per command · Upgrade to Growth+ for unlimited" : "Unlimited commands on your plan"} · {hasSR ? "🎤 Voice supported" : "Type your command"}
+          )}
+
+          {/* Mic button — voice agent, no textbox */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <button onClick={handleMic} disabled={status === "processing" || status === "navigating"} data-testid="button-jarvis-mic"
+              style={{
+                width: 72, height: 72, borderRadius: "50%",
+                background: status === "listening" ? `linear-gradient(135deg, ${GOLD}, #f0c84b)` : "rgba(255,255,255,0.07)",
+                border: `2px solid ${status === "listening" ? GOLD : "rgba(255,255,255,0.1)"}`,
+                color: status === "listening" ? "#000" : "rgba(255,255,255,0.45)",
+                cursor: status === "processing" || status === "navigating" ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: status === "listening" ? `0 0 40px ${GOLD}55, 0 0 80px ${GOLD}22` : "none",
+                animation: status === "listening" ? "orb-pulse 1.2s ease-in-out infinite" : "none",
+                transition: "all 0.3s",
+              }}
+            >
+              {status === "listening" ? <MicOff style={{ width: 28, height: 28 }} /> : <Mic style={{ width: 28, height: 28 }} />}
+            </button>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.18)", textAlign: "center" }}>
+              {status === "listening" ? "Listening — tap to stop" : isFree ? "Tap to speak · 2 credits/command" : "Tap to speak"}
             </p>
           </div>
         </div>

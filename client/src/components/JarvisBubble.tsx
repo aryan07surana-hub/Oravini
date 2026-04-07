@@ -2,8 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Send, X, Maximize2, Mic, MicOff, Volume2, VolumeX, Radio, CheckCircle, Loader2 } from "lucide-react";
+import { Sparkles, X, Maximize2, Mic, MicOff, Volume2, VolumeX, Radio, CheckCircle, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useJarvis, getDailyQuote } from "@/contexts/JarvisContext";
 
@@ -31,7 +30,6 @@ export default function JarvisBubble() {
   const plan = (user as any)?.plan || "free";
   const isFree = !["growth", "pro", "elite"].includes(plan);
 
-  const [input, setInput] = useState("");
   const [status, setStatus] = useState<"idle" | "processing" | "navigating" | "done">("idle");
   const [lastReply, setLastReply] = useState("");
   const [lastAction, setLastAction] = useState("");
@@ -54,13 +52,26 @@ export default function JarvisBubble() {
     return () => { synthRef.current?.cancel(); };
   }, []);
 
-  // Greet on open
+  // Greet + auto-start mic on open
   useEffect(() => {
-    if (bubbleOpen && isNamed && !lastReply) {
-      const quote = getDailyQuote();
-      const greeting = `Hey${firstName ? " " + firstName : ""}! "${quote}" What do you need?`;
-      setLastReply(greeting);
-      if (voiceOn) speakText(greeting);
+    if (bubbleOpen && isNamed) {
+      if (!lastReply) {
+        const quote = getDailyQuote();
+        const greeting = `Hey${firstName ? " " + firstName : ""}! "${quote}" What do you need?`;
+        setLastReply(greeting);
+        autoMicRef.current = true; // Must be set before speakText so onend restarts mic
+        if (voiceOn) speakText(greeting);
+        else setTimeout(() => startMicAuto(), 300);
+      } else {
+        // Re-opened with existing reply — just restart mic
+        autoMicRef.current = true;
+        setTimeout(() => { if (!speaking) startMicAuto(); }, 600);
+      }
+    }
+    if (!bubbleOpen) {
+      autoMicRef.current = false;
+      if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
+      setListening(false);
     }
   }, [bubbleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,17 +143,6 @@ export default function JarvisBubble() {
     rec.start(); recRef.current = rec; setListening(true);
   }, [stopSpeaking, hasSR]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manual mic toggle
-  const handleMic = () => {
-    if (listening) { recRef.current?.stop(); setListening(false); autoMicRef.current = false; return; }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast({ title: "Mic not supported", description: "Use Chrome or Edge.", variant: "destructive" }); return; }
-    stopSpeaking();
-    const rec = new SR(); rec.lang = "en-US"; rec.interimResults = false;
-    rec.onresult = (e: any) => { const t = e.results[0]?.[0]?.transcript || ""; if (t.trim()) setInput(t.trim()); };
-    rec.onerror = () => setListening(false); rec.onend = () => setListening(false);
-    rec.start(); recRef.current = rec; setListening(true);
-  };
 
   // Keep a ref to executeCommand to avoid stale closure in startMicAuto
   const executeCommandRef = useRef<(text: string) => void>(() => {});
@@ -165,7 +165,6 @@ export default function JarvisBubble() {
 
   const executeCommand = async (text: string) => {
     if (!text.trim() || status === "processing") return;
-    setInput("");
     stopSpeaking();
     autoMicRef.current = false;
     setStatus("processing");
@@ -220,26 +219,6 @@ export default function JarvisBubble() {
 
   // Always keep executeCommandRef current
   executeCommandRef.current = executeCommand;
-
-  // Auto-open mic when bubble opens (so it's always listening)
-  useEffect(() => {
-    if (bubbleOpen && isNamed && voiceOn && hasSR) {
-      autoMicRef.current = true;
-      // Small delay to let the greeting play first
-      setTimeout(() => {
-        if (!speaking) startMicAuto();
-      }, 2800);
-    }
-    if (!bubbleOpen) {
-      autoMicRef.current = false;
-      if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
-      setListening(false);
-    }
-  }, [bubbleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); executeCommand(input); }
-  };
 
   const iconBtn = () => ({
     background: "none", border: "none", cursor: "pointer",
@@ -378,36 +357,35 @@ export default function JarvisBubble() {
             )}
           </div>
 
-          {/* Input */}
-          <div style={{ padding: "10px 12px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "#0b0b0b", flexShrink: 0 }}>
-            <div style={{ display: "flex", gap: 7, alignItems: "flex-end", background: listening ? "rgba(212,180,97,0.06)" : "rgba(255,255,255,0.04)", border: `1px solid ${listening ? `${GOLD}40` : "rgba(255,255,255,0.08)"}`, borderRadius: 14, padding: "8px 8px 8px 14px", transition: "all 0.2s" }}>
-              <Textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                placeholder={listening ? "Listening… speak now" : `Command ${jarvisName || "AI"}…`}
-                disabled={status === "processing" || status === "navigating"}
-                data-testid="input-jarvis-bubble"
-                style={{ background: "transparent", border: "none", outline: "none", resize: "none", fontSize: 13, color: listening ? GOLD : "rgba(255,255,255,0.85)", minHeight: 28, maxHeight: 80, padding: 0, boxShadow: "none", flex: 1 }}
-                className="placeholder:text-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
-                rows={1}
-              />
-              <div style={{ display: "flex", gap: 5, alignItems: "center", flexShrink: 0 }}>
-                {hasSR && (
-                  <button onClick={handleMic} disabled={status === "processing" || status === "navigating"} data-testid="button-jarvis-bubble-mic"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: listening ? `${GOLD}22` : "rgba(255,255,255,0.06)", color: listening ? GOLD : "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all 0.2s", animation: listening ? "dot-pulse 0.8s ease-in-out infinite" : "none" }}
-                  >
-                    {listening ? <MicOff style={{ width: 13, height: 13 }} /> : <Mic style={{ width: 13, height: 13 }} />}
-                  </button>
-                )}
-                <button onClick={() => executeCommand(input)} disabled={!input.trim() || status !== "idle"} data-testid="button-jarvis-bubble-send"
-                  style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: input.trim() && status === "idle" ? GOLD : "rgba(255,255,255,0.06)", color: input.trim() && status === "idle" ? "#000" : "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: input.trim() && status === "idle" ? "pointer" : "not-allowed", transition: "all 0.15s" }}
-                >
-                  <Send style={{ width: 13, height: 13 }} />
-                </button>
-              </div>
+          {/* Mic footer — voice only, no textbox */}
+          <div style={{ padding: "12px 14px 16px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "#0b0b0b", flexShrink: 0, display: "flex", alignItems: "center", gap: 14 }}>
+            <button
+              onClick={() => {
+                if (listening) { recRef.current?.stop(); setListening(false); autoMicRef.current = false; }
+                else { autoMicRef.current = true; startMicAuto(); }
+              }}
+              disabled={status === "processing" || status === "navigating"}
+              data-testid="button-jarvis-bubble-mic"
+              style={{
+                width: 48, height: 48, borderRadius: "50%",
+                background: listening ? `linear-gradient(135deg, ${GOLD}, #f0c84b)` : "rgba(255,255,255,0.07)",
+                border: `2px solid ${listening ? GOLD : "rgba(255,255,255,0.12)"}`,
+                color: listening ? "#000" : "rgba(255,255,255,0.45)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: status === "processing" || status === "navigating" ? "not-allowed" : "pointer",
+                boxShadow: listening ? `0 0 22px ${GOLD}55` : "none",
+                animation: listening ? "dot-pulse 1s ease-in-out infinite" : "none",
+                transition: "all 0.2s", flexShrink: 0,
+              }}
+            >
+              {listening ? <MicOff style={{ width: 18, height: 18 }} /> : <Mic style={{ width: 18, height: 18 }} />}
+            </button>
+            <div>
+              <p style={{ fontSize: 12, color: listening ? GOLD : "rgba(255,255,255,0.5)", fontWeight: 600, margin: 0, transition: "color 0.3s" }}>
+                {listening ? "Listening…" : status === "processing" ? "Processing…" : `Tap to speak`}
+              </p>
+              {isFree && <p style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", margin: "2px 0 0" }}>2 credits/command · Upgrade for unlimited</p>}
             </div>
-            {isFree && <p style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.18)", marginTop: 6 }}>2 credits/command · Upgrade to Growth+ for unlimited</p>}
           </div>
         </div>
       )}

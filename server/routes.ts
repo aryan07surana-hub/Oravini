@@ -6419,6 +6419,18 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
       const u = req.user as any;
       if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
 
+      // Detect "write/paste [content] in content coach" — handle without LLM, no credits
+      const coachScriptMatch = message.match(/(?:write|paste|put|add|type|inject|send|copy)(?:\s+this)?(?:\s+(?:in(?:to)?|to|for|on))?\s+(?:the\s+)?(?:content\s*coach|coach|script\s*(?:area|box)|ai\s*coach)[:\s,]+(.+)/is);
+      if (coachScriptMatch) {
+        const scriptContent = coachScriptMatch[1].trim();
+        const firstName = (u.name || "").split(" ")[0] || "friend";
+        return res.json({
+          reply: `On it, ${firstName}! Pasting your script into the Content Coach right now.`,
+          action: { url: `/ai-coach?script=${encodeURIComponent(scriptContent)}`, label: "Content Coach" },
+          creditCost: 0,
+        });
+      }
+
       const FREE_PLANS = ["growth", "pro", "elite"];
       const creditCost = FREE_PLANS.includes(u.plan) ? 0 : 2;
 

@@ -542,13 +542,21 @@ export default function AIContentCoach() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
 
-  // Pre-fill from Jarvis navigation (URL params)
+  // Pre-fill from Jarvis navigation (URL params) with typewriter effect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get("script");
     if (s) {
-      setScript(decodeURIComponent(s));
+      const decoded = decodeURIComponent(s);
       window.history.replaceState({}, "", window.location.pathname);
+      let i = 0;
+      setScript("");
+      const timer = setInterval(() => {
+        i++;
+        setScript(decoded.slice(0, i));
+        if (i >= decoded.length) clearInterval(timer);
+      }, 16);
+      return () => clearInterval(timer);
     }
   }, []);
 
