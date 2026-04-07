@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
-import { Mic, MicOff, Sparkles, Volume2, VolumeX, Trash2, Radio, CheckCircle, Loader2, X } from "lucide-react";
+import { Mic, MicOff, Sparkles, Volume2, VolumeX, Trash2, Radio, CheckCircle, Loader2, X, ChevronDown } from "lucide-react";
 import { useJarvis, getDailyQuote } from "@/contexts/JarvisContext";
 import { useLocation } from "wouter";
 
@@ -314,6 +314,73 @@ export default function Jarvis() {
   const autoMicRef = useRef(false);
   const recAutoRef = useRef<any>(null);
 
+  // ── Mic device selection ──────────────────────────────────────────────────
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>(() => localStorage.getItem("jarvis_mic_id") || "default");
+  const [showMicPicker, setShowMicPicker] = useState(false);
+  const micPickerRef = useRef<HTMLDivElement>(null);
+
+  // Enumerate audio input devices (requires at least one prior getUserMedia grant)
+  const refreshMicDevices = useCallback(async () => {
+    if (!navigator?.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === "audioinput");
+      setMicDevices(inputs);
+      // If no labels yet, we need to request permission first
+      if (inputs.length > 0 && !inputs[0].label) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        const labeled = await navigator.mediaDevices.enumerateDevices();
+        setMicDevices(labeled.filter(d => d.kind === "audioinput"));
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { refreshMicDevices(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (micPickerRef.current && !micPickerRef.current.contains(e.target as Node)) {
+        setShowMicPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // "Prime" the browser to use the chosen device before SpeechRecognition starts
+  const primeMicDevice = useCallback(async (deviceId: string) => {
+    if (!navigator?.mediaDevices?.getUserMedia) return;
+    if (deviceId === "default" || !deviceId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId } },
+      });
+      // Immediately stop — we only needed to grant permission for this device
+      stream.getTracks().forEach(t => t.stop());
+    } catch {}
+  }, []);
+
+  // Ref so handleMicSelect can call startAutoListen without stale closure (defined later)
+  const startAutoListenRef = useRef<() => void>(() => {});
+
+  const handleMicSelect = useCallback(async (deviceId: string, label: string) => {
+    setSelectedMicId(deviceId);
+    localStorage.setItem("jarvis_mic_id", deviceId);
+    setShowMicPicker(false);
+    // Stop any running auto-listen before switching
+    if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
+    autoMicRef.current = false;
+    setStatus("idle"); setStatusLabel("");
+    // Prime the new device, then restart auto-listen
+    await primeMicDevice(deviceId);
+    toast({ title: "Mic switched", description: label || "Default microphone", duration: 2000 });
+    autoMicRef.current = true;
+    setTimeout(() => startAutoListenRef.current(), 400);
+  }, [primeMicDevice, toast]);
+
   // Jarvis page owns the mic — pause the wake listener on mount, restore on unmount
   useEffect(() => {
     pauseWake();
@@ -444,9 +511,10 @@ export default function Jarvis() {
     }
   };
 
-  // Keep ref current to avoid stale closure in startAutoListen
+  // Keep refs current to avoid stale closures
   const executeCommandRef = useRef<(t: string) => void>(() => {});
   executeCommandRef.current = executeCommand;
+  startAutoListenRef.current = startAutoListen;
 
   const handleMic = () => {
     if (listening || status === "listening") {
@@ -495,6 +563,69 @@ export default function Jarvis() {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Mic device selector — Jarvis AI exclusive */}
+            {micDevices.length > 0 && (
+              <div ref={micPickerRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowMicPicker(v => !v)}
+                  data-testid="button-mic-select"
+                  title="Select microphone"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5, padding: "4px 10px",
+                    borderRadius: 20, border: `1px solid ${showMicPicker ? GOLD + "60" : "rgba(255,255,255,0.08)"}`,
+                    background: showMicPicker ? `${GOLD}12` : "transparent",
+                    cursor: "pointer", fontSize: 10, fontWeight: 600,
+                    color: showMicPicker ? GOLD : "rgba(255,255,255,0.35)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  <Mic style={{ width: 10, height: 10 }} />
+                  <span style={{ maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {micDevices.find(d => d.deviceId === selectedMicId)?.label?.replace(/\s*\(.*?\)\s*/g, "").trim() || "Default"}
+                  </span>
+                  <ChevronDown style={{ width: 9, height: 9, opacity: 0.5, transform: showMicPicker ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </button>
+                {showMicPicker && (
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0,
+                    background: "#111", border: `1px solid ${GOLD}30`,
+                    borderRadius: 12, overflow: "hidden", zIndex: 100,
+                    boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)`,
+                    minWidth: 220,
+                  }}>
+                    <div style={{ padding: "8px 12px 6px", fontSize: 9, color: "rgba(255,255,255,0.22)", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      Select Microphone
+                    </div>
+                    {micDevices.map((dev) => {
+                      const label = dev.label || `Microphone ${dev.deviceId.slice(0, 6)}`;
+                      const cleanLabel = label.replace(/\s*\(.*?\)\s*/g, "").trim() || label;
+                      const isSelected = dev.deviceId === selectedMicId || (selectedMicId === "default" && dev.deviceId === "default");
+                      return (
+                        <button
+                          key={dev.deviceId}
+                          onClick={() => handleMicSelect(dev.deviceId, cleanLabel)}
+                          data-testid={`mic-option-${dev.deviceId}`}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            width: "100%", padding: "9px 14px", background: isSelected ? `${GOLD}10` : "transparent",
+                            border: "none", cursor: "pointer", textAlign: "left",
+                            fontSize: 11, color: isSelected ? GOLD : "rgba(255,255,255,0.6)",
+                            fontWeight: isSelected ? 700 : 400, transition: "background 0.15s",
+                            borderBottom: "1px solid rgba(255,255,255,0.03)",
+                          }}
+                          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                          onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                        >
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: isSelected ? GOLD : "rgba(255,255,255,0.12)", flexShrink: 0, boxShadow: isSelected ? `0 0 6px ${GOLD}` : "none" }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{cleanLabel}</span>
+                          {isSelected && <span style={{ fontSize: 9, color: GOLD, opacity: 0.7, flexShrink: 0 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {hasSpeechRecognition && (
               <button onClick={() => setWakeWordEnabled(!wakeWordEnabled)} data-testid="button-wake"
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, border: `1px solid ${wakeWordEnabled ? GOLD + "40" : "rgba(255,255,255,0.08)"}`, background: wakeWordEnabled ? `${GOLD}0e` : "transparent", cursor: "pointer", fontSize: 10, color: wakeWordEnabled ? GOLD : "rgba(255,255,255,0.3)", fontWeight: 600, transition: "all 0.2s" }}
