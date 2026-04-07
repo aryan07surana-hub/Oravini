@@ -6419,14 +6419,68 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
       const u = req.user as any;
       if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
 
-      // Detect "write/paste [content] in content coach" — handle without LLM, no credits
-      const coachScriptMatch = message.match(/(?:write|paste|put|add|type|inject|send|copy)(?:\s+this)?(?:\s+(?:in(?:to)?|to|for|on))?\s+(?:the\s+)?(?:content\s*coach|coach|script\s*(?:area|box)|ai\s*coach)[:\s,]+(.+)/is);
+      // ── Text injection patterns (no LLM call, no credits) ────────────────────
+      const writeVerb = /(?:write|paste|put|add|type|dictate|input|insert|inject|send|copy|fill(?:\s+in)?|enter)/i;
+      const writePrep = /(?:\s+this)?(?:\s+(?:in(?:to)?|to|for|on|at))?\s+(?:the\s+)?/i;
+      const wvp = writeVerb.source + writePrep.source;
+      const firstName = (u.name || "").split(" ")[0] || "friend";
+
+      // Content Coach / Script
+      const coachScriptMatch = message.match(new RegExp(wvp + "(?:content\\s*coach|coach|script\\s*(?:area|box)?|ai\\s*coach)[:\\s,]+(.+)", "is"));
       if (coachScriptMatch) {
         const scriptContent = coachScriptMatch[1].trim();
-        const firstName = (u.name || "").split(" ")[0] || "friend";
         return res.json({
           reply: `On it, ${firstName}! Pasting your script into the Content Coach right now.`,
           action: { url: `/ai-coach?script=${encodeURIComponent(scriptContent)}`, label: "Content Coach" },
+          inject: { testId: "textarea-script", content: scriptContent },
+          creditCost: 0,
+        });
+      }
+
+      // Chat / Support message
+      const chatMatch = message.match(new RegExp(wvp + "(?:chat|message(?:\\s*box)?|support(?:\\s*chat)?|chat\\s*input)[:\\s,]+(.+)", "is"));
+      if (chatMatch) {
+        const chatContent = chatMatch[1].trim();
+        return res.json({
+          reply: `Got it, ${firstName}! Writing that message in the chat now.`,
+          action: { url: "/chat", label: "Chat" },
+          inject: { testId: "input-message", content: chatContent },
+          creditCost: 0,
+        });
+      }
+
+      // Competitor URL / handle
+      const competitorMatch = message.match(new RegExp(wvp + "(?:competitor(?:\\s*url|\\s*handle|\\s*link|\\s*field)?|competitor\\s*(?:analysis|study|box)?)[:\\s,]+(.+)", "is"));
+      if (competitorMatch) {
+        const competitorContent = competitorMatch[1].trim();
+        return res.json({
+          reply: `Sure, ${firstName}! Entering the competitor URL in the Content Coach now.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-competitor-url", content: competitorContent },
+          creditCost: 0,
+        });
+      }
+
+      // Brand niche field
+      const nicheMatch = message.match(new RegExp(wvp + "(?:niche(?:\\s*field|\\s*box)?|brand\\s*niche)[:\\s,]+(.+)", "is"));
+      if (nicheMatch) {
+        const nicheContent = nicheMatch[1].trim();
+        return res.json({
+          reply: `Done, ${firstName}! Writing your niche in the Content Coach.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-brand-niche", content: nicheContent },
+          creditCost: 0,
+        });
+      }
+
+      // Brand target audience field
+      const targetMatch = message.match(new RegExp(wvp + "(?:target(?:\\s*audience|\\s*field)?|audience(?:\\s*field)?)[:\\s,]+(.+)", "is"));
+      if (targetMatch) {
+        const targetContent = targetMatch[1].trim();
+        return res.json({
+          reply: `Got it, ${firstName}! Filling your target audience in the Content Coach.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-brand-target", content: targetContent },
           creditCost: 0,
         });
       }

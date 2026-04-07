@@ -271,7 +271,7 @@ export default function Jarvis() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking } = useJarvis();
+  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject } = useJarvis();
   const { voiceOn, toggleVoice, speaking, listening, speak, stopSpeaking, startListening, stopListening, hasSR } = useVoice();
 
   const plan = (user as any)?.plan || "free";
@@ -384,10 +384,14 @@ export default function Jarvis() {
     setStatus("processing"); setStatusLabel("Thinking…");
     try {
       const data = await apiRequest("POST", "/api/jarvis/chat", { message: text, history: history.slice(0, 8).map(h => ({ role: "user", content: h.command })), assistantName: jarvisName });
-      const { reply, action } = data;
+      const { reply, action, inject } = data;
       setLastReply(reply || "");
       setStatus("idle"); setStatusLabel("");
       addToHistory({ command: text, response: reply || "", action: action ? action.label : undefined });
+      // Text injection into any section
+      if (inject?.testId) {
+        setPendingInject(inject);
+      }
       if (action?.url) {
         if (voiceOn && reply) {
           speak(reply, true);
@@ -397,7 +401,6 @@ export default function Jarvis() {
         }
       } else {
         if (voiceOn && reply) speak(reply, true);
-        // Re-enable auto-mic after a short delay (speech will trigger it via the useEffect above)
         autoMicRef.current = true;
         if (!voiceOn) setTimeout(() => startAutoListen(), 400);
       }
@@ -453,12 +456,19 @@ export default function Jarvis() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", flexShrink: 0, position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{jarvisName}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "3px 9px" }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: statusColor, boxShadow: `0 0 5px ${statusColor}`, transition: "all 0.3s" }} />
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.38)", fontWeight: 500 }}>
-                {status === "idle" ? "Ready" : status === "listening" ? "Listening" : status === "processing" ? "Processing" : status === "navigating" ? "Navigating" : "Done"}
-              </span>
-            </div>
+            {sessionActive ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 20, padding: "3px 10px" }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444", animation: "dot-pulse 0.8s ease-in-out infinite" }} />
+                <span style={{ fontSize: 10, color: "#ef4444", fontWeight: 700, letterSpacing: "0.06em" }}>LIVE SESSION</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "3px 9px" }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: statusColor, boxShadow: `0 0 5px ${statusColor}`, transition: "all 0.3s" }} />
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.38)", fontWeight: 500 }}>
+                  {status === "idle" ? "Ready" : status === "listening" ? "Listening" : status === "processing" ? "Processing" : status === "navigating" ? "Navigating" : "Done"}
+                </span>
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {hasSpeechRecognition && (
@@ -563,6 +573,41 @@ export default function Jarvis() {
               {status === "listening" ? "Listening — tap to stop" : isFree ? "Tap to speak · 2 credits/command" : "Tap to speak"}
             </p>
           </div>
+
+          {/* Session Control */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 20 }}>
+            {!sessionActive ? (
+              <button
+                onClick={() => { startSession(); autoMicRef.current = true; startAutoListen(); }}
+                data-testid="button-start-session"
+                style={{ background: `linear-gradient(135deg, ${GOLD}22, ${GOLD}10)`, border: `1.5px solid ${GOLD}50`, borderRadius: 50, padding: "11px 30px", fontSize: 12, fontWeight: 800, color: GOLD, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.07em", transition: "all 0.2s", boxShadow: `0 0 20px ${GOLD}15` }}
+                onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${GOLD}33, ${GOLD}18)`; e.currentTarget.style.boxShadow = `0 0 30px ${GOLD}35`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, ${GOLD}22, ${GOLD}10)`; e.currentTarget.style.boxShadow = `0 0 20px ${GOLD}15`; }}
+              >
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD }} />
+                START SESSION
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 50, padding: "7px 18px" }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#ef4444", animation: "dot-pulse 0.7s ease-in-out infinite" }} />
+                  <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 800, letterSpacing: "0.08em" }}>LIVE · FULL ACCESS</span>
+                </div>
+                <button
+                  onClick={() => { stopSession(); autoMicRef.current = false; }}
+                  data-testid="button-stop-session"
+                  style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)", borderRadius: 50, padding: "7px 20px", fontSize: 11, fontWeight: 700, color: "rgba(239,68,68,0.7)", cursor: "pointer", transition: "all 0.2s" }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+                >
+                  END SESSION
+                </button>
+              </div>
+            )}
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.18)", textAlign: "center", maxWidth: 260 }}>
+              {sessionActive ? `${jarvisName} has full access — write in any field, navigate anywhere, speak freely` : "Start a session for continuous hands-free control over the whole app"}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -573,6 +618,7 @@ export default function Jarvis() {
         @keyframes orb-speak{0%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.1);filter:brightness(1.45)}100%{transform:scale(1.04);filter:brightness(1.15)}}
         @keyframes sparkle-talk{0%{transform:scale(1) rotate(0deg);opacity:0.85}100%{transform:scale(1.25) rotate(20deg);opacity:1}}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.35;transform:scale(0.65)}}
       `}</style>
     </ClientLayout>
   );

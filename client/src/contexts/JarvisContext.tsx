@@ -19,6 +19,11 @@ export interface HistoryEntry {
   action?: string;
 }
 
+export interface PendingInject {
+  testId: string;
+  content: string;
+}
+
 const HISTORY_KEY = "jarvis_history";
 const HISTORY_LIMIT = 50;
 
@@ -46,6 +51,13 @@ interface JarvisContextType {
   clearHistory: () => void;
   isSpeaking: boolean;
   setIsSpeaking: (v: boolean) => void;
+  // Session mode
+  sessionActive: boolean;
+  startSession: () => void;
+  stopSession: () => void;
+  // Text injection
+  pendingInject: PendingInject | null;
+  setPendingInject: (v: PendingInject | null) => void;
 }
 
 const JarvisContext = createContext<JarvisContextType>({
@@ -64,6 +76,11 @@ const JarvisContext = createContext<JarvisContextType>({
   clearHistory: () => {},
   isSpeaking: false,
   setIsSpeaking: () => {},
+  sessionActive: false,
+  startSession: () => {},
+  stopSession: () => {},
+  pendingInject: null,
+  setPendingInject: () => {},
 });
 
 export function useJarvis() { return useContext(JarvisContext); }
@@ -89,24 +106,29 @@ export function getDailyQuote() {
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const [jarvisName, setJarvisNameState] = useState(() => localStorage.getItem("jarvis_name") || "");
   const [bubbleOpen, setBubbleOpen] = useState(false);
-  // Wake word on by default if user has a name set
   const [wakeWordEnabled, setWakeWordEnabledState] = useState(() => {
     const saved = localStorage.getItem("jarvis_wake");
     if (saved !== null) return saved === "true";
-    return !!localStorage.getItem("jarvis_name"); // auto-on if named
+    return !!localStorage.getItem("jarvis_name");
   });
   const [pendingWakeMessage, setPendingWakeMessage] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [sessionActive, setSessionActiveState] = useState(() => localStorage.getItem("jarvis_session") === "true");
+  const [pendingInject, setPendingInject] = useState<PendingInject | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const enabledRef = useRef(wakeWordEnabled);
   const nameRef = useRef(jarvisName);
-  // Timestamp until which ANY speech (no wake word needed) is treated as a command
-  const followUpUntilRef = useRef<number>(0);
+  // followUpUntilRef: epoch ms until which ANY speech is treated as a command (no wake word needed)
+  const followUpUntilRef = useRef<number>(
+    localStorage.getItem("jarvis_session") === "true" ? Date.now() + 86400000 : 0
+  );
+  const sessionActiveRef = useRef(sessionActive);
 
   useEffect(() => { nameRef.current = jarvisName; }, [jarvisName]);
   useEffect(() => { enabledRef.current = wakeWordEnabled; }, [wakeWordEnabled]);
+  useEffect(() => { sessionActiveRef.current = sessionActive; }, [sessionActive]);
 
   const hasSpeechRecognition = !!(
     (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -116,7 +138,6 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     const clean = name.trim();
     setJarvisNameState(clean);
     localStorage.setItem("jarvis_name", clean);
-    // Auto-enable wake word the first time a name is set
     if (clean && !localStorage.getItem("jarvis_wake")) {
       setWakeWordEnabledState(true);
       enabledRef.current = true;
@@ -154,9 +175,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
           if (!e.results[i].isFinal) continue;
           const t = e.results[i][0].transcript.trim().toLowerCase();
           const n = nameRef.current.toLowerCase();
-          // Follow-up mode: within 15s of last AI response, ANY speech is a command
+          // Follow-up / session mode: any speech is a command
           if (followUpUntilRef.current > Date.now()) {
-            // Ignore very short noise (< 3 chars)
             if (t.length >= 3) {
               setBubbleOpen(true);
               setPendingWakeMessage(t);
@@ -192,16 +212,38 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     if (!enabled) stopWake(); else startWake();
   }, [startWake, stopWake]);
 
+  const startSession = useCallback(() => {
+    setSessionActiveState(true);
+    localStorage.setItem("jarvis_session", "true");
+    // Open follow-up window for 24h — mic always on during session
+    followUpUntilRef.current = Date.now() + 86400000;
+    // Ensure wake word listener is running
+    if (!enabledRef.current) {
+      setWakeWordEnabledState(true);
+      enabledRef.current = true;
+      localStorage.setItem("jarvis_wake", "true");
+      startWake();
+    }
+  }, [startWake]);
+
+  const stopSession = useCallback(() => {
+    setSessionActiveState(false);
+    localStorage.setItem("jarvis_session", "false");
+    // Reset follow-up window
+    followUpUntilRef.current = 0;
+  }, []);
+
   useEffect(() => { if (wakeWordEnabled && jarvisName) startWake(); return () => stopWake(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When AI finishes speaking, open a 15-second follow-up window on all pages
+  // When AI finishes speaking, extend follow-up window
   const prevSpeakingRef = useRef(isSpeaking);
   useEffect(() => {
     const wasOn = prevSpeakingRef.current;
     prevSpeakingRef.current = isSpeaking;
     if (wasOn && !isSpeaking) {
-      // AI just finished speaking — extend follow-up window to 15 seconds
-      followUpUntilRef.current = Date.now() + 15000;
+      // Session mode: keep open 24h; normal: 15s
+      const duration = sessionActiveRef.current ? 86400000 : 15000;
+      followUpUntilRef.current = Date.now() + duration;
     }
   }, [isSpeaking]);
 
@@ -213,6 +255,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       pendingWakeMessage, clearPendingWakeMessage: () => setPendingWakeMessage(""),
       hasSpeechRecognition, history, addToHistory, clearHistory,
       isSpeaking, setIsSpeaking,
+      sessionActive, startSession, stopSession,
+      pendingInject, setPendingInject,
     }}>
       {children}
     </JarvisContext.Provider>

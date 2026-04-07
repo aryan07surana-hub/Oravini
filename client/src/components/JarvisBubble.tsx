@@ -24,6 +24,8 @@ export default function JarvisBubble() {
     pendingWakeMessage, clearPendingWakeMessage,
     hasSpeechRecognition, addToHistory,
     isSpeaking: globalSpeaking, setIsSpeaking,
+    sessionActive, stopSession,
+    pendingInject, setPendingInject,
   } = useJarvis();
 
   const firstName = (user as any)?.name?.split(" ")[0] || "";
@@ -87,6 +89,42 @@ export default function JarvisBubble() {
 
   // Sync local speaking state → global context
   useEffect(() => { setIsSpeaking(speaking); }, [speaking, setIsSpeaking]);
+
+  // Global text injection — types content into any field by data-testid, with retries after navigation
+  useEffect(() => {
+    if (!pendingInject) return;
+    const { testId, content } = pendingInject;
+    setPendingInject(null);
+
+    const doInject = (attempt = 0) => {
+      const el = document.querySelector(`[data-testid="${testId}"]`) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (!el) {
+        // Retry while page is loading (up to 2 seconds)
+        if (attempt < 10) { setTimeout(() => doInject(attempt + 1), 200); return; }
+        return;
+      }
+      el.focus();
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Use native value setter so React's synthetic event system picks it up
+      const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      // Typewriter: inject one char every 16ms
+      let i = 0;
+      nativeSetter?.call(el, "");
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      const timer = setInterval(() => {
+        i++;
+        nativeSetter?.call(el, content.slice(0, i));
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        if (i >= content.length) {
+          clearInterval(timer);
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }, 16);
+    };
+
+    doInject();
+  }, [pendingInject, setPendingInject]);
 
   const speakText = useCallback((text: string, onEnd?: () => void) => {
     if (!synthRef.current) return;
@@ -177,7 +215,7 @@ export default function JarvisBubble() {
         history: [],
         assistantName: jarvisName || "AI",
       });
-      const { reply, action } = data;
+      const { reply, action, inject } = data;
       setLastReply(reply || "Done!");
       setStatus("idle");
 
@@ -186,6 +224,11 @@ export default function JarvisBubble() {
         response: reply || "",
         action: action ? action.label : undefined,
       });
+
+      // Text injection into any field by data-testid (typewriter via native events)
+      if (inject?.testId) {
+        setPendingInject(inject);
+      }
 
       if (action?.url) {
         setLastAction(`Opening: ${action.label}`);
@@ -196,13 +239,15 @@ export default function JarvisBubble() {
         } else {
           setTimeout(() => startNavCountdown(action.url, action.label), 800);
         }
+        // In session mode, re-enable mic after navigation completes
+        if (sessionActive) {
+          setTimeout(() => { autoMicRef.current = true; setTimeout(() => startMicAuto(), 400); }, 3000);
+        }
       } else {
         if (voiceOn && reply) {
-          // After speaking, auto-restart mic
           autoMicRef.current = true;
           speakText(reply);
         } else {
-          // No voice — just restart mic immediately
           autoMicRef.current = true;
           setTimeout(() => startMicAuto(), 400);
         }
@@ -294,10 +339,18 @@ export default function JarvisBubble() {
               }
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{jarvisName || "AI"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", lineHeight: 1, display: "flex", alignItems: "center", gap: 6 }}>
+                {jarvisName || "AI"}
+                {sessionActive && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 3, background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 20, padding: "1px 6px" }}>
+                    <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#ef4444", animation: "dot-pulse 0.7s ease-in-out infinite" }} />
+                    <span style={{ fontSize: 8, color: "#ef4444", fontWeight: 800, letterSpacing: "0.06em" }}>LIVE</span>
+                  </div>
+                )}
+              </div>
               <div style={{ fontSize: 10, color: speaking ? GOLD : listening ? "#60a5fa" : wakeWordEnabled ? "#22c55e" : "rgba(255,255,255,0.3)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, transition: "color 0.3s" }}>
                 <div style={{ width: 5, height: 5, borderRadius: "50%", background: speaking ? GOLD : listening ? "#60a5fa" : "#22c55e", animation: speaking || listening ? "dot-pulse 0.8s ease-in-out infinite" : "none" }} />
-                {speaking ? "Speaking…" : status === "processing" ? "Processing…" : status === "navigating" ? "Navigating…" : listening ? "Listening…" : wakeWordEnabled ? `Say "Hey ${jarvisName}"` : "Ready"}
+                {speaking ? "Speaking…" : status === "processing" ? "Processing…" : status === "navigating" ? "Navigating…" : listening ? "Listening…" : sessionActive ? "Session active — speak anytime" : wakeWordEnabled ? `Say "Hey ${jarvisName}"` : "Ready"}
               </div>
             </div>
 
