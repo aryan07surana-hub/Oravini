@@ -18,7 +18,7 @@ import {
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const QUOTES = [
   "Success is not the key to happiness. Happiness is the key to success.",
@@ -683,6 +683,41 @@ export default function ClientDashboard() {
   const dailyQuote = getDailyQuote();
   const showGoalDialog = !goalLoading && goal === null && !!user?.id;
 
+  // ── Refresh button ────────────────────────────────────────────────────────
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
+  const autoRefreshRef = useRef(autoRefresh);
+  const versionRef = useRef<string | null>(null);
+
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    setTimeout(() => window.location.reload(), 400);
+  }, []);
+
+  // Auto-refresh: poll /api/auth/me every 30s; if the server responds with a
+  // different ETag / content-length, a new build is likely live — reload once.
+  useEffect(() => {
+    autoRefreshRef.current = autoRefresh;
+    localStorage.setItem("dash_auto_refresh", String(autoRefresh));
+  }, [autoRefresh]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(async () => {
+      if (!autoRefreshRef.current) return;
+      try {
+        const res = await fetch("/", { method: "HEAD", cache: "no-store" });
+        const etag = res.headers.get("etag") || res.headers.get("last-modified") || "";
+        if (versionRef.current === null) { versionRef.current = etag; return; }
+        if (etag && etag !== versionRef.current) {
+          versionRef.current = etag;
+          window.location.reload();
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
   return (
     <ClientLayout>
       {showGoalDialog && user?.id && (
@@ -700,6 +735,35 @@ export default function ClientDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Refresh controls */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleRefresh}
+                data-testid="button-refresh-dashboard"
+                title="Refresh dashboard"
+                className="flex items-center justify-center w-7 h-7 rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-all"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                <RefreshCw
+                  className="w-3.5 h-3.5 transition-transform"
+                  style={{ animation: isRefreshing ? "spin 0.5s linear infinite" : "none" }}
+                />
+              </button>
+              <button
+                onClick={() => setAutoRefresh(v => !v)}
+                data-testid="button-auto-refresh"
+                title={autoRefresh ? "Auto-refresh on (every 30s)" : "Auto-refresh off"}
+                className="flex items-center gap-1 px-2 h-7 rounded-lg border transition-all text-[10px] font-semibold"
+                style={{
+                  borderColor: autoRefresh ? "rgba(212,180,97,0.4)" : "var(--border)",
+                  background: autoRefresh ? "rgba(212,180,97,0.08)" : "transparent",
+                  color: autoRefresh ? "#d4b461" : "var(--muted-foreground)",
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: autoRefresh ? "#d4b461" : "currentColor", display: "inline-block", flexShrink: 0, boxShadow: autoRefresh ? "0 0 5px #d4b461" : "none" }} />
+                Auto
+              </button>
+            </div>
             <TourButton />
             {user?.nextCallDate && (
               <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
