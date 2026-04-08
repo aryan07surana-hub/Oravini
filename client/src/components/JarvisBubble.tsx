@@ -366,7 +366,11 @@ function JarvisBubbleInner({ user }: { user: any }) {
     try {
       const data = await apiRequest("POST", "/api/jarvis/chat", {
         message: text,
-        history: [],
+        // Send last 6 exchanges (user + assistant) so Jarvis has full conversation context
+        history: history.slice(-6).flatMap(h => [
+          { role: "user", content: h.command },
+          { role: "assistant", content: h.response },
+        ]),
         assistantName: jarvisName || "AI",
       });
       const { reply, action, inject } = data;
@@ -531,7 +535,12 @@ function JarvisBubbleInner({ user }: { user: any }) {
             >
               {voiceOn ? <Volume2 style={{ width: 12, height: 12, color: GOLD }} /> : <VolumeX style={{ width: 12, height: 12 }} />}
             </button>
-            <button onClick={() => navigate("/jarvis")} title="Full page" style={iconBtn()}
+            <button onClick={() => {
+              // Signal to the Jarvis page that the user was already greeted by the bubble
+              // — so it skips the voice greeting and goes straight to listening
+              sessionStorage.setItem("jarvis_skip_greeting", "true");
+              navigate("/jarvis");
+            }} title="Full page" style={iconBtn()}
               onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
               onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}
             >

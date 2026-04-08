@@ -456,14 +456,17 @@ export default function Jarvis() {
     if (phase === "ready" && !hasSpokenRef.current) {
       hasSpokenRef.current = true;
       autoMicRef.current = true;
-      if (voiceOn) {
+      // If user just came from the bubble (already greeted there), skip voice and go straight to mic
+      const skipGreeting = sessionStorage.getItem("jarvis_skip_greeting") === "true";
+      sessionStorage.removeItem("jarvis_skip_greeting");
+      if (skipGreeting || !voiceOn) {
+        setTimeout(() => startAutoListen(), 600);
+      } else {
         setTimeout(() => {
           speak(`Hey${firstName ? " " + firstName : ""}! "${getDailyQuote()}" — Ready when you are.`, true);
           // After greeting finishes (≈4s), start listening
           setTimeout(() => { if (autoMicRef.current) startAutoListen(); }, 4500);
         }, 800);
-      } else {
-        setTimeout(() => startAutoListen(), 1000);
       }
     }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -509,7 +512,15 @@ export default function Jarvis() {
     autoMicRef.current = false;
     setStatus("processing"); setStatusLabel("Thinking…");
     try {
-      const data = await apiRequest("POST", "/api/jarvis/chat", { message: text, history: history.slice(0, 8).map(h => ({ role: "user", content: h.command })), assistantName: jarvisName });
+      const data = await apiRequest("POST", "/api/jarvis/chat", {
+        message: text,
+        // Send last 6 exchanges (user + assistant) for full conversation context
+        history: history.slice(-6).flatMap(h => [
+          { role: "user", content: h.command },
+          { role: "assistant", content: h.response },
+        ]),
+        assistantName: jarvisName,
+      });
       const { reply, action, inject } = data;
       setLastReply(reply || "");
       setStatus("idle"); setStatusLabel("");
