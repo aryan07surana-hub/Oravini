@@ -4638,6 +4638,39 @@ Generate their personalised audit. Be specific to their situation.`;
     }
   });
 
+  // GET /api/admin/settings/jarvis-key — returns whether key is saved (not the value)
+  app.get("/api/admin/settings/jarvis-key", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const key = await storage.getAppSetting("jarvis_groq_key");
+      return res.json({ configured: !!key, masked: key ? `${key.slice(0, 8)}${"•".repeat(20)}` : null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/settings/jarvis-key — save Groq API key for Jarvis
+  app.post("/api/admin/settings/jarvis-key", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { key } = req.body;
+      if (!key?.trim()) return res.status(400).json({ message: "API key is required" });
+      if (!key.trim().startsWith("gsk_")) return res.status(400).json({ message: "Invalid Groq key — must start with gsk_" });
+      await storage.setAppSetting("jarvis_groq_key", key.trim());
+      return res.json({ configured: true, masked: `${key.trim().slice(0, 8)}${"•".repeat(20)}` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/admin/settings/jarvis-key — remove saved Groq key
+  app.delete("/api/admin/settings/jarvis-key", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      await storage.setAppSetting("jarvis_groq_key", "");
+      return res.json({ configured: false });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // POST /api/sessions/free-ai — free tier AI content ideas (3/day limit)
   app.post("/api/sessions/free-ai", async (req: Request, res: Response) => {
     try {
@@ -6517,9 +6550,12 @@ Support: support.oravini@gmail.com | @oravini_ai | https://calendly.com/brandver
         { role: "user", content: message },
       ];
 
+      const jarvisKey = (await storage.getAppSetting("jarvis_groq_key")) || process.env.GROQ_API_KEY;
+      if (!jarvisKey) throw new Error("Jarvis AI key not configured — add it in Admin → Settings");
+
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
           messages: msgs,

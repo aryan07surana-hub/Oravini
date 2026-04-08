@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound, Users, RotateCcw, ChevronDown, ChevronUp, Trash2, Crown, Zap } from "lucide-react";
+import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound, Users, RotateCcw, ChevronDown, ChevronUp, Trash2, Crown, Zap, Bot, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +27,8 @@ export default function AdminSettings() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [shortToken, setShortToken] = useState("");
+  const [jarvisKeyInput, setJarvisKeyInput] = useState("");
+  const [showJarvisKey, setShowJarvisKey] = useState(false);
   const [exchangedToken, setExchangedToken] = useState("");
 
   // Add client form
@@ -99,6 +101,29 @@ export default function AdminSettings() {
 
   const { data: metaAccount, isLoading: metaLoading, refetch: refetchMeta } = useQuery<any>({
     queryKey: ["/api/meta/account"],
+  });
+
+  const { data: jarvisKeyStatus } = useQuery<{ configured: boolean; masked: string | null }>({
+    queryKey: ["/api/admin/settings/jarvis-key"],
+  });
+
+  const saveJarvisKey = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/settings/jarvis-key", { key: jarvisKeyInput }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings/jarvis-key"] });
+      setJarvisKeyInput("");
+      toast({ title: "Jarvis key saved!", description: "Jarvis will now use this API key." });
+    },
+    onError: (err: any) => toast({ title: "Failed to save", description: err.message, variant: "destructive" }),
+  });
+
+  const removeJarvisKey = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/admin/settings/jarvis-key"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings/jarvis-key"] });
+      toast({ title: "Key removed", description: "Jarvis will fall back to the environment key if set." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const updateEmail = useMutation({
@@ -668,6 +693,84 @@ export default function AdminSettings() {
                 <Save className="w-4 h-4" />
                 {updateEmail.isPending ? "Saving..." : "Update Email"}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Jarvis API Key */}
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Bot className="w-4 h-4 text-primary" />
+                Jarvis AI — Groq API Key
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Jarvis uses this key to process voice commands and generate replies. Get a free key at{" "}
+                <a href="https://console.groq.com" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                  console.groq.com
+                </a>
+              </p>
+
+              {jarvisKeyStatus?.configured && jarvisKeyStatus.masked && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-500/10 border border-green-500/20">
+                  <ShieldCheck className="w-4 h-4 text-green-500 shrink-0" />
+                  <span className="text-sm text-green-400 font-mono flex-1">{jarvisKeyStatus.masked}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    data-testid="button-remove-jarvis-key"
+                    className="h-7 px-2 text-xs text-red-400 hover:text-red-300"
+                    onClick={() => removeJarvisKey.mutate()}
+                    disabled={removeJarvisKey.isPending}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Remove
+                  </Button>
+                </div>
+              )}
+
+              {!jarvisKeyStatus?.configured && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-yellow-500/10 border border-yellow-500/20">
+                  <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
+                  <span className="text-sm text-yellow-400">No key saved — Jarvis won't respond to voice commands</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="jarvis-api-key">
+                  {jarvisKeyStatus?.configured ? "Replace key" : "Enter your Groq API key"}
+                </Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="jarvis-api-key"
+                      data-testid="input-jarvis-api-key"
+                      type={showJarvisKey ? "text" : "password"}
+                      placeholder="gsk_..."
+                      value={jarvisKeyInput}
+                      onChange={(e) => setJarvisKeyInput(e.target.value)}
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowJarvisKey(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showJarvisKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <Button
+                    data-testid="button-save-jarvis-key"
+                    onClick={() => saveJarvisKey.mutate()}
+                    disabled={!jarvisKeyInput.trim() || saveJarvisKey.isPending}
+                    className="gap-2 shrink-0"
+                  >
+                    <Save className="w-4 h-4" />
+                    {saveJarvisKey.isPending ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
