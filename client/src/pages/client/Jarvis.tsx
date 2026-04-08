@@ -32,6 +32,12 @@ function useVoice() {
 
   const speak = useCallback((text: string, voiceEnabled: boolean) => {
     if (!voiceEnabled || !synthRef.current) return;
+    // Stop mic before speaking — prevents TTS audio from being captured as a command
+    if (recRef.current) {
+      try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
+      recRef.current = null;
+      setListening(false);
+    }
     synthRef.current.cancel();
     const u = new SpeechSynthesisUtterance(stripForSpeech(text));
     u.rate = 0.95; u.pitch = 0.9; u.volume = 1;
@@ -42,7 +48,9 @@ function useVoice() {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => setSpeaking(true); u.onend = () => setSpeaking(false); u.onerror = () => setSpeaking(false);
+    u.onstart = () => setSpeaking(true);
+    u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
     synthRef.current.speak(u);
   }, []);
 
@@ -271,7 +279,7 @@ export default function Jarvis() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject, setIsListening, pauseWake, resumeWake } = useJarvis();
+  const { jarvisName, setJarvisName, isNamed, wakeWordEnabled, setWakeWordEnabled, hasSpeechRecognition, history, addToHistory, clearHistory, setIsSpeaking, sessionActive, startSession, stopSession, setPendingInject, setIsListening, pauseWake, resumeWake, setBubbleOpen } = useJarvis();
   const { voiceOn, toggleVoice, speaking, listening, speak, stopSpeaking, startListening, stopListening, hasSR } = useVoice();
 
   const plan = (user as any)?.plan || "free";
@@ -399,12 +407,22 @@ export default function Jarvis() {
   const speakingRef = useRef(speaking);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
 
+  // Pending navigation — navigate when speech finishes (instead of blind timer)
+  const pendingNavRef = useRef<{ url: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!speaking && pendingNavRef.current) {
+      const nav = pendingNavRef.current;
+      pendingNavRef.current = null;
+      setTimeout(() => startNavCountdown(nav.url, nav.label), 200);
+    }
+  }, [speaking]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-mic: always-on listening — restarts itself after every utterance
   const startAutoListen = useCallback(() => {
     if (!autoMicRef.current || !hasSR || speakingRef.current) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    if (recAutoRef.current) { try { recAutoRef.current.stop(); } catch {} recAutoRef.current = null; }
+    if (recAutoRef.current) { try { recAutoRef.current.abort(); } catch {} recAutoRef.current = null; }
     const rec = new SR();
     rec.lang = "en-US"; rec.interimResults = false; rec.continuous = false;
     rec.onresult = (e: any) => {
@@ -413,17 +431,21 @@ export default function Jarvis() {
         executeCommandRef.current(t.trim());
       }
     };
-    rec.onerror = () => {
+    rec.onerror = (e: any) => {
       recAutoRef.current = null;
+      if (e.error === "aborted") return; // we triggered this intentionally
+      if (e.error === "not-allowed") { setStatus("idle"); setStatusLabel("Mic blocked"); return; }
       setStatus("idle"); setStatusLabel("");
-      // Always restart on error (unless AI is speaking)
-      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startAutoListen(), 800);
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startAutoListen(), 900);
     };
     rec.onend = () => {
       recAutoRef.current = null;
-      setStatus("idle"); setStatusLabel("");
-      // Always restart — keeps mic on at all times
-      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startAutoListen(), 100);
+      // Don't reset status/label to idle when immediately restarting — avoids flicker
+      if (autoMicRef.current && !speakingRef.current) {
+        setTimeout(() => startAutoListen(), 120);
+      } else {
+        setStatus("idle"); setStatusLabel("");
+      }
     };
     rec.start(); recAutoRef.current = rec;
     setStatus("listening"); setStatusLabel("Listening…");
@@ -469,11 +491,13 @@ export default function Jarvis() {
     setStatusLabel(`Taking you to ${label}…`);
     // Store destination so bubble's arrival effect fires when we land
     sessionStorage.setItem("jarvis_nav_dest", url.split("?")[0]);
+    // Stop any Jarvis-page mic before navigating (resumeWake handles cleanup on unmount)
+    if (recAutoRef.current) { try { recAutoRef.current.abort(); } catch {} recAutoRef.current = null; }
+    autoMicRef.current = false;
     setTimeout(() => {
+      // Open bubble so user can continue talking after landing
+      setBubbleOpen(true);
       navigate(url);
-      setStatus("done"); setStatusLabel(`Arrived at ${label}!`);
-      autoMicRef.current = true;
-      setTimeout(() => { setStatus("idle"); setStatusLabel(""); }, 1400);
     }, 350);
   };
 
@@ -493,15 +517,20 @@ export default function Jarvis() {
         setPendingInject(inject);
       }
       if (action?.url) {
+        // Re-enable auto mic — arrival effect handles post-nav restart
+        autoMicRef.current = true;
         if (voiceOn && reply) {
+          // Navigate AFTER speech finishes, not on a blind timer
           speak(reply, true);
-          setTimeout(() => startNavCountdown(action.url, action.label), 800);
+          // speak() has no onEnd callback — use speaking state watcher to trigger nav
+          // Store pending nav so the speaking-watcher effect picks it up
+          pendingNavRef.current = { url: action.url, label: action.label };
         } else {
           startNavCountdown(action.url, action.label);
         }
       } else {
-        if (voiceOn && reply) speak(reply, true);
         autoMicRef.current = true;
+        if (voiceOn && reply) speak(reply, true);
         if (!voiceOn) setTimeout(() => startAutoListen(), 400);
       }
     } catch (err: any) {

@@ -156,14 +156,21 @@ function JarvisBubbleInner({ user }: { user: any }) {
     justNavigatedRef.current = null;
     sessionStorage.removeItem("jarvis_nav_dest");
 
+    // Open bubble so user can see Jarvis is with them on the new page
+    setBubbleOpen(true);
+
     setTimeout(() => {
       const arrivalMsg = ARRIVAL_MESSAGES[cleanLoc]
         || Object.entries(ARRIVAL_MESSAGES).find(([k]) => cleanLoc.startsWith(k))?.[1]
-        || "You're here! What do you need?";
+        || "We made it! I'm right here — what do you need?";
       setLastReply(arrivalMsg);
       autoMicRef.current = true;
-      if (voiceOn) speakText(arrivalMsg);
-      else setTimeout(() => startMicAuto(), 400);
+      // Use voiceOnRef — always current value regardless of stale closure
+      if (voiceOnRef.current) {
+        speakText(arrivalMsg); // mic restarts automatically after speech ends
+      } else {
+        setTimeout(() => startMicAuto(), 300);
+      }
     }, 700);
   }, [location]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -217,8 +224,19 @@ function JarvisBubbleInner({ user }: { user: any }) {
     doInject();
   }, [pendingInject, setPendingInject]);
 
+  // Keep voiceOn as a ref so arrival effect always reads the current value
+  const voiceOnRef = useRef(voiceOn);
+  useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
+
   const speakText = useCallback((text: string, onEnd?: () => void) => {
     if (!synthRef.current) return;
+    // CRITICAL: stop any active SpeechRecognition BEFORE speaking — prevents mic from
+    // hearing TTS output and treating it as a user command
+    if (recRef.current) {
+      try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
+      recRef.current = null;
+      // Don't setListening(false) here — it will be set correctly by onend when we restart
+    }
     synthRef.current.cancel();
     const u = new SpeechSynthesisUtterance(stripForSpeech(text));
     u.rate = 0.95; u.pitch = 0.9; u.volume = 1;
@@ -228,16 +246,17 @@ function JarvisBubbleInner({ user }: { user: any }) {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => setSpeaking(true);
+    u.onstart = () => { setSpeaking(true); setListening(false); };
     u.onend = () => {
       setSpeaking(false);
       onEnd?.();
-      // Auto-restart mic after AI finishes speaking
-      if (autoMicRef.current) {
-        setTimeout(() => startMicAuto(), 400);
-      }
+      // Restart mic after speaking — only if we're still in auto-mic mode
+      if (autoMicRef.current) setTimeout(() => startMicAuto(), 350);
     };
-    u.onerror = () => setSpeaking(false);
+    u.onerror = () => {
+      setSpeaking(false);
+      if (autoMicRef.current) setTimeout(() => startMicAuto(), 500);
+    };
     synthRef.current.speak(u);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -255,29 +274,38 @@ function JarvisBubbleInner({ user }: { user: any }) {
   const speakingRef = useRef(speaking);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
 
-  // Auto-mic: always-on — restarts itself via onend
+  // Auto-mic: always-on — restarts itself silently between utterances
   const startMicAuto = useCallback(() => {
     if (!hasSR || !autoMicRef.current || speakingRef.current) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    if (recRef.current) { try { recRef.current.stop(); } catch {} recRef.current = null; }
+    if (recRef.current) { try { recRef.current.abort(); } catch {} recRef.current = null; }
     const rec = new SR();
     rec.lang = "en-US"; rec.interimResults = false; rec.continuous = false;
     rec.onresult = (e: any) => {
       const t = e.results[0]?.[0]?.transcript || "";
       if (t.trim() && t.trim().length >= 2) {
-        setListening(false);
+        // Don't set listening false here — executeCommand will manage state
         executeCommandRef.current(t.trim());
       }
     };
-    rec.onerror = () => {
-      recRef.current = null; setListening(false);
-      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startMicAuto(), 800);
+    rec.onerror = (e: any) => {
+      recRef.current = null;
+      // not-allowed = no mic permission; abort = we stopped it intentionally
+      if (e.error === "not-allowed") { setListening(false); return; }
+      if (e.error === "aborted") { return; } // we triggered this, don't restart
+      setListening(false);
+      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startMicAuto(), 900);
     };
     rec.onend = () => {
-      recRef.current = null; setListening(false);
-      // Restart immediately — mic always on
-      if (autoMicRef.current && !speakingRef.current) setTimeout(() => startMicAuto(), 100);
+      recRef.current = null;
+      // KEY FIX: don't setListening(false) when immediately restarting — eliminates flicker
+      if (autoMicRef.current && !speakingRef.current) {
+        setTimeout(() => startMicAuto(), 120);
+        // keep setListening(true) — restart is instant, no need to flash off
+      } else {
+        setListening(false);
+      }
     };
     rec.start(); recRef.current = rec; setListening(true);
   }, [hasSR]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -331,25 +359,24 @@ function JarvisBubbleInner({ user }: { user: any }) {
       }
 
       if (action?.url) {
-        setLastAction(`Opening: ${action.label}`);
+        setLastAction(`Going to ${action.label}…`);
+        // Always re-enable mic — arrival effect handles the post-nav restart
+        autoMicRef.current = true;
         if (voiceOn && reply) {
           speakText(reply, () => {
-            setTimeout(() => startNavCountdown(action.url, action.label), 300);
+            setTimeout(() => startNavCountdown(action.url, action.label), 250);
           });
         } else {
-          setTimeout(() => startNavCountdown(action.url, action.label), 800);
+          setTimeout(() => startNavCountdown(action.url, action.label), 600);
         }
-        // In session mode, re-enable mic after navigation completes
-        if (sessionActive) {
-          setTimeout(() => { autoMicRef.current = true; setTimeout(() => startMicAuto(), 400); }, 3000);
-        }
+        // NOTE: Do NOT add a competing setTimeout here — arrival effect handles mic restart
       } else {
+        // Normal response — keep mic running after reply
+        autoMicRef.current = true;
         if (voiceOn && reply) {
-          autoMicRef.current = true;
-          speakText(reply);
+          speakText(reply); // speakText.onend restarts mic automatically
         } else {
-          autoMicRef.current = true;
-          setTimeout(() => startMicAuto(), 400);
+          setTimeout(() => startMicAuto(), 350);
         }
       }
     } catch (err: any) {
