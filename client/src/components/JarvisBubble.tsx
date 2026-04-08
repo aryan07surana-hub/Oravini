@@ -73,6 +73,9 @@ function JarvisBubbleInner({ user }: { user: any }) {
   const autoMicRef = useRef(false);
   // Tracks the URL Jarvis just navigated to — used to trigger arrival announcement
   const justNavigatedRef = useRef<string | null>(null);
+  // Prevents calling resumeWake() on initial mount (before user has ever opened the bubble)
+  // — avoids triggering the browser's mic permission popup on the dashboard
+  const hasInteractedRef = useRef(false);
 
   const isOnJarvisPage = location === "/jarvis";
 
@@ -101,6 +104,8 @@ function JarvisBubbleInner({ user }: { user: any }) {
   // Greet + auto-start mic on open; release on close
   useEffect(() => {
     if (bubbleOpen && isNamed) {
+      // Mark that the user has opened Jarvis at least once — wake listener is now fair game
+      hasInteractedRef.current = true;
       pauseWake();
       if (!lastReply) {
         // Quote only on the very first bubble open — after that, casual re-greeting
@@ -124,7 +129,10 @@ function JarvisBubbleInner({ user }: { user: any }) {
     }
     if (!bubbleOpen) {
       stopMic();
-      resumeWake();
+      // Only resume the wake listener after the user has opened the bubble at least once.
+      // On initial mount bubbleOpen = false — we must NOT call resumeWake() here or it
+      // triggers rec.start() → browser asks for mic permission on the dashboard.
+      if (hasInteractedRef.current) resumeWake();
     }
   }, [bubbleOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
