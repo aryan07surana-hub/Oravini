@@ -119,7 +119,7 @@ function JarvisBubbleInner({ user }: { user: any }) {
         else setTimeout(() => startMicAuto(), 300);
       } else {
         autoMicRef.current = true;
-        setTimeout(() => { if (!speaking) startMicAuto(); }, 600);
+        setTimeout(() => { if (!speakingRef.current) startMicAuto(); }, 600);
       }
     }
     if (!bubbleOpen) {
@@ -230,14 +230,23 @@ function JarvisBubbleInner({ user }: { user: any }) {
 
   const speakText = useCallback((text: string, onEnd?: () => void) => {
     if (!synthRef.current) return;
-    // CRITICAL: stop any active SpeechRecognition BEFORE speaking — prevents mic from
-    // hearing TTS output and treating it as a user command
+
+    // ── KEY FIX ─────────────────────────────────────────────────────────────
+    // Set autoMicRef FALSE *before* aborting the mic.
+    // This prevents the race where rec.onend fires before TTS starts,
+    // sees autoMicRef=true, restarts the mic, and the mic then hears the TTS.
+    // We restore the flag in u.onstart once TTS is actually playing.
+    const prevAutoMic = autoMicRef.current;
+    autoMicRef.current = false;
+    // ────────────────────────────────────────────────────────────────────────
+
     if (recRef.current) {
       try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
       recRef.current = null;
-      // Don't setListening(false) here — it will be set correctly by onend when we restart
     }
+    setListening(false);
     synthRef.current.cancel();
+
     const u = new SpeechSynthesisUtterance(stripForSpeech(text));
     u.rate = 0.95; u.pitch = 0.9; u.volume = 1;
     const voices = synthRef.current.getVoices();
@@ -246,15 +255,23 @@ function JarvisBubbleInner({ user }: { user: any }) {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => { setSpeaking(true); setListening(false); };
+
+    u.onstart = () => {
+      setSpeaking(true);
+      // TTS has truly started — restore autoMic to whatever it was before.
+      // From this point, if the user deliberately turns off the mic, autoMicRef
+      // will be false, and we won't restart after speech.
+      autoMicRef.current = prevAutoMic;
+    };
     u.onend = () => {
       setSpeaking(false);
       onEnd?.();
-      // Restart mic after speaking — only if we're still in auto-mic mode
       if (autoMicRef.current) setTimeout(() => startMicAuto(), 350);
     };
     u.onerror = () => {
       setSpeaking(false);
+      // Restore on error too so the mic comes back if TTS failed
+      if (prevAutoMic) autoMicRef.current = true;
       if (autoMicRef.current) setTimeout(() => startMicAuto(), 500);
     };
     synthRef.current.speak(u);

@@ -32,7 +32,9 @@ function useVoice() {
 
   const speak = useCallback((text: string, voiceEnabled: boolean) => {
     if (!voiceEnabled || !synthRef.current) return;
-    // Stop mic before speaking — prevents TTS audio from being captured as a command
+    // Pause auto-mic BEFORE aborting to prevent rec.onend from restarting in the gap
+    const prevAutoMic = autoMicRef.current;
+    autoMicRef.current = false;
     if (recRef.current) {
       try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
       recRef.current = null;
@@ -48,9 +50,9 @@ function useVoice() {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => setSpeaking(true);
+    u.onstart = () => { setSpeaking(true); autoMicRef.current = prevAutoMic; };
     u.onend = () => setSpeaking(false);
-    u.onerror = () => setSpeaking(false);
+    u.onerror = () => { setSpeaking(false); if (prevAutoMic) autoMicRef.current = true; };
     synthRef.current.speak(u);
   }, []);
 
