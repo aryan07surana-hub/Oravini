@@ -32,9 +32,7 @@ function useVoice() {
 
   const speak = useCallback((text: string, voiceEnabled: boolean) => {
     if (!voiceEnabled || !synthRef.current) return;
-    // Pause auto-mic BEFORE aborting to prevent rec.onend from restarting in the gap
-    const prevAutoMic = autoMicRef.current;
-    autoMicRef.current = false;
+    // Stop useVoice's own recRef only (the Jarvis component manages recAutoRef separately)
     if (recRef.current) {
       try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
       recRef.current = null;
@@ -50,9 +48,9 @@ function useVoice() {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => { setSpeaking(true); autoMicRef.current = prevAutoMic; };
+    u.onstart = () => setSpeaking(true);
     u.onend = () => setSpeaking(false);
-    u.onerror = () => { setSpeaking(false); if (prevAutoMic) autoMicRef.current = true; };
+    u.onerror = () => setSpeaking(false);
     synthRef.current.speak(u);
   }, []);
 
@@ -506,6 +504,8 @@ export default function Jarvis() {
   const executeCommand = async (text: string) => {
     if (!text.trim() || status === "processing") return;
     stopSpeaking();
+    // Kill auto-listen immediately so it can't hear TTS output as a command
+    if (recAutoRef.current) { try { recAutoRef.current.abort(); } catch {} recAutoRef.current = null; }
     autoMicRef.current = false;
     setStatus("processing"); setStatusLabel("Thinking…");
     try {

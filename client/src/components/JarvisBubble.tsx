@@ -337,12 +337,13 @@ function JarvisBubbleInner({ user }: { user: any }) {
     // Mark destination so the arrival effect fires once we land
     const cleanUrl = url.split("?")[0];
     justNavigatedRef.current = cleanUrl;
+    // Keep autoMicRef FALSE until arrival effect sets it — avoids mic running during nav
+    autoMicRef.current = false;
     setTimeout(() => {
       navigate(url);
       setStatus("idle");
       setLastAction("");
-      // Mic stays enabled — arrival message will restart it once page loads
-      autoMicRef.current = true;
+      // Arrival effect will set autoMicRef=true and restart mic after landing
     }, 350);
   };
 
@@ -377,31 +378,34 @@ function JarvisBubbleInner({ user }: { user: any }) {
 
       if (action?.url) {
         setLastAction(`Going to ${action.label}…`);
-        // Always re-enable mic — arrival effect handles the post-nav restart
-        autoMicRef.current = true;
+        // Keep autoMicRef FALSE for nav — arrival effect sets it true and starts mic after landing
+        // (if we set true here, speakText would capture it as prevAutoMic and restart mic during nav)
         if (voiceOn && reply) {
           speakText(reply, () => {
             setTimeout(() => startNavCountdown(action.url, action.label), 250);
           });
+          // speakText.onend sees autoMicRef=false → won't restart mic → nav happens cleanly
         } else {
           setTimeout(() => startNavCountdown(action.url, action.label), 600);
         }
-        // NOTE: Do NOT add a competing setTimeout here — arrival effect handles mic restart
       } else {
-        // Normal response — keep mic running after reply
+        // Normal reply — turn autoMic back on so mic restarts after speech
         autoMicRef.current = true;
         if (voiceOn && reply) {
-          speakText(reply); // speakText.onend restarts mic automatically
+          speakText(reply); // speakText.onend sees autoMicRef=true → restarts mic ✓
         } else {
           setTimeout(() => startMicAuto(), 350);
         }
       }
     } catch (err: any) {
       setStatus("idle");
+      // Restart mic after error so user can try again immediately
+      autoMicRef.current = true;
+      setTimeout(() => startMicAuto(), 500);
       if (err?.status === 402) {
         setLastReply(`Out of credits — upgrade to Growth+ for unlimited ${jarvisName || "AI"} access.`);
       } else {
-        setLastReply("Something went wrong. Try again.");
+        setLastReply("Something went wrong — say it again.");
       }
     }
   };
