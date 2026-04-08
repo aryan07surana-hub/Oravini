@@ -202,7 +202,51 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">11. Admin Access Controls &amp; Data Visibility</h2>
+            <p className="mb-3">
+              Brandverse operates a tiered access control policy that governs what our admin team can
+              view and interact with across client accounts. This policy is designed to protect your
+              privacy while ensuring we can provide timely support when needed.
+            </p>
+            <ul className="list-disc pl-5 space-y-2 mb-3">
+              <li>
+                <strong className="text-white">Tier 5 (Elite) clients</strong> — Admin has standard
+                account management access by default, enabling proactive support and account monitoring.
+              </li>
+              <li>
+                <strong className="text-white">Tier 1 – Tier 4 clients (Free, Starter, Growth, Pro)</strong>{" "}
+                — Admin visibility is restricted to <strong className="text-white">name and email address
+                only</strong>. No account content, usage details, or sensitive data is accessible by default.
+              </li>
+              <li>
+                <strong className="text-white">Passwords</strong> — Client passwords are never stored in
+                plain text and are never visible to the admin. All passwords are stored as one-way
+                cryptographic hashes (bcrypt). The admin can only reset a password, never retrieve it.
+              </li>
+              <li>
+                <strong className="text-white">Access requests</strong> — If a client raises a support
+                query, the admin must formally submit an internal access request specifying the reason
+                for accessing that client's account. This request is logged with a timestamp and reason
+                before any expanded access is granted. Clients may request a log of access events
+                relating to their account by emailing{" "}
+                <a href="mailto:support.oravini@gmail.com" className="text-[#d4b461] hover:underline">
+                  support.oravini@gmail.com
+                </a>.
+              </li>
+              <li>
+                <strong className="text-white">No tracking without consent</strong> — Admin cannot
+                monitor or track a Tier 1–4 client's activity, usage, or account data without first
+                logging an access request.
+              </li>
+            </ul>
+            <p>
+              This policy is enforced at the admin dashboard level and is intended to uphold the
+              principle of minimum necessary access across all client tiers.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">12. Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will notify you of significant
               changes by email or through the platform. Continued use of the platform after changes
@@ -211,7 +255,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">12. Contact</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">13. Contact</h2>
             <p>
               For any questions about this Privacy Policy or how we handle your data:
             </p>

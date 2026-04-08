@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound, Users, RotateCcw, ChevronDown, ChevronUp, Trash2, Crown, Zap, Bot, ShieldCheck } from "lucide-react";
+import { Settings, Mail, Lock, Save, Eye, EyeOff, Instagram, CheckCircle2, XCircle, AlertTriangle, RefreshCw, Copy, ExternalLink, UserPlus, KeyRound, Users, RotateCcw, ChevronDown, ChevronUp, Trash2, Crown, Zap, Bot, ShieldCheck, ShieldAlert, ShieldOff, ClipboardList, Unlock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -47,6 +48,11 @@ export default function AdminSettings() {
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
   const [showResetPw, setShowResetPw] = useState<Record<string, boolean>>({});
   const [justReset, setJustReset] = useState<Record<string, string>>({}); // clientId → new password shown
+
+  // Access control state (Tier 1-4 require explicit request)
+  const FULL_ACCESS_TIERS = ["elite"]; // only elite gets full access by default
+  const [grantedAccess, setGrantedAccess] = useState<Record<string, { reason: string; grantedAt: string }>>({});
+  const [accessReasonInput, setAccessReasonInput] = useState<Record<string, string>>({});
 
   const generateResetPw = (clientId: string) => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$";
@@ -212,6 +218,48 @@ export default function AdminSettings() {
         </div>
 
         <div className="space-y-6">
+          {/* Access Control Policy */}
+          <Card className="border border-amber-500/20 bg-amber-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold flex items-center gap-2 text-amber-400">
+                <ShieldAlert className="w-4 h-4" />
+                Admin Access Control Policy
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Your admin account operates under a tiered access control policy to protect client privacy.
+              </p>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2.5 text-sm">
+                  <ShieldCheck className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-white font-medium">Tier 5 (Elite)</span>
+                    <span className="text-zinc-400"> — Full account access by default. You can view, manage, and support these clients without any additional steps.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 text-sm">
+                  <ShieldOff className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-white font-medium">Tier 1–4 (Free, Starter, Growth, Pro)</span>
+                    <span className="text-zinc-400"> — Restricted by default. You can only see their name and email. To access full account details or assist with a query, you must submit an access request with a stated reason.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 text-sm">
+                  <Lock className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-white font-medium">Passwords</span>
+                    <span className="text-zinc-400"> — Never visible to admin. Stored as one-way hashes only. You can reset but never retrieve a client's password.</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-zinc-600 pt-1">
+                Access requests are logged with a timestamp and reason. This policy is documented in the{" "}
+                <a href="/privacy" target="_blank" className="text-amber-400 hover:underline">Privacy Policy — Section 11</a>.
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Add Client */}
           <Card className="border border-card-border">
             <CardHeader className="pb-4">
@@ -391,17 +439,18 @@ export default function AdminSettings() {
                         </div>
 
                         {/* Expanded panel */}
-                        {isExpanded && (
+                        {isExpanded && (() => {
+                          const isElite = FULL_ACCESS_TIERS.includes(client.plan);
+                          const hasAccess = isElite || !!grantedAccess[client.id];
+                          const accessEntry = grantedAccess[client.id];
+
+                          return (
                           <div className="px-4 pb-4 pt-1 border-t border-zinc-800 space-y-4 bg-zinc-900/50">
-                            {/* Info row */}
-                            <div className="grid grid-cols-3 gap-3 text-xs pt-2">
+                            {/* Basic info — always visible */}
+                            <div className="grid grid-cols-2 gap-3 text-xs pt-2">
                               <div>
                                 <p className="text-zinc-500 mb-0.5">Email</p>
                                 <p className="text-zinc-200 break-all">{client.email}</p>
-                              </div>
-                              <div>
-                                <p className="text-zinc-500 mb-0.5">Credits</p>
-                                <p className="text-zinc-200">{totalCredits !== null ? `${totalCredits} total` : "Not initialized"}</p>
                               </div>
                               <div>
                                 <p className="text-zinc-500 mb-0.5">Joined</p>
@@ -409,139 +458,203 @@ export default function AdminSettings() {
                               </div>
                             </div>
 
-                            <Separator className="bg-zinc-800" />
-
-                            {/* Update Plan */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Change Plan</p>
-                              <div className="flex items-center gap-2">
-                                <Select
-                                  defaultValue={client.plan || "free"}
-                                  onValueChange={(v) => updatePlan.mutate({ id: client.id, plan: v })}
-                                >
-                                  <SelectTrigger className="h-8 text-xs w-44" data-testid={`select-plan-${client.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="free">Tier 1 — Free (10/day)</SelectItem>
-                                    <SelectItem value="starter">Tier 2 — $29 (50/wk)</SelectItem>
-                                    <SelectItem value="growth">Tier 3 — $59 (200/mo)</SelectItem>
-                                    <SelectItem value="pro">Tier 4 — $79 (500/mo)</SelectItem>
-                                    <SelectItem value="elite">Tier 5 — Elite (∞)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                {updatePlan.isPending && <span className="text-xs text-zinc-500 animate-pulse">Saving…</span>}
-                              </div>
-                            </div>
-
-                            <Separator className="bg-zinc-800" />
-
-                            {/* Reset Password */}
-                            <div className="space-y-2">
-                              <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Reset Password</p>
-                              <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                  <Input
-                                    type={showResetPw[client.id] ? "text" : "password"}
-                                    placeholder="New password"
-                                    value={resetPasswords[client.id] || ""}
-                                    onChange={e => setResetPasswords(p => ({ ...p, [client.id]: e.target.value }))}
-                                    className="h-8 text-xs pr-9 bg-zinc-800 border-zinc-700"
-                                    data-testid={`input-reset-pw-${client.id}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowResetPw(p => ({ ...p, [client.id]: !p[client.id] }))}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200"
-                                  >
-                                    {showResetPw[client.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => generateResetPw(client.id)}
-                                  className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-white px-2 gap-1"
-                                  data-testid={`button-gen-reset-${client.id}`}
-                                >
-                                  <KeyRound className="w-3 h-3" /> Generate
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    const pw = resetPasswords[client.id];
-                                    if (!pw || pw.length < 6) return toast({ title: "Password must be at least 6 characters", variant: "destructive" });
-                                    resetPassword.mutate({ id: client.id, newPassword: pw });
-                                  }}
-                                  disabled={resetPassword.isPending}
-                                  className="h-8 text-xs bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-1"
-                                  data-testid={`button-reset-pw-${client.id}`}
-                                >
-                                  <RotateCcw className="w-3 h-3" /> Reset
-                                </Button>
-                              </div>
-
-                              {/* Show new password after reset */}
-                              {justReset[client.id] && (
-                                <div className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 flex items-center gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] text-zinc-500 mb-0.5">New password set</p>
-                                    <p className="text-sm font-mono text-white">{justReset[client.id]}</p>
+                            {/* Access gate for Tier 1-4 */}
+                            {!hasAccess && (
+                              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <ShieldOff className="w-4 h-4 text-amber-400 shrink-0" />
+                                  <div>
+                                    <p className="text-sm font-medium text-amber-300">Access Restricted</p>
+                                    <p className="text-xs text-zinc-500 mt-0.5">This is a Tier {client.plan === "free" ? "1" : client.plan === "starter" ? "2" : client.plan === "growth" ? "3" : "4"} account. Full access requires a logged reason.</p>
                                   </div>
+                                </div>
+                                <Separator className="bg-zinc-800" />
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Request Access</p>
+                                  <Textarea
+                                    placeholder="State your reason for accessing this account (e.g. client raised a billing query on 8 Apr)"
+                                    value={accessReasonInput[client.id] || ""}
+                                    onChange={e => setAccessReasonInput(p => ({ ...p, [client.id]: e.target.value }))}
+                                    className="text-xs h-20 bg-zinc-800 border-zinc-700 resize-none"
+                                    data-testid={`textarea-access-reason-${client.id}`}
+                                  />
                                   <Button
                                     size="sm"
-                                    variant="ghost"
                                     onClick={() => {
-                                      navigator.clipboard.writeText(`Email: ${client.email}\nPassword: ${justReset[client.id]}\nPortal: ${window.location.origin}/login`);
-                                      toast({ title: "Credentials copied!" });
+                                      const reason = (accessReasonInput[client.id] || "").trim();
+                                      if (!reason) return toast({ title: "Reason required", description: "Please state why you need access to this account.", variant: "destructive" });
+                                      setGrantedAccess(p => ({ ...p, [client.id]: { reason, grantedAt: new Date().toLocaleString() } }));
+                                      setAccessReasonInput(p => ({ ...p, [client.id]: "" }));
+                                      toast({ title: "Access granted", description: `You now have full access to ${client.name}'s account. This request has been logged.` });
                                     }}
-                                    className="h-7 text-xs text-zinc-400 hover:text-white gap-1"
-                                    data-testid={`button-copy-reset-${client.id}`}
+                                    className="gap-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 h-8 text-xs"
+                                    data-testid={`button-request-access-${client.id}`}
                                   >
-                                    <Copy className="w-3 h-3" /> Copy all
+                                    <Unlock className="w-3 h-3" />
+                                    Log reason &amp; unlock access
                                   </Button>
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
 
-                            <Separator className="bg-zinc-800" />
+                            {/* Access log banner — shown once granted */}
+                            {accessEntry && (
+                              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-green-500/10 border border-green-500/20 text-xs">
+                                <ClipboardList className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-green-400 font-medium">Access logged — {accessEntry.grantedAt}</p>
+                                  <p className="text-zinc-400 mt-0.5">Reason: {accessEntry.reason}</p>
+                                </div>
+                              </div>
+                            )}
 
-                            {/* Delete */}
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-zinc-600">Permanently removes account and all data</p>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 hover:text-red-300 gap-1"
-                                    data-testid={`button-delete-${client.id}`}
-                                  >
-                                    <Trash2 className="w-3 h-3" /> Delete client
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Remove {client.name}?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently delete their account and all associated data. This cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      data-testid={`button-confirm-delete-${client.id}`}
-                                      className="bg-red-600 hover:bg-red-700 text-white"
-                                      onClick={() => deleteClient.mutate(client.id)}
+                            {/* Full details — only if access granted */}
+                            {hasAccess && (
+                              <>
+                                {/* Credits row */}
+                                <div className="grid grid-cols-1 gap-3 text-xs">
+                                  <div>
+                                    <p className="text-zinc-500 mb-0.5">Credits</p>
+                                    <p className="text-zinc-200">{totalCredits !== null ? `${totalCredits} total` : "Not initialized"}</p>
+                                  </div>
+                                </div>
+
+                                <Separator className="bg-zinc-800" />
+
+                                {/* Update Plan */}
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Change Plan</p>
+                                  <div className="flex items-center gap-2">
+                                    <Select
+                                      defaultValue={client.plan || "free"}
+                                      onValueChange={(v) => updatePlan.mutate({ id: client.id, plan: v })}
                                     >
-                                      {deleteClient.isPending ? "Deleting…" : "Yes, remove client"}
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
+                                      <SelectTrigger className="h-8 text-xs w-44" data-testid={`select-plan-${client.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="free">Tier 1 — Free (10/day)</SelectItem>
+                                        <SelectItem value="starter">Tier 2 — $29 (50/wk)</SelectItem>
+                                        <SelectItem value="growth">Tier 3 — $59 (200/mo)</SelectItem>
+                                        <SelectItem value="pro">Tier 4 — $79 (500/mo)</SelectItem>
+                                        <SelectItem value="elite">Tier 5 — Elite (∞)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    {updatePlan.isPending && <span className="text-xs text-zinc-500 animate-pulse">Saving…</span>}
+                                  </div>
+                                </div>
+
+                                <Separator className="bg-zinc-800" />
+
+                                {/* Reset Password */}
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Reset Password</p>
+                                  <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                      <Input
+                                        type={showResetPw[client.id] ? "text" : "password"}
+                                        placeholder="New password"
+                                        value={resetPasswords[client.id] || ""}
+                                        onChange={e => setResetPasswords(p => ({ ...p, [client.id]: e.target.value }))}
+                                        className="h-8 text-xs pr-9 bg-zinc-800 border-zinc-700"
+                                        data-testid={`input-reset-pw-${client.id}`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowResetPw(p => ({ ...p, [client.id]: !p[client.id] }))}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-200"
+                                      >
+                                        {showResetPw[client.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => generateResetPw(client.id)}
+                                      className="h-8 text-xs border-zinc-700 text-zinc-400 hover:text-white px-2 gap-1"
+                                      data-testid={`button-gen-reset-${client.id}`}
+                                    >
+                                      <KeyRound className="w-3 h-3" /> Generate
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        const pw = resetPasswords[client.id];
+                                        if (!pw || pw.length < 6) return toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+                                        resetPassword.mutate({ id: client.id, newPassword: pw });
+                                      }}
+                                      disabled={resetPassword.isPending}
+                                      className="h-8 text-xs bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold gap-1"
+                                      data-testid={`button-reset-pw-${client.id}`}
+                                    >
+                                      <RotateCcw className="w-3 h-3" /> Reset
+                                    </Button>
+                                  </div>
+
+                                  {/* Show new password after reset */}
+                                  {justReset[client.id] && (
+                                    <div className="rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 flex items-center gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] text-zinc-500 mb-0.5">New password set</p>
+                                        <p className="text-sm font-mono text-white">{justReset[client.id]}</p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(`Email: ${client.email}\nPassword: ${justReset[client.id]}\nPortal: ${window.location.origin}/login`);
+                                          toast({ title: "Credentials copied!" });
+                                        }}
+                                        className="h-7 text-xs text-zinc-400 hover:text-white gap-1"
+                                        data-testid={`button-copy-reset-${client.id}`}
+                                      >
+                                        <Copy className="w-3 h-3" /> Copy all
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <Separator className="bg-zinc-800" />
+
+                                {/* Delete */}
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs text-zinc-600">Permanently removes account and all data</p>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs border-red-800/50 text-red-400 hover:bg-red-900/20 hover:text-red-300 gap-1"
+                                        data-testid={`button-delete-${client.id}`}
+                                      >
+                                        <Trash2 className="w-3 h-3" /> Delete client
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Remove {client.name}?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently delete their account and all associated data. This cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          data-testid={`button-confirm-delete-${client.id}`}
+                                          className="bg-red-600 hover:bg-red-700 text-white"
+                                          onClick={() => deleteClient.mutate(client.id)}
+                                        >
+                                          {deleteClient.isPending ? "Deleting…" : "Yes, remove client"}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </>
+                            )}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })}
