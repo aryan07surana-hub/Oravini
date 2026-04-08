@@ -32,7 +32,6 @@ function useVoice() {
 
   const speak = useCallback((text: string, voiceEnabled: boolean) => {
     if (!voiceEnabled || !synthRef.current) return;
-    // Stop useVoice's own recRef only (the Jarvis component manages recAutoRef separately)
     if (recRef.current) {
       try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
       recRef.current = null;
@@ -48,9 +47,13 @@ function useVoice() {
       || voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
-    u.onstart = () => setSpeaking(true);
-    u.onend = () => setSpeaking(false);
-    u.onerror = () => setSpeaking(false);
+    // Safety: if TTS is blocked silently (no user gesture), force speaking=false
+    // so the speaking-watcher effect fires and the mic restarts via the 4.5s fallback
+    let ttsStarted = false;
+    const ttsFallback = setTimeout(() => { if (!ttsStarted) setSpeaking(false); }, 2000);
+    u.onstart = () => { ttsStarted = true; clearTimeout(ttsFallback); setSpeaking(true); };
+    u.onend = () => { ttsStarted = true; clearTimeout(ttsFallback); setSpeaking(false); };
+    u.onerror = (e: any) => { ttsStarted = true; clearTimeout(ttsFallback); setSpeaking(false); };
     synthRef.current.speak(u);
   }, []);
 

@@ -239,14 +239,11 @@ function JarvisBubbleInner({ user }: { user: any }) {
   const speakText = useCallback((text: string, onEnd?: () => void) => {
     if (!synthRef.current) return;
 
-    // ── KEY FIX ─────────────────────────────────────────────────────────────
-    // Set autoMicRef FALSE *before* aborting the mic.
-    // This prevents the race where rec.onend fires before TTS starts,
-    // sees autoMicRef=true, restarts the mic, and the mic then hears the TTS.
-    // We restore the flag in u.onstart once TTS is actually playing.
+    // Set autoMicRef FALSE before aborting the mic — prevents the race where
+    // rec.onend fires before TTS starts, sees autoMicRef=true, and restarts
+    // the mic which then hears the TTS output as a command.
     const prevAutoMic = autoMicRef.current;
     autoMicRef.current = false;
-    // ────────────────────────────────────────────────────────────────────────
 
     if (recRef.current) {
       try { recRef.current.abort(); } catch { try { recRef.current.stop(); } catch {} }
@@ -264,21 +261,38 @@ function JarvisBubbleInner({ user }: { user: any }) {
       || voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en"));
     if (pref) u.voice = pref;
 
+    // Safety fallback — Chrome sometimes blocks TTS silently (no user gesture,
+    // browser policy, etc.) and never fires onstart/onend. After 2.5s if TTS
+    // hasn't started, restore autoMicRef and kick the mic so Jarvis isn't dead.
+    let ttsStarted = false;
+    const ttsFallbackTimer = setTimeout(() => {
+      if (!ttsStarted) {
+        setSpeaking(false);
+        autoMicRef.current = prevAutoMic;
+        onEnd?.();
+        if (autoMicRef.current) setTimeout(() => startMicAuto(), 300);
+      }
+    }, 2500);
+
     u.onstart = () => {
+      ttsStarted = true;
+      clearTimeout(ttsFallbackTimer);
       setSpeaking(true);
-      // TTS has truly started — restore autoMic to whatever it was before.
-      // From this point, if the user deliberately turns off the mic, autoMicRef
-      // will be false, and we won't restart after speech.
       autoMicRef.current = prevAutoMic;
     };
     u.onend = () => {
+      ttsStarted = true;
+      clearTimeout(ttsFallbackTimer);
       setSpeaking(false);
       onEnd?.();
       if (autoMicRef.current) setTimeout(() => startMicAuto(), 350);
     };
-    u.onerror = () => {
+    u.onerror = (e: any) => {
+      ttsStarted = true;
+      clearTimeout(ttsFallbackTimer);
       setSpeaking(false);
-      // Restore on error too so the mic comes back if TTS failed
+      // "interrupted" means we cancelled intentionally — don't restore mic
+      if (e?.error === "interrupted") return;
       if (prevAutoMic) autoMicRef.current = true;
       if (autoMicRef.current) setTimeout(() => startMicAuto(), 500);
     };
