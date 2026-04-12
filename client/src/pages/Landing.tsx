@@ -315,19 +315,17 @@ function PricingSection() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [choiceModal, setChoiceModal] = useState<{ open: boolean; planName: string; link: string }>({ open: false, planName: "", link: "" });
 
-  const PAID_PLANS = ["Tier 2", "Tier 3", "Tier 4"];
-  const PLAN_SLUG: Record<string, string> = {
-    "Tier 1": "free", "Tier 2": "starter", "Tier 3": "growth", "Tier 4": "pro", "Tier 5": "elite",
-  };
-
   const handlePlanClick = async (planName: string, defaultLink: string, e: React.MouseEvent) => {
-    // Logged-in user without confirmed plan → fast-confirm and redirect
-    if (user && !user.planConfirmed && planName !== "Tier 5") {
-      e.preventDefault();
-      const slug = PLAN_SLUG[planName] || "free";
+    e.preventDefault();
+    // Tier 5 → always go to /apply
+    if (planName === "Tier 5") { navigate("/apply"); return; }
+    // Logged-in, confirmed plan → go to dashboard
+    if (user && (user as any).planConfirmed) { navigate("/dashboard"); return; }
+    // Logged-in, not yet confirmed → fast-confirm as free
+    if (user && !(user as any).planConfirmed) {
       setConfirming(planName);
       try {
-        const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: slug });
+        const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: "free" });
         queryClient.setQueryData(["/api/auth/me"], updated);
         navigate("/select-plan");
       } catch {
@@ -335,11 +333,8 @@ function PricingSection() {
       }
       return;
     }
-    // Non-logged-in clicking a paid plan → show choice modal
-    if (!user && PAID_PLANS.includes(planName)) {
-      e.preventDefault();
-      setChoiceModal({ open: true, planName, link: defaultLink });
-    }
+    // Not logged in → show sign-up modal
+    setChoiceModal({ open: true, planName, link: defaultLink });
   };
 
   const PLANS = [
@@ -356,7 +351,7 @@ function PricingSection() {
       features: ["Group chat community access", "Free resources & lead magnets", "5 AI credits per day", "Access to all AI tools", "Basic content ideas", "Partial audit preview"],
       limitations: ["Watermark on exports", "Slower processing"],
       cta: "Join Free",
-      link: "/register",
+      link: "/login?tab=register",
     },
     {
       name: "Tier 2",
@@ -371,7 +366,7 @@ function PricingSection() {
       features: ["Everything in Tier 1", "150 AI credits per month", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
       limitations: ["Watermark on exports"],
       cta: "Get Tier 2",
-      link: "/register",
+      link: "/login?tab=register",
     },
     {
       name: "Tier 3",
@@ -386,7 +381,7 @@ function PricingSection() {
       features: ["Everything in Tier 2", "350 AI credits/month", "No watermarks", "Competitor Intelligence", "AI Content Report", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
       limitations: [],
       cta: "Get Tier 3",
-      link: "/register",
+      link: "/login?tab=register",
     },
     {
       name: "Tier 4",
@@ -401,7 +396,7 @@ function PricingSection() {
       features: ["Everything in Tier 3", "700 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
       limitations: [],
       cta: "Get Tier 4",
-      link: "/register",
+      link: "/login?tab=register",
     },
     {
       name: "Tier 5",
@@ -513,7 +508,7 @@ function PricingSection() {
 
         <FadeIn delay={300}>
           <p style={{ textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.25)", marginTop: 32 }}>
-            All plans include access to the Brandverse portal · Payments processed securely via Razorpay
+            All plans include access to the Brandverse portal · Free during launch — paid tiers coming soon
           </p>
         </FadeIn>
       </div>
@@ -533,7 +528,7 @@ function PricingSection() {
             </div>
             <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>How would you like to start?</h3>
             <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", marginBottom: 28, lineHeight: 1.6 }}>
-              Not sure which plan is right for you? Get a free brand audit first — or jump straight to {choiceModal.planName}.
+              Not sure where to start? Get a free brand audit first — or sign up now and get 100 bonus credits on us.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <button
@@ -545,12 +540,12 @@ function PricingSection() {
                 🔍 Get My Free Audit First
               </button>
               <button
-                onClick={() => { navigate("/register"); setChoiceModal({ open: false, planName: "", link: "" }); }}
+                onClick={() => { navigate("/login?tab=register"); setChoiceModal({ open: false, planName: "", link: "" }); }}
                 style={{ width: "100%", padding: "14px 20px", borderRadius: 12, border: "none", background: GOLD, color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer", transition: "all 0.2s" }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
               >
-                🚀 Sign Up & Get {choiceModal.planName}
+                🚀 Sign Up Free — Get 100 Credits
               </button>
             </div>
             <button

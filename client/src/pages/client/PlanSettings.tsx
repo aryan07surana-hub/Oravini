@@ -3,19 +3,7 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise(resolve => {
-    if ((window as any).Razorpay) { resolve(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
+import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings, Rocket } from "lucide-react";
 
 const PLANS = [
   {
@@ -91,53 +79,13 @@ export default function PlanSettings() {
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
   const currentPlanData = PLANS[currentIdx];
 
-  const handleUpgrade = async (targetSlug: string, targetName: string) => {
+  const handleUpgrade = (targetSlug: string, _targetName: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
-
-    const loaded = await loadRazorpayScript();
-    if (!loaded) {
-      toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const order = await apiRequest("POST", "/api/payment/create-plan-order", { planSlug: targetSlug });
-
-      await new Promise<void>((resolve) => {
-        const rzp = new (window as any).Razorpay({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency,
-          name: "Oravini",
-          description: order.planLabel,
-          order_id: order.orderId,
-          theme: { color: "#d4b461" },
-          prefill: {
-            name: (user as any)?.name || "",
-            email: (user as any)?.email || "",
-          },
-          handler: async (response: any) => {
-            try {
-              const result = await apiRequest("POST", "/api/payment/verify-plan", {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                planSlug: targetSlug,
-              });
-              queryClient.setQueryData(["/api/auth/me"], result.user);
-              toast({ title: "Plan upgraded!", description: `You're now on ${targetName}. Enjoy your new features!` });
-            } catch {
-              toast({ title: "Payment verification failed", description: "Contact support if your payment was deducted.", variant: "destructive" });
-            }
-            resolve();
-          },
-          modal: { ondismiss: () => resolve() },
-        });
-        rzp.open();
-      });
-    } catch {
-      toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
-    }
+    // Paid plans are launching soon — show info toast
+    toast({
+      title: "Paid plans launching soon! 🚀",
+      description: "All plans are free during our launch period. Paid upgrades will be available shortly.",
+    });
   };
 
   return (
@@ -208,7 +156,7 @@ export default function PlanSettings() {
 
             {/* All plans vertical list */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">All Plans — Upgrade Anytime</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">All Plans — Free During Launch</p>
               <div className="flex flex-col gap-2.5">
                 {PLANS.map((plan, i) => {
                   const isCurrent = plan.slug === currentPlan;
@@ -290,9 +238,10 @@ export default function PlanSettings() {
               </div>
             </div>
 
-            <p className="text-center text-xs text-muted-foreground pt-2">
-              Payments via Razorpay · Contact support to downgrade
-            </p>
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Rocket className="w-3.5 h-3.5 text-[#d4b461]" />
+              <p className="text-center text-xs text-muted-foreground">Paid upgrades launching soon — all plans are free right now</p>
+            </div>
           </div>
         )}
       </div>

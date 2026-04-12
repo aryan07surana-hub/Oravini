@@ -108,6 +108,7 @@ function Router() {
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/select-plan" component={SelectPlan} />
       <Route path="/login" component={Login} />
+      <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route path="/apply" component={Apply} />
