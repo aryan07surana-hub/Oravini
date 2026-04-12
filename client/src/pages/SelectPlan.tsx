@@ -4,21 +4,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+import { Gift } from "lucide-react";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
 const CALENDLY = "https://calendly.com/brandversee/30min";
 
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise(resolve => {
-    if ((window as any).Razorpay) { resolve(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
 
 const PLANS = [
   {
@@ -86,58 +77,19 @@ export default function SelectPlan() {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const handlePlan = async (slug: string) => {
+    // All paid plans are redirected to free tier for now
+    if (slug !== "free") {
+      toast({
+        title: "Paid plans launching soon! 🚀",
+        description: "We're setting you up on the free plan with 100 bonus credits to get started.",
+      });
+      slug = "free";
+    }
     setConfirming(slug);
     try {
-      if (slug === "free") {
-        const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: "free" });
-        queryClient.setQueryData(["/api/auth/me"], updated);
-        navigate("/dashboard");
-        return;
-      }
-
-      const loaded = await loadRazorpayScript();
-      if (!loaded) {
-        toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
-        setConfirming(null);
-        return;
-      }
-
-      const order = await apiRequest("POST", "/api/payment/create-plan-order", { planSlug: slug });
-
-      await new Promise<void>((resolve, reject) => {
-        const rzp = new (window as any).Razorpay({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency,
-          name: "Oravini",
-          description: order.planLabel,
-          order_id: order.orderId,
-          theme: { color: "#d4b461" },
-          prefill: {
-            name: (user as any)?.name || "",
-            email: (user as any)?.email || "",
-          },
-          handler: async (response: any) => {
-            try {
-              const result = await apiRequest("POST", "/api/payment/verify-plan", {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                planSlug: slug,
-              });
-              queryClient.setQueryData(["/api/auth/me"], result.user);
-              toast({ title: "Plan activated!", description: `Welcome to ${order.planLabel}. Your plan is now active.` });
-              navigate("/dashboard");
-              resolve();
-            } catch {
-              toast({ title: "Payment verification failed", description: "Contact support if your payment was deducted.", variant: "destructive" });
-              reject();
-            }
-          },
-          modal: { ondismiss: () => { setConfirming(null); resolve(); } },
-        });
-        rzp.open();
-      });
+      const updated = await apiRequest("POST", "/api/auth/confirm-plan", { plan: "free" });
+      queryClient.setQueryData(["/api/auth/me"], updated);
+      navigate("/dashboard");
     } catch {
       setConfirming(null);
     }
@@ -166,7 +118,7 @@ export default function SelectPlan() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "56px 24px 80px" }}>
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 52, maxWidth: 560 }}>
+        <div style={{ textAlign: "center", marginBottom: 40, maxWidth: 560 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>
             Welcome, {name}
           </div>
@@ -174,8 +126,19 @@ export default function SelectPlan() {
             Choose your plan to<br /><span style={{ color: GOLD }}>unlock your dashboard</span>
           </h1>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.38)", lineHeight: 1.7 }}>
-            Start free and upgrade anytime. Paid plans unlock higher credit limits, more AI tools, and advanced features.
+            All plans are free right now. Sign up and start building — paid tiers launch soon.
           </p>
+        </div>
+
+        {/* Free tier notice banner */}
+        <div style={{ width: "100%", maxWidth: 1100, marginBottom: 28, background: "rgba(212,180,97,0.08)", border: `1px solid ${GOLD}44`, borderRadius: 14, padding: "16px 24px", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 99, background: `${GOLD}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Gift size={18} color={GOLD} />
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>All plans are on free tier during launch</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Pick any plan and get started — you'll receive 100 bonus credits on us. Paid upgrades will be available soon.</p>
+          </div>
         </div>
 
         {/* Plan grid */}

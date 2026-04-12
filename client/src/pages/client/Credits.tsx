@@ -1,18 +1,15 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
-  Zap, TrendingUp, Star, ShoppingCart, ArrowDownCircle, ArrowUpCircle,
-  Sparkles, Brain, Target, Video, RefreshCw, Crown, ArrowLeft, Loader2
+  Zap, TrendingUp, Star, ArrowDownCircle, ArrowUpCircle,
+  Sparkles, Brain, Target, RefreshCw, Crown, ArrowLeft, Rocket
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
 
 const FEATURE_ICONS: Record<string, any> = {
   ai_ideas: Sparkles,
@@ -66,85 +63,14 @@ const CREDIT_PACKAGES = [
   },
 ];
 
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise(resolve => {
-    if ((window as any).Razorpay) return resolve(true);
-    const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
-
 export default function Credits() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
   const plan = (user as any)?.plan || "free";
-  const [buyingId, setBuyingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/credits"],
   });
-
-  const handleBuyCredits = async (packageId: string) => {
-    try {
-      setBuyingId(packageId);
-
-      const loaded = await loadRazorpayScript();
-      if (!loaded) {
-        toast({ title: "Could not load payment gateway", description: "Please check your connection and try again.", variant: "destructive" });
-        return;
-      }
-
-      const order = await apiRequest("POST", "/api/payment/create-order", { packageId });
-
-      await new Promise<void>((resolve, reject) => {
-        const rzp = new (window as any).Razorpay({
-          key: order.keyId,
-          amount: order.amount,
-          currency: order.currency,
-          name: "Oravini",
-          description: order.packageLabel,
-          order_id: order.orderId,
-          theme: { color: "#d4b461" },
-          prefill: {
-            name: (user as any)?.name || "",
-            email: (user as any)?.email || "",
-          },
-          handler: async (response: any) => {
-            try {
-              const result = await apiRequest("POST", "/api/payment/verify", {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                packageId,
-              });
-              toast({
-                title: `✅ ${result.credits} credits added!`,
-                description: "Your bonus credits are now available in your account.",
-              });
-              queryClient.invalidateQueries({ queryKey: ["/api/credits"] });
-              resolve();
-            } catch (err: any) {
-              toast({ title: "Payment verification failed", description: err?.message || "Please contact support.", variant: "destructive" });
-              reject(err);
-            }
-          },
-          modal: {
-            ondismiss: () => resolve(),
-          },
-        });
-        rzp.open();
-      });
-    } catch (err: any) {
-      toast({ title: "Payment failed", description: err?.message || "Something went wrong. Please try again.", variant: "destructive" });
-    } finally {
-      setBuyingId(null);
-    }
-  };
 
   const total = data ? data.balance.monthlyCredits + data.balance.bonusCredits : 0;
   const planAllowance = data?.planAllowance ?? 20;
@@ -255,57 +181,32 @@ export default function Credits() {
         </CardContent>
       </Card>
 
-      {/* Buy Credits */}
+      {/* Buy Credits — Coming Soon */}
       <div>
         <h2 className="text-lg font-semibold text-white mb-1">Buy Extra Credits</h2>
-        <p className="text-zinc-500 text-sm mb-4">Instant delivery — credits appear in your account immediately after payment.</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {CREDIT_PACKAGES.map((pkg) => {
-            const Icon = pkg.icon;
-            const isBuying = buyingId === pkg.id;
-            return (
-              <div
-                key={pkg.id}
-                className={`relative rounded-xl border bg-gradient-to-br ${pkg.color} p-5 flex flex-col gap-3`}
-                data-testid={`credit-package-${pkg.id}`}
-              >
-                {pkg.popular && (
-                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs bg-[#d4b461] text-black font-semibold px-3 py-0.5 rounded-full">
-                    Most Popular
-                  </span>
-                )}
-                <div className="flex items-center gap-2">
-                  <Icon className="w-5 h-5 text-[#d4b461]" />
-                  <span className="text-white font-semibold">{pkg.name}</span>
+        <p className="text-zinc-500 text-sm mb-4">Top-up packs are launching soon — enjoy free credits in the meantime.</p>
+        <Card className="bg-gradient-to-br from-[#d4b461]/10 to-zinc-900 border border-[#d4b461]/20" data-testid="credits-coming-soon">
+          <CardContent className="pt-8 pb-8 flex flex-col items-center text-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-[#d4b461]/10 flex items-center justify-center">
+              <Rocket className="w-7 h-7 text-[#d4b461]" />
+            </div>
+            <div>
+              <p className="text-white font-semibold text-lg">Paid credit top-ups coming soon</p>
+              <p className="text-zinc-400 text-sm mt-1 max-w-sm">
+                We're currently on free tier — your 100 welcome credits are on us. Credit packs will be available when paid plans launch.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 justify-center mt-1">
+              {CREDIT_PACKAGES.map(pkg => (
+                <div key={pkg.id} className={`rounded-xl border bg-gradient-to-br ${pkg.color} px-5 py-3 flex items-center gap-2 opacity-50 pointer-events-none select-none`}>
+                  <pkg.icon className="w-4 h-4 text-[#d4b461]" />
+                  <span className="text-white text-sm font-medium">{pkg.name}</span>
+                  <span className="text-zinc-400 text-xs ml-1">{pkg.credits} credits — {pkg.price}</span>
                 </div>
-                <div>
-                  <span className="text-3xl font-bold text-white">{pkg.credits}</span>
-                  <span className="text-zinc-400 text-sm ml-1">credits</span>
-                </div>
-                <p className="text-zinc-400 text-sm">{pkg.description}</p>
-                <div className="flex items-center justify-between mt-auto">
-                  <span className="text-[#d4b461] font-bold text-lg">{pkg.price}</span>
-                  <Button
-                    size="sm"
-                    className="bg-[#d4b461] hover:bg-[#c4a451] text-black font-semibold"
-                    onClick={() => handleBuyCredits(pkg.id)}
-                    disabled={buyingId !== null}
-                    data-testid={`button-buy-${pkg.id}`}
-                  >
-                    {isBuying ? (
-                      <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Processing…</>
-                    ) : (
-                      <><ShoppingCart className="w-3.5 h-3.5 mr-1.5" />Buy Now</>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-zinc-600 text-xs mt-3 flex items-center gap-1.5">
-          <span>🔒</span> Payments secured by Razorpay. Credits are added instantly after successful payment.
-        </p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Transaction history */}
