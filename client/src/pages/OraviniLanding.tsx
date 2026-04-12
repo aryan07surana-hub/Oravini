@@ -311,7 +311,6 @@ const FEATURES = [
 const STATS = [
   { val: 5, suffix: "%+", label: "Avg. Engagement Boost", prefix: "" },
   { val: 2, suffix: ".3×", label: "Faster Follower Growth", prefix: "" },
-  { val: 150, suffix: "+", label: "Creators Scaled", prefix: "" },
   { val: 9, suffix: "", label: "AI-Powered Tools", prefix: "" },
 ];
 
