@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
-import { useJarvis } from "@/contexts/JarvisContext";
 import {
   LayoutDashboard, FileText, MessageSquare,
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch
@@ -69,9 +68,8 @@ function CreditWidget() {
   );
 }
 
-// Jarvis nav item with speaking animation — must be its own component to use useJarvis inside JarvisProvider
+// Jarvis nav item — Coming Soon state
 function JarvisNavItem({ active, onClick }: { active: boolean; onClick: () => void }) {
-  const { isSpeaking, jarvisName } = useJarvis();
   const GOLD = "#d4b461";
   return (
     <Link href="/jarvis" onClick={onClick} data-testid="nav-jarvis-ai"
@@ -79,33 +77,9 @@ function JarvisNavItem({ active, onClick }: { active: boolean; onClick: () => vo
         active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       }`}
     >
-      <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Wand2 className="w-4 h-4"
-          style={{
-            color: isSpeaking ? GOLD : undefined,
-            animation: isSpeaking ? "jarvis-sparkle 0.45s ease-in-out infinite alternate" : "none",
-            filter: isSpeaking ? `drop-shadow(0 0 4px ${GOLD})` : "none",
-            transition: "color 0.3s, filter 0.3s",
-          }}
-        />
-        {isSpeaking && (
-          <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: "50%", background: GOLD, animation: "jarvis-dot 0.5s ease-in-out infinite alternate", boxShadow: `0 0 5px ${GOLD}` }} />
-        )}
-      </span>
-      <span className="flex-1">{jarvisName || "Jarvis AI"}</span>
-      {isSpeaking && (
-        <span style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 12 }}>
-          {[0, 1, 2].map(i => (
-            <span key={i} style={{ width: 2.5, background: GOLD, borderRadius: 2, animation: `jarvis-bar 0.5s ease-in-out ${i * 0.12}s infinite alternate`, height: 4 + i * 3 }} />
-          ))}
-        </span>
-      )}
-      {!active && !isSpeaking && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-      <style>{`
-        @keyframes jarvis-sparkle{0%{transform:scale(1) rotate(0deg)}100%{transform:scale(1.2) rotate(15deg)}}
-        @keyframes jarvis-dot{0%{opacity:1;transform:scale(1)}100%{opacity:0.3;transform:scale(0.6)}}
-        @keyframes jarvis-bar{0%{transform:scaleY(1)}100%{transform:scaleY(2.2)}}
-      `}</style>
+      <Wand2 className="w-4 h-4 flex-shrink-0 opacity-60" />
+      <span className="flex-1 opacity-60">Jarvis AI</span>
+      <span style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}55`, borderRadius: 10, padding: "1px 7px", color: GOLD, fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 0 }}>Soon</span>
     </Link>
   );
 }

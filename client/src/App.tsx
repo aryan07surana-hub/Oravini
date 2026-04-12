@@ -7,7 +7,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { CustomCursor, GlobalBackground } from "@/components/GlobalUI";
 import { JarvisProvider } from "@/contexts/JarvisContext";
 import { TourProvider } from "@/components/ui/TourGuide";
-import JarvisBubble from "@/components/JarvisBubble";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/Login";
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -32,7 +31,6 @@ import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
-import Jarvis from "@/pages/client/Jarvis";
 import DMTracker from "@/pages/client/DMTracker";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
@@ -63,6 +61,36 @@ import DashboardPreview from "@/pages/DashboardPreview";
 import ContentAnalyser from "@/pages/client/ContentAnalyser";
 import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
 import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
+
+const GOLD = "#d4b461";
+
+function JarvisComingSoon() {
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ textAlign: "center", maxWidth: 480 }}>
+        <div style={{ width: 88, height: 88, borderRadius: "50%", background: `radial-gradient(circle at 40% 35%, #fff7 0%, transparent 60%), radial-gradient(circle at 60% 70%, ${GOLD}55 0%, transparent 70%), linear-gradient(135deg, ${GOLD}cc, #a8892d)`, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 32px ${GOLD}55, 0 0 64px ${GOLD}22` }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke={GOLD} strokeWidth="1.5" opacity="0.4"/>
+            <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z" fill={GOLD}/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke={GOLD} strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
+          </svg>
+        </div>
+        <div style={{ display: "inline-block", background: `${GOLD}18`, border: `1px solid ${GOLD}44`, borderRadius: 20, padding: "4px 14px", marginBottom: 18 }}>
+          <span style={{ color: GOLD, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Coming Soon</span>
+        </div>
+        <h1 style={{ color: "#fff", fontSize: 32, fontWeight: 800, margin: "0 0 12px", letterSpacing: -0.5 }}>Jarvis AI</h1>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, lineHeight: 1.7, margin: "0 0 32px" }}>
+          Your personal voice-powered AI assistant is on its way. Jarvis will help you create content, analyse your brand, and navigate the platform — all hands-free.
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          {["Voice Commands", "Brand Analysis", "Content Creation", "Real-time Insights"].map(tag => (
+            <span key={tag} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "6px 14px", color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 500 }}>{tag}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -163,7 +191,7 @@ function Router() {
         {() => <ProtectedRoute component={AIContentCoach} />}
       </Route>
       <Route path="/jarvis">
-        {() => <ProtectedRoute component={Jarvis} />}
+        {() => <ProtectedRoute component={JarvisComingSoon} />}
       </Route>
       <Route path="/content-analyser/youtube">
         {() => <ProtectedRoute component={ContentAnalyserYouTube} />}
@@ -282,7 +310,6 @@ function App() {
             <GlobalBackground />
             <CustomCursor />
             <Router />
-            <JarvisBubble />
           </TourProvider>
         </JarvisProvider>
       </TooltipProvider>
