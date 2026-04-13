@@ -12,9 +12,9 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, ChevronDown, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, ClipboardList, MessageCircle, Wrench
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, ClipboardList, MessageCircle, Wrench
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 const GOLD = "#d4b461";
@@ -69,7 +69,6 @@ function CreditWidget() {
   );
 }
 
-// Pill badge for "Soon"
 function SoonBadge() {
   return (
     <span style={{
@@ -119,7 +118,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const logout = useLogout();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(location.startsWith("/tools"));
+  const [toolsPopoverOpen, setToolsPopoverOpen] = useState(false);
+  const [popoverTop, setPopoverTop] = useState(0);
+  const toolsBtnRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const { data: notifications } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
@@ -137,6 +139,30 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
   const isAdmin = user?.role === "admin";
 
+  const toolsActive = location.startsWith("/tools");
+
+  function openToolsPopover() {
+    if (toolsBtnRef.current) {
+      const rect = toolsBtnRef.current.getBoundingClientRect();
+      setPopoverTop(rect.top);
+    }
+    setToolsPopoverOpen(true);
+  }
+
+  useEffect(() => {
+    if (!toolsPopoverOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        toolsBtnRef.current && !toolsBtnRef.current.contains(e.target as Node)
+      ) {
+        setToolsPopoverOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [toolsPopoverOpen]);
+
   return (
     <>
     {!isAdmin && user?.email && (
@@ -148,6 +174,58 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     >
       {mobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Tools floating popover — fixed, overlays content, never shifts layout */}
+      {toolsPopoverOpen && (
+        <div
+          ref={popoverRef}
+          data-testid="tools-popover"
+          style={{
+            position: "fixed",
+            left: 264,
+            top: popoverTop,
+            zIndex: 200,
+            background: "#131314",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 16,
+            padding: 16,
+            boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+            minWidth: 220,
+          }}
+        >
+          <p style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Tools</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {toolTiles.map(({ href, label, icon: Icon, desc }) => {
+              const active = location.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  data-testid={`nav-tool-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  onClick={() => { setToolsPopoverOpen(false); setMobileOpen(false); }}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "16px 12px",
+                    borderRadius: 12,
+                    background: active ? `${GOLD}18` : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${active ? GOLD + "55" : "rgba(255,255,255,0.08)"}`,
+                    cursor: "pointer",
+                    textDecoration: "none",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <Icon style={{ width: 22, height: 22, color: active ? GOLD : "rgba(255,255,255,0.45)" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: active ? GOLD : "rgba(255,255,255,0.6)", textAlign: "center", lineHeight: 1.3 }}>{label}</span>
+                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textAlign: "center", lineHeight: 1.3 }}>{desc}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
@@ -166,7 +244,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
         <nav className="flex-1 p-4 overflow-y-auto">
 
-          {/* ── Main nav ── */}
+          {/* ── Main nav (including Tools right below Video Editor) ── */}
           <div className="space-y-1">
             {[
               ...topNavItems.filter(item => {
@@ -188,7 +266,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   key={href}
                   href={href}
                   data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { setMobileOpen(false); setToolsPopoverOpen(false); }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
                     active
                       ? "bg-primary text-primary-foreground"
@@ -207,46 +285,22 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 </Link>
               );
             })}
-          </div>
 
-          {/* ── Tools section (collapsible) ── */}
-          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            {/* Tools — sits directly below Video Editor, no divider */}
             <button
+              ref={toolsBtnRef}
               data-testid="nav-tools-toggle"
-              onClick={() => setToolsOpen(o => !o)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              onClick={openToolsPopover}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                toolsActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
             >
               <Wrench className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 text-left">Tools</span>
-              <ChevronDown
-                className="w-3.5 h-3.5 transition-transform duration-200 text-zinc-500"
-                style={{ transform: toolsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
+              <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
-
-            {toolsOpen && (
-              <div className="mt-2 ml-2 pl-3 grid grid-cols-2 gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
-                {toolTiles.map(({ href, label, icon: Icon, desc }) => {
-                  const active = location.startsWith(href);
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      data-testid={`nav-tool-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                      onClick={() => setMobileOpen(false)}
-                      className="flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition-all duration-150 group"
-                      style={{
-                        background: active ? `${GOLD}18` : "rgba(255,255,255,0.03)",
-                        border: `1px solid ${active ? GOLD + "44" : "rgba(255,255,255,0.07)"}`,
-                      }}
-                    >
-                      <Icon className="w-5 h-5" style={{ color: active ? GOLD : "rgba(255,255,255,0.4)" }} />
-                      <p className="text-[10px] font-semibold text-center leading-tight" style={{ color: active ? GOLD : "rgba(255,255,255,0.55)" }}>{label}</p>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* ── Settings ── */}
@@ -258,7 +312,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   key={href}
                   href={href}
                   data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { setMobileOpen(false); setToolsPopoverOpen(false); }}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
                     active
                       ? "bg-primary text-primary-foreground"
@@ -282,7 +336,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   key={label}
                   data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
-                  style={{ opacity: 0.45 }}
+                  style={{ opacity: 0.4 }}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   <span className="flex-1">{label}</span>
