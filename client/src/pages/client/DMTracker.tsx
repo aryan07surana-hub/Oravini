@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   MessageCircle, Plus, Trash2, Copy, Check, Instagram, Flame, Thermometer,
   Snowflake, Star, User, Clock, Calendar, Edit2, Search, Filter, CheckCircle2,
-  XCircle, Zap, LayoutGrid, List, X, ChevronDown, AlertCircle
+  XCircle, Zap, LayoutGrid, List, X, ChevronDown, AlertCircle, Send, Info
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -45,7 +45,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function LeadCard({ lead, onClick }: { lead: any; onClick: () => void }) {
+function LeadCard({ lead, onClick, onSendDM }: { lead: any; onClick: () => void; onSendDM: (lead: any) => void }) {
   const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new;
   const overdue = lead.followUpDate && isPast(new Date(lead.followUpDate)) && !isToday(new Date(lead.followUpDate));
   const dueToday = lead.followUpDate && isToday(new Date(lead.followUpDate));
@@ -69,13 +69,22 @@ function LeadCard({ lead, onClick }: { lead: any; onClick: () => void }) {
       </div>
       {lead.notes && <p className="text-[11px] text-muted-foreground line-clamp-2">{lead.notes}</p>}
       <div className="flex items-center justify-between gap-2">
-        {lead.source && <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded">{lead.source}</span>}
-        {lead.followUpDate && (
-          <div className={`flex items-center gap-1 text-[10px] font-medium ${overdue ? "text-red-400" : dueToday ? "text-amber-400" : "text-muted-foreground"}`}>
-            {overdue ? <AlertCircle className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
-            {overdue ? "Overdue" : dueToday ? "Today" : format(new Date(lead.followUpDate), "MMM d")}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {lead.source && <span className="text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded">{lead.source}</span>}
+          {lead.followUpDate && (
+            <div className={`flex items-center gap-1 text-[10px] font-medium ${overdue ? "text-red-400" : dueToday ? "text-amber-400" : "text-muted-foreground"}`}>
+              {overdue ? <AlertCircle className="w-3 h-3" /> : <Calendar className="w-3 h-3" />}
+              {overdue ? "Overdue" : dueToday ? "Today" : format(new Date(lead.followUpDate), "MMM d")}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); onSendDM(lead); }}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary/10 hover:bg-primary/20 text-primary transition-colors border border-primary/20"
+          data-testid={`button-send-dm-${lead.id}`}
+        >
+          <Send className="w-2.5 h-2.5" /> DM
+        </button>
       </div>
     </div>
   );
@@ -297,6 +306,112 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
   );
 }
 
+function SendDMDialog({ open, onClose, lead, clientId }: { open: boolean; onClose: () => void; lead: any; clientId: string }) {
+  const { toast } = useToast();
+  const [recipientId, setRecipientId] = useState("");
+  const [message, setMessage] = useState("");
+  const [selectedReply, setSelectedReply] = useState("");
+
+  const { data: replies = [] } = useQuery<any[]>({
+    queryKey: ["/api/dm/quick-replies", clientId],
+    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.json()),
+    enabled: open,
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/instagram/send-dm", data),
+    onSuccess: () => {
+      toast({ title: "DM sent!", description: `Message delivered to recipient.` });
+      setMessage(""); setRecipientId(""); setSelectedReply("");
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Failed to send DM", description: e.message, variant: "destructive" }),
+  });
+
+  const applyTemplate = (replyId: string) => {
+    const r = replies.find((r: any) => r.id === replyId);
+    if (r) setMessage(r.content);
+    setSelectedReply(replyId);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="w-4 h-4 text-primary" />
+            Send Instagram DM
+            {lead?.name && <span className="text-muted-foreground font-normal">— {lead.name}</span>}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed">
+              The recipient must have messaged your business within the last 24 hours for this to work (Instagram messaging policy).
+            </p>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Recipient Instagram User ID *</Label>
+            <Input
+              value={recipientId}
+              onChange={e => setRecipientId(e.target.value)}
+              placeholder="e.g. 17841400000000000"
+              className="mt-1 font-mono text-sm"
+              data-testid="input-dm-recipient-id"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              This is the numeric Instagram user ID, not the @handle.
+              {lead?.instagramHandle && (
+                <span> (@{lead.instagramHandle.replace(/^@/, "")})</span>
+              )}
+            </p>
+          </div>
+          {replies.length > 0 && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Use Quick Reply Template</Label>
+              <Select value={selectedReply} onValueChange={applyTemplate}>
+                <SelectTrigger className="mt-1 text-xs" data-testid="select-quick-reply">
+                  <SelectValue placeholder="Choose a template..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {replies.map((r: any) => (
+                    <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label className="text-xs text-muted-foreground">Message *</Label>
+            <Textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Type your message here..."
+              rows={5}
+              className="mt-1 resize-none"
+              data-testid="input-dm-message"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">{message.length} / 1000 characters</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => sendMutation.mutate({ recipientId, message })}
+            disabled={!recipientId.trim() || !message.trim() || sendMutation.isPending}
+            className="gap-2"
+            data-testid="button-send-dm"
+          >
+            <Send className="w-3.5 h-3.5" />
+            {sendMutation.isPending ? "Sending..." : "Send DM"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -309,6 +424,7 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
   const [selectedClientId, setSelectedClientId] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editLead, setEditLead] = useState<any>(null);
+  const [sendDMLead, setSendDMLead] = useState<any>(null);
 
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ["/api/clients"],
@@ -452,7 +568,7 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
                           <p className="text-[10px] text-muted-foreground">No leads</p>
                         </div>
                       ) : (
-                        col.map(lead => <LeadCard key={lead.id} lead={lead} onClick={() => setEditLead(lead)} />)
+                        col.map(lead => <LeadCard key={lead.id} lead={lead} onClick={() => setEditLead(lead)} onSendDM={setSendDMLead} />)
                       )}
                     </div>
                   );
@@ -528,6 +644,16 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
           isAdmin={isAdmin}
         />
 
+        {/* Send DM Dialog */}
+        {sendDMLead && (
+          <SendDMDialog
+            open={!!sendDMLead}
+            onClose={() => setSendDMLead(null)}
+            lead={sendDMLead}
+            clientId={activeClientId}
+          />
+        )}
+
         {/* Edit Lead Dialog */}
         {editLead && (
           <Dialog open={!!editLead} onOpenChange={v => !v && setEditLead(null)}>
@@ -560,7 +686,10 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEditLead(null)}>Close</Button>
-                <Button onClick={() => { const l = editLead; setEditLead(null); setTimeout(() => setEditLead(l), 10); }} variant="secondary" className="gap-2">
+                <Button onClick={() => { setSendDMLead(editLead); setEditLead(null); }} variant="secondary" className="gap-2" data-testid="button-send-dm-from-detail">
+                  <Send className="w-3.5 h-3.5" /> Send DM
+                </Button>
+                <Button onClick={() => { const l = editLead; setEditLead(null); setTimeout(() => setEditLead(l), 10); }} className="gap-2">
                   <Edit2 className="w-3.5 h-3.5" /> Edit Details
                 </Button>
               </DialogFooter>

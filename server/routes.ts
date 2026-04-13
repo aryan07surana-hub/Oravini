@@ -9,7 +9,7 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
-import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB } from "./meta";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
 import { seedDatabase } from "./seed";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -717,6 +717,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         source: "apify",
       });
     } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Send an Instagram DM
+  app.post("/api/instagram/send-dm", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { recipientId, message } = req.body;
+      if (!recipientId?.trim()) return res.status(400).json({ message: "recipientId is required" });
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      const igAccount = await getConnectedIGAccount();
+      if (!igAccount) return res.status(400).json({ message: "No Instagram Business Account connected. Please connect your account first." });
+      const result = await sendInstagramDM(igAccount.igAccountId, recipientId.trim(), message.trim());
+      return res.json({ success: true, messageId: result.messageId });
+    } catch (err: any) {
+      console.log("[send-dm] error:", err.message);
       return res.status(500).json({ message: err.message });
     }
   });

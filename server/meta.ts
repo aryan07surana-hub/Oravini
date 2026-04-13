@@ -143,6 +143,26 @@ export async function getIGAccountInsights(igAccountId: string): Promise<any> {
   }
 }
 
+// ── Send an Instagram Direct Message ─────────────────────────────────────────
+// Requires instagram_manage_messages permission.
+// The recipient must have messaged the business first within the 24-hour window.
+export async function sendInstagramDM(igAccountId: string, recipientId: string, messageText: string): Promise<{ messageId: string }> {
+  const token = await getActiveToken();
+  if (!token) throw new Error("META_ACCESS_TOKEN not configured");
+  const url = `https://graph.instagram.com/v25.0/${igAccountId}/messages`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({
+      recipient: { id: recipientId },
+      message: { text: messageText },
+    }),
+  });
+  const data = await res.json() as any;
+  if (data?.error) throw new Error(`Instagram DM: ${data.error.message} (code ${data.error.code})`);
+  return { messageId: data.message_id || data.id || "sent" };
+}
+
 // ── Fetch a post's metrics by its permalink (used for auto-sync) ──────────────
 export async function syncPostByPermalink(igAccountId: string, permalink: string): Promise<{
   views: number; likes: number; comments: number; saves: number;
