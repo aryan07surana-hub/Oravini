@@ -62,6 +62,7 @@ import ContentAnalyser from "@/pages/client/ContentAnalyser";
 import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
 import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
 import SendDM from "@/pages/client/SendDM";
+import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
 import FormResponses from "@/pages/client/FormResponses";
@@ -257,6 +258,9 @@ function Router() {
       </Route>
       <Route path="/tools/forms">
         {() => <ProtectedRoute component={FormsHub} />}
+      </Route>
+      <Route path="/tools">
+        {() => <ProtectedRoute component={ToolsHub} />}
       </Route>
       <Route path="/f/:slug">
         {(params) => <PublicForm />}
