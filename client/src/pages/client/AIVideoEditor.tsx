@@ -784,6 +784,11 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <PageTourButton pageKey="video-editor" />
+            <a href="/video-studio">
+              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 gap-2 font-bold">
+                <Film className="w-4 h-4" /> Video Studio →
+              </Button>
+            </a>
             <Button variant="outline" size="sm" data-testid="btn-broll-library" onClick={() => { setShowBrollLibrary(v => !v); setShowTemplates(false); }} className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 gap-2">
               <Film className="w-4 h-4" />
               B-Roll Library
