@@ -578,6 +578,27 @@ export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true,
 export type Meeting = typeof meetings.$inferSelect;
 export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
 
+// ── Video Studio ───────────────────────────────────────────────────────────────
+export const videoEdits = pgTable("video_edits", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  filePath: text("file_path").notNull(),
+  fileUrl: text("file_url"),
+  duration: real("duration"),
+  transcript: jsonb("transcript"),
+  silences: jsonb("silences"),
+  status: text("status").default("uploaded"),
+  shotstackRenderId: text("shotstack_render_id"),
+  outputUrl: text("output_url"),
+  settings: jsonb("settings"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoEditSchema = createInsertSchema(videoEdits).omit({ id: true, createdAt: true });
+export type VideoEdit = typeof videoEdits.$inferSelect;
+export type InsertVideoEdit = z.infer<typeof insertVideoEditSchema>;
+
 // ── B-Roll Library ─────────────────────────────────────────────────────────────
 export const brollClips = pgTable("broll_clips", {
   id: serial("id").primaryKey(),

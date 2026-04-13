@@ -10,6 +10,7 @@ import {
   youtubeTokens, scheduledYoutubePosts,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
   meetings,
+  videoEdits,
   brollClips,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
@@ -34,6 +35,7 @@ import {
   type Form, type InsertForm, type FormQuestion, type InsertFormQuestion,
   type FormSubmission, type FormAnswer, type FormView,
   type Meeting, type InsertMeeting,
+  type VideoEdit, type InsertVideoEdit,
   type BrollClip, type InsertBrollClip,
 } from "@shared/schema";
 
@@ -199,6 +201,13 @@ export interface IStorage {
   createFormSubmission(formId: string, data: { respondentName?: string; respondentEmail?: string; metadata?: any }, answers: { questionId: string; value: string }[]): Promise<FormSubmission>;
   trackFormView(formId: string, metadata?: any): Promise<void>;
   getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }>;
+
+  // Video Studio
+  getVideoEdits(userId: string): Promise<VideoEdit[]>;
+  getVideoEdit(id: number, userId: string): Promise<VideoEdit | undefined>;
+  createVideoEdit(data: InsertVideoEdit): Promise<VideoEdit>;
+  updateVideoEdit(id: number, userId: string, data: Partial<InsertVideoEdit>): Promise<VideoEdit | undefined>;
+  deleteVideoEdit(id: number, userId: string): Promise<void>;
 
   // B-Roll Library
   getBrollClips(userId: string): Promise<BrollClip[]>;
@@ -1112,6 +1121,30 @@ class DatabaseStorage implements IStorage {
 
   async deleteMeeting(id: number, userId: string): Promise<void> {
     await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.userId, userId)));
+  }
+
+  // ── Video Studio ─────────────────────────────────────────────────────────────
+  async getVideoEdits(userId: string): Promise<VideoEdit[]> {
+    return db.select().from(videoEdits).where(eq(videoEdits.userId, userId)).orderBy(desc(videoEdits.createdAt));
+  }
+
+  async getVideoEdit(id: number, userId: string): Promise<VideoEdit | undefined> {
+    const rows = await db.select().from(videoEdits).where(and(eq(videoEdits.id, id), eq(videoEdits.userId, userId)));
+    return rows[0];
+  }
+
+  async createVideoEdit(data: InsertVideoEdit): Promise<VideoEdit> {
+    const rows = await db.insert(videoEdits).values(data).returning();
+    return rows[0];
+  }
+
+  async updateVideoEdit(id: number, userId: string, data: Partial<InsertVideoEdit>): Promise<VideoEdit | undefined> {
+    const rows = await db.update(videoEdits).set(data).where(and(eq(videoEdits.id, id), eq(videoEdits.userId, userId))).returning();
+    return rows[0];
+  }
+
+  async deleteVideoEdit(id: number, userId: string): Promise<void> {
+    await db.delete(videoEdits).where(and(eq(videoEdits.id, id), eq(videoEdits.userId, userId)));
   }
 
   // ── B-Roll Library ───────────────────────────────────────────────────────────

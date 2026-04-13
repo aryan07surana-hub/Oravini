@@ -29,6 +29,23 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v", ".mp3", ".m4a", ".wav"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error("Only video/audio files are allowed"));
+  },
+});
+
 function requireAuth(req: Request, res: Response, next: Function) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
   next();
@@ -7345,6 +7362,185 @@ Rules:
     })();
 
     res.json(meeting);
+  });
+
+  // ── Video Studio ────────────────────────────────────────────────────────────
+  const SHOTSTACK_KEY = process.env.SHOTSTACK_API_KEY || "";
+  const SHOTSTACK_BASE = "https://api.shotstack.io/stage";
+
+  function detectSilences(words: any[], threshold = 0.5) {
+    const silences: {start: number; end: number; duration: number}[] = [];
+    for (let i = 1; i < words.length; i++) {
+      const gap = words[i].start - words[i - 1].end;
+      if (gap >= threshold) silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
+    }
+    return silences;
+  }
+
+  function buildShotstackTimeline(videoUrl: string, transcript: any, settings: any) {
+    const words: any[] = transcript?.words || [];
+    const rawDuration = words.length > 0 ? words[words.length - 1].end + 0.5 : 60;
+    const speed = parseFloat(settings.speed || "1");
+    const filterMap: Record<string, string> = { cinematic: "contrast", warm: "boost", cool: "muted", bright: "lighten" };
+    const shotstackFilter = settings.colorGrade && settings.colorGrade !== "none" ? filterMap[settings.colorGrade] : undefined;
+    const captionStyleMap: Record<string, string> = { bold: "blockbuster", netflix: "chunk", minimal: "minimal", karaoke: "minimal" };
+    const captionStyle = captionStyleMap[settings.captionStyle] || "minimal";
+    const captionColor = settings.captionStyle === "karaoke" ? "#ffff00" : "#ffffff";
+
+    type Segment = { start: number; end: number };
+    let segments: Segment[] = [];
+    let condensedSegStarts: number[] = [];
+    let totalCondensed = 0;
+
+    if (settings.removeSilences && words.length > 0) {
+      const threshold = parseFloat(settings.silenceThreshold || "0.5");
+      let segStart = words[0].start;
+      let prevEnd = words[0].end;
+      for (let i = 1; i < words.length; i++) {
+        if (words[i].start - prevEnd >= threshold) {
+          segments.push({ start: segStart, end: prevEnd });
+          segStart = words[i].start;
+        }
+        prevEnd = words[i].end;
+      }
+      segments.push({ start: segStart, end: prevEnd + 0.3 });
+    } else {
+      segments = [{ start: 0, end: rawDuration }];
+    }
+
+    const videoClips: any[] = [];
+    for (const seg of segments) {
+      condensedSegStarts.push(totalCondensed);
+      const segLen = (seg.end - seg.start) / speed;
+      const clip: any = { asset: { type: "video", src: videoUrl, trim: seg.start }, start: totalCondensed, length: seg.end - seg.start };
+      if (shotstackFilter) clip.filter = shotstackFilter;
+      if (speed !== 1) clip.speed = speed;
+      videoClips.push(clip);
+      totalCondensed += segLen;
+    }
+
+    const captionClips: any[] = [];
+    if (settings.addCaptions && words.length > 0) {
+      const SIZE = 5;
+      for (let i = 0; i < words.length; i += SIZE) {
+        const chunk = words.slice(i, Math.min(i + SIZE, words.length));
+        const text = chunk.map((w: any) => w.word).join(" ").trim();
+        const wOrigStart = chunk[0].start;
+        const wOrigEnd = chunk[chunk.length - 1].end;
+        let condensedStart = wOrigStart / speed;
+        for (let j = segments.length - 1; j >= 0; j--) {
+          if (wOrigStart >= segments[j].start && wOrigStart <= segments[j].end) {
+            condensedStart = condensedSegStarts[j] + (wOrigStart - segments[j].start) / speed;
+            break;
+          }
+        }
+        const wLen = Math.max((wOrigEnd - wOrigStart) / speed, 0.5);
+        captionClips.push({ asset: { type: "title", text, style: captionStyle, color: captionColor, size: "medium" }, start: Math.max(condensedStart, 0), length: wLen, position: "bottom", offset: { x: 0, y: -0.1 } });
+      }
+    }
+
+    const tracks: any[] = [{ clips: videoClips }];
+    if (captionClips.length > 0) tracks.push({ clips: captionClips });
+    return { timeline: { background: "#000000", tracks }, output: { format: "mp4", resolution: "hd", fps: 25 } };
+  }
+
+  app.get("/api/video-studio", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edits = await storage.getVideoEdits(userId);
+    res.json(edits);
+  });
+
+  app.get("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    res.json(edit);
+  });
+
+  app.delete("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch {}
+    await storage.deleteVideoEdit(Number(p(req.params.id)), userId);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/video-studio/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const userId = (req.user as any).id;
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || req.headers.host || "localhost:5000";
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+    const edit = await storage.createVideoEdit({ userId, title, originalFilename: req.file.originalname, filePath: req.file.path, fileUrl, status: "transcribing" });
+    res.json(edit);
+
+    (async () => {
+      try {
+        const FormData = (await import("form-data")).default;
+        const formData = new FormData();
+        formData.append("file", fs.createReadStream(req.file!.path), { filename: req.file!.originalname, contentType: req.file!.mimetype || "video/mp4" });
+        formData.append("model", "whisper-large-v3");
+        formData.append("response_format", "verbose_json");
+        formData.append("timestamp_granularities[]", "word");
+        const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formData.getHeaders() },
+          body: formData as any,
+        });
+        if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
+        const transcriptData = await whisperRes.json() as any;
+        const words = transcriptData.words || [];
+        const duration = words.length > 0 ? words[words.length - 1].end : transcriptData.duration || 0;
+        const silences = detectSilences(words);
+        const publicVideoUrl = `https://${domain}${fileUrl}`;
+        await storage.updateVideoEdit(edit.id, userId, { transcript: { text: transcriptData.text, words, duration: transcriptData.duration }, silences, duration, fileUrl: publicVideoUrl, status: "transcribed" });
+      } catch (e: any) {
+        console.log("[video-studio] transcription error:", e.message);
+        await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+      }
+    })();
+  });
+
+  app.post("/api/video-studio/:id/render", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    if (!edit.fileUrl) return res.status(400).json({ message: "Video not yet transcribed" });
+    const settings = req.body.settings || {};
+    const timeline = buildShotstackTimeline(edit.fileUrl, edit.transcript, settings);
+    const renderRes = await fetch(`${SHOTSTACK_BASE}/render`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": SHOTSTACK_KEY },
+      body: JSON.stringify(timeline),
+    });
+    const renderData = await renderRes.json() as any;
+    if (!renderRes.ok || !renderData.response?.id) {
+      console.log("[video-studio] shotstack error:", JSON.stringify(renderData));
+      return res.status(502).json({ message: renderData.message || "Shotstack error", detail: renderData });
+    }
+    const renderId = renderData.response.id;
+    await storage.updateVideoEdit(edit.id, userId, { status: "rendering", shotstackRenderId: renderId, settings });
+    res.json({ ok: true, renderId });
+  });
+
+  app.get("/api/video-studio/:id/status", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    if (!edit.shotstackRenderId) return res.json(edit);
+    if (edit.status === "done" || edit.status === "failed") return res.json(edit);
+    const statusRes = await fetch(`${SHOTSTACK_BASE}/render/${edit.shotstackRenderId}`, { headers: { "x-api-key": SHOTSTACK_KEY } });
+    const statusData = await statusRes.json() as any;
+    const ssStatus = statusData.response?.status;
+    if (ssStatus === "done") {
+      const outputUrl = statusData.response?.url;
+      await storage.updateVideoEdit(edit.id, userId, { status: "done", outputUrl });
+      return res.json({ ...edit, status: "done", outputUrl });
+    } else if (ssStatus === "failed") {
+      await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+      return res.json({ ...edit, status: "failed" });
+    }
+    res.json({ ...edit, status: "rendering" });
   });
 
   // ── B-Roll Library ──────────────────────────────────────────────────────────
