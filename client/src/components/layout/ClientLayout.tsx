@@ -84,7 +84,7 @@ function JarvisNavItem({ active, onClick }: { active: boolean; onClick: () => vo
   );
 }
 
-const mainNavItems = [
+const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jarvis", label: "Jarvis AI", icon: Wand2 },
   { href: "/documents", label: "Documents", icon: FileText },
@@ -96,6 +96,13 @@ const mainNavItems = [
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
+];
+
+const toolsNavItems = [
+  { href: "/tools/forms", label: "Forms & Surveys", icon: ClipboardList },
+];
+
+const bottomNavItems = [
   { href: "/credits", label: "Credits", icon: Zap },
   { href: "/settings/plan", label: "Your Settings", icon: Settings },
 ];
@@ -150,57 +157,84 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {[
-            ...mainNavItems.filter(item => {
-              if (item.href === "/documents") return (user as any)?.plan === "elite";
-              return true;
-            }),
-            ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Progress", icon: TrendingUp }] : []),
-          ].map(({ href, label, icon: Icon }) => {
-            const active = href === "/tracking"
-              ? (location === "/tracking" || location.startsWith("/tracking/content"))
-              : href === "/tracking/competitor"
-              ? location.startsWith("/tracking/competitor")
-              : href === "/content-analyser"
-              ? location.startsWith("/content-analyser")
-              : location === href;
-            const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
-            // Jarvis nav item uses its own animated component
-            if (href === "/jarvis") {
-              return <JarvisNavItem key={href} active={active} onClick={() => setMobileOpen(false)} />;
-            }
-            return (
-              <Link
-                key={href}
-                href={href}
-                data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1">{label}</span>
-                {badge > 0 && (
-                  <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
-                    style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: "#d4b461" }}>
-                    {badge}
-                  </Badge>
-                )}
-                {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-              </Link>
-            );
-          })}
-          {/* ── Tools section ── */}
-          <div className="pt-3 pb-1">
-            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50 mb-1">Tools</p>
+        <nav className="flex-1 p-4 overflow-y-auto">
+          {/* ── Main nav ── */}
+          <div className="space-y-1">
             {[
-              { href: "/tools/forms", label: "Forms & Surveys", icon: ClipboardList },
+              ...topNavItems.filter(item => {
+                if (item.href === "/documents") return (user as any)?.plan === "elite";
+                return true;
+              }),
+              ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Progress", icon: TrendingUp }] : []),
             ].map(({ href, label, icon: Icon }) => {
-              const active = location.startsWith(href);
+              const active = href === "/tracking"
+                ? (location === "/tracking" || location.startsWith("/tracking/content"))
+                : href === "/tracking/competitor"
+                ? location.startsWith("/tracking/competitor")
+                : href === "/content-analyser"
+                ? location.startsWith("/content-analyser")
+                : location === href;
+              const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
+              if (href === "/jarvis") {
+                return <JarvisNavItem key={href} active={active} onClick={() => setMobileOpen(false)} />;
+              }
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  {badge > 0 && (
+                    <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
+                      style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: "#d4b461" }}>
+                      {badge}
+                    </Badge>
+                  )}
+                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* ── Tools section — sits right below Video Editor ── */}
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>Tools</p>
+            <div className="space-y-1">
+              {toolsNavItems.map(({ href, label, icon: Icon }) => {
+                const active = location.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Bottom nav (Credits, Settings) ── */}
+          <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            {bottomNavItems.map(({ href, label, icon: Icon }) => {
+              const active = location === href;
               return (
                 <Link
                   key={href}
