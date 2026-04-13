@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import {
   Film, Upload, Scissors, Captions, Palette, Gauge, Play, Download,
   Loader2, CheckCircle2, XCircle, Clock, Trash2,
   Wand2, AlertCircle, Mic, Sparkles, Clapperboard,
-  ArrowRight, FileText, Star,
+  ArrowRight, FileText, Star, Zap, CheckSquare, Square, X, ExternalLink,
 } from "lucide-react";
 
 type VideoEdit = {
@@ -182,6 +182,41 @@ export default function VideoEditorStudio() {
   const [planResult, setPlanResult] = useState<any>(null);
   const [isPlanLoading, setIsPlanLoading] = useState(false);
   const [scriptExpanded, setScriptExpanded] = useState(false);
+
+  // ── Editor plan (from AI Video Editor via localStorage) ───────────────────────
+  const [editorPlan, setEditorPlan] = useState<any>(null);
+  const [checkedSuggestions, setCheckedSuggestions] = useState<Set<number>>(new Set());
+  const [editorBannerDismissed, setEditorBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("oravini_studio_plan");
+    if (!raw) return;
+    try {
+      const plan = JSON.parse(raw);
+      if (!plan?.fromEditor) return;
+      setEditorPlan(plan);
+      // Auto-populate plan tab fields from editor context
+      if (plan.mode)           setPlanMode(plan.mode);
+      if (plan.platform)       setPlanPlatform(plan.platform);
+      if (plan.targetDuration) setPlanDuration(String(plan.targetDuration));
+      if (plan.title)          setPlanTopic(plan.title);
+      // Auto-apply recommended settings
+      if (plan.recommendedSettings && Object.keys(plan.recommendedSettings).length > 0) {
+        setSettings(prev => ({ ...prev, ...plan.recommendedSettings }));
+      }
+      // If has script/hooks, load as plan result so it shows in edit panel
+      if (plan.fullScript || plan.hooks?.length) {
+        setPlanResult({
+          hooks: plan.hooks || [],
+          fullScript: plan.fullScript || "",
+          timeline: plan.timeline || [],
+          title: plan.title || "",
+        });
+      }
+      // Switch to edit tab so they can upload their video immediately
+      setTab("edit");
+    } catch (_) {}
+  }, []);
 
   // ── Queries ───────────────────────────────────────────────────────────────────
   const { data: renders = [] } = useQuery<VideoEdit[]>({ queryKey: ["/api/video-studio"] });
@@ -485,7 +520,27 @@ export default function VideoEditorStudio() {
             {!activeJobId && !isUploading && (
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
-                  {planResult && (
+                  {editorPlan && (
+                    <div className="p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/30 rounded-2xl space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                          <Zap className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-primary">Plan synced from AI Video Editor</p>
+                          <p className="text-[11px] text-foreground font-semibold mt-0.5 truncate">{editorPlan.title}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20 border px-1.5 py-0 h-4 capitalize">{editorPlan.mode}</Badge>
+                            {editorPlan.timeline?.length > 0 && <Badge className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20 border px-1.5 py-0 h-4">{editorPlan.timeline.length} edit suggestions</Badge>}
+                            {editorPlan.hooks?.length > 0 && <Badge className="text-[9px] bg-green-500/10 text-green-400 border-green-500/20 border px-1.5 py-0 h-4">{editorPlan.hooks.length} hooks</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Settings have been auto-applied. Upload your footage — your script &amp; edit checklist will appear alongside the player.</p>
+                    </div>
+                  )}
+
+                  {!editorPlan && planResult && (
                     <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/20 rounded-2xl">
                       <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
                       <div>
@@ -701,11 +756,34 @@ export default function VideoEditorStudio() {
                 {/* RIGHT: Edit controls + script reference */}
                 <div className="overflow-y-auto flex flex-col gap-0">
 
+                  {/* ── Editor Plan Banner (from AI Video Editor) ── */}
+                  {editorPlan && !editorBannerDismissed && (
+                    <div className="mx-4 mt-4 p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-start gap-2.5">
+                      <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-primary uppercase tracking-wider">Plan from AI Video Editor</p>
+                        <p className="text-[10px] text-foreground mt-0.5 leading-relaxed">
+                          <span className="font-bold truncate block">{editorPlan.title}</span>
+                          Settings auto-applied for <span className="text-primary font-bold capitalize">{editorPlan.mode}</span> mode.
+                        </p>
+                        <a href="/video-editor" className="text-[10px] text-primary hover:text-primary/70 flex items-center gap-0.5 mt-1">
+                          <ExternalLink className="w-2.5 h-2.5" /> Back to Editor
+                        </a>
+                      </div>
+                      <button onClick={() => setEditorBannerDismissed(true)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Edit settings */}
                   <div className="p-5 border-b border-zinc-800/40">
                     <div className="flex items-center gap-2 mb-4">
                       <Wand2 className="w-4 h-4 text-primary" />
                       <p className="text-sm font-bold text-foreground">Edit Settings</p>
+                      {editorPlan && (
+                        <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20 border px-1.5 py-0 h-4">AI Recommended</Badge>
+                      )}
                     </div>
                     <EditControls settings={settings} onChange={setSettings} />
                   </div>
@@ -725,17 +803,87 @@ export default function VideoEditorStudio() {
                     <p className="text-[10px] text-muted-foreground/50 text-center mt-2">Powered by Shotstack · Usually 1–3 min</p>
                   </div>
 
+                  {/* ── AI Edit Suggestions (from Video Editor timeline) ── */}
+                  {editorPlan?.timeline?.length > 0 && (
+                    <div className="p-5 border-b border-zinc-800/40">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                        <p className="text-xs font-bold text-foreground">Edit Suggestions</p>
+                        <span className="text-[10px] text-muted-foreground">
+                          {checkedSuggestions.size}/{editorPlan.timeline.length} done
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {editorPlan.timeline.map((item: any, i: number) => {
+                          const done = checkedSuggestions.has(i);
+                          const actionColors: Record<string, string> = {
+                            CUT:    "text-red-400 bg-red-500/10",
+                            TRIM:   "text-orange-400 bg-orange-500/10",
+                            ADD:    "text-green-400 bg-green-500/10",
+                            KEEP:   "text-blue-400 bg-blue-500/10",
+                            BROLL:  "text-purple-400 bg-purple-500/10",
+                          };
+                          const col = actionColors[item.action?.toUpperCase()] || "text-zinc-400 bg-zinc-700/30";
+                          return (
+                            <button key={i}
+                              onClick={() => setCheckedSuggestions(prev => {
+                                const next = new Set(prev);
+                                next.has(i) ? next.delete(i) : next.add(i);
+                                return next;
+                              })}
+                              className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${done ? "opacity-40 border-zinc-800/30 bg-zinc-900/20" : "border-zinc-700/40 hover:border-zinc-600/60 bg-zinc-900/30"}`}
+                            >
+                              {done
+                                ? <CheckSquare className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                                : <Square className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                              }
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                  {item.action && (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${col}`}>{item.action}</span>
+                                  )}
+                                  {(item.startLabel || item.endLabel) && (
+                                    <span className="text-[9px] text-muted-foreground font-mono">{item.startLabel}–{item.endLabel}</span>
+                                  )}
+                                </div>
+                                <p className={`text-[11px] leading-relaxed font-medium ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.label}</p>
+                                {item.note && <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{item.note}</p>}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {checkedSuggestions.size === editorPlan.timeline.length && editorPlan.timeline.length > 0 && (
+                        <div className="mt-3 p-2.5 bg-green-500/10 border border-green-500/20 rounded-xl flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          <p className="text-[11px] text-green-400 font-bold">All suggestions applied — ready to render!</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Script reference — if plan was generated */}
                   {planResult && (
                     <div className="p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <Sparkles className="w-3.5 h-3.5 text-primary" />
                         <p className="text-xs font-bold text-foreground">Script Reference</p>
+                        {editorPlan && <Badge className="text-[9px] bg-primary/10 text-primary border-primary/20 border px-1.5 py-0 h-4">From Editor</Badge>}
                       </div>
                       {planResult.hooks?.[0] && (
                         <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl mb-3">
                           <p className="text-[9px] font-bold text-primary uppercase tracking-wider mb-1">🎣 Top Hook</p>
                           <p className="text-xs text-foreground leading-relaxed">{planResult.hooks[0]}</p>
+                        </div>
+                      )}
+                      {planResult.hooks?.length > 1 && (
+                        <div className="space-y-1.5 mb-3">
+                          {planResult.hooks.slice(1).map((h: string, i: number) => (
+                            <div key={i} className="p-2 bg-zinc-900/50 border border-zinc-800/50 rounded-lg">
+                              <p className="text-[10px] text-muted-foreground">Hook {i + 2}</p>
+                              <p className="text-[11px] text-foreground leading-relaxed">{h}</p>
+                            </div>
+                          ))}
                         </div>
                       )}
                       {planResult.fullScript && (
@@ -749,7 +897,7 @@ export default function VideoEditorStudio() {
                     </div>
                   )}
 
-                  {!planResult && (
+                  {!planResult && !editorPlan && (
                     <div className="p-5">
                       <button onClick={() => setTab("plan")}
                         className="w-full flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-3 border border-dashed border-zinc-700/50 rounded-xl hover:border-zinc-600">

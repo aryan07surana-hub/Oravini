@@ -463,7 +463,40 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   // Chat editing
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "ai"; content: string; suggestion?: string; suggestionType?: string; actionLabel?: string; edits?: any[] }[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [sentToStudio, setSentToStudio] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Send to Video Studio ─────────────────────────────────────────────────────
+  const MODE_SETTINGS: Record<string, any> = {
+    viral:          { removeSilences: true, silenceThreshold: "0.3", addCaptions: true, captionStyle: "bold",    colorGrade: "none",      speed: "1.25" },
+    story:          { removeSilences: true, silenceThreshold: "0.5", addCaptions: true, captionStyle: "minimal", colorGrade: "none",      speed: "1"    },
+    sales:          { removeSilences: true, silenceThreshold: "0.3", addCaptions: true, captionStyle: "bold",    colorGrade: "none",      speed: "1"    },
+    educational:    { removeSilences: true, silenceThreshold: "0.5", addCaptions: true, captionStyle: "minimal", colorGrade: "none",      speed: "1"    },
+    cinematic:      { removeSilences: false,                          addCaptions: false,                         colorGrade: "cinematic", speed: "1"    },
+    funny:          { removeSilences: true, silenceThreshold: "0.3", addCaptions: true, captionStyle: "bold",    colorGrade: "none",      speed: "1"    },
+    personal_brand: { removeSilences: true, silenceThreshold: "0.5", addCaptions: true, captionStyle: "minimal", colorGrade: "none",      speed: "1"    },
+  };
+
+  const sendToStudio = () => {
+    if (!result) return;
+    const plan = {
+      fromEditor: true,
+      title:      result.title || concept || "Untitled",
+      summary:    result.summary || "",
+      hooks:      result.hooks || [],
+      fullScript: result.fullScript || "",
+      timeline:   result.timeline || [],
+      checklist:  result.checklist || [],
+      mode,
+      platform,
+      targetDuration,
+      recommendedSettings: MODE_SETTINGS[mode] || {},
+      sentAt: new Date().toISOString(),
+    };
+    localStorage.setItem("oravini_studio_plan", JSON.stringify(plan));
+    setSentToStudio(true);
+    setTimeout(() => { window.location.href = "/video-studio"; }, 800);
+  };
   const playerRef = useRef<HTMLIFrameElement>(null);
   const [seekTime, setSeekTime] = useState(0);
 
@@ -1511,6 +1544,30 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   </Button>
                 </div>
               )}
+            </div>
+
+            {/* ── Send to Video Studio CTA ────────────────────────────────────── */}
+            <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 rounded-2xl p-4 flex items-center gap-4 flex-wrap">
+              <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Film className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-foreground">Send this plan to Video Studio</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your script, hooks, edit suggestions &amp; recommended settings will auto-load — just upload your footage and render.
+                </p>
+              </div>
+              <Button
+                data-testid="btn-send-to-studio"
+                onClick={sendToStudio}
+                disabled={sentToStudio}
+                className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-bold"
+              >
+                {sentToStudio
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening Studio…</>
+                  : <><Film className="w-4 h-4" /> Open in Video Studio</>
+                }
+              </Button>
             </div>
 
             {/* ── Persistent Video Dock (shown across all tabs) ─────────────────── */}
