@@ -99,10 +99,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const update: any = { planConfirmed: true };
     if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
     await storage.updateUser(userId, update);
-    // Grant 100 bonus credits the first time a user activates their free plan
-    if (plan === "free" && !currentUser?.planConfirmed) {
-      await storage.addBonusCredits(userId, 100, "Free plan welcome bonus — 100 credits");
-    }
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;
     res.json(safe);

@@ -7,6 +7,7 @@ import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 import { Gift } from "lucide-react";
 
 const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
+const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
@@ -91,22 +92,32 @@ export default function SelectPlan() {
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
+    } else if (whopSuccess === "growth" && user) {
+      setConfirming("growth");
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "growth" })
+        .then(updated => {
+          queryClient.setQueryData(["/api/auth/me"], updated);
+          toast({ title: "Welcome to Growth! 🚀", description: "Your $59/mo plan is now active. Enjoy 350 credits per month." });
+          navigate("/dashboard");
+        })
+        .catch(() => setConfirming(null));
     }
   }, [user]);
 
   const handlePlan = async (slug: string) => {
-    // Starter plan → redirect to Whop checkout
     if (slug === "starter") {
       const returnUrl = `${window.location.origin}/select-plan?whop_success=starter`;
       window.location.href = `${WHOP_STARTER_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
-    // Other paid plans are still on free tier for now
+    if (slug === "growth") {
+      const returnUrl = `${window.location.origin}/select-plan?whop_success=growth`;
+      window.location.href = `${WHOP_GROWTH_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+    // Pro and Elite paid plans are still coming soon
     if (slug !== "free") {
-      toast({
-        title: "Coming soon! 🚀",
-        description: "We're setting you up on the free plan with 100 bonus credits to get started.",
-      });
+      toast({ title: "Coming soon! 🚀", description: "Pro and Elite tiers are launching shortly." });
       slug = "free";
     }
     setConfirming(slug);
@@ -150,7 +161,7 @@ export default function SelectPlan() {
             Choose your plan to<br /><span style={{ color: GOLD }}>unlock your dashboard</span>
           </h1>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.38)", lineHeight: 1.7 }}>
-            Start free with 100 bonus credits, or upgrade to Starter now — all other paid tiers launching soon.
+            Start free, or grab the Starter or Growth plan now — Pro and Elite tiers launching soon.
           </p>
         </div>
 
@@ -160,8 +171,8 @@ export default function SelectPlan() {
             <Gift size={18} color={GOLD} />
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter plan is now live 🎉 — Free plan comes with 100 bonus credits</p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>The $29 Starter plan is available now via Whop. All other paid tiers are on free access during launch — upgrades coming soon.</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter ($29) and Growth ($59) plans are live via Whop 🎉</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Pro and Elite tiers are on free access during launch. Paid upgrades coming soon.</p>
           </div>
         </div>
 

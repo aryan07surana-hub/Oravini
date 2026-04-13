@@ -80,6 +80,7 @@ export default function PlanSettings() {
   const currentPlanData = PLANS[currentIdx];
 
   const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
+  const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
 
   const handleUpgrade = (targetSlug: string, _targetName: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
@@ -88,10 +89,15 @@ export default function PlanSettings() {
       window.location.href = `${WHOP_STARTER_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
-    // Other paid plans launching soon
+    if (targetSlug === "growth") {
+      const returnUrl = `${window.location.origin}/select-plan?whop_success=growth`;
+      window.location.href = `${WHOP_GROWTH_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+    // Pro tier launching soon
     toast({
       title: "Coming soon! 🚀",
-      description: "Growth, Pro and Elite tiers are launching shortly. The $29 Starter plan is available now.",
+      description: "Pro and Elite tiers are launching shortly.",
     });
   };
 

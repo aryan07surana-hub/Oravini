@@ -199,16 +199,16 @@ function EmailCaptureStrip({ onCapture }: { onCapture: () => void }) {
               <>
                 <div style={{ fontSize: 48, marginBottom: 14 }}>🎉</div>
                 <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>You're on the list!</h3>
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>Your 10 free credits are reserved. Join Brandverse and they'll be waiting for you.</p>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)" }}>You're in! Sign up and unlock your dashboard now.</p>
               </>
             ) : (
               <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.06em", textTransform: "uppercase" as const, marginBottom: 14 }}>🎁 Free Credits</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.06em", textTransform: "uppercase" as const, marginBottom: 14 }}>🚀 Get Started Free</div>
                 <h3 style={{ fontSize: 24, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 10 }}>
-                  Drop Your Email.<br />Get 10 Free Credits.
+                  Drop Your Email.<br />Start Building Today.
                 </h3>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 28, lineHeight: 1.6 }}>
-                  We'll add 10 bonus credits to your account the moment you sign up. No credit card, no commitment.
+                  Sign up instantly and start building your brand. No credit card, no commitment.
                 </p>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" as const, justifyContent: "center" }}>
                   <input type="text" placeholder="Your name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -528,7 +528,7 @@ function PricingSection() {
             </div>
             <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>How would you like to start?</h3>
             <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.45)", marginBottom: 28, lineHeight: 1.6 }}>
-              Not sure where to start? Get a free brand audit first — or sign up now and get 100 bonus credits on us.
+              Not sure where to start? Get a free brand audit first — or sign up now and start building.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <button
