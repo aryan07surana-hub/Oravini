@@ -106,6 +106,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(safe);
   });
 
+  // POST /api/auth/cancel-plan — downgrade user back to free immediately
+  app.post("/api/auth/cancel-plan", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    await storage.updateUser(userId, { plan: "free" });
+    await storage.activatePlanCredits(userId, "free");
+    const updated = await storage.getUser(userId);
+    const { password: _, ...safe } = updated!;
+    res.json(safe);
+  });
+
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);

@@ -3,7 +3,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings, Rocket } from "lucide-react";
+import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings, Rocket, AlertTriangle, X, ExternalLink } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const PLANS = [
   {
@@ -70,21 +71,28 @@ const PLANS = [
 ];
 
 const PLAN_ORDER = ["free", "starter", "growth", "pro", "elite"];
+const PAID_PLANS = ["starter", "growth", "pro"];
+const GOLD = "#d4b461";
+
+const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
+const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
+const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
+const PLATFORM_URL = "https://oravini.com";
+const WHOP_MANAGE_URL = "https://whop.com/manage-membership";
 
 export default function PlanSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const currentPlan = (user as any)?.plan || "free";
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
   const currentPlanData = PLANS[currentIdx];
+  const isPaidPlan = PAID_PLANS.includes(currentPlan);
 
-  const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
-  const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
-  const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
-  const PLATFORM_URL = "https://oravini.com";
-
-  const handleUpgrade = (targetSlug: string, _targetName: string) => {
+  const handleUpgrade = (targetSlug: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
     if (targetSlug === "starter") {
       const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=starter`;
@@ -101,11 +109,24 @@ export default function PlanSettings() {
       window.location.href = `${WHOP_PRO_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
-    // Elite launching soon
-    toast({
-      title: "Coming soon! 🚀",
-      description: "Elite tier is launching shortly.",
-    });
+    toast({ title: "Coming soon! 🚀", description: "Elite tier is launching shortly." });
+  };
+
+  const handleCancelPlan = async () => {
+    setCancelling(true);
+    try {
+      const updated = await apiRequest("POST", "/api/auth/cancel-plan", {});
+      queryClient.setQueryData(["/api/auth/me"], updated);
+      setCancelConfirm(false);
+      toast({
+        title: "Plan cancelled",
+        description: "You've been moved to the Free plan. Remember to cancel your billing on Whop to stop future charges.",
+      });
+    } catch {
+      toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (
@@ -115,7 +136,7 @@ export default function PlanSettings() {
         {/* Page header */}
         <div className="flex items-center gap-3 mb-8" data-tour="settings-main">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-            <Settings className="w-4 h-4" style={{ color: "#d4b461" }} />
+            <Settings className="w-4 h-4" style={{ color: GOLD }} />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Your Settings</h1>
@@ -123,22 +144,21 @@ export default function PlanSettings() {
           </div>
         </div>
 
-        {/* Square subsection card — Your Current Plan */}
+        {/* Current Plan Card */}
         <div
-          onClick={() => setExpanded(v => !v)}
+          onClick={() => { setExpanded(v => !v); setCancelConfirm(false); }}
           data-testid="plan-card-toggle"
           className="rounded-2xl p-6 cursor-pointer transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] select-none mb-4"
           style={{
             background: currentPlanData?.cardBg || "rgba(212,180,97,0.06)",
-            border: `1px solid ${expanded ? (currentPlanData?.accentColor || "#d4b461") + "60" : (currentPlanData?.cardBorder || "rgba(212,180,97,0.25)")}`,
-            boxShadow: expanded ? `0 0 40px ${currentPlanData?.accentColor || "#d4b461"}14` : "none",
+            border: `1px solid ${expanded ? (currentPlanData?.accentColor || GOLD) + "60" : (currentPlanData?.cardBorder || "rgba(212,180,97,0.25)")}`,
+            boxShadow: expanded ? `0 0 40px ${currentPlanData?.accentColor || GOLD}14` : "none",
           }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {/* Icon square */}
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${currentPlanData?.accentColor || "#d4b461"}18`, border: `1px solid ${currentPlanData?.accentColor || "#d4b461"}30` }}>
-                <Crown className="w-5 h-5" style={{ color: currentPlanData?.accentColor || "#d4b461" }} />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${currentPlanData?.accentColor || GOLD}18`, border: `1px solid ${currentPlanData?.accentColor || GOLD}30` }}>
+                <Crown className="w-5 h-5" style={{ color: currentPlanData?.accentColor || GOLD }} />
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-0.5">Your Current Plan</p>
@@ -157,11 +177,11 @@ export default function PlanSettings() {
           </div>
         </div>
 
-        {/* Expanded: current plan features + all plans */}
+        {/* Expanded content */}
         {expanded && (
           <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
 
-            {/* Current plan features */}
+            {/* What's included */}
             <div className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">What's included</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -174,9 +194,78 @@ export default function PlanSettings() {
               </div>
             </div>
 
-            {/* All plans vertical list */}
+            {/* Manage Subscription — only for paid plans */}
+            {isPaidPlan && (
+              <div className="rounded-2xl p-5" style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Manage Subscription</p>
+
+                {!cancelConfirm ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-white mb-0.5">Cancel your plan</p>
+                      <p className="text-xs text-zinc-500 leading-relaxed max-w-xs">
+                        You'll be moved to the Free plan immediately. Make sure to also cancel your billing on Whop to stop future charges.
+                      </p>
+                    </div>
+                    <button
+                      data-testid="btn-cancel-plan"
+                      onClick={() => setCancelConfirm(true)}
+                      className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                      style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Cancel Plan
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl p-4" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                    <div className="flex items-start gap-3 mb-4">
+                      <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-white mb-1">Are you sure you want to cancel?</p>
+                        <p className="text-xs text-zinc-400 leading-relaxed">
+                          Your plan will drop to Free (5 credits/day) right now. You'll lose access to all paid features immediately.
+                          After confirming here, go to Whop to cancel your billing so you're not charged again.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        data-testid="btn-confirm-cancel"
+                        onClick={handleCancelPlan}
+                        disabled={cancelling}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50"
+                        style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
+                      >
+                        {cancelling ? "Cancelling..." : "Yes, cancel my plan"}
+                      </button>
+                      <button
+                        data-testid="btn-keep-plan"
+                        onClick={() => setCancelConfirm(false)}
+                        className="px-4 py-2 rounded-lg text-xs font-semibold text-zinc-400 transition-all hover:text-white"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                      >
+                        Keep my plan
+                      </button>
+                    </div>
+                    <a
+                      href={WHOP_MANAGE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="link-whop-manage"
+                      className="inline-flex items-center gap-1.5 mt-3 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Manage / cancel billing on Whop
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* All Plans */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">All Plans — Free During Launch</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">All Plans</p>
               <div className="flex flex-col gap-2.5">
                 {PLANS.map((plan, i) => {
                   const isCurrent = plan.slug === currentPlan;
@@ -194,7 +283,7 @@ export default function PlanSettings() {
                         opacity: isDowngrade ? 0.4 : 1,
                       }}
                     >
-                      {/* Left: plan info */}
+                      {/* Plan info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-bold text-white">{plan.name}</span>
@@ -215,7 +304,6 @@ export default function PlanSettings() {
                           <span className="text-xs text-muted-foreground">·</span>
                           <span className="text-xs text-muted-foreground">{plan.credits}</span>
                         </div>
-                        {/* Features for this plan */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                           {plan.features.slice(0, 4).map((f, fi) => (
                             <div key={fi} className="flex items-center gap-1.5">
@@ -229,7 +317,7 @@ export default function PlanSettings() {
                         </div>
                       </div>
 
-                      {/* Right: action */}
+                      {/* Action */}
                       <div className="flex-shrink-0 pt-1">
                         {isCurrent ? (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: `${plan.accentColor}18` }}>
@@ -244,7 +332,7 @@ export default function PlanSettings() {
                         ) : (
                           <button
                             data-testid={`upgrade-btn-${plan.slug}`}
-                            onClick={e => { e.stopPropagation(); handleUpgrade(plan.slug, `${plan.name} ${plan.subtitle}`); }}
+                            onClick={e => { e.stopPropagation(); handleUpgrade(plan.slug); }}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200 hover:scale-105 active:scale-95"
                             style={{ background: `${plan.accentColor}18`, border: `1px solid ${plan.accentColor}35`, color: plan.accentColor }}
                           >
@@ -260,7 +348,7 @@ export default function PlanSettings() {
 
             <div className="flex items-center justify-center gap-2 pt-2">
               <Rocket className="w-3.5 h-3.5 text-[#d4b461]" />
-              <p className="text-center text-xs text-muted-foreground">Paid upgrades launching soon — all plans are free right now</p>
+              <p className="text-center text-xs text-muted-foreground">Elite tier coming soon — all other paid plans are live via Whop</p>
             </div>
           </div>
         )}
