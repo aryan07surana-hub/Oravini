@@ -258,6 +258,14 @@ export default function VideoEditorStudio() {
       toast({ title: "Invalid file type", description: "Please upload a video or audio file.", variant: "destructive" });
       return;
     }
+    const MB = 1024 * 1024;
+    if (file.size > 200 * MB) {
+      toast({ title: "File too large", description: "Maximum upload size is 200MB.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 25 * MB) {
+      toast({ title: "Large file detected", description: "Files over 25MB can't be transcribed (AI limit). Silence removal & captions won't be available, but you can still render with color grade and speed settings.", });
+    }
     const title = videoTitle || file.name.replace(/\.[^/.]+$/, "");
     setIsUploading(true);
     setUploadProgress(0);
@@ -348,8 +356,8 @@ export default function VideoEditorStudio() {
                     </div>
                     <div>
                       <p className="text-base font-bold text-foreground">Drop your video here</p>
-                      <p className="text-sm text-muted-foreground mt-1">MP4, MOV, WebM, AVI, MKV — up to 200MB</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Also accepts audio: MP3, M4A, WAV</p>
+                      <p className="text-sm text-muted-foreground mt-1">MP4, MOV, WebM, AVI, MKV, MP3, M4A, WAV — up to 200MB</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">AI transcription (silence removal &amp; captions) requires files under 25MB</p>
                     </div>
                     <Button size="sm" className="bg-primary text-black hover:bg-primary/90 gap-2" data-testid="btn-browse-files">
                       <Upload className="w-3.5 h-3.5" />Browse Files

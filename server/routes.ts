@@ -7476,16 +7476,29 @@ Rules:
 
     (async () => {
       try {
-        const FormData = (await import("form-data")).default;
-        const formData = new FormData();
-        formData.append("file", fs.createReadStream(req.file!.path), { filename: req.file!.originalname, contentType: req.file!.mimetype || "video/mp4" });
+        const fileStat = fs.statSync(req.file!.path);
+        const MAX_WHISPER_BYTES = 25 * 1024 * 1024; // 25MB Groq limit
+        if (fileStat.size > MAX_WHISPER_BYTES) {
+          await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+          console.log("[video-studio] file too large for Whisper:", fileStat.size, "bytes");
+          return;
+        }
+        const FormDataLib = (await import("form-data")).default;
+        const formData = new FormDataLib();
+        const fileBuffer = fs.readFileSync(req.file!.path);
+        const ext = path.extname(req.file!.originalname).toLowerCase();
+        const mimeMap: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav" };
+        const contentType = mimeMap[ext] || "video/mp4";
+        formData.append("file", fileBuffer, { filename: req.file!.originalname || "video.mp4", contentType });
         formData.append("model", "whisper-large-v3");
         formData.append("response_format", "verbose_json");
         formData.append("timestamp_granularities[]", "word");
+        const formBuffer = formData.getBuffer();
+        const formHeaders = formData.getHeaders();
         const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
           method: "POST",
-          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formData.getHeaders() },
-          body: formData as any,
+          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
+          body: formBuffer,
         });
         if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
         const transcriptData = await whisperRes.json() as any;
