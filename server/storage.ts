@@ -8,6 +8,7 @@ import {
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
   youtubeTokens, scheduledYoutubePosts,
+  forms, formQuestions, formSubmissions, formAnswers, formViews,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
@@ -28,6 +29,8 @@ import {
   type Session, type InsertSession,
   type CreditBalance, type CreditTransaction,
   type LandingLead, type InsertLandingLead,
+  type Form, type InsertForm, type FormQuestion, type InsertFormQuestion,
+  type FormSubmission, type FormAnswer, type FormView,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -178,6 +181,20 @@ export interface IStorage {
   createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost>;
   updateScheduledYoutubePost(id: string, data: Partial<ScheduledYoutubePost>): Promise<void>;
   deleteScheduledYoutubePost(id: string, userId: string): Promise<void>;
+
+  // Forms
+  getForms(userId: string): Promise<Form[]>;
+  getForm(id: string): Promise<Form | undefined>;
+  getFormBySlug(slug: string): Promise<Form | undefined>;
+  createForm(data: InsertForm): Promise<Form>;
+  updateForm(id: string, userId: string, data: Partial<InsertForm>): Promise<Form | undefined>;
+  deleteForm(id: string, userId: string): Promise<void>;
+  getFormQuestions(formId: string): Promise<FormQuestion[]>;
+  saveFormQuestions(formId: string, questions: Omit<InsertFormQuestion, "formId">[]): Promise<FormQuestion[]>;
+  getFormSubmissions(formId: string): Promise<(FormSubmission & { answers: FormAnswer[] })[]>;
+  createFormSubmission(formId: string, data: { respondentName?: string; respondentEmail?: string; metadata?: any }, answers: { questionId: string; value: string }[]): Promise<FormSubmission>;
+  trackFormView(formId: string, metadata?: any): Promise<void>;
+  getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -991,6 +1008,77 @@ class DatabaseStorage implements IStorage {
 
   async deleteScheduledYoutubePost(id: string, userId: string): Promise<void> {
     await db.delete(scheduledYoutubePosts).where(and(eq(scheduledYoutubePosts.id, id), eq(scheduledYoutubePosts.userId, userId)));
+  }
+
+  // ── Forms ──────────────────────────────────────────────────────────────────
+  async getForms(userId: string): Promise<Form[]> {
+    return db.select().from(forms).where(eq(forms.userId, userId)).orderBy(desc(forms.createdAt));
+  }
+
+  async getForm(id: string): Promise<Form | undefined> {
+    const [row] = await db.select().from(forms).where(eq(forms.id, id));
+    return row;
+  }
+
+  async getFormBySlug(slug: string): Promise<Form | undefined> {
+    const [row] = await db.select().from(forms).where(eq(forms.slug, slug));
+    return row;
+  }
+
+  async createForm(data: InsertForm): Promise<Form> {
+    const [row] = await db.insert(forms).values(data).returning();
+    return row;
+  }
+
+  async updateForm(id: string, userId: string, data: Partial<InsertForm>): Promise<Form | undefined> {
+    const [row] = await db.update(forms).set(data).where(and(eq(forms.id, id), eq(forms.userId, userId))).returning();
+    return row;
+  }
+
+  async deleteForm(id: string, userId: string): Promise<void> {
+    await db.delete(forms).where(and(eq(forms.id, id), eq(forms.userId, userId)));
+  }
+
+  async getFormQuestions(formId: string): Promise<FormQuestion[]> {
+    return db.select().from(formQuestions).where(eq(formQuestions.formId, formId)).orderBy(formQuestions.orderIdx);
+  }
+
+  async saveFormQuestions(formId: string, questions: Omit<InsertFormQuestion, "formId">[]): Promise<FormQuestion[]> {
+    await db.delete(formQuestions).where(eq(formQuestions.formId, formId));
+    if (!questions.length) return [];
+    const rows = await db.insert(formQuestions).values(questions.map((q, i) => ({ ...q, formId, orderIdx: i }))).returning();
+    return rows;
+  }
+
+  async getFormSubmissions(formId: string): Promise<(FormSubmission & { answers: FormAnswer[] })[]> {
+    const subs = await db.select().from(formSubmissions).where(eq(formSubmissions.formId, formId)).orderBy(desc(formSubmissions.submittedAt));
+    if (!subs.length) return [];
+    const subIds = subs.map(s => s.id);
+    const ans = await db.select().from(formAnswers).where(inArray(formAnswers.submissionId, subIds));
+    return subs.map(s => ({ ...s, answers: ans.filter(a => a.submissionId === s.id) }));
+  }
+
+  async createFormSubmission(formId: string, data: { respondentName?: string; respondentEmail?: string; metadata?: any }, answers: { questionId: string; value: string }[]): Promise<FormSubmission> {
+    const [sub] = await db.insert(formSubmissions).values({ formId, ...data }).returning();
+    if (answers.length) {
+      await db.insert(formAnswers).values(answers.map(a => ({ submissionId: sub.id, questionId: a.questionId, value: a.value })));
+    }
+    return sub;
+  }
+
+  async trackFormView(formId: string, metadata?: any): Promise<void> {
+    await db.insert(formViews).values({ formId, metadata });
+  }
+
+  async getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }> {
+    const viewRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formViews).where(eq(formViews.formId, formId));
+    const subRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formSubmissions).where(eq(formSubmissions.formId, formId));
+    const emailRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formSubmissions).where(and(eq(formSubmissions.formId, formId), sqlExpr`respondent_email IS NOT NULL AND respondent_email != ''`));
+    return {
+      views: viewRows[0]?.count ?? 0,
+      submissions: subRows[0]?.count ?? 0,
+      emailCaptures: emailRows[0]?.count ?? 0,
+    };
   }
 }
 

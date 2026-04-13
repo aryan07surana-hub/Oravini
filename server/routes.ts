@@ -7036,5 +7036,147 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
     }
   });
 
+  // ── Forms / Quiz / Survey ────────────────────────────────────────────────
+  function generateSlug(length = 8): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
+
+  // List user's forms
+  app.get("/api/forms", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const list = await storage.getForms(userId);
+    res.json(list);
+  });
+
+  // Create form
+  app.post("/api/forms", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, description, type } = req.body;
+    if (!title) return res.status(400).json({ message: "Title is required" });
+    let slug = generateSlug(8);
+    // Ensure uniqueness
+    let existing = await storage.getFormBySlug(slug);
+    while (existing) { slug = generateSlug(8); existing = await storage.getFormBySlug(slug); }
+    const form = await storage.createForm({ userId, title, description: description || null, type: type || "form", status: "draft", slug, settings: null });
+    res.json(form);
+  });
+
+  // Get single form (must be owner)
+  app.get("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(req.params.id);
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    res.json(form);
+  });
+
+  // Update form
+  app.patch("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const updated = await storage.updateForm(req.params.id, userId, req.body);
+    if (!updated) return res.status(404).json({ message: "Not found" });
+    res.json(updated);
+  });
+
+  // Delete form
+  app.delete("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteForm(req.params.id, userId);
+    res.json({ success: true });
+  });
+
+  // Get form questions
+  app.get("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(req.params.id);
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const questions = await storage.getFormQuestions(req.params.id);
+    res.json(questions);
+  });
+
+  // Save (replace) all questions
+  app.put("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(req.params.id);
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const { questions } = req.body;
+    if (!Array.isArray(questions)) return res.status(400).json({ message: "questions must be an array" });
+    const saved = await storage.saveFormQuestions(req.params.id, questions);
+    res.json(saved);
+  });
+
+  // AI-generate form questions
+  app.post("/api/forms/ai-generate", requireAuth, async (req: Request, res: Response) => {
+    const { prompt, formType } = req.body;
+    if (!prompt) return res.status(400).json({ message: "Prompt is required" });
+    const systemPrompt = `You are an expert form/quiz/survey designer. Based on the user's request, generate a complete set of form questions.
+Return ONLY a valid JSON object with this exact structure (no markdown, no code fences):
+{
+  "title": "Form title (5-8 words)",
+  "description": "One sentence description",
+  "questions": [
+    {
+      "type": "mcq|text|long_text|email|name|rating|yes_no|number|phone",
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C"],
+      "required": true
+    }
+  ]
+}
+Rules:
+- For 'mcq' type: always include 3-5 options array
+- For all other types: omit the options field
+- Types: mcq (multiple choice), text (short answer), long_text (paragraph), email (email input), name (full name), rating (1-5 stars), yes_no (yes/no buttons), number (numeric), phone (phone number)
+- Generate 5-10 questions appropriate for a ${formType || "form"}
+- Make the questions highly relevant and specific to the user's request
+- Mix question types thoughtfully`;
+    try {
+      const raw = await callGroq(systemPrompt, prompt, 2000);
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      res.json(parsed);
+    } catch (err: any) {
+      console.log("[forms/ai-generate] error:", err?.message);
+      res.status(500).json({ message: "AI generation failed. Please try again." });
+    }
+  });
+
+  // Get responses + analytics (owner only)
+  app.get("/api/forms/:id/responses", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(req.params.id);
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const [submissions, questions, analytics] = await Promise.all([
+      storage.getFormSubmissions(req.params.id),
+      storage.getFormQuestions(req.params.id),
+      storage.getFormAnalytics(req.params.id),
+    ]);
+    res.json({ submissions, questions, analytics });
+  });
+
+  // ── Public form routes (no auth required) ─────────────────────────────────
+  app.get("/api/public/forms/:slug", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(req.params.slug);
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
+    const questions = await storage.getFormQuestions(form.id);
+    res.json({ form, questions });
+  });
+
+  app.post("/api/public/forms/:slug/view", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(req.params.slug);
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Not found" });
+    await storage.trackFormView(form.id, { userAgent: req.headers["user-agent"], ip: req.ip });
+    res.json({ success: true });
+  });
+
+  app.post("/api/public/forms/:slug/submit", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(req.params.slug);
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
+    const { respondentName, respondentEmail, answers } = req.body;
+    if (!Array.isArray(answers)) return res.status(400).json({ message: "answers is required" });
+    const sub = await storage.createFormSubmission(form.id, { respondentName, respondentEmail, metadata: { userAgent: req.headers["user-agent"] } }, answers);
+    res.json({ success: true, submissionId: sub.id });
+  });
+
   return httpServer;
 }

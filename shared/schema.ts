@@ -503,3 +503,58 @@ export const aiSessionHistory = pgTable("ai_session_history", {
 });
 export type AiSessionHistory = typeof aiSessionHistory.$inferSelect;
 export type InsertAiSessionHistory = { userId: string; tool: string; title?: string; inputs?: any; output?: any };
+
+// ── Forms / Quiz / Survey builder ──────────────────────────────────────────
+export const forms = pgTable("forms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: text("type").notNull().default("form"), // form | quiz | survey | event
+  status: text("status").notNull().default("draft"), // draft | published
+  slug: text("slug").notNull().unique(),
+  settings: jsonb("settings"), // { submitMessage, theme, collectEmail, collectName }
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertFormSchema = createInsertSchema(forms).omit({ id: true, createdAt: true });
+export type InsertForm = z.infer<typeof insertFormSchema>;
+export type Form = typeof forms.$inferSelect;
+
+export const formQuestions = pgTable("form_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // text|long_text|email|name|mcq|rating|yes_no|number|phone
+  question: text("question").notNull(),
+  options: jsonb("options"), // string[] for mcq
+  required: boolean("required").notNull().default(false),
+  orderIdx: integer("order_idx").notNull().default(0),
+});
+export const insertFormQuestionSchema = createInsertSchema(formQuestions).omit({ id: true });
+export type InsertFormQuestion = z.infer<typeof insertFormQuestionSchema>;
+export type FormQuestion = typeof formQuestions.$inferSelect;
+
+export const formSubmissions = pgTable("form_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  respondentName: text("respondent_name"),
+  respondentEmail: text("respondent_email"),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  metadata: jsonb("metadata"), // { device, referrer }
+});
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+
+export const formAnswers = pgTable("form_answers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  submissionId: varchar("submission_id").notNull().references(() => formSubmissions.id, { onDelete: "cascade" }),
+  questionId: varchar("question_id").notNull(),
+  value: text("value"),
+});
+export type FormAnswer = typeof formAnswers.$inferSelect;
+
+export const formViews = pgTable("form_views", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  viewedAt: timestamp("viewed_at").defaultNow(),
+  metadata: jsonb("metadata"),
+});
+export type FormView = typeof formViews.$inferSelect;

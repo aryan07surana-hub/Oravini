@@ -61,6 +61,10 @@ import DashboardPreview from "@/pages/DashboardPreview";
 import ContentAnalyser from "@/pages/client/ContentAnalyser";
 import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
 import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
+import FormsHub from "@/pages/client/FormsHub";
+import FormBuilder from "@/pages/client/FormBuilder";
+import FormResponses from "@/pages/client/FormResponses";
+import PublicForm from "@/pages/PublicForm";
 
 const GOLD = "#d4b461";
 
@@ -240,6 +244,18 @@ function Router() {
       </Route>
       <Route path="/settings/plan">
         {() => <ProtectedRoute component={PlanSettings} />}
+      </Route>
+      <Route path="/tools/forms/:id/responses">
+        {(params) => <ProtectedRoute component={FormResponses} id={params.id} />}
+      </Route>
+      <Route path="/tools/forms/:id">
+        {(params) => <ProtectedRoute component={FormBuilder} id={params.id} />}
+      </Route>
+      <Route path="/tools/forms">
+        {() => <ProtectedRoute component={FormsHub} />}
+      </Route>
+      <Route path="/f/:slug">
+        {(params) => <PublicForm />}
       </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}

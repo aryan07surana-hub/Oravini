@@ -13,7 +13,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, ClipboardList
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -194,6 +194,32 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               </Link>
             );
           })}
+          {/* ── Tools section ── */}
+          <div className="pt-3 pb-1">
+            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50 mb-1">Tools</p>
+            {[
+              { href: "/tools/forms", label: "Forms & Surveys", icon: ClipboardList },
+            ].map(({ href, label, icon: Icon }) => {
+              const active = location.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
         <CreditWidget />
