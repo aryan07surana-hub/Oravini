@@ -10,6 +10,7 @@ import {
   youtubeTokens, scheduledYoutubePosts,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
   meetings,
+  brollClips,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
@@ -33,6 +34,7 @@ import {
   type Form, type InsertForm, type FormQuestion, type InsertFormQuestion,
   type FormSubmission, type FormAnswer, type FormView,
   type Meeting, type InsertMeeting,
+  type BrollClip, type InsertBrollClip,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -197,6 +199,11 @@ export interface IStorage {
   createFormSubmission(formId: string, data: { respondentName?: string; respondentEmail?: string; metadata?: any }, answers: { questionId: string; value: string }[]): Promise<FormSubmission>;
   trackFormView(formId: string, metadata?: any): Promise<void>;
   getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }>;
+
+  // B-Roll Library
+  getBrollClips(userId: string): Promise<BrollClip[]>;
+  createBrollClip(data: InsertBrollClip): Promise<BrollClip>;
+  deleteBrollClip(id: number, userId: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1105,6 +1112,20 @@ class DatabaseStorage implements IStorage {
 
   async deleteMeeting(id: number, userId: string): Promise<void> {
     await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.userId, userId)));
+  }
+
+  // ── B-Roll Library ───────────────────────────────────────────────────────────
+  async getBrollClips(userId: string): Promise<BrollClip[]> {
+    return db.select().from(brollClips).where(eq(brollClips.userId, userId)).orderBy(desc(brollClips.createdAt));
+  }
+
+  async createBrollClip(data: InsertBrollClip): Promise<BrollClip> {
+    const rows = await db.insert(brollClips).values(data).returning();
+    return rows[0];
+  }
+
+  async deleteBrollClip(id: number, userId: string): Promise<void> {
+    await db.delete(brollClips).where(and(eq(brollClips.id, id), eq(brollClips.userId, userId)));
   }
 }
 

@@ -7347,5 +7347,26 @@ Rules:
     res.json(meeting);
   });
 
+  // ── B-Roll Library ──────────────────────────────────────────────────────────
+  app.get("/api/broll", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const clips = await storage.getBrollClips(userId);
+    res.json(clips);
+  });
+
+  app.post("/api/broll", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, description, category, videoUrl, notes } = req.body;
+    if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+    const clip = await storage.createBrollClip({ userId, title: title.trim(), description: description || null, category: category || "General", videoUrl: videoUrl || null, notes: notes || null });
+    res.json(clip);
+  });
+
+  app.delete("/api/broll/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteBrollClip(Number(req.params.id), userId);
+    res.json({ ok: true });
+  });
+
   return httpServer;
 }

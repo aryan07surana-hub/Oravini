@@ -577,3 +577,18 @@ export const meetings = pgTable("meetings", {
 export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, createdAt: true });
 export type Meeting = typeof meetings.$inferSelect;
 export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
+
+// ── B-Roll Library ─────────────────────────────────────────────────────────────
+export const brollClips = pgTable("broll_clips", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").default("General"),
+  videoUrl: text("video_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertBrollClipSchema = createInsertSchema(brollClips).omit({ id: true, createdAt: true });
+export type BrollClip = typeof brollClips.$inferSelect;
+export type InsertBrollClip = z.infer<typeof insertBrollClipSchema>;

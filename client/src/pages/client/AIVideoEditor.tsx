@@ -401,6 +401,39 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   });
   const [appliedEdits, setAppliedEdits] = useState<Set<number>>(new Set());
 
+  // B-Roll Library
+  const [showBrollLibrary, setShowBrollLibrary] = useState(false);
+  const [brollFilter, setBrollFilter] = useState("All");
+  const [showBrollForm, setShowBrollForm] = useState(false);
+  const [brollForm, setBrollForm] = useState({ title: "", description: "", category: "General", videoUrl: "", notes: "" });
+  const [savingBrolls, setSavingBrolls] = useState<Set<number>>(new Set());
+  const [savedBrolls, setSavedBrolls] = useState<Set<number>>(new Set());
+  const qcBroll = useQueryClient();
+  const { data: brollClips = [] } = useQuery<any[]>({
+    queryKey: ["/api/broll"],
+    enabled: !useAdmin,
+  });
+  const addBrollMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/broll", data),
+    onSuccess: () => { qcBroll.invalidateQueries({ queryKey: ["/api/broll"] }); setBrollForm({ title: "", description: "", category: "General", videoUrl: "", notes: "" }); setShowBrollForm(false); toast({ title: "B-roll saved to library!" }); },
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+  });
+  const deleteBrollMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/broll/${id}`),
+    onSuccess: () => qcBroll.invalidateQueries({ queryKey: ["/api/broll"] }),
+  });
+  const saveAiBrollToLibrary = async (text: string, index: number) => {
+    setSavingBrolls(prev => new Set(prev).add(index));
+    try {
+      await apiRequest("POST", "/api/broll", { title: text.slice(0, 80), description: text, category: "General" });
+      qcBroll.invalidateQueries({ queryKey: ["/api/broll"] });
+      setSavedBrolls(prev => new Set(prev).add(index));
+      toast({ title: "Saved to B-Roll Library!" });
+    } catch { toast({ title: "Failed to save", variant: "destructive" }); }
+    finally { setSavingBrolls(prev => { const s = new Set(prev); s.delete(index); return s; }); }
+  };
+  const BROLL_CATEGORIES = ["General", "Lifestyle", "Business", "Travel", "Fitness", "Food", "Education", "Cinematic", "Talking Head", "Product", "Other"];
+
   // Handle Canva OAuth redirect callbacks
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -749,9 +782,15 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               <p className="text-sm text-muted-foreground mt-0.5">Your intelligent creative partner — build from idea or optimize existing content</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <PageTourButton pageKey="video-editor" />
-            <Button variant="outline" size="sm" data-testid="btn-templates" onClick={() => setShowTemplates(v => !v)} className="border-primary/30 text-primary hover:bg-primary/10 gap-2">
+            <Button variant="outline" size="sm" data-testid="btn-broll-library" onClick={() => { setShowBrollLibrary(v => !v); setShowTemplates(false); }} className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 gap-2">
+              <Film className="w-4 h-4" />
+              B-Roll Library
+              {brollClips.length > 0 && <span className="bg-purple-500/20 text-purple-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{brollClips.length}</span>}
+              {showBrollLibrary ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </Button>
+            <Button variant="outline" size="sm" data-testid="btn-templates" onClick={() => { setShowTemplates(v => !v); setShowBrollLibrary(false); }} className="border-primary/30 text-primary hover:bg-primary/10 gap-2">
               <Layers className="w-4 h-4" />
               Template Library
               {showTemplates ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -863,6 +902,115 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── B-Roll Library Panel ────────────────────────────────────────────── */}
+        {showBrollLibrary && (
+          <div className="bg-card border border-purple-500/20 rounded-2xl overflow-hidden">
+            {/* Panel header */}
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-purple-500/15">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                  <Film className="w-4 h-4 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">B-Roll Library</p>
+                  <p className="text-[11px] text-muted-foreground">{brollClips.length} clip{brollClips.length !== 1 ? "s" : ""} saved — reuse across any video</p>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => setShowBrollForm(v => !v)} className="bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/25 gap-1.5 text-xs" data-testid="btn-broll-add">
+                <Plus className="w-3.5 h-3.5" />
+                Add Clip
+              </Button>
+            </div>
+
+            {/* Add form */}
+            {showBrollForm && (
+              <div className="px-5 py-4 border-b border-purple-500/10 bg-purple-500/5 space-y-3">
+                <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">New B-Roll Clip</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground font-medium">Title *</label>
+                    <Input value={brollForm.title} onChange={e => setBrollForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Morning workout montage" className="h-8 text-sm bg-background border-purple-500/20" data-testid="input-broll-title" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground font-medium">Category</label>
+                    <select value={brollForm.category} onChange={e => setBrollForm(f => ({ ...f, category: e.target.value }))} className="w-full h-8 text-sm rounded-md border border-purple-500/20 bg-background text-foreground px-2" data-testid="select-broll-category">
+                      {BROLL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] text-muted-foreground font-medium">Description / Shot Details</label>
+                    <Textarea value={brollForm.description} onChange={e => setBrollForm(f => ({ ...f, description: e.target.value }))} placeholder="What's in the shot? e.g. Close-up of hands typing on laptop, natural light, coffee cup nearby" className="text-sm bg-background border-purple-500/20 resize-none" rows={2} data-testid="input-broll-description" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground font-medium">Video URL (optional)</label>
+                    <Input value={brollForm.videoUrl} onChange={e => setBrollForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="YouTube, Drive, Dropbox link…" className="h-8 text-sm bg-background border-purple-500/20" data-testid="input-broll-url" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground font-medium">Shooting Notes (optional)</label>
+                    <Input value={brollForm.notes} onChange={e => setBrollForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. Use stabilizer, golden hour only" className="h-8 text-sm bg-background border-purple-500/20" data-testid="input-broll-notes" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => addBrollMutation.mutate(brollForm)} disabled={addBrollMutation.isPending || !brollForm.title.trim()} className="bg-purple-500 text-white hover:bg-purple-600 text-xs gap-1.5" data-testid="btn-broll-save">
+                    {addBrollMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    Save to Library
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setShowBrollForm(false); setBrollForm({ title: "", description: "", category: "General", videoUrl: "", notes: "" }); }} className="text-xs text-muted-foreground" data-testid="btn-broll-cancel">Cancel</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Category filter */}
+            {brollClips.length > 0 && (
+              <div className="px-5 pt-3 pb-1 flex gap-1.5 flex-wrap">
+                {["All", ...BROLL_CATEGORIES.filter(c => brollClips.some((b: any) => b.category === c))].map(cat => (
+                  <button key={cat} onClick={() => setBrollFilter(cat)} data-testid={`filter-broll-${cat.toLowerCase()}`}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all ${brollFilter === cat ? "bg-purple-500/20 text-purple-300 border-purple-500/30" : "text-zinc-500 border-zinc-700/50 hover:text-zinc-300"}`}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Clips grid */}
+            <div className="px-5 py-4">
+              {brollClips.length === 0 ? (
+                <div className="text-center py-10 space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto">
+                    <Film className="w-6 h-6 text-purple-400/50" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">No B-rolls saved yet</p>
+                  <p className="text-xs text-muted-foreground/60">Add clips manually above, or save them from AI-generated B-roll suggestions below</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {brollClips.filter((b: any) => brollFilter === "All" || b.category === brollFilter).map((clip: any) => (
+                    <div key={clip.id} className="bg-purple-500/5 border border-purple-500/15 rounded-xl p-3 space-y-2 group" data-testid={`card-broll-${clip.id}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{clip.title}</p>
+                          <span className="inline-block text-[10px] font-semibold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded-full mt-0.5">{clip.category}</span>
+                        </div>
+                        <button onClick={() => deleteBrollMutation.mutate(clip.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-red-500/10 text-red-400" data-testid={`btn-delete-broll-${clip.id}`}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {clip.description && <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{clip.description}</p>}
+                      {clip.notes && <p className="text-[10px] text-zinc-500 italic">{clip.notes}</p>}
+                      {clip.videoUrl && (
+                        <a href={clip.videoUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-300" data-testid={`link-broll-${clip.id}`}>
+                          <Link2 className="w-3 h-3" />
+                          View footage
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1551,12 +1699,26 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     </div>
                     {result.brollList?.length > 0 && (
                       <div>
-                        <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-2"><Video className="w-3.5 h-3.5 text-purple-400" />B-Roll to Source</p>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <p className="text-xs font-bold text-foreground flex items-center gap-2"><Video className="w-3.5 h-3.5 text-purple-400" />B-Roll to Source</p>
+                          <button onClick={() => { setShowBrollLibrary(true); }} className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 font-semibold" data-testid="btn-open-broll-library">
+                            <Film className="w-3 h-3" />View Library
+                          </button>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {result.brollList.map((b: string, i: number) => (
-                            <div key={i} className="flex items-start gap-2 p-2.5 bg-purple-500/5 border border-purple-500/15 rounded-lg">
+                            <div key={i} className="flex items-start gap-2 p-2.5 bg-purple-500/5 border border-purple-500/15 rounded-lg group">
                               <span className="text-purple-400 text-xs mt-0.5 flex-shrink-0">›</span>
-                              <p className="text-xs text-foreground">{b}</p>
+                              <p className="text-xs text-foreground flex-1">{b}</p>
+                              <button
+                                onClick={() => saveAiBrollToLibrary(b, i)}
+                                disabled={savingBrolls.has(i) || savedBrolls.has(i)}
+                                className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md transition-all ${savedBrolls.has(i) ? "text-green-400 bg-green-500/10" : "text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 opacity-0 group-hover:opacity-100"}`}
+                                data-testid={`btn-save-broll-${i}`}
+                              >
+                                {savingBrolls.has(i) ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : savedBrolls.has(i) ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5" />}
+                                {savedBrolls.has(i) ? "Saved" : "Save"}
+                              </button>
                             </div>
                           ))}
                         </div>
