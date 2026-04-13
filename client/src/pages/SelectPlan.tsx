@@ -8,6 +8,7 @@ import { Gift } from "lucide-react";
 
 const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
 const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
+const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
@@ -101,6 +102,15 @@ export default function SelectPlan() {
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
+    } else if (whopSuccess === "pro" && user) {
+      setConfirming("pro");
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "pro" })
+        .then(updated => {
+          queryClient.setQueryData(["/api/auth/me"], updated);
+          toast({ title: "Welcome to Pro! ⚡", description: "Your $79/mo plan is now active. Enjoy 500 credits per month." });
+          navigate("/dashboard");
+        })
+        .catch(() => setConfirming(null));
     }
   }, [user]);
 
@@ -115,9 +125,14 @@ export default function SelectPlan() {
       window.location.href = `${WHOP_GROWTH_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
-    // Pro and Elite paid plans are still coming soon
+    if (slug === "pro") {
+      const returnUrl = `${window.location.origin}/select-plan?whop_success=pro`;
+      window.location.href = `${WHOP_PRO_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+    // Elite is still coming soon
     if (slug !== "free") {
-      toast({ title: "Coming soon! 🚀", description: "Pro and Elite tiers are launching shortly." });
+      toast({ title: "Coming soon! 🚀", description: "Elite tier is launching shortly." });
       slug = "free";
     }
     setConfirming(slug);
@@ -171,8 +186,8 @@ export default function SelectPlan() {
             <Gift size={18} color={GOLD} />
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter ($29) and Growth ($59) plans are live via Whop 🎉</p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Pro and Elite tiers are on free access during launch. Paid upgrades coming soon.</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter ($29), Growth ($59) and Pro ($79) plans are live via Whop 🎉</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Elite tier is on free access during launch. Paid upgrade coming soon.</p>
           </div>
         </div>
 
