@@ -95,10 +95,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/auth/confirm-plan", requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
     const { plan } = req.body;
-    const currentUser = await storage.getUser(userId);
     const update: any = { planConfirmed: true };
     if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
     await storage.updateUser(userId, update);
+    // Immediately activate the correct credit allowance for the new plan
+    const activatedPlan = update.plan || "free";
+    await storage.activatePlanCredits(userId, activatedPlan);
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;
     res.json(safe);
@@ -4334,7 +4336,7 @@ Return ONLY valid JSON:
         balance,
         transactions,
         featureCosts: FEATURE_COSTS,
-        planAllowance: ({ free: 10, starter: 50, growth: 200, pro: 500, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 10,
+        planAllowance: ({ free: 5, starter: 150, growth: 350, pro: 700, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 5,
         total: balance.monthlyCredits + balance.bonusCredits,
       });
     } catch (err: any) {

@@ -59,6 +59,7 @@ export interface IStorage {
   // Credits
   getCreditBalance(userId: string): Promise<CreditBalance | undefined>;
   upsertCreditBalance(userId: string, plan: string): Promise<CreditBalance>;
+  activatePlanCredits(userId: string, plan: string): Promise<CreditBalance>;
   deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }>;
   addBonusCredits(userId: string, amount: number, description: string): Promise<CreditBalance>;
   getCreditTransactions(userId: string, limit?: number): Promise<CreditTransaction[]>;
@@ -720,6 +721,26 @@ class DatabaseStorage implements IStorage {
       return row;
     }
     return existing;
+  }
+
+  // Force-activate a plan's full credit allowance immediately (used on plan confirmation/upgrade)
+  async activatePlanCredits(userId: string, plan: string): Promise<CreditBalance> {
+    const allowance = this.PLAN_CREDITS[plan] ?? 5;
+    const periodKey = this.currentPeriodKey(plan);
+    const existing = await this.getCreditBalance(userId);
+    if (!existing) {
+      const [row] = await db.insert(creditBalances)
+        .values({ userId, monthlyCredits: allowance, bonusCredits: 0, lastResetMonth: periodKey })
+        .returning();
+      await db.insert(creditTransactions).values({ userId, amount: allowance, type: "plan_activated", description: `Plan activated: ${plan} — ${allowance} credits granted` });
+      return row;
+    }
+    const [row] = await db.update(creditBalances)
+      .set({ monthlyCredits: allowance, lastResetMonth: periodKey })
+      .where(eq(creditBalances.userId, userId))
+      .returning();
+    await db.insert(creditTransactions).values({ userId, amount: allowance, type: "plan_activated", description: `Plan activated: ${plan} — ${allowance} credits granted` });
+    return row;
   }
 
   async deductCredits(userId: string, amount: number, type: string, description: string, plan: string): Promise<{ success: boolean; balance: CreditBalance; message?: string }> {
