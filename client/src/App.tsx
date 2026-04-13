@@ -70,6 +70,7 @@ import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import ClipFinder from "@/pages/client/ClipFinder";
 import PublicForm from "@/pages/PublicForm";
 
 const GOLD = "#d4b461";
@@ -238,6 +239,9 @@ function Router() {
       </Route>
       <Route path="/video-studio">
         {() => <ProtectedRoute component={VideoEditorStudio} />}
+      </Route>
+      <Route path="/clip-finder">
+        {() => <ProtectedRoute component={ClipFinder} />}
       </Route>
       <Route path="/sessions">
         {() => <ProtectedRoute component={Sessions} />}

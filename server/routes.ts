@@ -4046,6 +4046,125 @@ Return ONLY valid JSON:
     }
   });
 
+  // ── YouTube Clip Finder ────────────────────────────────────────────────────
+  function fmtSecs(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? "0" : ""}${sec}`;
+  }
+
+  app.post("/api/clip-finder", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "YouTube URL is required" });
+
+      const videoId = extractYouTubeVideoId(url);
+      if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
+
+      // 1. Fetch YouTube page → extract player response (captions + title)
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: {
+          "Accept-Language": "en-US,en;q=0.9",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        },
+      });
+      if (!pageRes.ok) throw new Error("Failed to fetch YouTube page");
+      const html = await pageRes.text();
+
+      // Parse ytInitialPlayerResponse (large JSON blob)
+      const prMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var |<\/script|window\[)/s);
+      if (!prMatch) throw new Error("Could not parse YouTube page — try another video");
+      let playerResponse: any;
+      try { playerResponse = JSON.parse(prMatch[1]); } catch { throw new Error("YouTube page parse error"); }
+
+      const videoTitle: string = playerResponse?.videoDetails?.title || "YouTube Video";
+      const videoDuration = parseInt(playerResponse?.videoDetails?.lengthSeconds || "0", 10);
+
+      // 2. Get caption track URL
+      const captionTracks: any[] = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+      if (!captionTracks.length) {
+        return res.status(422).json({ message: "No captions found for this video. Try a video that has auto-generated or manual subtitles enabled." });
+      }
+      const track = captionTracks.find((t: any) => t.languageCode?.startsWith("en")) || captionTracks[0];
+      const captionUrl = `${track.baseUrl}&fmt=json3`;
+
+      // 3. Fetch captions JSON
+      const capRes = await fetch(captionUrl);
+      if (!capRes.ok) throw new Error("Failed to fetch captions");
+      const capData: any = await capRes.json();
+
+      // 4. Parse into timestamped segments
+      const segments: { start: number; end: number; text: string }[] = (capData.events || [])
+        .filter((e: any) => Array.isArray(e.segs))
+        .map((e: any) => ({
+          start: Math.round((e.tStartMs || 0) / 1000),
+          end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
+          text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
+        }))
+        .filter((s: any) => s.text.length > 2);
+
+      if (!segments.length) throw new Error("Could not parse caption data");
+
+      // 5. Build transcript string (cap at ~8000 chars)
+      const transcriptText = segments
+        .map((s) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
+        .join("\n")
+        .slice(0, 8000);
+
+      // 6. AI analysis with Groq
+      const systemPrompt = `You are a viral short-form content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be self-contained, engaging from the first second, and 15–90 seconds long. Return ONLY valid JSON.`;
+      const userPrompt = `Video: "${videoTitle}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
+
+Transcript:
+${transcriptText}
+
+Identify the 5–7 best moments to clip. Pick moments with strong hooks, emotion, humour, quotability, surprising facts, or storytelling peaks.
+
+Return JSON:
+{
+  "clips": [
+    {
+      "startSeconds": number,
+      "endSeconds": number,
+      "title": "short punchy clip title",
+      "hook": "1-sentence opening hook for the caption",
+      "whyViral": "1-2 sentences on why this moment works as a standalone clip",
+      "viralityScore": number (0-100),
+      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling"
+    }
+  ]
+}`;
+
+      const rawJson = await callGroqJson(systemPrompt, userPrompt, 3500);
+      let parsed: any;
+      try { parsed = JSON.parse(rawJson); } catch { throw new Error("AI response parse error"); }
+      const rawClips: any[] = parsed?.clips || [];
+
+      const clips = rawClips.map((clip: any, i: number) => {
+        const start = Math.max(0, Number(clip.startSeconds) || 0);
+        const end = Math.min(videoDuration || 99999, Number(clip.endSeconds) || start + 45);
+        return {
+          id: i + 1,
+          title: String(clip.title || `Clip ${i + 1}`),
+          startSeconds: start,
+          endSeconds: end,
+          startLabel: fmtSecs(start),
+          endLabel: fmtSecs(end),
+          durationLabel: `${Math.round(Math.abs(end - start))}s`,
+          hook: String(clip.hook || ""),
+          whyViral: String(clip.whyViral || ""),
+          viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
+          category: String(clip.category || "engaging"),
+        };
+      });
+
+      return res.json({ videoId, title: videoTitle, duration: videoDuration, clips });
+    } catch (err: any) {
+      console.log("[clip-finder] error:", err.message);
+      return res.status(500).json({ message: err.message || "Clip analysis failed" });
+    }
+  });
+
   // POST /api/video-resources — admin create
   app.post("/api/video-resources", requireAdmin, async (req: Request, res: Response) => {
     try {
