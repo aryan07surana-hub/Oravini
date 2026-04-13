@@ -7,16 +7,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, ClipboardList, Send, MessageCircle
+  LogOut, ChevronRight, ChevronDown, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, ClipboardList, MessageCircle, Wrench
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+
+const GOLD = "#d4b461";
 
 function WatermarkOverlay({ email, name }: { email: string; name?: string }) {
   const label = name ? `${name} · ${email}` : email;
@@ -68,25 +69,26 @@ function CreditWidget() {
   );
 }
 
-// Jarvis nav item — Coming Soon state
-function JarvisNavItem({ active, onClick }: { active: boolean; onClick: () => void }) {
-  const GOLD = "#d4b461";
+// Pill badge for "Soon"
+function SoonBadge() {
   return (
-    <Link href="/jarvis" onClick={onClick} data-testid="nav-jarvis-ai"
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-        active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-      }`}
-    >
-      <Wand2 className="w-4 h-4 flex-shrink-0 opacity-60" />
-      <span className="flex-1 opacity-60">Jarvis AI</span>
-      <span style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}55`, borderRadius: 10, padding: "1px 7px", color: GOLD, fontSize: 9, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 0 }}>Soon</span>
-    </Link>
+    <span style={{
+      background: `${GOLD}18`,
+      border: `1px solid ${GOLD}44`,
+      borderRadius: 10,
+      padding: "1px 7px",
+      color: GOLD,
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: 0.8,
+      textTransform: "uppercase" as const,
+      flexShrink: 0,
+    }}>Soon</span>
   );
 }
 
 const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/jarvis", label: "Jarvis AI", icon: Wand2 },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
@@ -98,13 +100,8 @@ const topNavItems = [
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
 ];
 
-const toolsNavItems = [
-  { href: "/tools/forms", label: "Forms & Surveys", icon: ClipboardList },
-];
-
-const dmsNavItems = [
-  { href: "/dm-tracker", label: "DM Tracker", icon: MessageCircle },
-  { href: "/send-dm", label: "Send a DM", icon: Send },
+const toolTiles = [
+  { href: "/tools/forms", label: "Quiz & Survey", icon: ClipboardList, desc: "Build forms & quizzes" },
 ];
 
 const bottomNavItems = [
@@ -112,11 +109,17 @@ const bottomNavItems = [
   { href: "/settings/plan", label: "Your Settings", icon: Settings },
 ];
 
+const comingSoonItems = [
+  { label: "Jarvis AI", icon: Wand2 },
+  { label: "DM Tracker", icon: MessageCircle },
+];
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const logout = useLogout();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(location.startsWith("/tools"));
 
   const { data: notifications } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
@@ -132,7 +135,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const unreadMessages = unreadMsg?.count || 0;
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
-
   const isAdmin = user?.role === "admin";
 
   return (
@@ -153,7 +155,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <div className="flex items-center gap-2.5">
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
             <div>
-              <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: "#d4b461", letterSpacing: "0.15em" }}>ORAVINI</p>
+              <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
               <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
             </div>
           </div>
@@ -163,6 +165,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
 
         <nav className="flex-1 p-4 overflow-y-auto">
+
           {/* ── Main nav ── */}
           <div className="space-y-1">
             {[
@@ -180,9 +183,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 ? location.startsWith("/content-analyser")
                 : location === href;
               const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
-              if (href === "/jarvis") {
-                return <JarvisNavItem key={href} active={active} onClick={() => setMobileOpen(false)} />;
-              }
               return (
                 <Link
                   key={href}
@@ -199,7 +199,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <span className="flex-1">{label}</span>
                   {badge > 0 && (
                     <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
-                      style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: "#d4b461" }}>
+                      style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: GOLD }}>
                       {badge}
                     </Badge>
                   )}
@@ -209,61 +209,47 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             })}
           </div>
 
-          {/* ── Tools section — sits right below Video Editor ── */}
+          {/* ── Tools section (collapsible) ── */}
           <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>Tools</p>
-            <div className="space-y-1">
-              {toolsNavItems.map(({ href, label, icon: Icon }) => {
-                const active = location.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                  </Link>
-                );
-              })}
-            </div>
+            <button
+              data-testid="nav-tools-toggle"
+              onClick={() => setToolsOpen(o => !o)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Wrench className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1 text-left">Tools</span>
+              <ChevronDown
+                className="w-3.5 h-3.5 transition-transform duration-200 text-zinc-500"
+                style={{ transform: toolsOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {toolsOpen && (
+              <div className="mt-2 ml-2 pl-3 grid grid-cols-2 gap-2" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
+                {toolTiles.map(({ href, label, icon: Icon, desc }) => {
+                  const active = location.startsWith(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      data-testid={`nav-tool-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition-all duration-150 group"
+                      style={{
+                        background: active ? `${GOLD}18` : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${active ? GOLD + "44" : "rgba(255,255,255,0.07)"}`,
+                      }}
+                    >
+                      <Icon className="w-5 h-5" style={{ color: active ? GOLD : "rgba(255,255,255,0.4)" }} />
+                      <p className="text-[10px] font-semibold text-center leading-tight" style={{ color: active ? GOLD : "rgba(255,255,255,0.55)" }}>{label}</p>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* ── DMs section ── */}
-          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>DMs</p>
-            <div className="space-y-1">
-              {dmsNavItems.map(({ href, label, icon: Icon }) => {
-                const active = location === href;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Bottom nav (Credits, Settings) ── */}
+          {/* ── Settings ── */}
           <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             {bottomNavItems.map(({ href, label, icon: Icon }) => {
               const active = location === href;
@@ -286,6 +272,26 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               );
             })}
           </div>
+
+          {/* ── Coming Soon ── */}
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Coming Soon</p>
+            <div className="space-y-1">
+              {comingSoonItems.map(({ label, icon: Icon }) => (
+                <div
+                  key={label}
+                  data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
+                  style={{ opacity: 0.45 }}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  <SoonBadge />
+                </div>
+              ))}
+            </div>
+          </div>
+
         </nav>
 
         <CreditWidget />
@@ -310,7 +316,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         )}
 
         <div className="p-4 border-t border-sidebar-border space-y-2">
-          {/* User info row */}
           <div className="flex items-center gap-3 px-2 py-1">
             <Avatar className="w-8 h-8 flex-shrink-0">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
@@ -321,11 +326,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
 
-          {/* Upgrade + Sign out row */}
           <div className="flex items-center gap-2">
             <Link href="/settings/plan" className="flex-1" data-testid="sidebar-upgrade-btn">
               <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.02]"
-                style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: "#d4b461" }}>
+                style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: GOLD }}>
                 <ArrowUpRight className="w-3 h-3" />
                 Upgrade Plan
               </div>
@@ -361,7 +365,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <Menu className="w-5 h-5" />
           </button>
           <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, flexShrink: 0 }} />
-          <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: "#d4b461" }}>ORAVINI</span>
+          <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
         </header>
 
         <main
