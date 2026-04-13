@@ -2961,7 +2961,14 @@ Return ONLY valid JSON matching this exact schema:
 Scoring rules:
 - Apply penalty system: weak hook -15%, no payoff -20%, early confusion -10%, flat emotion -10%
 - Overall score = (hook×0.25 + pacing×0.20 + emotion×0.15 + dropRisk×0.15 + clarity×0.10 + payoff×0.10 + rewatch×0.05) × 10, then apply penalties
-- Be honest and critical — do not inflate scores
+- Be brutally honest and calibrated — scores MUST reflect actual quality using the full 0–100 range:
+  • 85–100: Exceptional viral content — strong hook, great pacing, high emotion, clear payoff. Rare.
+  • 70–84: Good content with minor issues — will likely perform well with small tweaks
+  • 50–69: Average content — some strengths but clear problems holding it back
+  • 30–49: Weak content — multiple structural problems, low retention expected
+  • 0–29: Poor content — fundamental issues, unlikely to retain viewers past 5 seconds
+- NEVER default to 70–75. If content is mediocre, score it 45–58. If it's excellent, score it 82–92.
+- Score each sub-metric independently on 0–10 — avoid clustering all scores at 7–8.
 - Provide 4-6 specific fixes, 2-4 drop-off points, 3-5 penalties if applicable
 - retentionCurve must have at least 5 data points showing realistic audience drop-off
 - Return ONLY the JSON object, no markdown, no explanation`;

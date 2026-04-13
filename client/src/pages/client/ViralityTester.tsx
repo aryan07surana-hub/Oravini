@@ -13,6 +13,7 @@ import {
   Target, Brain, Activity, Play, ChevronDown, ChevronUp, Copy, Check,
   RefreshCw, Star, AlertCircle, ArrowRight, Clock, BarChart2, Heart,
   Eye, Shield, Award, Lightbulb, Wand2, MessageCircle, Crosshair, Trash2,
+  Download, FileText,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -198,6 +199,196 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
     onError: (err: any) => toast({ title: "Angles generation failed", description: err.message, variant: "destructive" }),
   });
 
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!result) return;
+    setExportingPdf(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      const margin = 48;
+      const contentW = W - margin * 2;
+      let y = margin;
+
+      const gold = [212, 180, 97] as [number, number, number];
+      const dark = [18, 18, 18] as [number, number, number];
+      const white = [255, 255, 255] as [number, number, number];
+      const muted = [140, 140, 140] as [number, number, number];
+      const green = [52, 211, 153] as [number, number, number];
+      const red = [248, 113, 113] as [number, number, number];
+      const orange = [251, 146, 60] as [number, number, number];
+
+      const addPage = () => { doc.addPage(); y = margin; };
+      const checkPage = (needed = 40) => { if (y + needed > doc.internal.pageSize.getHeight() - margin) addPage(); };
+
+      // ── Cover background
+      doc.setFillColor(...dark); doc.rect(0, 0, W, doc.internal.pageSize.getHeight(), "F");
+      doc.setFillColor(30, 30, 30); doc.rect(0, 0, W, 160, "F");
+
+      // ── Brand header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10); doc.setTextColor(...gold);
+      doc.text("ORAVINI · VIRALITY REPORT", margin, y + 10);
+      doc.setFontSize(22); doc.setTextColor(...white);
+      doc.text("Virality Tester Report", margin, y + 36);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9); doc.setTextColor(...muted);
+      const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      doc.text(`Generated: ${dateStr}  ·  Platform: ${platform === "youtube" ? "YouTube" : "Instagram Reels"}`, margin, y + 54);
+
+      // Score badge
+      const score = result.overallScore ?? 0;
+      const scoreColor: [number, number, number] = score >= 75 ? green : score >= 50 ? gold : score >= 30 ? orange : red;
+      doc.setFillColor(...scoreColor); doc.roundedRect(W - margin - 80, y, 80, 60, 8, 8, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(28); doc.setTextColor(...dark);
+      doc.text(`${score}`, W - margin - 40, y + 34, { align: "center" });
+      doc.setFontSize(8); doc.text("/100", W - margin - 40, y + 48, { align: "center" });
+
+      y += 80;
+      doc.setDrawColor(...gold); doc.setLineWidth(0.5); doc.line(margin, y, W - margin, y);
+      y += 20;
+
+      // ── Verdict
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...white);
+      doc.text("Verdict", margin, y); y += 14;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...muted);
+      const predLines = doc.splitTextToSize(result.viralPrediction || "", contentW);
+      doc.text(predLines, margin, y); y += predLines.length * 12 + 16;
+
+      // ── Score breakdown
+      checkPage(120);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...white);
+      doc.text("Score Breakdown", margin, y); y += 16;
+
+      const scoreItems = [
+        { label: "Hook Strength", val: result.scores?.hook ?? 0, weight: "25%" },
+        { label: "Pacing & Pattern Interrupts", val: result.scores?.pacing ?? 0, weight: "20%" },
+        { label: "Emotional Curve", val: result.scores?.emotion ?? 0, weight: "15%" },
+        { label: "Drop Risk (inverse)", val: result.scores?.dropRisk ?? 0, weight: "15%" },
+        { label: "Clarity & Cognitive Load", val: result.scores?.clarity ?? 0, weight: "10%" },
+        { label: "Payoff Strength", val: result.scores?.payoff ?? 0, weight: "10%" },
+        { label: "Rewatch / Loop Potential", val: result.scores?.rewatch ?? 0, weight: "5%" },
+      ];
+
+      for (const item of scoreItems) {
+        checkPage(24);
+        const barColor: [number, number, number] = item.val >= 7 ? green : item.val >= 5 ? gold : red;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+        doc.text(item.label, margin, y);
+        doc.setFont("helvetica", "bold"); doc.setTextColor(...barColor);
+        doc.text(`${item.val}/10  (${item.weight})`, W - margin, y, { align: "right" });
+        y += 4;
+        doc.setFillColor(40, 40, 40); doc.roundedRect(margin, y, contentW, 5, 2, 2, "F");
+        doc.setFillColor(...barColor); doc.roundedRect(margin, y, (item.val / 10) * contentW, 5, 2, 2, "F");
+        y += 12;
+      }
+      y += 8;
+
+      // ── Hook Analysis
+      if (result.hookAnalysis) {
+        checkPage(60);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...white);
+        doc.text("Hook Analysis", margin, y); y += 14;
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...muted);
+        doc.text(`Hook Score: ${result.hookAnalysis.score}/10  ·  Scroll-Stop Rate: ${result.hookAnalysis.scrollStoppingScore}%`, margin, y); y += 14;
+        if (result.hookAnalysis.strengths?.length) {
+          doc.setTextColor(52, 211, 153);
+          doc.text("Strengths: " + result.hookAnalysis.strengths.join("  ·  "), margin, y); y += 12;
+        }
+        if (result.hookAnalysis.weaknesses?.length) {
+          doc.setTextColor(...red);
+          doc.text("Weaknesses: " + result.hookAnalysis.weaknesses.join("  ·  "), margin, y); y += 12;
+        }
+        y += 8;
+      }
+
+      // ── Fixes
+      if (result.fixes?.length) {
+        checkPage(60);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...white);
+        doc.text("Retention Fixes", margin, y); y += 14;
+        for (const fix of result.fixes) {
+          checkPage(28);
+          const fc: [number, number, number] = fix.priority === "high" ? red : fix.priority === "medium" ? orange : green;
+          doc.setFillColor(fc[0], fc[1], fc[2], 20);
+          doc.setDrawColor(...fc); doc.setLineWidth(0.3);
+          doc.roundedRect(margin, y - 2, contentW, 20, 3, 3, "S");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...fc);
+          doc.text(`[${(fix.type || "fix").toUpperCase()}] ${fix.priority?.toUpperCase()}`, margin + 6, y + 9);
+          doc.setFont("helvetica", "normal"); doc.setTextColor(...muted);
+          const fixLines = doc.splitTextToSize(fix.text || "", contentW - 120);
+          doc.text(fixLines, margin + 110, y + 9);
+          y += Math.max(24, fixLines.length * 10 + 10);
+        }
+        y += 6;
+      }
+
+      // ── Drop-offs
+      if (result.dropoffs?.length) {
+        checkPage(60);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...white);
+        doc.text("Drop-Off Points", margin, y); y += 14;
+        for (const d of result.dropoffs) {
+          checkPage(22);
+          doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...red);
+          doc.text(`Drop at ${d.second}s [${(d.severity || "").toUpperCase()}]`, margin, y);
+          doc.setFont("helvetica", "normal"); doc.setTextColor(...muted);
+          doc.text(d.reason || "", margin + 100, y);
+          y += 14;
+        }
+        y += 8;
+      }
+
+      // ── Content Angles
+      if (contentAngles.length > 0) {
+        checkPage(40);
+        doc.setFillColor(30, 30, 30); doc.rect(0, y - 8, W, 28, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(...gold);
+        doc.text("10 Content Angles to Go Viral Again", margin, y + 10); y += 30;
+
+        for (const angle of contentAngles) {
+          checkPage(80);
+          doc.setFillColor(28, 28, 28); doc.roundedRect(margin, y - 4, contentW, 70, 5, 5, "F");
+          doc.setDrawColor(60, 60, 60); doc.setLineWidth(0.3); doc.roundedRect(margin, y - 4, contentW, 70, 5, 5, "S");
+
+          doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...white);
+          doc.text(`${angle.number || ""}. ${angle.title || ""}`, margin + 10, y + 10);
+
+          doc.setFont("helvetica", "italic"); doc.setFontSize(8); doc.setTextColor(...gold);
+          const hookLines = doc.splitTextToSize(`"${angle.hook}"`, contentW - 20);
+          doc.text(hookLines, margin + 10, y + 22);
+
+          doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+          const briefLines = doc.splitTextToSize(angle.brief || "", contentW - 20);
+          doc.text(briefLines, margin + 10, y + 22 + hookLines.length * 10 + 2);
+
+          doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(140, 140, 140);
+          doc.text(`Format: ${angle.format || ""}  ·  ${(angle.platforms || []).join(", ")}`, margin + 10, y + 60);
+          y += 80;
+        }
+      }
+
+      // ── Footer on each page
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFillColor(...dark); doc.rect(0, doc.internal.pageSize.getHeight() - 30, W, 30, "F");
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...muted);
+        doc.text("Oravini · Virality Tester Report · Confidential", margin, doc.internal.pageSize.getHeight() - 12);
+        doc.text(`Page ${i} of ${totalPages}`, W - margin, doc.internal.pageSize.getHeight() - 12, { align: "right" });
+      }
+
+      doc.save(`virality-report-${Date.now()}.pdf`);
+      toast({ title: "PDF exported", description: "Your report has been downloaded." });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const handleAnalyze = () => {
     if (mode === "new" && !script.trim()) return toast({ title: "Please enter your script or content idea", variant: "destructive" });
     if (mode === "reel" && !reelUrl.trim()) return toast({ title: "Please enter a reel URL", variant: "destructive" });
@@ -378,6 +569,28 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
       {/* Results */}
       {r && !analyzeMutation.isPending && (
         <div className="space-y-5">
+          {/* Export PDF button row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-zinc-500" />
+              <span className="text-sm font-bold text-white">Analysis Report</span>
+              {contentAngles.length > 0 && (
+                <span className="text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5">+ {contentAngles.length} angles</span>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-primary/40 text-primary hover:bg-primary/10 font-bold gap-2"
+              disabled={exportingPdf}
+              data-testid="btn-export-pdf"
+              onClick={handleExportPdf}
+            >
+              {exportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Export PDF
+            </Button>
+          </div>
+
           {/* Hero score + verdict */}
           <div className="rounded-2xl border border-border bg-card p-6">
             <div className="flex flex-col sm:flex-row items-center gap-6">
