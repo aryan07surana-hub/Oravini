@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   MessageCircle, Plus, Trash2, Copy, Check, Instagram, Flame, Thermometer,
   Snowflake, Star, User, Clock, Calendar, Edit2, Search, Filter, CheckCircle2,
-  XCircle, Zap, LayoutGrid, List, X, ChevronDown, AlertCircle, Send, Info
+  XCircle, Zap, LayoutGrid, List, X, ChevronDown, AlertCircle, Send, Info,
+  Link2, ShieldCheck, RefreshCw, ExternalLink, Wifi, WifiOff, Eye, EyeOff
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -306,6 +307,137 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
   );
 }
 
+function InstagramConnectPanel({ clientId }: { clientId: string }) {
+  const { toast } = useToast();
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+
+  const { data: account, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["/api/meta/account"],
+    staleTime: 30000,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: (shortToken: string) => apiRequest("POST", "/api/meta/refresh-token", { shortToken }),
+    onSuccess: () => {
+      toast({ title: "Instagram connected!", description: "Your account is now linked. Valid for ~60 days." });
+      setToken("");
+      refetch();
+    },
+    onError: (e: any) => toast({ title: "Connection failed", description: e.message, variant: "destructive" }),
+  });
+
+  const isConnected = account?.connected;
+
+  return (
+    <div className="max-w-2xl space-y-5">
+      {/* Status card */}
+      <div className={`p-4 rounded-xl border flex items-start gap-4 ${isConnected ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isConnected ? "bg-green-500/20" : "bg-red-500/20"}`}>
+          {isConnected ? <Wifi className="w-5 h-5 text-green-400" /> : <WifiOff className="w-5 h-5 text-red-400" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40 rounded" />
+              <Skeleton className="h-3 w-60 rounded" />
+            </div>
+          ) : isConnected ? (
+            <>
+              <p className="text-sm font-bold text-green-400 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" /> Connected
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                @{account.igUsername} · {account.pageName}
+                {account.followersCount != null && ` · ${account.followersCount.toLocaleString()} followers`}
+              </p>
+              {account.expiresAt && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Token expires: {format(new Date(account.expiresAt), "MMM d, yyyy")}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-red-400">Not Connected</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{account?.message || "No Instagram account linked yet."}</p>
+            </>
+          )}
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-white/5"
+          data-testid="button-refresh-meta-status"
+        >
+          <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      {/* How to connect */}
+      <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+        <p className="text-xs font-bold text-primary uppercase tracking-wide flex items-center gap-2">
+          <Link2 className="w-3.5 h-3.5" />
+          {isConnected ? "Reconnect / Update Token" : "How to Connect Your Instagram"}
+        </p>
+        <ol className="space-y-2">
+          {[
+            <>Open the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2 inline-flex items-center gap-1">Meta Graph API Explorer <ExternalLink className="w-3 h-3" /></a></>,
+            <>Select your <strong className="text-foreground">Facebook App</strong> and click <strong className="text-foreground">Generate Access Token</strong></>,
+            <>Grant these permissions: <code className="text-[10px] bg-muted px-1 py-0.5 rounded">instagram_basic</code> <code className="text-[10px] bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code> <code className="text-[10px] bg-muted px-1 py-0.5 rounded">pages_show_list</code></>,
+            <>Copy the token and paste it below — we'll automatically upgrade it to a <strong className="text-foreground">60-day token</strong></>,
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3 text-xs text-muted-foreground">
+              <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+              <span className="leading-relaxed">{step}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* Token input */}
+      <div className="space-y-3">
+        <Label className="text-xs text-muted-foreground">Paste your Meta Access Token</Label>
+        <div className="relative">
+          <Input
+            type={showToken ? "text" : "password"}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="EAA..."
+            className="pr-10 font-mono text-xs"
+            data-testid="input-meta-token"
+          />
+          <button
+            type="button"
+            onClick={() => setShowToken(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        <Button
+          onClick={() => connectMutation.mutate(token)}
+          disabled={!token.trim() || connectMutation.isPending}
+          className="w-full gap-2"
+          data-testid="button-connect-instagram"
+        >
+          <Instagram className="w-4 h-4" />
+          {connectMutation.isPending ? "Connecting..." : isConnected ? "Reconnect Instagram" : "Connect Instagram"}
+        </Button>
+      </div>
+
+      {isConnected && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+          <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <p className="text-[11px] leading-relaxed">
+            For DMs to work, your recipient must have messaged your business first within the last 24 hours (Instagram policy). Make sure your token includes the <strong>instagram_manage_messages</strong> permission.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SendDMDialog({ open, onClose, lead, clientId }: { open: boolean; onClose: () => void; lead: any; clientId: string }) {
   const { toast } = useToast();
   const [recipientId, setRecipientId] = useState("");
@@ -528,6 +660,7 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
               <TabsTrigger value="pipeline" className="gap-1.5 text-xs"><LayoutGrid className="w-3.5 h-3.5" />Pipeline</TabsTrigger>
               <TabsTrigger value="list" className="gap-1.5 text-xs"><List className="w-3.5 h-3.5" />List</TabsTrigger>
               <TabsTrigger value="quick-replies" className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Quick Replies</TabsTrigger>
+              <TabsTrigger value="instagram" className="gap-1.5 text-xs" data-testid="tab-instagram-connect"><Instagram className="w-3.5 h-3.5" />Instagram</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -639,6 +772,11 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
           {/* Quick Replies */}
           <TabsContent value="quick-replies" className="mt-4 max-w-2xl">
             <QuickRepliesPanel clientId={activeClientId} isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* Instagram Connection */}
+          <TabsContent value="instagram" className="mt-4">
+            <InstagramConnectPanel clientId={activeClientId} />
           </TabsContent>
         </Tabs>
 
