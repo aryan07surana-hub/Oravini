@@ -727,9 +727,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { recipientId, message } = req.body;
       if (!recipientId?.trim()) return res.status(400).json({ message: "recipientId is required" });
       if (!message?.trim()) return res.status(400).json({ message: "message is required" });
-      const igAccount = await getConnectedIGAccount();
-      if (!igAccount) return res.status(400).json({ message: "No Instagram Business Account connected. Please connect your account first." });
-      const result = await sendInstagramDM(igAccount.igAccountId, recipientId.trim(), message.trim());
+      const result = await sendInstagramDM(recipientId.trim(), message.trim());
       return res.json({ success: true, messageId: result.messageId });
     } catch (err: any) {
       console.log("[send-dm] error:", err.message);

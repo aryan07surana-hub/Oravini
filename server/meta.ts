@@ -144,12 +144,13 @@ export async function getIGAccountInsights(igAccountId: string): Promise<any> {
 }
 
 // ── Send an Instagram Direct Message ─────────────────────────────────────────
+// Uses /me/messages — sends from the connected account directly.
 // Requires instagram_manage_messages permission.
 // The recipient must have messaged the business first within the 24-hour window.
-export async function sendInstagramDM(igAccountId: string, recipientId: string, messageText: string): Promise<{ messageId: string }> {
+export async function sendInstagramDM(recipientId: string, messageText: string): Promise<{ messageId: string }> {
   const token = await getActiveToken();
   if (!token) throw new Error("META_ACCESS_TOKEN not configured");
-  const url = `https://graph.instagram.com/v25.0/${igAccountId}/messages`;
+  const url = `https://graph.instagram.com/v25.0/me/messages`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
