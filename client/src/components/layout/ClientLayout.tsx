@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, MessageCircle, Wrench
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, MessageCircle, Wrench, Mic
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -217,6 +217,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <Wrench className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1">Tools</span>
               {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+            </Link>
+          </div>
+
+          {/* ── Meetings section ── */}
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Meetings</p>
+            <Link
+              href="/meetings"
+              data-testid="nav-meetings"
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                location.startsWith("/meetings")
+                  ? "bg-primary text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              <Mic className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">Notetaker</span>
+              {!location.startsWith("/meetings") && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
             </Link>
           </div>
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, pgEnum, real, jsonb, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -558,3 +558,22 @@ export const formViews = pgTable("form_views", {
   metadata: jsonb("metadata"),
 });
 export type FormView = typeof formViews.$inferSelect;
+
+// ── Meetings Notetaker ─────────────────────────────────────────────────────────
+export const meetings = pgTable("meetings", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  meetingDate: timestamp("meeting_date"),
+  duration: integer("duration"),
+  status: text("status").notNull().default("processing"),
+  rawTranscript: text("raw_transcript"),
+  summary: text("summary"),
+  actionItems: jsonb("action_items"),
+  keyMoments: jsonb("key_moments"),
+  participants: text("participants"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertMeetingSchema = createInsertSchema(meetings).omit({ id: true, createdAt: true });
+export type Meeting = typeof meetings.$inferSelect;
+export type InsertMeeting = z.infer<typeof insertMeetingSchema>;

@@ -66,6 +66,9 @@ import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
 import FormResponses from "@/pages/client/FormResponses";
+import MeetingsHub from "@/pages/client/MeetingsHub";
+import NewMeeting from "@/pages/client/NewMeeting";
+import MeetingDetail from "@/pages/client/MeetingDetail";
 import PublicForm from "@/pages/PublicForm";
 
 const GOLD = "#d4b461";
@@ -261,6 +264,15 @@ function Router() {
       </Route>
       <Route path="/tools">
         {() => <ProtectedRoute component={ToolsHub} />}
+      </Route>
+      <Route path="/meetings/new">
+        {() => <ProtectedRoute component={NewMeeting} />}
+      </Route>
+      <Route path="/meetings/:id">
+        {(params) => <ProtectedRoute component={MeetingDetail} id={params.id} />}
+      </Route>
+      <Route path="/meetings">
+        {() => <ProtectedRoute component={MeetingsHub} />}
       </Route>
       <Route path="/f/:slug">
         {(params) => <PublicForm />}

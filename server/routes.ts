@@ -7192,5 +7192,160 @@ Rules:
     res.json({ success: true, submissionId: sub.id });
   });
 
+  // ── Meetings Notetaker ─────────────────────────────────────────────────────
+
+  app.get("/api/meetings", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const list = await storage.getMeetings(userId);
+    res.json(list);
+  });
+
+  app.get("/api/meetings/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const meeting = await storage.getMeeting(Number(p(req.params.id)), userId);
+    if (!meeting) return res.status(404).json({ message: "Not found" });
+    res.json(meeting);
+  });
+
+  app.delete("/api/meetings/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteMeeting(Number(p(req.params.id)), userId);
+    res.json({ success: true });
+  });
+
+  // Create meeting from pasted transcript
+  app.post("/api/meetings/transcript", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, transcript, participants, meetingDate } = req.body;
+    if (!title || !transcript) return res.status(400).json({ message: "title and transcript are required" });
+
+    const meeting = await storage.createMeeting({
+      userId,
+      title,
+      rawTranscript: transcript,
+      participants: participants || null,
+      meetingDate: meetingDate ? new Date(meetingDate) : null,
+      status: "processing",
+    });
+
+    // Process async
+    (async () => {
+      try {
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("No Groq key");
+
+        const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
+- summary: a concise 3-5 sentence summary of the meeting
+- actionItems: array of strings, each a clear action item with owner if mentioned (e.g. "John to send proposal by Friday")
+- keyMoments: array of objects with {text: string} for the most important discussion points or decisions made`;
+
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
+            ],
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data = await r.json() as any;
+        const parsed = JSON.parse(data.choices[0].message.content);
+        await storage.updateMeeting(meeting.id, userId, {
+          summary: parsed.summary || null,
+          actionItems: parsed.actionItems || [],
+          keyMoments: parsed.keyMoments || [],
+          status: "ready",
+        });
+      } catch (e) {
+        console.log("[meetings] processing error:", e);
+        await storage.updateMeeting(meeting.id, userId, { status: "failed" });
+      }
+    })();
+
+    res.json(meeting);
+  });
+
+  // Create meeting from audio upload
+  app.post("/api/meetings/upload", requireAuth, upload.single("audio"), async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, participants, meetingDate } = req.body;
+    if (!title) return res.status(400).json({ message: "title is required" });
+    if (!req.file) return res.status(400).json({ message: "audio file is required" });
+
+    const meeting = await storage.createMeeting({
+      userId,
+      title,
+      participants: participants || null,
+      meetingDate: meetingDate ? new Date(meetingDate) : null,
+      status: "processing",
+    });
+
+    // Transcribe + process async
+    (async () => {
+      const filePath = req.file!.path;
+      try {
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("No Groq key");
+
+        // Transcribe with Groq Whisper
+        const { default: FormData } = await import("form-data");
+        const formData = new FormData();
+        formData.append("file", fs.createReadStream(filePath), { filename: req.file!.originalname || "audio.mp3" });
+        formData.append("model", "whisper-large-v3");
+        formData.append("response_format", "text");
+
+        const transcribeRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, ...formData.getHeaders() },
+          body: formData as any,
+        });
+
+        if (!transcribeRes.ok) throw new Error(`Transcription failed: ${transcribeRes.status}`);
+        const transcript = await transcribeRes.text();
+
+        await storage.updateMeeting(meeting.id, userId, { rawTranscript: transcript });
+
+        // Generate AI notes
+        const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
+- summary: a concise 3-5 sentence summary of the meeting
+- actionItems: array of strings, each a clear action item with owner if mentioned
+- keyMoments: array of objects with {text: string} for the most important discussion points or decisions`;
+
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
+            ],
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data = await r.json() as any;
+        const parsed = JSON.parse(data.choices[0].message.content);
+        await storage.updateMeeting(meeting.id, userId, {
+          summary: parsed.summary || null,
+          actionItems: parsed.actionItems || [],
+          keyMoments: parsed.keyMoments || [],
+          status: "ready",
+        });
+      } catch (e) {
+        console.log("[meetings] upload/transcribe error:", e);
+        await storage.updateMeeting(meeting.id, userId, { status: "failed" });
+      } finally {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
+    })();
+
+    res.json(meeting);
+  });
+
   return httpServer;
 }

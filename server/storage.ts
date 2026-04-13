@@ -9,6 +9,7 @@ import {
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
   youtubeTokens, scheduledYoutubePosts,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
+  meetings,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
@@ -31,6 +32,7 @@ import {
   type LandingLead, type InsertLandingLead,
   type Form, type InsertForm, type FormQuestion, type InsertFormQuestion,
   type FormSubmission, type FormAnswer, type FormView,
+  type Meeting, type InsertMeeting,
 } from "@shared/schema";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -1079,6 +1081,30 @@ class DatabaseStorage implements IStorage {
       submissions: subRows[0]?.count ?? 0,
       emailCaptures: emailRows[0]?.count ?? 0,
     };
+  }
+
+  // ── Meetings Notetaker ──────────────────────────────────────────────────────
+  async getMeetings(userId: string): Promise<Meeting[]> {
+    return db.select().from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.createdAt));
+  }
+
+  async getMeeting(id: number, userId: string): Promise<Meeting | undefined> {
+    const rows = await db.select().from(meetings).where(and(eq(meetings.id, id), eq(meetings.userId, userId)));
+    return rows[0];
+  }
+
+  async createMeeting(data: InsertMeeting): Promise<Meeting> {
+    const rows = await db.insert(meetings).values(data).returning();
+    return rows[0];
+  }
+
+  async updateMeeting(id: number, userId: string, data: Partial<InsertMeeting>): Promise<Meeting | undefined> {
+    const rows = await db.update(meetings).set(data).where(and(eq(meetings.id, id), eq(meetings.userId, userId))).returning();
+    return rows[0];
+  }
+
+  async deleteMeeting(id: number, userId: string): Promise<void> {
+    await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.userId, userId)));
   }
 }
 
