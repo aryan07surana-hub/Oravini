@@ -3084,6 +3084,72 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
     }
   });
 
+  // ── Viral Content Angles ───────────────────────────────────────────────────
+  app.post("/api/virality/angles", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { viralUrl, platform, whyViral, audience } = req.body;
+      const _uAng = req.user as any;
+      if (_uAng?.role !== "admin") {
+        const angCredit = await storage.deductCredits(_uAng.id, 2, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
+        if (!angCredit.success) return res.status(402).json({ message: angCredit.message, insufficientCredits: true, balance: angCredit.balance });
+      }
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "youtube" ? "YouTube" : "Instagram Reels";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const whyNote = whyViral ? `Why it went viral: ${whyViral}` : "";
+
+      const prompt = `You are an elite viral content strategist. A creator's ${platformLabel} post went viral. Based on the details below, generate exactly 10 fresh content angles they can use to post similar viral content.
+
+Viral post: ${viralUrl || "not specified"}
+${whyNote}
+${audienceNote}
+
+Generate 10 distinct content angles. Each angle must be a unique spin on the viral formula — different hook styles, formats, or sub-topics. Mix Instagram Reels and YouTube Shorts formats where relevant.
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "angles": [
+    {
+      "number": 1,
+      "title": "short punchy angle title",
+      "hook": "the exact first line / hook for this content",
+      "format": "e.g. Storytime, POV, Tutorial, Listicle, Hot Take, Before/After, Day In My Life, Q&A, Myth Bust, Transformation",
+      "platforms": ["Instagram", "YouTube"],
+      "brief": "2-3 sentence description of what this content covers and why it will perform",
+      "whyItWorks": "1 sentence — the psychological trigger that makes this angle viral"
+    }
+  ]
+}`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 2000,
+          temperature: 0.75,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const raw = data.choices?.[0]?.message?.content || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = { angles: [] }; }
+      return res.json({ angles: parsed.angles || [] });
+    } catch (err: any) {
+      console.error("[Virality Angles] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Angles generation failed" });
+    }
+  });
+
   // ── AI Content Coach ──────────────────────────────────────────────────────
   const COACH_SYSTEM = `You are an AI Content Coach named "Coach" — a witty, sharp, animated character who helps creators make viral content. You speak like a real mentor: casual, direct, slightly funny. Never robotic.
 

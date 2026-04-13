@@ -26,6 +26,7 @@ const PIE_COLORS = ["#d4b461", "#e879a0", "#60a5fa", "#34d399", "#a78bfa", "#fb9
 
 const PLATFORMS = [
   { id: "instagram", label: "Instagram Reels", icon: "📸" },
+  { id: "youtube", label: "YouTube", icon: "🎬" },
 ];
 
 function ScoreRing({ score, size = 120 }: { score: number; size?: number }) {
@@ -136,11 +137,14 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
   const [reelUrl, setReelUrl] = useState("");
   const [platform, setPlatform] = useState("instagram");
   const [audience, setAudience] = useState("");
+  const [whyViral, setWhyViral] = useState("");
   const [result, setResult] = useState<any>(null);
   const [newHooks, setNewHooks] = useState<string[]>([]);
   const [rewrittenScript, setRewrittenScript] = useState("");
   const [showHooks, setShowHooks] = useState(false);
   const [showRewrite, setShowRewrite] = useState(false);
+  const [contentAngles, setContentAngles] = useState<any[]>([]);
+  const [showAngles, setShowAngles] = useState(false);
 
   const { data: viralityHistory = [] } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=virality"],
@@ -186,6 +190,14 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
     onError: (err: any) => toast({ title: "Rewrite failed", description: err.message, variant: "destructive" }),
   });
 
+  const anglesMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      return await apiRequest("POST", "/api/virality/angles", payload);
+    },
+    onSuccess: (data) => { setContentAngles(data.angles || []); setShowAngles(true); },
+    onError: (err: any) => toast({ title: "Angles generation failed", description: err.message, variant: "destructive" }),
+  });
+
   const handleAnalyze = () => {
     if (mode === "new" && !script.trim()) return toast({ title: "Please enter your script or content idea", variant: "destructive" });
     if (mode === "reel" && !reelUrl.trim()) return toast({ title: "Please enter a reel URL", variant: "destructive" });
@@ -224,7 +236,7 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
           <div>
             <h2 className="text-lg font-black text-white mb-1">Virality Tester</h2>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Paste your script, hook, or content idea — or drop in a previous reel URL — and get a full AI-powered retention analysis. Find exactly where viewers drop off, why content goes viral, and how to fix it before you post.
+              Paste your script or content idea to test virality before you post — or drop in an Instagram Reel or YouTube video that already went viral. Explain why it performed, and generate 10 content angles to recreate that success.
             </p>
           </div>
         </div>
@@ -253,10 +265,21 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
             </button>
           </div>
 
-          {/* Platform — Instagram only */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 bg-primary/5 w-fit">
-            <span>📸</span>
-            <span className="text-sm font-semibold text-primary">Instagram Reels</span>
+          {/* Platform selector */}
+          <div>
+            <Label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Platform</Label>
+            <div className="flex gap-2">
+              {PLATFORMS.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setPlatform(p.id)}
+                  data-testid={`btn-platform-${p.id}`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${platform === p.id ? "border-primary/50 bg-primary/10 text-primary" : "border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300"}`}
+                >
+                  <span>{p.icon}</span>{p.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {mode === "new" ? (
@@ -274,22 +297,34 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-sm font-semibold text-zinc-300">Instagram Reel URL</Label>
+                <Label className="text-sm font-semibold text-zinc-300">
+                  {platform === "youtube" ? "YouTube Video URL" : "Instagram Reel URL"}
+                </Label>
                 <Input
                   value={reelUrl}
                   onChange={e => setReelUrl(e.target.value)}
-                  placeholder="https://www.instagram.com/reel/..."
+                  placeholder={platform === "youtube" ? "https://www.youtube.com/watch?v=..." : "https://www.instagram.com/reel/..."}
                   className="bg-zinc-900 border-zinc-700 text-zinc-200 placeholder:text-zinc-600"
                   data-testid="input-reel-url"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-zinc-300">Why did it go viral? <span className="text-zinc-500 font-normal">(optional — but improves results)</span></Label>
+                <Textarea
+                  value={whyViral}
+                  onChange={e => setWhyViral(e.target.value)}
+                  placeholder="e.g. It had a shocking hook, the topic was trending, the story felt relatable, it hit a pain point my audience struggles with..."
+                  className="min-h-[90px] bg-zinc-900 border-zinc-700 text-zinc-200 placeholder:text-zinc-600 text-sm resize-none"
+                  data-testid="textarea-why-viral"
                 />
               </div>
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-zinc-400">
                 <p className="font-semibold text-primary mb-1">What you'll get:</p>
                 <ul className="space-y-1 list-disc pl-4 text-xs">
-                  <li>Why this reel went viral — or why it didn't</li>
+                  <li>Why this {platform === "youtube" ? "video" : "reel"} went viral — or why it didn't</li>
                   <li>Full breakdown of what worked and what killed retention</li>
                   <li>Hook strength, engagement analysis, audience fit</li>
-                  <li>Exact improvements to repost or recreate it better</li>
+                  <li>10 content angles to post similar viral content</li>
                 </ul>
               </div>
             </div>
@@ -632,6 +667,75 @@ export default function ViralityTester({ useAdmin, activeClientId, user }: { use
               Make It Viral ✨
             </Button>
           </div>
+
+          {/* Generate 10 Content Angles — shown when a reel/video URL was analysed */}
+          {mode === "reel" && reelUrl && (
+            <Card className="border-primary/30 bg-gradient-to-br from-primary/8 via-primary/3 to-transparent">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                    <Lightbulb className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-white">Generate 10 Content Angles</p>
+                    <p className="text-xs text-zinc-500">Turn this viral {platform === "youtube" ? "video" : "reel"} into 10 new post ideas you can recreate</p>
+                  </div>
+                  <Button
+                    className="ml-auto bg-primary text-black font-bold text-xs px-4 py-2 h-auto hover:bg-primary/90 flex-shrink-0"
+                    disabled={anglesMutation.isPending}
+                    data-testid="btn-generate-angles"
+                    onClick={() => anglesMutation.mutate({ viralUrl: reelUrl, platform, whyViral, audience })}
+                  >
+                    {anglesMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Generating...</> : <><Sparkles className="w-3.5 h-3.5 mr-1.5" />Generate Angles</>}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-zinc-500">Uses 2 credits · Works best when you explain why it went viral above</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Content Angles results */}
+          {showAngles && contentAngles.length > 0 && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <Lightbulb className="w-5 h-5 text-primary" />
+                  <h3 className="text-sm font-black text-white">10 Content Angles to Go Viral Again</h3>
+                  <span className="text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5 ml-auto">{contentAngles.length} angles</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {contentAngles.map((angle: any, i: number) => (
+                    <div key={i} className="rounded-xl border border-zinc-700/60 bg-zinc-900/60 p-4 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[10px] font-black text-primary flex-shrink-0">{i + 1}</span>
+                          <p className="text-sm font-black text-white leading-snug">{angle.title}</p>
+                        </div>
+                        <CopyBtn text={`${angle.title}\n\nHook: ${angle.hook}\n\n${angle.brief}`} />
+                      </div>
+                      <div className="rounded-lg bg-zinc-800/60 border border-zinc-700/40 px-3 py-2">
+                        <p className="text-[10px] text-zinc-500 font-semibold mb-0.5">HOOK</p>
+                        <p className="text-xs text-primary font-medium italic">"{angle.hook}"</p>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{angle.brief}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-zinc-600 text-zinc-400">{angle.format}</span>
+                        {(angle.platforms || []).map((p: string) => (
+                          <span key={p} className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${p === "Instagram" ? "bg-pink-500/15 border border-pink-500/30 text-pink-400" : "bg-red-500/15 border border-red-500/30 text-red-400"}`}>{p}</span>
+                        ))}
+                      </div>
+                      {angle.whyItWorks && (
+                        <div className="flex items-start gap-1.5">
+                          <Brain className="w-3 h-3 text-zinc-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-[10px] text-zinc-500 italic">{angle.whyItWorks}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Generated hooks */}
           {showHooks && newHooks.length > 0 && (
