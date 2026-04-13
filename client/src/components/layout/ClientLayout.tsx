@@ -97,7 +97,6 @@ const topNavItems = [
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
-  { href: "/video-studio", label: "Video Studio", icon: Film },
 ];
 
 const bottomNavItems = [

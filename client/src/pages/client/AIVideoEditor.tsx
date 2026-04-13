@@ -18,6 +18,7 @@ import {
   Shuffle, Wand2, Music, Layers, Star, Play, RotateCcw, Hash, Video, Camera,
   Download, CheckSquare, Square, Plus, X, TrendingUp, Trophy, AlertCircle,
   ArrowRight, Image, Film, MessageCircle, Send, Radio, History, Trash2, Clock,
+  Upload, CheckCircle2,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -817,11 +818,6 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <PageTourButton pageKey="video-editor" />
-            <a href="/video-studio">
-              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10 gap-2 font-bold">
-                <Film className="w-4 h-4" /> Video Studio →
-              </Button>
-            </a>
             <Button variant="outline" size="sm" data-testid="btn-broll-library" onClick={() => { setShowBrollLibrary(v => !v); setShowTemplates(false); }} className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 gap-2">
               <Film className="w-4 h-4" />
               B-Roll Library
@@ -1546,28 +1542,79 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
               )}
             </div>
 
-            {/* ── Send to Video Studio CTA ────────────────────────────────────── */}
-            <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 rounded-2xl p-4 flex items-center gap-4 flex-wrap">
-              <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                <Film className="w-5 h-5 text-primary" />
+            {/* ── Video Studio CTA ─────────────────────────────────────────────── */}
+            <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/12 via-primary/5 to-transparent shadow-[0_0_40px_rgba(212,180,97,0.08)]">
+              {/* Decorative glow orb */}
+              <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+
+              <div className="relative p-6 space-y-5">
+                {/* Header */}
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(212,180,97,0.2)]">
+                    <Film className="w-7 h-7 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <p className="text-base font-black text-foreground">Video Studio</p>
+                      <Badge className="bg-primary/15 text-primary border-primary/30 border text-[10px] font-bold px-2">NEW</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Take your AI plan from idea to finished, rendered video — all in one place. Upload footage, edit with AI-powered tools, then export with one click.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Workflow steps */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { icon: Sparkles, label: "AI Script",    desc: "Hooks + full script",        color: "text-primary    bg-primary/10    border-primary/20"    },
+                    { icon: Upload,   label: "Upload",       desc: "Any video up to 200MB",      color: "text-blue-400  bg-blue-500/10   border-blue-500/20"   },
+                    { icon: Scissors, label: "AI Edit",      desc: "Silence removal + captions", color: "text-amber-400 bg-amber-500/10  border-amber-500/20"  },
+                    { icon: Play,     label: "Render",       desc: "Pro-quality export",         color: "text-green-400 bg-green-500/10  border-green-500/20"  },
+                  ].map(({ icon: Icon, label, desc, color }, i) => (
+                    <div key={i} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border ${color} text-center`}>
+                      <Icon className={`w-4 h-4 ${color.split(" ")[0]}`} />
+                      <p className="text-[11px] font-black text-foreground">{label}</p>
+                      <p className="text-[9px] text-muted-foreground leading-tight">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Feature bullets */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4">
+                  {[
+                    "Word-level transcript with click-to-seek",
+                    "Auto silence removal with threshold control",
+                    "Burn-in captions — Bold, Netflix, Karaoke",
+                    "Cinematic, Warm & Cool colour grading",
+                    "Edit checklist synced from your AI plan",
+                    "Shotstack-powered 1080p export",
+                  ].map((f, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                      <p className="text-xs text-foreground">{f}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CTA row */}
+                <div className="flex items-center gap-3 pt-1 flex-wrap">
+                  <Button
+                    data-testid="btn-send-to-studio"
+                    onClick={sendToStudio}
+                    disabled={sentToStudio}
+                    size="lg"
+                    className="bg-primary text-black hover:bg-primary/90 gap-2 font-black text-sm h-12 px-8 shadow-[0_0_20px_rgba(212,180,97,0.3)]"
+                  >
+                    {sentToStudio
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening Studio…</>
+                      : <><Film className="w-5 h-5" /> Send Plan to Video Studio</>}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Your script, hooks &amp; {result?.timeline?.length || 0} edit suggestions auto-load instantly
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-foreground">Send this plan to Video Studio</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Your script, hooks, edit suggestions &amp; recommended settings will auto-load — just upload your footage and render.
-                </p>
-              </div>
-              <Button
-                data-testid="btn-send-to-studio"
-                onClick={sendToStudio}
-                disabled={sentToStudio}
-                className="flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 gap-2 font-bold"
-              >
-                {sentToStudio
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening Studio…</>
-                  : <><Film className="w-4 h-4" /> Open in Video Studio</>
-                }
-              </Button>
             </div>
 
             {/* ── Persistent Video Dock (shown across all tabs) ─────────────────── */}
