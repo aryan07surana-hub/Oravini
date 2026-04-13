@@ -179,6 +179,8 @@ export default function PublicForm() {
   };
 
   const settings = (form.settings || {}) as any;
+  const deviceTarget = settings.deviceTarget || "both";
+  const containerMaxWidth = deviceTarget === "mobile" ? "390px" : deviceTarget === "desktop" ? "860px" : "580px";
 
   // Thank you screen
   if (submitted) return (
@@ -209,8 +211,8 @@ export default function PublicForm() {
         <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, background: GOLD }} />
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-xl">
+      <div className={`flex-1 flex flex-col items-center justify-center ${deviceTarget === "mobile" ? "p-4" : "p-6"}`}>
+        <div className="w-full" style={{ maxWidth: containerMaxWidth }}>
           {/* Form title (first question only) */}
           {current === 0 && (
             <div className="mb-8 animate-in fade-in slide-in-from-bottom-3 duration-500">

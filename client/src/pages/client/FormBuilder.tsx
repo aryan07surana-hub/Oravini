@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Zap, Copy, CheckCircle2, X, BarChart2, ExternalLink, Type, Mail, Phone, Hash, AlignLeft, Star, ToggleLeft, List, User, HelpCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ChevronUp, ChevronDown, Save, Zap, Copy, CheckCircle2, X, BarChart2, ExternalLink, Type, Mail, Phone, Hash, AlignLeft, Star, ToggleLeft, List, User, HelpCircle, Smartphone, Monitor, LayoutTemplate } from "lucide-react";
 
 const GOLD = "#d4b461";
 
@@ -203,6 +203,7 @@ export default function FormBuilder() {
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
   const [submitMsg, setSubmitMsg] = useState("Thank you for your response!");
+  const [deviceTarget, setDeviceTarget] = useState<"mobile" | "desktop" | "both">("both");
   const [copied, setCopied] = useState(false);
 
   const { data: form, isLoading: formLoading } = useQuery<any>({
@@ -220,7 +221,9 @@ export default function FormBuilder() {
     if (form) {
       setFormTitle(form.title || "");
       setFormDesc(form.description || "");
-      setSubmitMsg((form.settings as any)?.submitMessage || "Thank you for your response!");
+      const s = (form.settings as any) || {};
+      setSubmitMsg(s.submitMessage || "Thank you for your response!");
+      setDeviceTarget(s.deviceTarget || "both");
     }
   }, [form]);
 
@@ -250,7 +253,7 @@ export default function FormBuilder() {
       await updateForm.mutateAsync({
         title: formTitle,
         description: formDesc || null,
-        settings: { submitMessage: submitMsg },
+        settings: { submitMessage: submitMsg, deviceTarget },
       });
       await apiRequest("PUT", `/api/forms/${id}/questions`, {
         questions: qs.map((q, i) => ({
@@ -408,6 +411,34 @@ export default function FormBuilder() {
                 placeholder="Thank you for your response!"
                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "12px 16px", color: "#fff", fontSize: 14, outline: "none", width: "100%" }}
               />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-zinc-400 block mb-3">Optimise for device</label>
+              <div className="grid grid-cols-3 gap-3">
+                {([
+                  { value: "mobile", label: "Mobile", icon: Smartphone, desc: "Phone-width layout" },
+                  { value: "desktop", label: "Desktop", icon: Monitor, desc: "Wide-screen layout" },
+                  { value: "both", label: "Both", icon: LayoutTemplate, desc: "Fully responsive" },
+                ] as const).map(opt => {
+                  const active = deviceTarget === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      data-testid={`btn-device-${opt.value}`}
+                      onClick={() => setDeviceTarget(opt.value)}
+                      className="flex flex-col items-center gap-2 px-3 py-4 rounded-xl transition-all"
+                      style={{
+                        background: active ? `${GOLD}15` : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${active ? GOLD + "50" : "rgba(255,255,255,0.08)"}`,
+                      }}
+                    >
+                      <opt.icon className="w-5 h-5" style={{ color: active ? GOLD : "rgba(255,255,255,0.3)" }} />
+                      <p className="text-xs font-bold" style={{ color: active ? GOLD : "rgba(255,255,255,0.5)" }}>{opt.label}</p>
+                      <p className="text-[10px] text-zinc-600 text-center leading-tight">{opt.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
