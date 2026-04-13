@@ -82,21 +82,22 @@ export default function PlanSettings() {
   const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
   const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
   const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
+  const PLATFORM_URL = "https://oravini.com";
 
   const handleUpgrade = (targetSlug: string, _targetName: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
     if (targetSlug === "starter") {
-      const returnUrl = `${window.location.origin}/select-plan?whop_success=starter`;
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=starter`;
       window.location.href = `${WHOP_STARTER_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
     if (targetSlug === "growth") {
-      const returnUrl = `${window.location.origin}/select-plan?whop_success=growth`;
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth`;
       window.location.href = `${WHOP_GROWTH_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
     if (targetSlug === "pro") {
-      const returnUrl = `${window.location.origin}/select-plan?whop_success=pro`;
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro`;
       window.location.href = `${WHOP_PRO_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
