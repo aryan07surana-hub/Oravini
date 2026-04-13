@@ -79,12 +79,19 @@ export default function PlanSettings() {
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
   const currentPlanData = PLANS[currentIdx];
 
+  const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
+
   const handleUpgrade = (targetSlug: string, _targetName: string) => {
     if (targetSlug === "elite") { window.location.href = "/apply"; return; }
-    // Paid plans are launching soon — show info toast
+    if (targetSlug === "starter") {
+      const returnUrl = `${window.location.origin}/select-plan?whop_success=starter`;
+      window.location.href = `${WHOP_STARTER_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+    // Other paid plans launching soon
     toast({
-      title: "Paid plans launching soon! 🚀",
-      description: "All plans are free during our launch period. Paid upgrades will be available shortly.",
+      title: "Coming soon! 🚀",
+      description: "Growth, Pro and Elite tiers are launching shortly. The $29 Starter plan is available now.",
     });
   };
 

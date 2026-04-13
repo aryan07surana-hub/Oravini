@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 import { Gift } from "lucide-react";
+
+const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
@@ -76,11 +78,33 @@ export default function SelectPlan() {
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState<string | null>(null);
 
+  // Handle return from Whop after successful payment
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const whopSuccess = params.get("whop_success");
+    if (whopSuccess === "starter" && user) {
+      setConfirming("starter");
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "starter" })
+        .then(updated => {
+          queryClient.setQueryData(["/api/auth/me"], updated);
+          toast({ title: "Welcome to Starter! 🎉", description: "Your $29/mo plan is now active. Enjoy 150 credits per month." });
+          navigate("/dashboard");
+        })
+        .catch(() => setConfirming(null));
+    }
+  }, [user]);
+
   const handlePlan = async (slug: string) => {
-    // All paid plans are redirected to free tier for now
+    // Starter plan → redirect to Whop checkout
+    if (slug === "starter") {
+      const returnUrl = `${window.location.origin}/select-plan?whop_success=starter`;
+      window.location.href = `${WHOP_STARTER_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      return;
+    }
+    // Other paid plans are still on free tier for now
     if (slug !== "free") {
       toast({
-        title: "Paid plans launching soon! 🚀",
+        title: "Coming soon! 🚀",
         description: "We're setting you up on the free plan with 100 bonus credits to get started.",
       });
       slug = "free";
@@ -126,18 +150,18 @@ export default function SelectPlan() {
             Choose your plan to<br /><span style={{ color: GOLD }}>unlock your dashboard</span>
           </h1>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.38)", lineHeight: 1.7 }}>
-            All plans are free right now. Sign up and start building — paid tiers launch soon.
+            Start free with 100 bonus credits, or upgrade to Starter now — all other paid tiers launching soon.
           </p>
         </div>
 
-        {/* Free tier notice banner */}
+        {/* Notice banner */}
         <div style={{ width: "100%", maxWidth: 1100, marginBottom: 28, background: "rgba(212,180,97,0.08)", border: `1px solid ${GOLD}44`, borderRadius: 14, padding: "16px 24px", display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 99, background: `${GOLD}22`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Gift size={18} color={GOLD} />
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>All plans are on free tier during launch</p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Pick any plan and get started — you'll receive 100 bonus credits on us. Paid upgrades will be available soon.</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter plan is now live 🎉 — Free plan comes with 100 bonus credits</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>The $29 Starter plan is available now via Whop. All other paid tiers are on free access during launch — upgrades coming soon.</p>
           </div>
         </div>
 
