@@ -104,7 +104,7 @@ const toolsNavItems = [
 
 const dmsNavItems = [
   { href: "/dm-tracker", label: "DM Tracker", icon: MessageCircle },
-  { href: "/dm-tracker?tab=send", label: "Send a DM", icon: Send },
+  { href: "/send-dm", label: "Send a DM", icon: Send },
 ];
 
 const bottomNavItems = [
@@ -241,9 +241,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>DMs</p>
             <div className="space-y-1">
               {dmsNavItems.map(({ href, label, icon: Icon }) => {
-                const active = href === "/dm-tracker?tab=send"
-                  ? location === "/dm-tracker" && typeof window !== "undefined" && window.location.search.includes("tab=send")
-                  : location === "/dm-tracker" && (typeof window === "undefined" || !window.location.search.includes("tab=send"));
+                const active = location === href;
                 return (
                   <Link
                     key={href}

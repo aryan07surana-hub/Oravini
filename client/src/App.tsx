@@ -61,6 +61,7 @@ import DashboardPreview from "@/pages/DashboardPreview";
 import ContentAnalyser from "@/pages/client/ContentAnalyser";
 import ContentAnalyserYouTube from "@/pages/client/ContentAnalyserYouTube";
 import ContentAnalyserInstagram from "@/pages/client/ContentAnalyserInstagram";
+import SendDM from "@/pages/client/SendDM";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
 import FormResponses from "@/pages/client/FormResponses";
@@ -223,6 +224,9 @@ function Router() {
       </Route>
       <Route path="/dm-tracker">
         {() => <ProtectedRoute component={DMTracker} />}
+      </Route>
+      <Route path="/send-dm">
+        {() => <ProtectedRoute component={SendDM} />}
       </Route>
       <Route path="/video-editor">
         {() => <ProtectedRoute component={AIVideoEditor} />}

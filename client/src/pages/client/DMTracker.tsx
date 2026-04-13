@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -558,12 +558,6 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
   const [editLead, setEditLead] = useState<any>(null);
   const [sendDMLead, setSendDMLead] = useState<any>(null);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "send") {
-      setSendDMLead({});
-    }
-  }, []);
 
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ["/api/clients"],
