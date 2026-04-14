@@ -7818,5 +7818,100 @@ Rules:
     res.json({ ok: true });
   });
 
+  // ── Instagram Growth Tracker ───────────────────────────────────────────────
+  async function scanIgProfile(username: string): Promise<{ followersCount: number; followsCount: number; fullName: string; profilePic: string; igUserId: string } | null> {
+    const token = process.env.APIFY_INSTAGRAM_TOKEN;
+    if (!token) throw new Error("APIFY_INSTAGRAM_TOKEN not configured");
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/7RQ4RlfRihUhflQtJ/run-sync-get-dataset-items?token=${token}&timeout=90`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [username] }) }
+    );
+    if (!res.ok) throw new Error(`Apify error ${res.status}`);
+    const items: any[] = await res.json();
+    const item = items?.[0];
+    if (!item) return null;
+    return {
+      followersCount: item.followersCount ?? 0,
+      followsCount: item.followsCount ?? 0,
+      fullName: item.userFullName ?? username,
+      profilePic: item.profilePic ?? "",
+      igUserId: item.userId ?? "",
+    };
+  }
+
+  app.get("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      res.json(profiles);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      let { username } = req.body;
+      if (!username?.trim()) return res.status(400).json({ message: "Username is required" });
+      username = username.trim().replace(/^@/, "").toLowerCase();
+
+      const scanned = await scanIgProfile(username);
+      if (!scanned) return res.status(404).json({ message: `Could not find Instagram profile @${username}` });
+
+      const profile = await storage.addIgTrackedProfile({
+        userId, username,
+        fullName: scanned.fullName,
+        profilePic: scanned.profilePic,
+        igUserId: scanned.igUserId,
+      });
+      await storage.addIgFollowerSnapshot({ profileId: profile.id, followersCount: scanned.followersCount, followsCount: scanned.followsCount });
+      res.json({ ...profile, latestSnapshot: { followersCount: scanned.followersCount, followsCount: scanned.followsCount, scannedAt: new Date() }, prevSnapshot: null });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/ig-tracker/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteIgTrackedProfile(Number(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/ig-tracker/:id/scan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      const profile = profiles.find(p => p.id === Number(req.params.id));
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      const scanned = await scanIgProfile(profile.username);
+      if (!scanned) return res.status(422).json({ message: "Could not reach Instagram profile" });
+
+      await storage.updateIgTrackedProfile(profile.id, { fullName: scanned.fullName, profilePic: scanned.profilePic });
+      const snapshot = await storage.addIgFollowerSnapshot({ profileId: profile.id, followersCount: scanned.followersCount, followsCount: scanned.followsCount });
+      res.json(snapshot);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/ig-tracker/:id/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      const profile = profiles.find(p => p.id === Number(req.params.id));
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+      const snapshots = await storage.getIgFollowerSnapshots(profile.id);
+      res.json(snapshots);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }

@@ -300,10 +300,44 @@ async function processScheduledYoutubePosts() {
   }
 }
 
+async function syncIgFollowerCounts() {
+  const token = process.env.APIFY_INSTAGRAM_TOKEN;
+  if (!token) {
+    log("IG Tracker: skipped — APIFY_INSTAGRAM_TOKEN not set", "cron");
+    return;
+  }
+  const profiles = await storage.getAllIgTrackedProfiles();
+  if (!profiles.length) return;
+  log(`IG Tracker: auto-scanning ${profiles.length} profile(s)`, "cron");
+  for (const profile of profiles) {
+    try {
+      const res = await fetch(
+        `https://api.apify.com/v2/acts/7RQ4RlfRihUhflQtJ/run-sync-get-dataset-items?token=${token}&timeout=60`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [profile.username] }) }
+      );
+      if (!res.ok) continue;
+      const items: any[] = await res.json();
+      const item = items?.[0];
+      if (!item) continue;
+      await storage.updateIgTrackedProfile(profile.id, {
+        fullName: item.userFullName || profile.fullName,
+        profilePic: item.profilePic || profile.profilePic,
+      });
+      await storage.addIgFollowerSnapshot({ profileId: profile.id, followersCount: item.followersCount ?? 0, followsCount: item.followsCount ?? 0 });
+      log(`IG Tracker: scanned @${profile.username} — ${item.followersCount} followers`, "cron");
+      await new Promise(r => setTimeout(r, 3000));
+    } catch (e: any) {
+      log(`IG Tracker: failed for @${profile.username}: ${e.message}`, "cron");
+    }
+  }
+  log("IG Tracker: daily auto-scan complete", "cron");
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
+  cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes", "cron");
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes", "cron");
 }

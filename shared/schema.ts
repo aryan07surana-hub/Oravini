@@ -613,3 +613,28 @@ export const brollClips = pgTable("broll_clips", {
 export const insertBrollClipSchema = createInsertSchema(brollClips).omit({ id: true, createdAt: true });
 export type BrollClip = typeof brollClips.$inferSelect;
 export type InsertBrollClip = z.infer<typeof insertBrollClipSchema>;
+
+// ── Instagram Growth Tracker ────────────────────────────────────────────────
+export const igTrackedProfiles = pgTable("ig_tracked_profiles", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  fullName: text("full_name"),
+  profilePic: text("profile_pic"),
+  igUserId: text("ig_user_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertIgTrackedProfileSchema = createInsertSchema(igTrackedProfiles).omit({ id: true, createdAt: true });
+export type IgTrackedProfile = typeof igTrackedProfiles.$inferSelect;
+export type InsertIgTrackedProfile = z.infer<typeof insertIgTrackedProfileSchema>;
+
+export const igFollowerSnapshots = pgTable("ig_follower_snapshots", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => igTrackedProfiles.id, { onDelete: "cascade" }),
+  followersCount: integer("followers_count").notNull(),
+  followsCount: integer("follows_count").notNull(),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+});
+export const insertIgFollowerSnapshotSchema = createInsertSchema(igFollowerSnapshots).omit({ id: true, scannedAt: true });
+export type IgFollowerSnapshot = typeof igFollowerSnapshots.$inferSelect;
+export type InsertIgFollowerSnapshot = z.infer<typeof insertIgFollowerSnapshotSchema>;

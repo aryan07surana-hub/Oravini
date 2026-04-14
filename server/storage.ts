@@ -2,6 +2,9 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { eq, and, or, desc, gte, lte, isNull, sql as sqlExpr, inArray } from "drizzle-orm";
 import {
+  igTrackedProfiles, igFollowerSnapshots,
+  type IgTrackedProfile, type InsertIgTrackedProfile,
+  type IgFollowerSnapshot, type InsertIgFollowerSnapshot,
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
@@ -1159,6 +1162,43 @@ class DatabaseStorage implements IStorage {
 
   async deleteBrollClip(id: number, userId: string): Promise<void> {
     await db.delete(brollClips).where(and(eq(brollClips.id, id), eq(brollClips.userId, userId)));
+  }
+
+  // ── Instagram Growth Tracker ───────────────────────────────────────────────
+  async getIgTrackedProfiles(userId: string): Promise<(IgTrackedProfile & { latestSnapshot: IgFollowerSnapshot | null; prevSnapshot: IgFollowerSnapshot | null })[]> {
+    const profiles = await db.select().from(igTrackedProfiles).where(eq(igTrackedProfiles.userId, userId)).orderBy(igTrackedProfiles.createdAt);
+    const result = [];
+    for (const profile of profiles) {
+      const snaps = await db.select().from(igFollowerSnapshots).where(eq(igFollowerSnapshots.profileId, profile.id)).orderBy(desc(igFollowerSnapshots.scannedAt)).limit(2);
+      result.push({ ...profile, latestSnapshot: snaps[0] ?? null, prevSnapshot: snaps[1] ?? null });
+    }
+    return result;
+  }
+
+  async getAllIgTrackedProfiles(): Promise<IgTrackedProfile[]> {
+    return db.select().from(igTrackedProfiles);
+  }
+
+  async addIgTrackedProfile(data: InsertIgTrackedProfile): Promise<IgTrackedProfile> {
+    const rows = await db.insert(igTrackedProfiles).values(data).returning();
+    return rows[0];
+  }
+
+  async updateIgTrackedProfile(id: number, data: Partial<IgTrackedProfile>): Promise<void> {
+    await db.update(igTrackedProfiles).set(data).where(eq(igTrackedProfiles.id, id));
+  }
+
+  async deleteIgTrackedProfile(id: number, userId: string): Promise<void> {
+    await db.delete(igTrackedProfiles).where(and(eq(igTrackedProfiles.id, id), eq(igTrackedProfiles.userId, userId)));
+  }
+
+  async addIgFollowerSnapshot(data: InsertIgFollowerSnapshot): Promise<IgFollowerSnapshot> {
+    const rows = await db.insert(igFollowerSnapshots).values(data).returning();
+    return rows[0];
+  }
+
+  async getIgFollowerSnapshots(profileId: number): Promise<IgFollowerSnapshot[]> {
+    return db.select().from(igFollowerSnapshots).where(eq(igFollowerSnapshots.profileId, profileId)).orderBy(igFollowerSnapshots.scannedAt);
   }
 }
 
