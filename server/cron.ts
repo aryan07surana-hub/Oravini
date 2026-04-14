@@ -301,9 +301,9 @@ async function processScheduledYoutubePosts() {
 }
 
 async function syncIgFollowerCounts() {
-  const token = process.env.APIFY_INSTAGRAM_TOKEN;
+  const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
   if (!token) {
-    log("IG Tracker: skipped — APIFY_INSTAGRAM_TOKEN not set", "cron");
+    log("IG Tracker: skipped — no Apify token set", "cron");
     return;
   }
   const profiles = await storage.getAllIgTrackedProfiles();

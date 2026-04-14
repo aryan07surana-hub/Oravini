@@ -7820,8 +7820,8 @@ Rules:
 
   // ── Instagram Growth Tracker ───────────────────────────────────────────────
   async function scanIgProfile(username: string): Promise<{ followersCount: number; followsCount: number; fullName: string; profilePic: string; igUserId: string } | null> {
-    const token = process.env.APIFY_INSTAGRAM_TOKEN;
-    if (!token) throw new Error("APIFY_INSTAGRAM_TOKEN not configured");
+    const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+    if (!token) throw new Error("No Apify token configured (APIFY_COMMENT_TOKEN / APIFY_INSTAGRAM_TOKEN)");
     const res = await fetch(
       `https://api.apify.com/v2/acts/7RQ4RlfRihUhflQtJ/run-sync-get-dataset-items?token=${token}&timeout=90`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [username] }) }

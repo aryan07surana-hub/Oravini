@@ -1309,11 +1309,161 @@ function InstagramSetupCard({ userId }: { userId: string }) {
 }
 
 // ── Instagram Follower Growth Panel ───────────────────────────────────────────
+function fmtFollowers(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return n.toLocaleString();
+}
+function timeSinceShort(d: string | Date) {
+  const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function IgProfileCard({ profile, onDelete, onScan, scanning }: { profile: any; onDelete: () => void; onScan: () => void; scanning: boolean }) {
+  const { data: history = [] } = useQuery<any[]>({
+    queryKey: ["/api/ig-tracker", profile.id, "history"],
+    queryFn: () => apiRequest("GET", `/api/ig-tracker/${profile.id}/history`),
+    enabled: !!profile.id,
+  });
+
+  const snap = profile.latestSnapshot;
+  const prev = profile.prevSnapshot;
+  const sinceLastScan = snap && prev ? snap.followersCount - prev.followersCount : null;
+
+  // Calculate gained over all time from history
+  const oldest = history.length > 0 ? history[0] : null;
+  const allTimeGain = snap && oldest ? snap.followersCount - oldest.followersCount : null;
+
+  // 7-day gain
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const snapAt7d = [...history].reverse().find(h => new Date(h.scannedAt).getTime() <= sevenDaysAgo);
+  const gain7d = snap && snapAt7d ? snap.followersCount - snapAt7d.followersCount : null;
+
+  // 30-day gain
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const snapAt30d = [...history].reverse().find(h => new Date(h.scannedAt).getTime() <= thirtyDaysAgo);
+  const gain30d = snap && snapAt30d ? snap.followersCount - snapAt30d.followersCount : null;
+
+  // Chart data — last 14 snapshots
+  const chartData = history.slice(-14).map(h => ({
+    date: format(new Date(h.scannedAt), "MMM d"),
+    followers: h.followersCount,
+  }));
+
+  return (
+    <div data-testid={`ig-profile-card-${profile.id}`} className="rounded-xl border border-pink-500/20 bg-background/70 overflow-hidden">
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+        {profile.profilePic
+          ? <img src={profile.profilePic} alt={profile.username} className="w-10 h-10 rounded-full object-cover flex-shrink-0 ring-2 ring-pink-500/30" />
+          : <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center flex-shrink-0 ring-2 ring-pink-500/20"><Instagram className="w-5 h-5 text-pink-400" /></div>
+        }
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <a href={`https://instagram.com/${profile.username}`} target="_blank" rel="noreferrer"
+              className="font-bold text-sm text-foreground hover:text-pink-400 transition-colors">@{profile.username}</a>
+            {profile.fullName && <span className="text-xs text-muted-foreground truncate">{profile.fullName}</span>}
+          </div>
+          {snap && (
+            <div className="flex items-center gap-1 mt-0.5 text-[11px] text-muted-foreground">
+              <Clock className="w-2.5 h-2.5" />
+              <span>Updated {timeSinceShort(snap.scannedAt)} · auto-scans daily at 6AM UTC</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={onScan} disabled={scanning} title="Scan now" data-testid={`button-scan-ig-${profile.id}`}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 ${scanning ? "animate-spin text-pink-400" : ""}`} />
+          </button>
+          <button onClick={onDelete} title="Remove" data-testid={`button-delete-ig-${profile.id}`}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Stats grid */}
+      {snap ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border/30 border-t border-border/30">
+          {/* Current followers — primary big stat */}
+          <div className="bg-background/80 px-4 py-3 sm:col-span-1">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">Followers</p>
+            <p className="text-2xl font-bold text-foreground leading-none">{fmtFollowers(snap.followersCount)}</p>
+            {sinceLastScan !== null && (
+              <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold mt-1 ${sinceLastScan > 0 ? "text-emerald-400" : sinceLastScan < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                {sinceLastScan > 0 ? <TrendingUp className="w-3 h-3" /> : sinceLastScan < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                {sinceLastScan > 0 ? "+" : ""}{sinceLastScan !== 0 ? fmtFollowers(sinceLastScan) : "No change"} since last scan
+              </span>
+            )}
+          </div>
+
+          {/* 7-day gain */}
+          <div className="bg-background/80 px-4 py-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">7-Day Gain</p>
+            {gain7d !== null
+              ? <p className={`text-xl font-bold ${gain7d >= 0 ? "text-emerald-400" : "text-red-400"}`}>{gain7d > 0 ? "+" : ""}{fmtFollowers(gain7d)}</p>
+              : <p className="text-sm text-muted-foreground">Not enough data</p>
+            }
+          </div>
+
+          {/* 30-day gain */}
+          <div className="bg-background/80 px-4 py-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">30-Day Gain</p>
+            {gain30d !== null
+              ? <p className={`text-xl font-bold ${gain30d >= 0 ? "text-emerald-400" : "text-red-400"}`}>{gain30d > 0 ? "+" : ""}{fmtFollowers(gain30d)}</p>
+              : <p className="text-sm text-muted-foreground">Not enough data</p>
+            }
+          </div>
+
+          {/* Following + all-time */}
+          <div className="bg-background/80 px-4 py-3">
+            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mb-1">Following</p>
+            <p className="text-xl font-bold text-foreground">{fmtFollowers(snap.followsCount)}</p>
+            {allTimeGain !== null && history.length > 1 && (
+              <span className={`text-[11px] font-semibold ${allTimeGain >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {allTimeGain > 0 ? "+" : ""}{fmtFollowers(allTimeGain)} all time
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 py-3 border-t border-border/30 text-xs text-muted-foreground">
+          Not scanned yet — hit the refresh button to scan now.
+        </div>
+      )}
+
+      {/* Growth chart */}
+      {chartData.length > 1 && (
+        <div className="px-2 pt-3 pb-2 border-t border-border/30">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium px-2 mb-1.5">Follower Growth ({chartData.length} scans)</p>
+          <ResponsiveContainer width="100%" height={80}>
+            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#6b7280" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 9, fill: "#6b7280" }} tickLine={false} axisLine={false} tickFormatter={v => fmtFollowers(v)} domain={["auto", "auto"]} />
+              <RechartTooltip
+                contentStyle={{ background: "#1a1a2e", border: "1px solid #3f3f5a", borderRadius: 8, fontSize: 11 }}
+                labelStyle={{ color: "#9ca3af" }}
+                formatter={(v: any) => [v.toLocaleString(), "Followers"]}
+              />
+              <Line type="monotone" dataKey="followers" stroke="#ec4899" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: "#ec4899" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IgFollowerPanel() {
   const { toast } = useToast();
   const [username, setUsername] = useState("");
-  const [scanningId, setScanningId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [scanningId, setScanningId] = useState<number | null>(null);
 
   const { data: profiles = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
 
@@ -1322,7 +1472,7 @@ function IgFollowerPanel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker"] });
       setUsername("");
-      toast({ title: "Profile added & scanned" });
+      toast({ title: "Profile added & scanned!", description: "Follower count is being tracked." });
     },
     onError: (e: any) => toast({ title: "Failed to add profile", description: e.message, variant: "destructive" }),
   });
@@ -1338,6 +1488,7 @@ function IgFollowerPanel() {
     try {
       await apiRequest("POST", `/api/ig-tracker/${id}/scan`);
       queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker", id, "history"] });
       toast({ title: "Scan complete", description: "Follower count updated." });
     } catch (e: any) {
       toast({ title: "Scan failed", description: e.message, variant: "destructive" });
@@ -1346,116 +1497,68 @@ function IgFollowerPanel() {
     }
   }
 
-  function fmtNum(n: number) {
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-    return String(n);
-  }
-
-  function timeSince(d: string | Date) {
-    const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-  }
-
   return (
-    <div className="rounded-2xl border border-pink-500/20 bg-pink-500/5 p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="space-y-4">
+      {/* Section header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-pink-400" />
-          <span className="text-sm font-semibold text-foreground">Follower Growth Tracker</span>
-          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">auto-scans daily · Apify</span>
+          <div className="w-7 h-7 rounded-lg bg-pink-500/10 flex items-center justify-center">
+            <Users className="w-4 h-4 text-pink-400" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Follower Growth Tracker</p>
+            <p className="text-[11px] text-muted-foreground">Track any Instagram profile · auto-updates daily</p>
+          </div>
         </div>
       </div>
 
       {/* Add profile row */}
-      <div className="flex gap-2 mb-4">
-        <div className="relative flex-1 max-w-xs">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+      <div className="flex gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">@</span>
           <input
             ref={inputRef}
             data-testid="input-ig-tracker-username"
             value={username}
             onChange={e => setUsername(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && username.trim()) addMutation.mutate(username); }}
-            placeholder="username to track"
+            onKeyDown={e => { if (e.key === "Enter" && username.trim()) addMutation.mutate(username.trim()); }}
+            placeholder="Enter Instagram username to track"
             className="w-full pl-7 pr-3 py-2 text-sm rounded-lg bg-background border border-input focus:outline-none focus:ring-1 focus:ring-pink-500/50 text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <button
           data-testid="button-add-ig-tracker"
-          onClick={() => { if (username.trim()) addMutation.mutate(username); }}
+          onClick={() => { if (username.trim()) addMutation.mutate(username.trim()); }}
           disabled={!username.trim() || addMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30 hover:bg-pink-500/25 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30 hover:bg-pink-500/25 transition-colors disabled:opacity-50"
         >
-          {addMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-          {addMutation.isPending ? "Scanning…" : "Track"}
+          {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          {addMutation.isPending ? "Scanning…" : "Track Profile"}
         </button>
       </div>
 
+      {/* Profile cards */}
       {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</div>
+        <div className="space-y-3">
+          {[1, 2].map(i => <div key={i} className="h-32 rounded-xl bg-muted/30 animate-pulse" />)}
+        </div>
       ) : profiles.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-1">No profiles tracked yet — add a username above to monitor follower growth automatically.</p>
+        <div className="rounded-xl border border-dashed border-pink-500/20 bg-pink-500/5 p-6 text-center">
+          <Instagram className="w-7 h-7 text-pink-400/50 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No profiles tracked yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">Enter any Instagram username above to start tracking their follower growth automatically.</p>
+        </div>
       ) : (
-        <div className="space-y-2">
-          {profiles.map((p: any) => {
-            const snap = p.latestSnapshot;
-            const prev = p.prevSnapshot;
-            const diff = snap && prev ? snap.followersCount - prev.followersCount : null;
-            return (
-              <div key={p.id} data-testid={`ig-tracker-row-${p.id}`} className="flex items-center gap-3 bg-background/60 rounded-xl px-3 py-2.5 border border-border/50">
-                {p.profilePic
-                  ? <img src={p.profilePic} alt={p.username} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-8 h-8 rounded-full bg-pink-500/10 flex items-center justify-center flex-shrink-0"><Instagram className="w-4 h-4 text-pink-400" /></div>
-                }
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <a href={`https://instagram.com/${p.username}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-foreground hover:text-pink-400 transition-colors">@{p.username}</a>
-                    {diff !== null && diff !== 0 && (
-                      <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${diff > 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {diff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                        {diff > 0 ? "+" : ""}{fmtNum(diff)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {snap ? (
-                      <>
-                        <span className="text-xs text-foreground font-bold">{fmtNum(snap.followersCount)} <span className="text-muted-foreground font-normal">followers</span></span>
-                        <span className="text-xs text-muted-foreground">{fmtNum(snap.followsCount)} following</span>
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{timeSince(snap.scannedAt)}</span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Not scanned yet</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    data-testid={`button-scan-ig-${p.id}`}
-                    onClick={() => handleScan(p.id)}
-                    disabled={scanningId === p.id}
-                    title="Scan now"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-colors"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${scanningId === p.id ? "animate-spin" : ""}`} />
-                  </button>
-                  <button
-                    data-testid={`button-delete-ig-${p.id}`}
-                    onClick={() => deleteMutation.mutate(p.id)}
-                    title="Remove"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-3">
+          {profiles.map((p: any) => (
+            <IgProfileCard
+              key={p.id}
+              profile={p}
+              scanning={scanningId === p.id}
+              onScan={() => handleScan(p.id)}
+              onDelete={() => deleteMutation.mutate(p.id)}
+            />
+          ))}
         </div>
       )}
     </div>
