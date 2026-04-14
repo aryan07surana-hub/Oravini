@@ -17,7 +17,7 @@ import { useState } from "react";
 
 const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/clients", label: "Clients", icon: Users },
+  { href: "/admin/clients", label: "Elite Members", icon: Users },
   { href: "/admin/crm", label: "CRM", icon: Database },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/credits", label: "Credits", icon: Zap },

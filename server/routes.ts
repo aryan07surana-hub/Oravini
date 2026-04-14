@@ -7841,7 +7841,8 @@ Rules:
 
   app.get("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
       const profiles = await storage.getIgTrackedProfiles(userId);
       res.json(profiles);
     } catch (e: any) {
@@ -7851,7 +7852,8 @@ Rules:
 
   app.post("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.body.clientId) ? String(req.body.clientId) : user.id;
       let { username } = req.body;
       if (!username?.trim()) return res.status(400).json({ message: "Username is required" });
       username = username.trim().replace(/^@/, "").toLowerCase();
@@ -7874,7 +7876,8 @@ Rules:
 
   app.delete("/api/ig-tracker/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
       await storage.deleteIgTrackedProfile(Number(req.params.id), userId);
       res.json({ ok: true });
     } catch (e: any) {
@@ -7884,7 +7887,8 @@ Rules:
 
   app.post("/api/ig-tracker/:id/scan", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.body.clientId) ? String(req.body.clientId) : user.id;
       const profiles = await storage.getIgTrackedProfiles(userId);
       const profile = profiles.find(p => p.id === Number(req.params.id));
       if (!profile) return res.status(404).json({ message: "Profile not found" });
@@ -7902,7 +7906,8 @@ Rules:
 
   app.get("/api/ig-tracker/:id/history", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req.user as any).id;
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
       const profiles = await storage.getIgTrackedProfiles(userId);
       const profile = profiles.find(p => p.id === Number(req.params.id));
       if (!profile) return res.status(404).json({ message: "Profile not found" });

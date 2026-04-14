@@ -78,7 +78,9 @@ export default function AdminClients() {
     },
   });
 
-  const filtered = (clients || []).filter((c: any) =>
+  const eliteClients = (clients || []).filter((c: any) => c.tier === "elite");
+
+  const filtered = eliteClients.filter((c: any) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.email.toLowerCase().includes(search.toLowerCase())
   );
@@ -88,8 +90,8 @@ export default function AdminClients() {
       <div className="p-6 lg:p-8 max-w-5xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Clients</h1>
-            <p className="text-muted-foreground mt-1">{(clients || []).length} total clients</p>
+            <h1 className="text-2xl font-bold text-foreground">Elite Members</h1>
+            <p className="text-muted-foreground mt-1">{eliteClients.length} Elite tier {eliteClients.length === 1 ? "member" : "members"}</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -189,9 +191,9 @@ export default function AdminClients() {
             <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mb-4">
               <Users className="w-8 h-8 text-muted-foreground opacity-50" />
             </div>
-            <h3 className="text-base font-semibold text-foreground mb-1">No clients found</h3>
+            <h3 className="text-base font-semibold text-foreground mb-1">No Elite members found</h3>
             <p className="text-sm text-muted-foreground">
-              {search ? "Try a different search" : "Add your first client to get started"}
+              {search ? "Try a different search" : "No members are on the Elite tier yet"}
             </p>
           </div>
         ) : (

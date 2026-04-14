@@ -88,7 +88,8 @@ export default function AdminDashboard() {
     queryKey: ["/api/conversations"],
   });
 
-  const activeClients = (clients || []).length;
+  const eliteClients = (clients || []).filter((c: any) => c.tier === "elite");
+  const activeClients = eliteClients.length;
   const totalDocs = (docs || []).length;
 
   const dailyQuote = getDailyQuote();
@@ -130,7 +131,7 @@ export default function AdminDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Total Clients" value={activeClients} sub="Active in portal" icon={Users} color="bg-primary/10 text-primary" />
+          <StatCard label="Elite Members" value={activeClients} sub="Tier 5 active" icon={Users} color="bg-primary/10 text-primary" />
           <StatCard label="Documents" value={totalDocs} sub="Shared across clients" icon={FileText} color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
           <StatCard label="Conversations" value={(conversations || []).length} sub="Active chats" icon={MessageSquare} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
           <StatCard label="Upcoming Calls" value={(clients || []).filter((c: any) => c.nextCallDate && new Date(c.nextCallDate) > new Date()).length} sub="This week" icon={Phone} color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
@@ -141,7 +142,7 @@ export default function AdminDashboard() {
           <Card className="border border-card-border">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">Active Clients</CardTitle>
+                <CardTitle className="text-base font-semibold">Elite Members</CardTitle>
                 <Link href="/admin/clients" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
                   View all <ArrowRight className="w-3 h-3" />
                 </Link>
@@ -150,13 +151,13 @@ export default function AdminDashboard() {
             <CardContent className="space-y-3">
               {clientsLoading ? (
                 Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
-              ) : (clients || []).length === 0 ? (
+              ) : eliteClients.length === 0 ? (
                 <div className="text-center py-8">
                   <Users className="w-10 h-10 text-muted-foreground mx-auto mb-2 opacity-40" />
-                  <p className="text-sm text-muted-foreground">No clients yet</p>
+                  <p className="text-sm text-muted-foreground">No Elite members yet</p>
                 </div>
               ) : (
-                (clients || []).slice(0, 5).map((client: any) => {
+                eliteClients.slice(0, 5).map((client: any) => {
                   const initials = client.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
                   return (
                     <Link
