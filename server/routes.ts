@@ -4061,56 +4061,49 @@ Return ONLY valid JSON:
       const videoId = extractYouTubeVideoId(url);
       if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
 
-      // 1. Fetch YouTube page → extract player response (captions + title)
-      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-        headers: {
-          "Accept-Language": "en-US,en;q=0.9",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        },
-      });
-      if (!pageRes.ok) throw new Error("Failed to fetch YouTube page");
-      const html = await pageRes.text();
+      // 1. Fetch video info via ytdl (handles YouTube bot detection properly)
+      const ytdl = (await import("@distube/ytdl-core")).default;
+      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
 
-      // Parse ytInitialPlayerResponse (large JSON blob)
-      const prMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var |<\/script|window\[)/s);
-      if (!prMatch) throw new Error("Could not parse YouTube page — try another video");
-      let playerResponse: any;
-      try { playerResponse = JSON.parse(prMatch[1]); } catch { throw new Error("YouTube page parse error"); }
-
-      const videoTitle: string = playerResponse?.videoDetails?.title || "YouTube Video";
-      const videoDuration = parseInt(playerResponse?.videoDetails?.lengthSeconds || "0", 10);
+      const videoTitle: string = info.videoDetails.title || "YouTube Video";
+      const videoDuration = parseInt(info.videoDetails.lengthSeconds || "0", 10);
 
       // 2. Try captions first; fall back to Whisper if none found
-      const captionTracks: any[] = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+      const captionTracks: any[] = (info as any).player_response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
       let transcriptText = "";
 
       if (captionTracks.length > 0) {
         // ── Caption path ─────────────────────────────────────────────────────
+        console.log("[clip-finder] Using captions for videoId:", videoId);
         const track = captionTracks.find((t: any) => t.languageCode?.startsWith("en")) || captionTracks[0];
         const captionUrl = `${track.baseUrl}&fmt=json3`;
-        const capRes = await fetch(captionUrl);
-        if (!capRes.ok) throw new Error("Failed to fetch captions");
-        const capData: any = await capRes.json();
-        const segments = (capData.events || [])
-          .filter((e: any) => Array.isArray(e.segs))
-          .map((e: any) => ({
-            start: Math.round((e.tStartMs || 0) / 1000),
-            end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
-            text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
-          }))
-          .filter((s: any) => s.text.length > 2);
-        if (segments.length > 0) {
-          transcriptText = segments
-            .map((s: any) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
-            .join("\n")
-            .slice(0, 8000);
+        try {
+          const capRes = await fetch(captionUrl);
+          if (capRes.ok) {
+            const capData: any = await capRes.json();
+            const segments = (capData.events || [])
+              .filter((e: any) => Array.isArray(e.segs))
+              .map((e: any) => ({
+                start: Math.round((e.tStartMs || 0) / 1000),
+                end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
+                text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
+              }))
+              .filter((s: any) => s.text.length > 2);
+            if (segments.length > 0) {
+              transcriptText = segments
+                .map((s: any) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
+                .join("\n")
+                .slice(0, 8000);
+            }
+          }
+        } catch (capErr: any) {
+          console.log("[clip-finder] Caption fetch failed, will use Whisper:", capErr.message);
         }
       }
 
       if (!transcriptText) {
-        // ── Whisper fallback (no captions) ────────────────────────────────────
-        console.log("[clip-finder] No captions found — falling back to Whisper for videoId:", videoId);
-        const ytdl = (await import("@distube/ytdl-core")).default;
+        // ── Whisper fallback (no captions or caption fetch failed) ─────────────
+        console.log("[clip-finder] Falling back to Whisper transcription for videoId:", videoId);
         const tempAudioPath = path.join(uploadsDir, `yt_audio_${Date.now()}_${videoId}.webm`);
         try {
           const audioStream = ytdl(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -4128,7 +4121,7 @@ Return ONLY valid JSON:
           const audioSize = fs.statSync(tempAudioPath).size;
           const MAX_WHISPER = 25 * 1024 * 1024;
           if (audioSize > MAX_WHISPER) {
-            throw new Error(`This video's audio is ${Math.round(audioSize / 1024 / 1024)}MB — too large for AI transcription (25MB max). Try a shorter video or upload an audio-only clip.`);
+            throw new Error(`This video's audio is ${Math.round(audioSize / 1024 / 1024)}MB — too large for AI transcription (25MB max). Try a shorter video or use the Upload tab with an audio export.`);
           }
 
           const FormDataLib = (await import("form-data")).default;
