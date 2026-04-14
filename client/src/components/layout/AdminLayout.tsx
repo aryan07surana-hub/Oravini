@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox, Clapperboard, Video, Zap, Database, ClipboardList
+  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList
 } from "lucide-react";
 import { useState } from "react";
 
@@ -22,14 +22,9 @@ const mainNavItems = [
   { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/credits", label: "Credits", icon: Zap },
-  { href: "/admin/tracking", label: "Tracking", icon: BarChart2 },
-  { href: "/admin/competitor-study", label: "Competitor Study", icon: TrendingUp },
-  { href: "/admin/dm-tracker", label: "DM Tracker", icon: Inbox },
   { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
   { href: "/admin/course-modules", label: "Course Modules", icon: BookOpen },
-  { href: "/admin/ai-ideas", label: "AI Content Ideas", icon: Sparkles },
-  { href: "/admin/video-editor", label: "AI Video Editor", icon: Clapperboard },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
