@@ -4717,7 +4717,7 @@ Return JSON:
   // POST /api/leads/audit — public: full audit funnel submission with Instagram analysis
   app.post("/api/leads/audit", async (req: Request, res: Response) => {
     try {
-      const { name, email, platform, niche, targetAudience, biggestChallenge, goals, instagramUrl } = req.body;
+      const { name, email, platform, niche, contentType, targetAudience, biggestChallenge, goals, instagramUrl } = req.body;
       if (!name || !email) return res.status(400).json({ message: "Name and email required" });
 
       // Extract Instagram username from URL
@@ -4729,10 +4729,11 @@ Return JSON:
 
       // Step 1: Try Apify Instagram profile scrape
       let igProfileData: any = null;
-      if (igUsername && process.env.APIFY_TOKEN) {
+      const apifyToken = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+      if (igUsername && apifyToken) {
         try {
           const apifyRes = await fetch(
-            `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}&timeout=60`,
+            `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -4785,8 +4786,10 @@ Return JSON:
 }
 Be specific, reference their niche and platform. Be honest but encouraging.`;
 
+      const derivedPlatform = platform || (instagramUrl ? "Instagram" : "Social Media");
       const userMsg = `Creator: ${name}
-Platform: ${platform}
+Platform: ${derivedPlatform}
+Content Type: ${contentType || "Mixed"}
 Niche: ${niche}
 Target Audience: ${targetAudience}
 Biggest Challenge: ${biggestChallenge}
@@ -4794,7 +4797,7 @@ Goals: ${goals}
 
 ${igContext}
 
-Generate their personalised audit. Be specific to their situation.`;
+Generate their personalised audit. Be specific to their niche, content type, and platform.`;
 
       let auditReport: any = null;
       try {
@@ -4823,7 +4826,7 @@ Generate their personalised audit. Be specific to their situation.`;
         };
       }
 
-      const quizAnswers = { platform, niche, targetAudience, biggestChallenge, goals, instagramUrl };
+      const quizAnswers = { platform: derivedPlatform, contentType, niche, targetAudience, biggestChallenge, goals, instagramUrl };
       const existing = await storage.getLandingLeadByEmail(email);
       let lead;
       if (existing) {
@@ -4857,6 +4860,39 @@ Generate their personalised audit. Be specific to their situation.`;
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
+  });
+
+  // POST /api/leads/scan-ig — public: quick Instagram profile scan (pre-audit)
+  app.post("/api/leads/scan-ig", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.body;
+      if (!username?.trim()) return res.status(400).json({ message: "Username required" });
+      const clean = username.trim().replace(/^@/, "").replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("?")[0];
+      const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+      if (!token) return res.json({ found: false, username: clean });
+      try {
+        const r = await fetch(
+          `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=45`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [clean] }), signal: AbortSignal.timeout(50000) }
+        );
+        if (!r.ok) return res.json({ found: false, username: clean });
+        const data = await r.json();
+        if (!Array.isArray(data) || data.length === 0) return res.json({ found: false, username: clean });
+        const p = data[0];
+        return res.json({
+          found: true,
+          username: p.username || clean,
+          fullName: p.fullName || null,
+          followers: p.followersCount || 0,
+          following: p.followsCount || 0,
+          posts: p.postsCount || 0,
+          bio: p.biography || null,
+          profilePic: p.profilePicUrl || null,
+          verified: p.verified || false,
+          isPrivate: p.isPrivate || false,
+        });
+      } catch { return res.json({ found: false, username: clean }); }
+    } catch (e: any) { return res.status(500).json({ message: e.message }); }
   });
 
   // POST /api/admin/crm/sync — admin: bulk push all leads + clients to Oravini CRM
