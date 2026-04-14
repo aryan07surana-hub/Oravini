@@ -1627,8 +1627,25 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const sortedMonths = Object.keys(monthMap).sort().reverse();
 
   const totalViews = posts.reduce((s, p) => s + p.views, 0);
-  const totalFollowers = posts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
   const totalPosts = posts.length;
+
+  // Live follower data from tracker (Instagram only)
+  const { data: trackedProfiles = [] } = useQuery<any[]>({
+    queryKey: ["/api/ig-tracker"],
+    enabled: !isYt,
+  });
+  // Net gain = sum of (latest - prev) across all tracked profiles
+  const trackerNetGain = !isYt && trackedProfiles.length > 0
+    ? trackedProfiles.reduce((sum: number, p: any) => {
+        const latest = p.latestSnapshot?.followersCount ?? 0;
+        const prev = p.prevSnapshot?.followersCount ?? latest;
+        return sum + (latest - prev);
+      }, 0)
+    : null;
+  // Fall back to manually logged followers if no tracker data
+  const manualFollowers = posts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
+  const totalFollowers = isYt ? manualFollowers : (trackerNetGain ?? manualFollowers);
+  const followerIsLive = !isYt && trackedProfiles.length > 0;
 
   const backHref = "/tracking/content";
 
@@ -1720,19 +1737,34 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         {!isYt && <IgFollowerPanel />}
 
         <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Total Posts", value: totalPosts, icon: isYt ? Youtube : Instagram, color: isYt ? "text-red-400" : "text-pink-400" },
-            { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
-            { label: isYt ? "Subscribers Gained" : "Followers Gained", value: `+${totalFollowers}`, icon: Users, color: "text-green-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <Card key={label} className="border border-card-border">
-              <CardContent className="p-3">
-                <Icon className={`w-4 h-4 ${color} mb-1.5`} />
-                <p className="text-xl font-bold text-foreground">{value}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
-              </CardContent>
-            </Card>
-          ))}
+          <Card className="border border-card-border">
+            <CardContent className="p-3">
+              {isYt ? <Youtube className="w-4 h-4 text-red-400 mb-1.5" /> : <Instagram className="w-4 h-4 text-pink-400 mb-1.5" />}
+              <p className="text-xl font-bold text-foreground">{totalPosts}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Total Posts</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-card-border">
+            <CardContent className="p-3">
+              <Eye className="w-4 h-4 text-blue-400 mb-1.5" />
+              <p className="text-xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Total Views</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-card-border">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <Users className="w-4 h-4 text-green-400" />
+                {followerIsLive && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">Live</span>
+                )}
+              </div>
+              <p className="text-xl font-bold text-foreground">{totalFollowers >= 0 ? "+" : ""}{fmtFollowers(totalFollowers)}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {isYt ? "Subscribers Gained" : followerIsLive ? "Followers Gained (since last scan)" : "Followers Gained"}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <div>
