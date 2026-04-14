@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Scissors, Play, Copy, Check, Loader2, ExternalLink,
+  Scissors, Play, Copy, Check, ExternalLink,
   Sparkles, Youtube, TrendingUp, Clock, Zap,
-  Film, Upload, ChevronRight, AlertCircle, Mic,
+  Film, Upload, ChevronRight, Mic,
 } from "lucide-react";
 
 type Clip = {
@@ -42,11 +42,11 @@ const UPLOAD_MSGS = [
   "Almost done…",
 ];
 const YT_MSGS = [
-  "Fetching transcript from YouTube…",
-  "Reading through the entire video…",
+  "Fetching video info from YouTube…",
+  "Checking for captions…",
+  "Transcribing audio with AI if needed…",
   "Identifying high-engagement moments…",
   "Scoring each clip for virality…",
-  "Ranking the best moments…",
   "Packaging your clips…",
 ];
 
@@ -318,11 +318,11 @@ export default function ClipFinder() {
                         <Scissors className="w-4 h-4" /> Find Clips
                       </Button>
                     </div>
-                    <div className="flex items-start gap-2 p-3 bg-amber-500/5 border border-amber-500/15 rounded-xl">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/15 rounded-xl">
+                      <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        YouTube mode requires the video to have <span className="text-foreground font-semibold">captions enabled</span> (auto-generated or manual).
-                        For any video without captions, <span className="text-foreground font-semibold">use the Upload tab instead</span> — it works on everything.
+                        Works on <span className="text-foreground font-semibold">any public YouTube video</span> — with or without captions.
+                        If captions exist, they're used instantly. Otherwise AI transcribes the audio automatically.
                       </p>
                     </div>
                   </>

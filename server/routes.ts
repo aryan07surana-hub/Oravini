@@ -4080,36 +4080,92 @@ Return ONLY valid JSON:
       const videoTitle: string = playerResponse?.videoDetails?.title || "YouTube Video";
       const videoDuration = parseInt(playerResponse?.videoDetails?.lengthSeconds || "0", 10);
 
-      // 2. Get caption track URL
+      // 2. Try captions first; fall back to Whisper if none found
       const captionTracks: any[] = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-      if (!captionTracks.length) {
-        return res.status(422).json({ message: "No captions found for this video. Try a video that has auto-generated or manual subtitles enabled." });
+      let transcriptText = "";
+
+      if (captionTracks.length > 0) {
+        // ── Caption path ─────────────────────────────────────────────────────
+        const track = captionTracks.find((t: any) => t.languageCode?.startsWith("en")) || captionTracks[0];
+        const captionUrl = `${track.baseUrl}&fmt=json3`;
+        const capRes = await fetch(captionUrl);
+        if (!capRes.ok) throw new Error("Failed to fetch captions");
+        const capData: any = await capRes.json();
+        const segments = (capData.events || [])
+          .filter((e: any) => Array.isArray(e.segs))
+          .map((e: any) => ({
+            start: Math.round((e.tStartMs || 0) / 1000),
+            end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
+            text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
+          }))
+          .filter((s: any) => s.text.length > 2);
+        if (segments.length > 0) {
+          transcriptText = segments
+            .map((s: any) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
+            .join("\n")
+            .slice(0, 8000);
+        }
       }
-      const track = captionTracks.find((t: any) => t.languageCode?.startsWith("en")) || captionTracks[0];
-      const captionUrl = `${track.baseUrl}&fmt=json3`;
 
-      // 3. Fetch captions JSON
-      const capRes = await fetch(captionUrl);
-      if (!capRes.ok) throw new Error("Failed to fetch captions");
-      const capData: any = await capRes.json();
+      if (!transcriptText) {
+        // ── Whisper fallback (no captions) ────────────────────────────────────
+        console.log("[clip-finder] No captions found — falling back to Whisper for videoId:", videoId);
+        const ytdl = (await import("@distube/ytdl-core")).default;
+        const tempAudioPath = path.join(uploadsDir, `yt_audio_${Date.now()}_${videoId}.webm`);
+        try {
+          const audioStream = ytdl(`https://www.youtube.com/watch?v=${videoId}`, {
+            quality: "lowestaudio",
+            filter: "audioonly",
+          });
+          await new Promise<void>((resolve, reject) => {
+            const ws = fs.createWriteStream(tempAudioPath);
+            audioStream.pipe(ws);
+            audioStream.on("error", reject);
+            ws.on("finish", resolve);
+            ws.on("error", reject);
+          });
 
-      // 4. Parse into timestamped segments
-      const segments: { start: number; end: number; text: string }[] = (capData.events || [])
-        .filter((e: any) => Array.isArray(e.segs))
-        .map((e: any) => ({
-          start: Math.round((e.tStartMs || 0) / 1000),
-          end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
-          text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
-        }))
-        .filter((s: any) => s.text.length > 2);
+          const audioSize = fs.statSync(tempAudioPath).size;
+          const MAX_WHISPER = 25 * 1024 * 1024;
+          if (audioSize > MAX_WHISPER) {
+            throw new Error(`This video's audio is ${Math.round(audioSize / 1024 / 1024)}MB — too large for AI transcription (25MB max). Try a shorter video or upload an audio-only clip.`);
+          }
 
-      if (!segments.length) throw new Error("Could not parse caption data");
+          const FormDataLib = (await import("form-data")).default;
+          const fd2 = new FormDataLib();
+          const audioBuf = fs.readFileSync(tempAudioPath);
+          fd2.append("file", audioBuf, { filename: `audio_${videoId}.webm`, contentType: "audio/webm" });
+          fd2.append("model", "whisper-large-v3");
+          fd2.append("response_format", "verbose_json");
+          fd2.append("timestamp_granularities[]", "word");
+          const fd2Buf = fd2.getBuffer();
 
-      // 5. Build transcript string (cap at ~8000 chars)
-      const transcriptText = segments
-        .map((s) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
-        .join("\n")
-        .slice(0, 8000);
+          const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...fd2.getHeaders(), "Content-Length": String(fd2Buf.length) },
+            body: fd2Buf,
+          });
+          if (!whisperRes.ok) throw new Error(`Whisper transcription failed: ${await whisperRes.text()}`);
+          const wData = await whisperRes.json() as any;
+
+          const words: any[] = wData.words || [];
+          if (words.length > 0) {
+            const CHUNK = 20;
+            const chunks2: string[] = [];
+            for (let i = 0; i < words.length; i += CHUNK) {
+              const sl = words.slice(i, i + CHUNK);
+              const t = sl.map((w: any) => w.word).join(" ").trim();
+              if (t) chunks2.push(`[${fmtSecs(sl[0].start)}–${fmtSecs(sl[sl.length - 1].end)}] ${t}`);
+            }
+            transcriptText = chunks2.join("\n").slice(0, 8000);
+          }
+          if (!transcriptText) throw new Error("Could not extract speech from this video — ensure it has audible dialogue");
+        } finally {
+          try { fs.unlinkSync(tempAudioPath); } catch {}
+        }
+      }
+
+      if (!transcriptText) throw new Error("Could not extract transcript from this video");
 
       // 6. AI analysis with Groq
       const systemPrompt = `You are a viral short-form content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be self-contained, engaging from the first second, and 15–90 seconds long. Return ONLY valid JSON.`;
