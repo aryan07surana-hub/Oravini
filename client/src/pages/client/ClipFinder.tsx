@@ -106,6 +106,7 @@ export default function ClipFinder() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [msgIdx, setMsgIdx] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [noTranscript, setNoTranscript] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -197,6 +198,7 @@ export default function ClipFinder() {
     if (!url.trim()) return;
     setIsPending(true);
     setResult(null);
+    setNoTranscript(false);
     startMsgTimer();
     try {
       const res = await fetch("/api/clip-finder", {
@@ -206,7 +208,10 @@ export default function ClipFinder() {
         body: JSON.stringify({ url }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Analysis failed");
+      if (!res.ok) {
+        if (data.noTranscript) { setNoTranscript(true); return; }
+        throw new Error(data.message || "Analysis failed");
+      }
       setResult(data);
     } catch (err: any) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
@@ -219,7 +224,7 @@ export default function ClipFinder() {
   const ytUrl = (videoId: string, startSeconds: number) =>
     `https://www.youtube.com/watch?v=${videoId}&t=${startSeconds}s`;
 
-  const reset = () => { setResult(null); setUrl(""); setUploadProgress(0); };
+  const reset = () => { setResult(null); setUrl(""); setUploadProgress(0); setNoTranscript(false); };
 
   return (
     <ClientLayout>
@@ -240,7 +245,7 @@ export default function ClipFinder() {
           </div>
 
           {/* Mode tabs + input */}
-          {!result && !isPending && (
+          {!result && !isPending && !noTranscript && (
             <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
               {/* Tabs */}
               <div className="flex border-b border-card-border">
@@ -321,8 +326,8 @@ export default function ClipFinder() {
                     <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/15 rounded-xl">
                       <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Works on <span className="text-foreground font-semibold">any public YouTube video</span> — with or without captions.
-                        If captions exist, they're used instantly. Otherwise AI transcribes the audio automatically.
+                        Works on any public YouTube video that has <span className="text-foreground font-semibold">auto-generated or manual captions</span>.
+                        If the video has no captions, we'll guide you to use the Upload tab with Whisper AI instead.
                       </p>
                     </div>
                   </>
@@ -362,6 +367,36 @@ export default function ClipFinder() {
                 {msgs.map((_, i) => (
                   <div key={i} className={`rounded-full transition-all duration-500 ${i === msgIdx ? "w-5 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-zinc-700"}`} />
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* No transcript — prompt to use Upload tab */}
+          {noTranscript && !isPending && (
+            <div className="bg-card border border-amber-500/20 rounded-2xl p-8 flex flex-col items-center text-center space-y-5">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                <Mic className="w-7 h-7 text-amber-400" />
+              </div>
+              <div className="space-y-2 max-w-sm">
+                <p className="text-base font-black text-foreground">This video has no captions</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  YouTube couldn't provide a transcript for this video.
+                  Use the <span className="text-foreground font-semibold">Upload tab</span> instead —
+                  download the video (or its audio) and Whisper AI will transcribe it automatically.
+                </p>
+              </div>
+              <div className="flex gap-3 flex-wrap justify-center">
+                <Button
+                  onClick={() => { setMode("upload"); setNoTranscript(false); }}
+                  className="bg-primary text-black hover:bg-primary/90 font-black gap-2"
+                  data-testid="btn-switch-upload"
+                >
+                  <Upload className="w-4 h-4" /> Switch to Upload
+                </Button>
+                <Button variant="outline" onClick={reset}
+                  className="border-zinc-700/60 text-muted-foreground hover:text-foreground gap-2">
+                  <Youtube className="w-4 h-4" /> Try another URL
+                </Button>
               </div>
             </div>
           )}
@@ -529,7 +564,7 @@ export default function ClipFinder() {
           )}
 
           {/* Feature cards (empty state) */}
-          {!result && !isPending && (
+          {!result && !isPending && !noTranscript && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { icon: Upload,     title: "Any Video",    desc: "Upload MP4, MOV, MKV, MP3 or any common format — no captions needed" },

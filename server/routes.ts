@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { execFile } from "child_process";
+import { promisify } from "util";
+const execFileAsync = promisify(execFile);
 import passport from "passport";
 import nodemailer from "nodemailer";
 import multer from "multer";
@@ -4061,106 +4064,63 @@ Return ONLY valid JSON:
       const videoId = extractYouTubeVideoId(url);
       if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
 
-      // 1. Fetch video info via ytdl (handles YouTube bot detection properly)
-      const ytdl = (await import("@distube/ytdl-core")).default;
-      const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
-
-      const videoTitle: string = info.videoDetails.title || "YouTube Video";
-      const videoDuration = parseInt(info.videoDetails.lengthSeconds || "0", 10);
-
-      // 2. Try captions first; fall back to Whisper if none found
-      const captionTracks: any[] = (info as any).player_response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-      let transcriptText = "";
-
-      if (captionTracks.length > 0) {
-        // ── Caption path ─────────────────────────────────────────────────────
-        console.log("[clip-finder] Using captions for videoId:", videoId);
-        const track = captionTracks.find((t: any) => t.languageCode?.startsWith("en")) || captionTracks[0];
-        const captionUrl = `${track.baseUrl}&fmt=json3`;
-        try {
-          const capRes = await fetch(captionUrl);
-          if (capRes.ok) {
-            const capData: any = await capRes.json();
-            const segments = (capData.events || [])
-              .filter((e: any) => Array.isArray(e.segs))
-              .map((e: any) => ({
-                start: Math.round((e.tStartMs || 0) / 1000),
-                end: Math.round(((e.tStartMs || 0) + (e.dDurationMs || 3000)) / 1000),
-                text: (e.segs as any[]).map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim(),
-              }))
-              .filter((s: any) => s.text.length > 2);
-            if (segments.length > 0) {
-              transcriptText = segments
-                .map((s: any) => `[${fmtSecs(s.start)}–${fmtSecs(s.end)}] ${s.text}`)
-                .join("\n")
-                .slice(0, 8000);
-            }
-          }
-        } catch (capErr: any) {
-          console.log("[clip-finder] Caption fetch failed, will use Whisper:", capErr.message);
+      // 1. Fetch video title/duration via oEmbed (always public, never blocked)
+      let videoTitle = "YouTube Video";
+      let videoDuration = 0;
+      try {
+        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        if (oembedRes.ok) {
+          const oe = await oembedRes.json() as any;
+          videoTitle = oe.title || videoTitle;
         }
+      } catch {}
+
+      // 2. Fetch transcript via Python youtube-transcript-api (reliable, no bot detection)
+      console.log("[clip-finder] Fetching transcript for videoId:", videoId);
+      const pythonBin = path.resolve(".pythonlibs/bin/python3");
+      const scriptPath = path.resolve("server/fetch_transcript.py");
+      let transcriptData: any;
+      try {
+        const { stdout } = await execFileAsync(pythonBin, [scriptPath, videoId], { timeout: 25000 });
+        transcriptData = JSON.parse(stdout.trim());
+      } catch (execErr: any) {
+        // Try to parse error output
+        try { transcriptData = JSON.parse(execErr.stdout?.trim() || "{}"); } catch { transcriptData = {}; }
       }
 
-      if (!transcriptText) {
-        // ── Whisper fallback (no captions or caption fetch failed) ─────────────
-        console.log("[clip-finder] Falling back to Whisper transcription for videoId:", videoId);
-        const tempAudioPath = path.join(uploadsDir, `yt_audio_${Date.now()}_${videoId}.webm`);
-        try {
-          const audioStream = ytdl(`https://www.youtube.com/watch?v=${videoId}`, {
-            quality: "lowestaudio",
-            filter: "audioonly",
+      if (transcriptData?.error) {
+        const errType = transcriptData.type || "";
+        if (errType === "NoTranscriptFound" || errType === "TranscriptsDisabled") {
+          return res.status(422).json({
+            message: "This video has no captions or auto-subtitles. To analyse it, download the video and use the Upload tab — Whisper AI will transcribe it automatically.",
+            noTranscript: true,
           });
-          await new Promise<void>((resolve, reject) => {
-            const ws = fs.createWriteStream(tempAudioPath);
-            audioStream.pipe(ws);
-            audioStream.on("error", reject);
-            ws.on("finish", resolve);
-            ws.on("error", reject);
-          });
-
-          const audioSize = fs.statSync(tempAudioPath).size;
-          const MAX_WHISPER = 25 * 1024 * 1024;
-          if (audioSize > MAX_WHISPER) {
-            throw new Error(`This video's audio is ${Math.round(audioSize / 1024 / 1024)}MB — too large for AI transcription (25MB max). Try a shorter video or use the Upload tab with an audio export.`);
-          }
-
-          const FormDataLib = (await import("form-data")).default;
-          const fd2 = new FormDataLib();
-          const audioBuf = fs.readFileSync(tempAudioPath);
-          fd2.append("file", audioBuf, { filename: `audio_${videoId}.webm`, contentType: "audio/webm" });
-          fd2.append("model", "whisper-large-v3");
-          fd2.append("response_format", "verbose_json");
-          fd2.append("timestamp_granularities[]", "word");
-          const fd2Buf = fd2.getBuffer();
-
-          const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...fd2.getHeaders(), "Content-Length": String(fd2Buf.length) },
-            body: fd2Buf,
-          });
-          if (!whisperRes.ok) throw new Error(`Whisper transcription failed: ${await whisperRes.text()}`);
-          const wData = await whisperRes.json() as any;
-
-          const words: any[] = wData.words || [];
-          if (words.length > 0) {
-            const CHUNK = 20;
-            const chunks2: string[] = [];
-            for (let i = 0; i < words.length; i += CHUNK) {
-              const sl = words.slice(i, i + CHUNK);
-              const t = sl.map((w: any) => w.word).join(" ").trim();
-              if (t) chunks2.push(`[${fmtSecs(sl[0].start)}–${fmtSecs(sl[sl.length - 1].end)}] ${t}`);
-            }
-            transcriptText = chunks2.join("\n").slice(0, 8000);
-          }
-          if (!transcriptText) throw new Error("Could not extract speech from this video — ensure it has audible dialogue");
-        } finally {
-          try { fs.unlinkSync(tempAudioPath); } catch {}
         }
+        if (errType === "VideoUnavailable") {
+          return res.status(422).json({ message: "This video is unavailable or private. Try a public YouTube video." });
+        }
+        throw new Error(transcriptData.error || "Transcript fetch failed");
       }
 
-      if (!transcriptText) throw new Error("Could not extract transcript from this video");
+      const segments: { start: number; duration: number; text: string }[] = transcriptData?.segments || [];
+      if (!segments.length) {
+        return res.status(422).json({
+          message: "No transcript found for this video. Download the video and use the Upload tab instead.",
+          noTranscript: true,
+        });
+      }
 
-      // 6. AI analysis with Groq
+      // 3. Build timestamped transcript text
+      const transcriptText = segments
+        .map((s) => `[${fmtSecs(s.start)}–${fmtSecs(s.start + s.duration)}] ${s.text}`)
+        .join("\n")
+        .slice(0, 8000);
+
+      if (segments.length > 0) {
+        videoDuration = Math.round(segments[segments.length - 1].start + segments[segments.length - 1].duration);
+      }
+
+      // 4. AI analysis with Groq
       const systemPrompt = `You are a viral short-form content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be self-contained, engaging from the first second, and 15–90 seconds long. Return ONLY valid JSON.`;
       const userPrompt = `Video: "${videoTitle}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
 
