@@ -5,6 +5,7 @@ import {
   igTrackedProfiles, igFollowerSnapshots,
   type IgTrackedProfile, type InsertIgTrackedProfile,
   type IgFollowerSnapshot, type InsertIgFollowerSnapshot,
+  igBotCookies, igBotCampaigns,
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
@@ -1199,6 +1200,40 @@ class DatabaseStorage implements IStorage {
 
   async getIgFollowerSnapshots(profileId: number): Promise<IgFollowerSnapshot[]> {
     return db.select().from(igFollowerSnapshots).where(eq(igFollowerSnapshots.profileId, profileId)).orderBy(igFollowerSnapshots.scannedAt);
+  }
+
+  // ── Instagram Comment Bot ───────────────────────────────────────────────────
+  async getIgBotCookies(userId: string) {
+    const rows = await db.select().from(igBotCookies).where(eq(igBotCookies.userId, userId)).limit(1);
+    return rows[0] || null;
+  }
+
+  async upsertIgBotCookies(userId: string, cookiesJson: string) {
+    const existing = await this.getIgBotCookies(userId);
+    if (existing) {
+      const rows = await db.update(igBotCookies).set({ cookiesJson, updatedAt: new Date() }).where(eq(igBotCookies.userId, userId)).returning();
+      return rows[0];
+    }
+    const rows = await db.insert(igBotCookies).values({ userId, cookiesJson }).returning();
+    return rows[0];
+  }
+
+  async getIgBotCampaigns(userId: string) {
+    return db.select().from(igBotCampaigns).where(eq(igBotCampaigns.userId, userId)).orderBy(igBotCampaigns.createdAt);
+  }
+
+  async createIgBotCampaign(data: { userId: string; name: string; postUrls: string[]; comments: string[] }) {
+    const rows = await db.insert(igBotCampaigns).values(data).returning();
+    return rows[0];
+  }
+
+  async updateIgBotCampaign(id: number, userId: string, data: Partial<typeof igBotCampaigns.$inferSelect>) {
+    const rows = await db.update(igBotCampaigns).set(data).where(and(eq(igBotCampaigns.id, id), eq(igBotCampaigns.userId, userId))).returning();
+    return rows[0];
+  }
+
+  async deleteIgBotCampaign(id: number, userId: string) {
+    await db.delete(igBotCampaigns).where(and(eq(igBotCampaigns.id, id), eq(igBotCampaigns.userId, userId)));
   }
 }
 

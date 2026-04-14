@@ -7913,5 +7913,111 @@ Rules:
     }
   });
 
+  // ── Instagram Comment Bot ──────────────────────────────────────────────────
+  app.get("/api/ig-bot/cookies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const row = await storage.getIgBotCookies(userId);
+      if (!row) return res.json({ configured: false });
+      res.json({ configured: true, updatedAt: row.updatedAt });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/cookies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { cookiesJson } = req.body;
+      if (!cookiesJson) return res.status(400).json({ message: "cookiesJson required" });
+      JSON.parse(cookiesJson); // validate JSON
+      const row = await storage.upsertIgBotCookies(userId, cookiesJson);
+      res.json({ ok: true, updatedAt: row.updatedAt });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/ig-bot/campaigns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const rows = await storage.getIgBotCampaigns(userId);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/campaigns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { name, postUrls, comments } = req.body;
+      if (!name || !postUrls?.length || !comments?.length) return res.status(400).json({ message: "name, postUrls, and comments are required" });
+      const row = await storage.createIgBotCampaign({ userId, name, postUrls, comments });
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/ig-bot/campaigns/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteIgBotCampaign(Number(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/campaigns/:id/run", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const campaignId = Number(req.params.id);
+    try {
+      const cookiesRow = await storage.getIgBotCookies(userId);
+      if (!cookiesRow) return res.status(400).json({ message: "No Instagram cookies saved. Add your cookies first." });
+
+      const campaigns = await storage.getIgBotCampaigns(userId);
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (!campaign) return res.status(404).json({ message: "Campaign not found" });
+
+      await storage.updateIgBotCampaign(campaignId, userId, { status: "running", errorMsg: null });
+
+      const cookies = JSON.parse(cookiesRow.cookiesJson);
+      const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_TOKEN;
+      const apifyInput = {
+        cookies,
+        comments: campaign.comments,
+        post_urls: campaign.postUrls,
+      };
+
+      const runRes = await fetch(`https://api.apify.com/v2/acts/RIhCsGmzYl4GvRjbY/runs?token=${token}&waitForFinish=120`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apifyInput),
+      });
+
+      if (!runRes.ok) {
+        const errTxt = await runRes.text();
+        await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: errTxt });
+        return res.status(500).json({ message: `Apify error: ${errTxt}` });
+      }
+
+      const runData = await runRes.json();
+      const datasetId = runData?.data?.defaultDatasetId;
+      let resultCount = 0;
+
+      if (datasetId) {
+        const dsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}`);
+        if (dsRes.ok) {
+          const items = await dsRes.json();
+          resultCount = Array.isArray(items) ? items.length : 0;
+        }
+      }
+
+      await storage.updateIgBotCampaign(campaignId, userId, {
+        status: "done",
+        resultCount,
+        lastRunAt: new Date(),
+        errorMsg: null,
+      });
+
+      res.json({ ok: true, resultCount });
+    } catch (e: any) {
+      await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: e.message }).catch(() => {});
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }

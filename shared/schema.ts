@@ -614,6 +614,32 @@ export const insertBrollClipSchema = createInsertSchema(brollClips).omit({ id: t
 export type BrollClip = typeof brollClips.$inferSelect;
 export type InsertBrollClip = z.infer<typeof insertBrollClipSchema>;
 
+// ── Instagram Comment Bot ──────────────────────────────────────────────────
+export const igBotCookies = pgTable("ig_bot_cookies", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  cookiesJson: text("cookies_json").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertIgBotCookiesSchema = createInsertSchema(igBotCookies).omit({ id: true, updatedAt: true });
+export type IgBotCookies = typeof igBotCookies.$inferSelect;
+
+export const igBotCampaigns = pgTable("ig_bot_campaigns", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  postUrls: text("post_urls").array().notNull().default(sql`'{}'::text[]`),
+  comments: text("comments").array().notNull().default(sql`'{}'::text[]`),
+  status: text("status").default("idle"),
+  resultCount: integer("result_count"),
+  errorMsg: text("error_msg"),
+  lastRunAt: timestamp("last_run_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertIgBotCampaignSchema = createInsertSchema(igBotCampaigns).omit({ id: true, createdAt: true, lastRunAt: true });
+export type IgBotCampaign = typeof igBotCampaigns.$inferSelect;
+export type InsertIgBotCampaign = z.infer<typeof insertIgBotCampaignSchema>;
+
 // ── Instagram Growth Tracker ────────────────────────────────────────────────
 export const igTrackedProfiles = pgTable("ig_tracked_profiles", {
   id: serial("id").primaryKey(),
