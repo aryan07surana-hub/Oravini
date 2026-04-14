@@ -89,7 +89,6 @@ function SoonBadge() {
 const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/community", label: "Community", icon: Users2 },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
@@ -180,7 +179,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 : href === "/content-analyser"
                 ? location.startsWith("/content-analyser")
                 : location === href;
-              const badge = href === "/chat" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
+              const badge = href === "/community" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
               return (
                 <Link
                   key={href}

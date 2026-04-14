@@ -344,7 +344,9 @@ export default function OnboardingModal({ onComplete }: Props) {
             </button>
           </div>
           <button
-            onClick={onComplete}
+            onClick={() => {
+              saveMutation.mutate();
+            }}
             style={{ display: "block", width: "100%", marginTop: 12, background: "none", border: "none", color: "rgba(255,255,255,0.2)", fontSize: 12, cursor: "pointer", textAlign: "center" }}
           >
             Skip for now
