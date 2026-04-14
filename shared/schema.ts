@@ -664,3 +664,19 @@ export const igFollowerSnapshots = pgTable("ig_follower_snapshots", {
 export const insertIgFollowerSnapshotSchema = createInsertSchema(igFollowerSnapshots).omit({ id: true, scannedAt: true });
 export type IgFollowerSnapshot = typeof igFollowerSnapshots.$inferSelect;
 export type InsertIgFollowerSnapshot = z.infer<typeof insertIgFollowerSnapshotSchema>;
+
+export const onboardingSurveys = pgTable("onboarding_surveys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  field: text("field"),
+  struggles: text("struggles").array(),
+  experience: text("experience"),
+  monthlyRevenue: text("monthly_revenue"),
+  primaryGoal: text("primary_goal"),
+  platform: text("platform"),
+  answers: jsonb("answers"),
+  completedAt: timestamp("completed_at").defaultNow(),
+});
+export const insertOnboardingSurveySchema = createInsertSchema(onboardingSurveys).omit({ id: true, completedAt: true });
+export type OnboardingSurvey = typeof onboardingSurveys.$inferSelect;
+export type InsertOnboardingSurvey = z.infer<typeof insertOnboardingSurveySchema>;

@@ -327,6 +327,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(safe);
   });
 
+  // Onboarding Survey
+  app.get("/api/user/onboarding-status", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const survey = await storage.getOnboardingSurvey(userId);
+    res.json({ done: !!survey, survey: survey || null });
+  });
+
+  app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { field, struggles, experience, monthlyRevenue, primaryGoal, platform } = req.body;
+      const saved = await storage.saveOnboardingSurvey({
+        userId, field, struggles, experience, monthlyRevenue, primaryGoal, platform,
+        answers: { field, struggles, experience, monthlyRevenue, primaryGoal, platform },
+      });
+      res.json({ success: true, survey: saved });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/onboarding-surveys", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const surveys = await storage.getAllOnboardingSurveys();
+      res.json(surveys);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Documents
   app.get("/api/documents", requireAuth, async (req, res) => {
     const user = req.user as any;

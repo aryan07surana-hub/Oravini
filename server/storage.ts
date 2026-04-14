@@ -84,6 +84,11 @@ export interface IStorage {
   updateLandingLead(id: string, data: Partial<InsertLandingLead>): Promise<LandingLead | undefined>;
   getAllLandingLeads(): Promise<LandingLead[]>;
 
+  // Onboarding Surveys
+  saveOnboardingSurvey(data: any): Promise<any>;
+  getOnboardingSurvey(userId: string): Promise<any | undefined>;
+  getAllOnboardingSurveys(): Promise<any[]>;
+
   // Sessions Hub
   getSessions(tierFilter?: string[]): Promise<Session[]>;
   getSession(id: string): Promise<Session | undefined>;
@@ -713,6 +718,36 @@ class DatabaseStorage implements IStorage {
 
   async getAllLandingLeads(): Promise<LandingLead[]> {
     return await db.select().from(landingLeads).orderBy(desc(landingLeads.createdAt));
+  }
+
+  // ── Onboarding Surveys ─────────────────────────────────────────────────────
+  async saveOnboardingSurvey(data: any): Promise<any> {
+    const result = await pool.query(
+      `INSERT INTO onboarding_surveys (user_id, field, struggles, experience, monthly_revenue, primary_goal, platform, answers)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (user_id) DO UPDATE SET
+         field=EXCLUDED.field, struggles=EXCLUDED.struggles, experience=EXCLUDED.experience,
+         monthly_revenue=EXCLUDED.monthly_revenue, primary_goal=EXCLUDED.primary_goal,
+         platform=EXCLUDED.platform, answers=EXCLUDED.answers, completed_at=NOW()
+       RETURNING *`,
+      [data.userId, data.field, data.struggles, data.experience, data.monthlyRevenue, data.primaryGoal, data.platform, JSON.stringify(data.answers ?? {})]
+    );
+    return result.rows[0];
+  }
+
+  async getOnboardingSurvey(userId: string): Promise<any | undefined> {
+    const result = await pool.query(`SELECT * FROM onboarding_surveys WHERE user_id=$1 LIMIT 1`, [userId]);
+    return result.rows[0];
+  }
+
+  async getAllOnboardingSurveys(): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT os.*, u.name as user_name, u.email as user_email, u.plan as user_plan, u.created_at as user_created_at
+       FROM onboarding_surveys os
+       LEFT JOIN users u ON u.id = os.user_id
+       ORDER BY os.completed_at DESC`
+    );
+    return result.rows;
   }
 
   // ── Credit system ──────────────────────────────────────────────────────────

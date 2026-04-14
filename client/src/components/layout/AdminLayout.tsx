@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox, Clapperboard, Video, Zap, Database
+  LogOut, ChevronRight, Menu, X, Sparkles, BarChart2, BookOpen, TrendingUp, Inbox, Clapperboard, Video, Zap, Database, ClipboardList
 } from "lucide-react";
 import { useState } from "react";
 
@@ -19,6 +19,7 @@ const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/clients", label: "Elite Members", icon: Users },
   { href: "/admin/crm", label: "CRM", icon: Database },
+  { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/credits", label: "Credits", icon: Zap },
   { href: "/admin/tracking", label: "Tracking", icon: BarChart2 },

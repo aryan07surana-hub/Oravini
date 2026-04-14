@@ -1,4 +1,5 @@
 import ClientLayout from "@/components/layout/ClientLayout";
+import OnboardingModal from "@/components/OnboardingModal";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -625,6 +626,13 @@ export default function ClientDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const { data: onboardingStatus } = useQuery<{ done: boolean }>({
+    queryKey: ["/api/user/onboarding-status"],
+    enabled: !!user?.id,
+    staleTime: Infinity,
+  });
+  const showOnboarding = onboardingStatus !== undefined && !onboardingStatus.done;
+
   const { data: prog, isLoading: progLoading } = useQuery<any>({
     queryKey: [`/api/progress/${user?.id}`],
     enabled: !!user?.id,
@@ -719,6 +727,7 @@ export default function ClientDashboard() {
   }, [autoRefresh]);
 
   return (
+    <>
     <ClientLayout>
       {showGoalDialog && user?.id && (
         <GoalDialog userId={user.id} autoOpen={true} />
@@ -1123,5 +1132,12 @@ export default function ClientDashboard() {
 
       </div>
     </ClientLayout>
+
+    {showOnboarding && (
+      <OnboardingModal onComplete={() => {
+        queryClient.setQueryData(["/api/user/onboarding-status"], { done: true });
+      }} />
+    )}
+  </>
   );
 }
