@@ -605,7 +605,7 @@ export default function AdminTracking() {
     queryKey: ["/api/clients"],
   });
 
-  const eliteClients = clients.filter((c: any) => c.tier === "elite");
+  const eliteClients = clients.filter((c: any) => c.plan === "elite" || c.tier === "elite");
   const selectedClient = eliteClients.find((c: any) => c.id === selectedClientId);
 
   return (

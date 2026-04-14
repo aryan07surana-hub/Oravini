@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Users, Plus, Search, ChevronRight, Calendar, Mail, Phone, Trash2 } from "lucide-react";
+import { Users, Plus, Search, ChevronRight, Calendar, Mail, Phone, Trash2, MessageSquare } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -40,6 +41,7 @@ export default function AdminClients() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [, navigate] = useLocation();
 
   const form = useForm<AddClientForm>({
     resolver: zodResolver(addClientSchema),
@@ -238,6 +240,16 @@ export default function AdminClients() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
+                            <Button
+                              data-testid={`button-chat-client-${client.id}`}
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8 text-zinc-500 hover:text-[#d4b461] hover:bg-[#d4b461]/10"
+                              onClick={(e) => { e.preventDefault(); navigate(`/admin/chat?client=${client.id}`); }}
+                              title="Open chat"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </Button>
                             <ChevronRight className="w-4 h-4 text-muted-foreground" />
                             <AlertDialog>
                               <AlertDialogTrigger asChild>

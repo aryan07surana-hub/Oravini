@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, MessageCircle, Wrench, Mic, Film, Scissors, Instagram
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, Wand2, ScanSearch, MessageCircle, Wrench, Mic, Film, Scissors, Instagram, Users2
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -90,6 +90,7 @@ const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/community", label: "Community", icon: Users2 },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },

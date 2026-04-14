@@ -12,10 +12,15 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 
+function getQueryParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
 export default function AdminChat() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(getQueryParam("client"));
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");

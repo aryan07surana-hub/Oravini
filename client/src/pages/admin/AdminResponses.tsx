@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Search, ChevronDown, ChevronUp, BarChart2, Users, TrendingUp, Target, DollarSign, Layers
-} from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Users, TrendingUp, Target, DollarSign, Layers, BarChart2 } from "lucide-react";
 import { format } from "date-fns";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend,
+} from "recharts";
 
 const GOLD = "#d4b461";
 
@@ -20,15 +22,28 @@ const PLAN_COLORS: Record<string, string> = {
   elite:   `border-[#d4b461]/60 text-[#d4b461]`,
 };
 
-function StatBar({ label, count, total, color }: { label: string; count: number; total: number; color?: string }) {
+const PIE_COLORS = [GOLD, "#60a5fa", "#4ade80", "#f87171", "#a78bfa", "#fb923c", "#34d399"];
+const BAR_COLOR = GOLD;
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs shadow-xl">
+      <p className="text-zinc-300 font-semibold mb-0.5">{label}</p>
+      <p className="text-[#d4b461]">{payload[0].value} response{payload[0].value !== 1 ? "s" : ""}</p>
+    </div>
+  );
+}
+
+function HBar({ label, count, total, color }: { label: string; count: number; total: number; color?: string }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-zinc-400 w-40 shrink-0 truncate">{label}</span>
+      <span className="text-xs text-zinc-400 w-44 shrink-0 truncate">{label}</span>
       <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
         <div style={{ width: `${pct}%`, background: color ?? GOLD }} className="h-full rounded-full transition-all" />
       </div>
-      <span className="text-xs text-zinc-400 w-12 text-right">{count} <span className="text-zinc-600">({pct}%)</span></span>
+      <span className="text-xs text-zinc-400 w-16 text-right">{count} <span className="text-zinc-600">({pct}%)</span></span>
     </div>
   );
 }
@@ -36,7 +51,7 @@ function StatBar({ label, count, total, color }: { label: string; count: number;
 export default function AdminResponses() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "field" | "struggle" | "goal">("all");
+  const [chartType, setChartType] = useState<"bar" | "pie">("bar");
 
   const { data: surveys = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/onboarding-surveys"],
@@ -51,7 +66,6 @@ export default function AdminResponses() {
 
   const total = surveys.length;
 
-  // Aggregate stats
   const fieldCounts: Record<string, number> = {};
   const struggleCounts: Record<string, number> = {};
   const goalCounts: Record<string, number> = {};
@@ -64,102 +78,126 @@ export default function AdminResponses() {
     if (s.platform) platformCounts[s.platform] = (platformCounts[s.platform] ?? 0) + 1;
     if (s.monthly_revenue) revenueCounts[s.monthly_revenue] = (revenueCounts[s.monthly_revenue] ?? 0) + 1;
     if (Array.isArray(s.struggles)) {
-      for (const str of s.struggles) {
-        struggleCounts[str] = (struggleCounts[str] ?? 0) + 1;
-      }
+      for (const str of s.struggles) struggleCounts[str] = (struggleCounts[str] ?? 0) + 1;
     }
   }
 
-  const top = (obj: Record<string, number>, n = 5) =>
+  const top = (obj: Record<string, number>, n = 6) =>
     Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
+
+  const toBarData = (obj: Record<string, number>, n = 6) =>
+    top(obj, n).map(([name, value]) => ({ name: name.length > 22 ? name.slice(0, 20) + "…" : name, value }));
+
+  const toPieData = (obj: Record<string, number>, n = 6) =>
+    top(obj, n).map(([name, value]) => ({ name, value }));
+
+  const renderChart = (data: { name: string; value: number }[], colorStart?: string) => {
+    if (chartType === "pie") {
+      return (
+        <ResponsiveContainer width="100%" height={200}>
+          <PieChart>
+            <Pie data={data} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={2}>
+              {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+            </Pie>
+            <Tooltip formatter={(v: any) => [`${v} response${v !== 1 ? "s" : ""}`, ""]} contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 12 }} />
+            <Legend formatter={(v) => <span className="text-xs text-zinc-400">{v}</span>} wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      );
+    }
+    return (
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={14}>
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40} />
+          <YAxis tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} allowDecimals={false} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="value" fill={colorStart ?? BAR_COLOR} radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  };
 
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Onboarding Responses</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Survey answers from clients at first login — {total} total response{total !== 1 ? "s" : ""}</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Onboarding Responses</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">Survey answers from clients — {total} total response{total !== 1 ? "s" : ""}</p>
+          </div>
+          {total > 0 && (
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg p-1">
+              <button
+                onClick={() => setChartType("bar")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "bar" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
+                data-testid="btn-chart-bar"
+              >
+                <BarChart2 className="w-3.5 h-3.5" /> Bar
+              </button>
+              <button
+                onClick={() => setChartType("pie")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "pie" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
+                data-testid="btn-chart-pie"
+              >
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-current" /> Pie
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Aggregate insight cards */}
         {total > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {/* Top fields */}
+
             <Card className="border border-card-border">
               <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <Layers className="w-4 h-4 text-[#d4b461]" />
                   <p className="text-sm font-semibold text-white">Top Fields</p>
                 </div>
-                <div className="space-y-2">
-                  {top(fieldCounts).map(([label, count]) => (
-                    <StatBar key={label} label={label} count={count} total={total} />
-                  ))}
-                </div>
+                {renderChart(toBarData(fieldCounts))}
               </CardContent>
             </Card>
 
-            {/* Top struggles */}
             <Card className="border border-card-border">
               <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <TrendingUp className="w-4 h-4 text-red-400" />
                   <p className="text-sm font-semibold text-white">Biggest Struggles</p>
                 </div>
-                <div className="space-y-2">
-                  {top(struggleCounts).map(([label, count]) => (
-                    <StatBar key={label} label={label} count={count} total={total} color="#ef4444" />
-                  ))}
-                </div>
+                {renderChart(toBarData(struggleCounts), "#ef4444")}
               </CardContent>
             </Card>
 
-            {/* Goals */}
             <Card className="border border-card-border">
               <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <Target className="w-4 h-4 text-emerald-400" />
                   <p className="text-sm font-semibold text-white">Primary Goals</p>
                 </div>
-                <div className="space-y-2">
-                  {top(goalCounts).map(([label, count]) => (
-                    <StatBar key={label} label={label} count={count} total={total} color="#22c55e" />
-                  ))}
-                </div>
+                {renderChart(toBarData(goalCounts), "#22c55e")}
               </CardContent>
             </Card>
 
-            {/* Platforms */}
             <Card className="border border-card-border">
               <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <BarChart2 className="w-4 h-4 text-blue-400" />
                   <p className="text-sm font-semibold text-white">Platforms</p>
                 </div>
-                <div className="space-y-2">
-                  {top(platformCounts).map(([label, count]) => (
-                    <StatBar key={label} label={label} count={count} total={total} color="#60a5fa" />
-                  ))}
-                </div>
+                {renderChart(toPieData(platformCounts), "#60a5fa")}
               </CardContent>
             </Card>
 
-            {/* Revenue */}
             <Card className="border border-card-border">
               <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <DollarSign className="w-4 h-4 text-violet-400" />
                   <p className="text-sm font-semibold text-white">Current Revenue</p>
                 </div>
-                <div className="space-y-2">
-                  {top(revenueCounts, 6).map(([label, count]) => (
-                    <StatBar key={label} label={label} count={count} total={total} color="#a78bfa" />
-                  ))}
-                </div>
+                {renderChart(toPieData(revenueCounts), "#a78bfa")}
               </CardContent>
             </Card>
 
-            {/* Summary */}
             <Card className="border border-card-border">
               <CardContent className="p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -167,22 +205,18 @@ export default function AdminResponses() {
                   <p className="text-sm font-semibold text-white">Summary</p>
                 </div>
                 <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-0.5">Most common field</p>
-                    <p className="text-sm font-semibold text-white">{top(fieldCounts, 1)[0]?.[0] ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-0.5">Top struggle</p>
-                    <p className="text-sm font-semibold text-red-400">{top(struggleCounts, 1)[0]?.[0] ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-0.5">Top goal</p>
-                    <p className="text-sm font-semibold text-emerald-400">{top(goalCounts, 1)[0]?.[0] ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500 mb-0.5">Most used platform</p>
-                    <p className="text-sm font-semibold text-blue-400">{top(platformCounts, 1)[0]?.[0] ?? "—"}</p>
-                  </div>
+                  {[
+                    { label: "Most common field", value: top(fieldCounts, 1)[0]?.[0], color: "text-[#d4b461]" },
+                    { label: "Top struggle", value: top(struggleCounts, 1)[0]?.[0], color: "text-red-400" },
+                    { label: "Top goal", value: top(goalCounts, 1)[0]?.[0], color: "text-emerald-400" },
+                    { label: "Main platform", value: top(platformCounts, 1)[0]?.[0], color: "text-blue-400" },
+                    { label: "Most common revenue", value: top(revenueCounts, 1)[0]?.[0], color: "text-violet-400" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
+                      <p className={`text-sm font-semibold ${color}`}>{value ?? "—"}</p>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

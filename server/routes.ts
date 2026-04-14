@@ -10,7 +10,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { storage } from "./storage";
+import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
@@ -8172,6 +8172,117 @@ Rules:
       res.json({ ok: true, resultCount });
     } catch (e: any) {
       await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: e.message }).catch(() => {});
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── Community Routes ────────────────────────────────────────────────────────
+
+  // GET /api/community/posts?channel=wins — fetch posts for a channel
+  app.get("/api/community/posts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const channel = (req.query.channel as string) || "general";
+      const result = await pool.query(
+        `SELECT cp.*, u.name as author_name, u.email as author_email, u.plan as author_plan,
+                (SELECT COUNT(*) FROM community_likes cl WHERE cl.post_id = cp.id) as like_count,
+                EXISTS(SELECT 1 FROM community_likes cl2 WHERE cl2.post_id = cp.id AND cl2.user_id = $2) as liked_by_me
+         FROM community_posts cp
+         LEFT JOIN users u ON cp.user_id = u.id
+         WHERE cp.channel = $1 AND cp.parent_id IS NULL
+         ORDER BY cp.is_pinned DESC, cp.created_at DESC
+         LIMIT 100`,
+        [channel, req.user!.id]
+      );
+      res.json(result.rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/community/posts/:id/replies — fetch replies for a post
+  app.get("/api/community/posts/:id/replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const result = await pool.query(
+        `SELECT cp.*, u.name as author_name, u.email as author_email, u.plan as author_plan,
+                (SELECT COUNT(*) FROM community_likes cl WHERE cl.post_id = cp.id) as like_count,
+                EXISTS(SELECT 1 FROM community_likes cl2 WHERE cl2.post_id = cp.id AND cl2.user_id = $2) as liked_by_me
+         FROM community_posts cp
+         LEFT JOIN users u ON cp.user_id = u.id
+         WHERE cp.parent_id = $1
+         ORDER BY cp.created_at ASC`,
+        [postId, req.user!.id]
+      );
+      res.json(result.rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/community/posts — create a post or reply
+  app.post("/api/community/posts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channel = "general", content, parent_id } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Content is required" });
+      const result = await pool.query(
+        `INSERT INTO community_posts (user_id, channel, content, parent_id)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [req.user!.id, channel, content.trim(), parent_id ?? null]
+      );
+      res.json(result.rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/community/posts/:id/like — toggle like on a post
+  app.post("/api/community/posts/:id/like", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      const existing = await pool.query(
+        "SELECT 1 FROM community_likes WHERE post_id = $1 AND user_id = $2",
+        [postId, userId]
+      );
+      if (existing.rows.length > 0) {
+        await pool.query("DELETE FROM community_likes WHERE post_id = $1 AND user_id = $2", [postId, userId]);
+        res.json({ liked: false });
+      } else {
+        await pool.query("INSERT INTO community_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [postId, userId]);
+        res.json({ liked: true });
+      }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // DELETE /api/community/posts/:id — delete own post (or admin any)
+  app.delete("/api/community/posts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      const isAdmin = (req.user as any)?.role === "admin";
+      const check = await pool.query("SELECT user_id FROM community_posts WHERE id = $1", [postId]);
+      if (!check.rows.length) return res.status(404).json({ message: "Post not found" });
+      if (!isAdmin && check.rows[0].user_id !== userId) return res.status(403).json({ message: "Not allowed" });
+      await pool.query("DELETE FROM community_posts WHERE id = $1", [postId]);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // PATCH /api/community/posts/:id/pin — admin: toggle pin
+  app.patch("/api/community/posts/:id/pin", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if ((req.user as any)?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const postId = parseInt(req.params.id);
+      const result = await pool.query(
+        "UPDATE community_posts SET is_pinned = NOT is_pinned WHERE id = $1 RETURNING is_pinned",
+        [postId]
+      );
+      res.json({ pinned: result.rows[0]?.is_pinned });
+    } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });

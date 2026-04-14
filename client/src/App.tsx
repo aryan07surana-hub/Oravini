@@ -73,6 +73,7 @@ import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
+import Community from "@/pages/client/Community";
 import PublicForm from "@/pages/PublicForm";
 
 const GOLD = "#d4b461";
@@ -163,6 +164,9 @@ function Router() {
       </Route>
       <Route path="/chat">
         {() => <ProtectedRoute component={ClientChat} />}
+      </Route>
+      <Route path="/community">
+        {() => <ProtectedRoute component={Community} />}
       </Route>
       <Route path="/progress">
         {() => <ProtectedRoute component={ClientProgress} />}
