@@ -98,7 +98,6 @@ const topNavItems = [
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
-  { href: "/ig-tracker", label: "IG Growth Tracker", icon: Instagram },
 ];
 
 const bottomNavItems = [

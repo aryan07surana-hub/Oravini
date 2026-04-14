@@ -71,7 +71,6 @@ import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import ClipFinder from "@/pages/client/ClipFinder";
-import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import PublicForm from "@/pages/PublicForm";
 
 const GOLD = "#d4b461";
@@ -245,7 +244,7 @@ function Router() {
         {() => <ProtectedRoute component={ClipFinder} />}
       </Route>
       <Route path="/ig-tracker">
-        {() => <ProtectedRoute component={IgGrowthTracker} />}
+        {() => { window.location.replace("/tracking/content/instagram"); return null; }}
       </Route>
       <Route path="/sessions">
         {() => <ProtectedRoute component={Sessions} />}

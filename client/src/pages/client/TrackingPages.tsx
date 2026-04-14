@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -1308,6 +1308,160 @@ function InstagramSetupCard({ userId }: { userId: string }) {
   );
 }
 
+// ── Instagram Follower Growth Panel ───────────────────────────────────────────
+function IgFollowerPanel() {
+  const { toast } = useToast();
+  const [username, setUsername] = useState("");
+  const [scanningId, setScanningId] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { data: profiles = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
+
+  const addMutation = useMutation({
+    mutationFn: (u: string) => apiRequest("POST", "/api/ig-tracker", { username: u }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker"] });
+      setUsername("");
+      toast({ title: "Profile added & scanned" });
+    },
+    onError: (e: any) => toast({ title: "Failed to add profile", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/ig-tracker/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker"] }); toast({ title: "Profile removed" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  async function handleScan(id: number) {
+    setScanningId(id);
+    try {
+      await apiRequest("POST", `/api/ig-tracker/${id}/scan`);
+      queryClient.invalidateQueries({ queryKey: ["/api/ig-tracker"] });
+      toast({ title: "Scan complete", description: "Follower count updated." });
+    } catch (e: any) {
+      toast({ title: "Scan failed", description: e.message, variant: "destructive" });
+    } finally {
+      setScanningId(null);
+    }
+  }
+
+  function fmtNum(n: number) {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+    return String(n);
+  }
+
+  function timeSince(d: string | Date) {
+    const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  return (
+    <div className="rounded-2xl border border-pink-500/20 bg-pink-500/5 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-pink-400" />
+          <span className="text-sm font-semibold text-foreground">Follower Growth Tracker</span>
+          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">auto-scans daily · Apify</span>
+        </div>
+      </div>
+
+      {/* Add profile row */}
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1 max-w-xs">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">@</span>
+          <input
+            ref={inputRef}
+            data-testid="input-ig-tracker-username"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && username.trim()) addMutation.mutate(username); }}
+            placeholder="username to track"
+            className="w-full pl-7 pr-3 py-2 text-sm rounded-lg bg-background border border-input focus:outline-none focus:ring-1 focus:ring-pink-500/50 text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+        <button
+          data-testid="button-add-ig-tracker"
+          onClick={() => { if (username.trim()) addMutation.mutate(username); }}
+          disabled={!username.trim() || addMutation.isPending}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-pink-500/15 text-pink-400 border border-pink-500/30 hover:bg-pink-500/25 transition-colors disabled:opacity-50"
+        >
+          {addMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          {addMutation.isPending ? "Scanning…" : "Track"}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</div>
+      ) : profiles.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-1">No profiles tracked yet — add a username above to monitor follower growth automatically.</p>
+      ) : (
+        <div className="space-y-2">
+          {profiles.map((p: any) => {
+            const snap = p.latestSnapshot;
+            const prev = p.prevSnapshot;
+            const diff = snap && prev ? snap.followersCount - prev.followersCount : null;
+            return (
+              <div key={p.id} data-testid={`ig-tracker-row-${p.id}`} className="flex items-center gap-3 bg-background/60 rounded-xl px-3 py-2.5 border border-border/50">
+                {p.profilePic
+                  ? <img src={p.profilePic} alt={p.username} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  : <div className="w-8 h-8 rounded-full bg-pink-500/10 flex items-center justify-center flex-shrink-0"><Instagram className="w-4 h-4 text-pink-400" /></div>
+                }
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <a href={`https://instagram.com/${p.username}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-foreground hover:text-pink-400 transition-colors">@{p.username}</a>
+                    {diff !== null && diff !== 0 && (
+                      <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${diff > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {diff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                        {diff > 0 ? "+" : ""}{fmtNum(diff)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {snap ? (
+                      <>
+                        <span className="text-xs text-foreground font-bold">{fmtNum(snap.followersCount)} <span className="text-muted-foreground font-normal">followers</span></span>
+                        <span className="text-xs text-muted-foreground">{fmtNum(snap.followsCount)} following</span>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{timeSince(snap.scannedAt)}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Not scanned yet</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    data-testid={`button-scan-ig-${p.id}`}
+                    onClick={() => handleScan(p.id)}
+                    disabled={scanningId === p.id}
+                    title="Scan now"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${scanningId === p.id ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    data-testid={`button-delete-ig-${p.id}`}
+                    onClick={() => deleteMutation.mutate(p.id)}
+                    title="Remove"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -1458,6 +1612,9 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
 
         {/* Instagram Profile Setup — shown first on Instagram only */}
         {!isYt && user?.id && <InstagramSetupCard userId={user.id} />}
+
+        {/* Follower Growth Tracker — Instagram only */}
+        {!isYt && <IgFollowerPanel />}
 
         <div className="grid grid-cols-3 gap-3">
           {[
