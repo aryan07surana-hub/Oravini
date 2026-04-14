@@ -457,10 +457,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const adminId = (req.user as any).id;
     const convs = await storage.getConversations(adminId);
     const result = await Promise.all(
-      convs.map(async ({ clientId, lastMessage }) => {
+      convs.map(async ({ clientId, lastMessage, unreadCount }) => {
         const client = await storage.getUser(clientId);
         const { password: _, ...safeClient } = client || ({ name: "Unknown", email: "" } as any);
-        return { client: safeClient, lastMessage };
+        return { client: safeClient, lastMessage, unreadCount };
       })
     );
     res.json(result);

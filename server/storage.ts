@@ -335,14 +335,26 @@ class DatabaseStorage implements IStorage {
     ).orderBy(desc(messages.createdAt));
 
     const seen = new Set<string>();
-    const result: { clientId: string; lastMessage: Message }[] = [];
+    const result: { clientId: string; lastMessage: Message; unreadCount: number }[] = [];
+    const unreadByClient: Record<string, number> = {};
+
     for (const msg of allMsgs) {
       const clientId = msg.senderId === adminId ? msg.receiverId : msg.senderId;
+      // Count messages sent TO admin that are unread
+      if (msg.receiverId === adminId && !msg.read) {
+        unreadByClient[clientId] = (unreadByClient[clientId] || 0) + 1;
+      }
       if (!seen.has(clientId)) {
         seen.add(clientId);
-        result.push({ clientId, lastMessage: msg });
+        result.push({ clientId, lastMessage: msg, unreadCount: 0 });
       }
     }
+
+    // Attach unread counts
+    for (const r of result) {
+      r.unreadCount = unreadByClient[r.clientId] || 0;
+    }
+
     return result;
   }
 

@@ -138,8 +138,11 @@ export default function AdminChat() {
 
   const mergedClients = (allClients || []).map((client: any) => {
     const conv = convMap.get(client.id);
-    return { client, lastMessage: conv?.lastMessage || null };
+    return { client, lastMessage: conv?.lastMessage || null, unreadCount: conv?.unreadCount || 0 };
   }).sort((a: any, b: any) => {
+    // Unread conversations always float to the top
+    if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+    if (b.unreadCount > 0 && a.unreadCount === 0) return 1;
     if (a.lastMessage && b.lastMessage) return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime();
     if (a.lastMessage) return -1;
     if (b.lastMessage) return 1;
@@ -167,31 +170,46 @@ export default function AdminChat() {
               </div>
             ) : (
               <div className="p-2">
-                {mergedClients.map(({ client, lastMessage }: any) => {
+                {mergedClients.map(({ client, lastMessage, unreadCount }: any) => {
                   const isSelected = selectedClientId === client.id;
+                  const hasUnread = unreadCount > 0;
                   return (
                     <button
                       key={client.id}
                       data-testid={`conv-${client.id}`}
                       onClick={() => setSelectedClientId(client.id)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${isSelected ? "bg-primary/10 border border-primary/20" : "hover:bg-accent"}`}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${isSelected ? "bg-primary/10 border border-primary/20" : hasUnread ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-accent"}`}
                     >
-                      <Avatar className="w-10 h-10 flex-shrink-0">
-                        <AvatarFallback className={`text-xs font-bold ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                          {initials(client.name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback className={`text-xs font-bold ${isSelected ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                            {initials(client.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {hasUnread && !isSelected && (
+                          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center text-[9px] font-bold text-primary-foreground">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{client.name}</p>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {lastMessage ? lastMessage.content : <span className="italic opacity-60">No messages yet</span>}
+                        <p className={`text-sm truncate ${hasUnread && !isSelected ? "font-bold text-foreground" : "font-semibold text-foreground"}`}>
+                          {client.name}
+                        </p>
+                        <p className={`text-xs truncate mt-0.5 ${hasUnread && !isSelected ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                          {lastMessage
+                            ? (lastMessage.content || (lastMessage.fileName ? `📎 ${lastMessage.fileName}` : "Attachment"))
+                            : <span className="italic opacity-60">No messages yet</span>
+                          }
                         </p>
                       </div>
-                      {lastMessage && (
-                        <p className="text-[10px] text-muted-foreground flex-shrink-0">
-                          {format(new Date(lastMessage.createdAt), "MMM d")}
-                        </p>
-                      )}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {lastMessage && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {format(new Date(lastMessage.createdAt), "MMM d")}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   );
                 })}

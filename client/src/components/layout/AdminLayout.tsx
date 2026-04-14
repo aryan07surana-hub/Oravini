@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, Users2
+  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2
 } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -34,6 +35,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const logout = useLogout();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: unreadMsg } = useQuery<{ count: number }>({
+    queryKey: ["/api/messages/unread/count"],
+    refetchInterval: 20000,
+  });
+  const unreadMessages = unreadMsg?.count || 0;
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "A";
 
@@ -71,7 +77,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">{label}</span>
-                {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                {href === "/admin/chat" && unreadMessages > 0 && (
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1">
+                    {unreadMessages}
+                  </span>
+                )}
+                {!active && href !== "/admin/chat" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
             );
           })}
