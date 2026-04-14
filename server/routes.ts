@@ -4056,6 +4056,82 @@ Return ONLY valid JSON:
     return `${m}:${sec < 10 ? "0" : ""}${sec}`;
   }
 
+  // ── YouTube transcript via InnerTube Android API (no bot detection) ────────
+  async function fetchYouTubeTranscript(videoId: string): Promise<{ title: string; segments: { start: number; duration: number; text: string }[] }> {
+    const BASE_HEADERS = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "en-US,en;q=0.9",
+    };
+
+    // Step 1: Fetch page to extract INNERTUBE_API_KEY
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, { headers: BASE_HEADERS });
+    if (!pageRes.ok) throw new Error(`YouTube returned ${pageRes.status}`);
+    const html = await pageRes.text();
+
+    const keyMatch = html.match(/"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"/);
+    if (!keyMatch) {
+      if (html.includes("class=\"g-recaptcha\"") || (html.includes("signin") && !html.includes("ytInitialPlayerResponse"))) {
+        throw new Error("YouTube is blocking this request. Try a different video or use the Upload tab.");
+      }
+      throw new Error("Could not parse YouTube page");
+    }
+    const apiKey = keyMatch[1];
+
+    // Step 2: InnerTube API call with Android client context (trusted, no bot check)
+    const innerRes = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${apiKey}`, {
+      method: "POST",
+      headers: { ...BASE_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context: { client: { clientName: "ANDROID", clientVersion: "20.10.38" } },
+        videoId,
+      }),
+    });
+    if (!innerRes.ok) throw new Error(`InnerTube API error: ${innerRes.status}`);
+    const innerData: any = await innerRes.json();
+
+    const title: string = innerData?.videoDetails?.title || "YouTube Video";
+    const tracks: any[] = innerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+
+    if (!tracks.length) {
+      const err: any = new Error("NO_TRANSCRIPT");
+      err.noTranscript = true;
+      throw err;
+    }
+
+    // Step 3: Fetch the caption XML
+    const track = tracks.find((t: any) => t.languageCode?.startsWith("en")) || tracks[0];
+    const capRes = await fetch(track.baseUrl, { headers: BASE_HEADERS });
+    if (!capRes.ok) throw new Error("Failed to fetch captions");
+    const capXml = await capRes.text();
+
+    // Step 4: Parse XML captions
+    // YouTube returns two formats:
+    //   <p t="1360" d="1680">...</p>  (timedtext format=3, t/d in ms)
+    //   <text start="1.36" dur="1.68">...</text>  (older ttml-style)
+    const segments: { start: number; duration: number; text: string }[] = [];
+    const decodeEntities = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, "").trim();
+
+    if (/<p\s[^>]*t="/.test(capXml)) {
+      // timedtext format: <p t="ms" d="ms">text</p>
+      const re = /<p\b[^>]+t="(\d+)"[^>]*(?:\sd="(\d+)")?[^>]*>([\s\S]*?)<\/p>/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(capXml)) !== null) {
+        const text = decodeEntities(m[3]);
+        if (text.length > 1) segments.push({ start: parseInt(m[1]) / 1000, duration: parseInt(m[2] || "3000") / 1000, text });
+      }
+    } else {
+      // ttml-style: <text start="s" dur="s">text</text>
+      const re = /<text[^>]+start="([\d.]+)"[^>]*(?:dur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(capXml)) !== null) {
+        const text = decodeEntities(m[3]);
+        if (text.length > 1) segments.push({ start: parseFloat(m[1]), duration: parseFloat(m[2] || "3"), text });
+      }
+    }
+
+    return { title, segments };
+  }
+
   app.post("/api/clip-finder", requireAuth, async (req: Request, res: Response) => {
     try {
       const { url } = req.body;
@@ -4064,65 +4140,41 @@ Return ONLY valid JSON:
       const videoId = extractYouTubeVideoId(url);
       if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
 
-      // 1. Fetch video title/duration via oEmbed (always public, never blocked)
-      let videoTitle = "YouTube Video";
-      let videoDuration = 0;
-      try {
-        const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-        if (oembedRes.ok) {
-          const oe = await oembedRes.json() as any;
-          videoTitle = oe.title || videoTitle;
-        }
-      } catch {}
-
-      // 2. Fetch transcript via Python youtube-transcript-api (reliable, no bot detection)
       console.log("[clip-finder] Fetching transcript for videoId:", videoId);
-      const pythonBin = path.resolve(".pythonlibs/bin/python3");
-      const scriptPath = path.resolve("server/fetch_transcript.py");
-      let transcriptData: any;
-      try {
-        const { stdout } = await execFileAsync(pythonBin, [scriptPath, videoId], { timeout: 25000 });
-        transcriptData = JSON.parse(stdout.trim());
-      } catch (execErr: any) {
-        // Try to parse error output
-        try { transcriptData = JSON.parse(execErr.stdout?.trim() || "{}"); } catch { transcriptData = {}; }
-      }
+      let title = "YouTube Video";
+      let segments: { start: number; duration: number; text: string }[] = [];
 
-      if (transcriptData?.error) {
-        const errType = transcriptData.type || "";
-        if (errType === "NoTranscriptFound" || errType === "TranscriptsDisabled") {
+      try {
+        const result = await fetchYouTubeTranscript(videoId);
+        title = result.title;
+        segments = result.segments;
+      } catch (transcriptErr: any) {
+        if (transcriptErr.noTranscript || transcriptErr.message === "NO_TRANSCRIPT") {
           return res.status(422).json({
-            message: "This video has no captions or auto-subtitles. To analyse it, download the video and use the Upload tab — Whisper AI will transcribe it automatically.",
+            message: "This video has no captions or auto-subtitles. Download the video and use the Upload tab — Whisper AI will transcribe it automatically.",
             noTranscript: true,
           });
         }
-        if (errType === "VideoUnavailable") {
-          return res.status(422).json({ message: "This video is unavailable or private. Try a public YouTube video." });
-        }
-        throw new Error(transcriptData.error || "Transcript fetch failed");
+        throw transcriptErr;
       }
 
-      const segments: { start: number; duration: number; text: string }[] = transcriptData?.segments || [];
       if (!segments.length) {
         return res.status(422).json({
-          message: "No transcript found for this video. Download the video and use the Upload tab instead.",
+          message: "No transcript found for this video. Try the Upload tab instead.",
           noTranscript: true,
         });
       }
 
-      // 3. Build timestamped transcript text
+      const videoDuration = Math.round(segments[segments.length - 1].start + segments[segments.length - 1].duration);
+
       const transcriptText = segments
         .map((s) => `[${fmtSecs(s.start)}–${fmtSecs(s.start + s.duration)}] ${s.text}`)
         .join("\n")
         .slice(0, 8000);
 
-      if (segments.length > 0) {
-        videoDuration = Math.round(segments[segments.length - 1].start + segments[segments.length - 1].duration);
-      }
-
-      // 4. AI analysis with Groq
+      // AI analysis
       const systemPrompt = `You are a viral short-form content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be self-contained, engaging from the first second, and 15–90 seconds long. Return ONLY valid JSON.`;
-      const userPrompt = `Video: "${videoTitle}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
+      const userPrompt = `Video: "${title}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
 
 Transcript:
 ${transcriptText}
@@ -4167,7 +4219,7 @@ Return JSON:
         };
       });
 
-      return res.json({ videoId, title: videoTitle, duration: videoDuration, clips });
+      return res.json({ videoId, title, duration: videoDuration, clips });
     } catch (err: any) {
       console.log("[clip-finder] error:", err.message);
       return res.status(500).json({ message: err.message || "Clip analysis failed" });
