@@ -601,11 +601,11 @@ function ClientPostsPanel({ clientId, platform }: { clientId: string; platform: 
 export default function AdminTracking() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
 
-  const { data: clients = [] } = useQuery<any[]>({
-    queryKey: ["/api/clients"],
+  const { data: eliteClients = [] } = useQuery<any[]>({
+    queryKey: ["/api/clients", { plan: "elite" }],
+    queryFn: () => apiRequest("GET", "/api/clients?plan=elite"),
   });
 
-  const eliteClients = clients.filter((c: any) => c.plan === "elite" || c.tier === "elite");
   const selectedClient = eliteClients.find((c: any) => c.id === selectedClientId);
 
   return (

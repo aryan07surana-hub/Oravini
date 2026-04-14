@@ -265,8 +265,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Users / Clients
   app.get("/api/clients", requireAdmin, async (req, res) => {
     const allClients = await storage.getAllClients();
-    const safe = allClients.map(({ password, ...u }) => u);
-    res.json(safe);
+    let clients = allClients.map(({ password, ...u }) => u);
+    if (req.query.plan) {
+      clients = clients.filter((c: any) => c.plan === req.query.plan);
+    }
+    res.json(clients);
   });
 
   app.get("/api/clients/:id", requireAdmin, async (req, res) => {
