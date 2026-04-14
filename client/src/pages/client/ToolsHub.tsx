@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
-import { ClipboardList, ChevronRight } from "lucide-react";
+import { ClipboardList, ChevronRight, LayoutTemplate } from "lucide-react";
 
 const GOLD = "#d4b461";
 
@@ -11,6 +11,13 @@ const TOOLS = [
     description: "Build multi-step forms, quizzes and lead-capture surveys with a visual builder.",
     icon: ClipboardList,
     route: "/tools/forms",
+  },
+  {
+    id: "board-builder",
+    label: "Board Builder",
+    description: "Paste your script and auto-generate a visual board with timelines, comparisons and steps — perfect for YouTube.",
+    icon: LayoutTemplate,
+    route: "/tools/board-builder",
   },
 ];
 

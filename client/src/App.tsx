@@ -67,6 +67,7 @@ import SendDM from "@/pages/client/SendDM";
 import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
+import BoardBuilder from "@/pages/client/BoardBuilder";
 import FormResponses from "@/pages/client/FormResponses";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
@@ -285,6 +286,9 @@ function Router() {
       </Route>
       <Route path="/tools">
         {() => <ProtectedRoute component={ToolsHub} />}
+      </Route>
+      <Route path="/tools/board-builder">
+        {() => <ProtectedRoute component={BoardBuilder} />}
       </Route>
       <Route path="/meetings/new">
         {() => <ProtectedRoute component={NewMeeting} />}
