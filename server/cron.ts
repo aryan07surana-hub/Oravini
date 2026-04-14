@@ -5,7 +5,7 @@ import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 
 async function apifyInstagram(payload: object): Promise<any[]> {
-  const token = process.env.APIFY_TOKEN;
+  const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
   if (!token) return [];
   const url = `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`;
   const resp = await fetch(url, {
