@@ -4747,146 +4747,232 @@ Return JSON:
   // POST /api/leads/audit — public: full audit funnel submission with Instagram analysis
   app.post("/api/leads/audit", async (req: Request, res: Response) => {
     try {
-      const { name, email, platform, niche, contentType, targetAudience, biggestChallenge, goals, instagramUrl } = req.body;
-      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const {
+        name, email,
+        niche, contentTypes, contentType,
+        targetAudience,
+        struggles, biggestChallenge,
+        goals,
+        instagramUrl,
+        igProfileData: frontendIgData,
+      } = req.body;
 
-      // Extract Instagram username from URL
+      // Normalise arrays vs strings (backwards compat)
+      const contentTypesArr: string[] = Array.isArray(contentTypes) ? contentTypes : contentType ? [contentType] : [];
+      const strugglesArr: string[] = Array.isArray(struggles) ? struggles : biggestChallenge ? [biggestChallenge] : [];
+      const goalsArr: string[] = Array.isArray(goals) ? goals : goals ? [goals] : [];
+      const safeNiche = niche || "content creation";
+
+      // Extract Instagram username
       let igUsername = "";
       if (instagramUrl) {
         const match = instagramUrl.replace(/\/$/, "").match(/(?:instagram\.com\/)([A-Za-z0-9_.]+)/);
         igUsername = match ? match[1] : instagramUrl.replace(/^@/, "");
       }
 
-      // Step 1: Try Apify Instagram profile scrape
-      let igProfileData: any = null;
-      const apifyToken = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
-      if (igUsername && apifyToken) {
-        try {
-          const apifyRes = await fetch(
-            `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ usernames: [igUsername] }),
-              signal: AbortSignal.timeout(70000),
+      // Use frontend-provided scan data first, then re-fetch if needed
+      let igProfileData: any = frontendIgData?.found ? frontendIgData : null;
+      if (!igProfileData && igUsername) {
+        const apifyToken = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+        if (apifyToken) {
+          try {
+            const apifyRes = await fetch(
+              `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ usernames: [igUsername] }),
+                signal: AbortSignal.timeout(70000),
+              }
+            );
+            if (apifyRes.ok) {
+              const d = await apifyRes.json();
+              if (Array.isArray(d) && d.length > 0) igProfileData = d[0];
             }
-          );
-          if (apifyRes.ok) {
-            const apifyData = await apifyRes.json();
-            if (Array.isArray(apifyData) && apifyData.length > 0) igProfileData = apifyData[0];
+          } catch (e) {
+            console.warn("[audit] Apify re-fetch failed:", e);
           }
-        } catch (apifyErr) {
-          console.warn("[audit] Apify fetch failed, proceeding with AI-only analysis:", apifyErr);
         }
       }
 
-      // Step 2: Build Groq analysis
-      const igContext = igProfileData
-        ? `Instagram Profile Data:
-- Username: @${igProfileData.username || igUsername}
-- Full name: ${igProfileData.fullName || "unknown"}
-- Followers: ${igProfileData.followersCount?.toLocaleString() || "unknown"}
-- Following: ${igProfileData.followsCount?.toLocaleString() || "unknown"}
-- Posts: ${igProfileData.postsCount || "unknown"}
-- Bio: ${igProfileData.biography || "none"}
-- Verified: ${igProfileData.verified ? "Yes" : "No"}
-- Engagement rate (est.): ${igProfileData.followersCount && igProfileData.postsCount ? ((igProfileData.postsCount / Math.max(igProfileData.followersCount, 1)) * 100).toFixed(2) + "%" : "unknown"}`
-        : `Instagram handle: @${igUsername || "not provided"} (profile data unavailable — use form answers only)`;
+      // Normalise IG data (handle both scan-ig shape and Apify shape)
+      const ig = igProfileData ? {
+        username: igProfileData.username || igUsername,
+        fullName: igProfileData.fullName || igProfileData.full_name || "",
+        followers: igProfileData.followers ?? igProfileData.followersCount ?? 0,
+        following: igProfileData.following ?? igProfileData.followsCount ?? 0,
+        posts: igProfileData.posts ?? igProfileData.postsCount ?? 0,
+        bio: igProfileData.bio || igProfileData.biography || "",
+        verified: igProfileData.verified ?? false,
+        isPrivate: igProfileData.isPrivate ?? false,
+      } : null;
 
-      const sysPrompt = `You are a world-class social media growth strategist and monetisation expert. Generate a comprehensive creator audit as a JSON object with these exact fields:
+      // Build detailed IG context string
+      let igContext = "";
+      if (ig && ig.followers > 0) {
+        const ratio = ig.following > 0 ? (ig.followers / ig.following).toFixed(2) : "N/A";
+        const engTier = ig.followers < 1000 ? "nano (<1K)"
+          : ig.followers < 10000 ? "micro (1K–10K)"
+          : ig.followers < 100000 ? "mid-tier (10K–100K)"
+          : ig.followers < 1000000 ? "macro (100K–1M)"
+          : "mega (1M+)";
+        const postsPerWeekEst = ig.posts > 0 ? (ig.posts / 52).toFixed(1) : "unknown"; // rough estimate
+        const bioScore = ig.bio.length === 0 ? "empty (critical issue)"
+          : ig.bio.length < 50 ? "very short (needs work)"
+          : ig.bio.length < 120 ? "decent"
+          : "detailed";
+
+        igContext = `
+REAL INSTAGRAM PROFILE DATA (use these EXACT numbers in your analysis):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Account: @${ig.username}${ig.fullName ? ` (${ig.fullName})` : ""}
+Verified: ${ig.verified ? "Yes ✓" : "No"}
+Private: ${ig.isPrivate ? "Yes" : "No"}
+
+METRICS:
+• Followers: ${ig.followers.toLocaleString()} (${engTier} creator)
+• Following: ${ig.following.toLocaleString()}
+• Posts: ${ig.posts.toLocaleString()}
+• Follower/Following ratio: ${ratio} — ${parseFloat(ratio) >= 2 ? "good authority signal" : parseFloat(ratio) >= 1 ? "neutral" : "following too many — hurts credibility"}
+• Estimated weekly post rate: ~${postsPerWeekEst} posts/week (based on total posts)
+
+BIO:
+"${ig.bio || "(empty)"}"
+Bio quality: ${bioScore}
+
+ANALYSIS NOTES:
+${ig.followers < 1000 ? "- Early stage account — foundation and consistency are priority #1" : ""}
+${ig.followers >= 1000 && ig.followers < 10000 ? "- Micro creator stage — engagement quality matters more than follower count" : ""}
+${ig.followers >= 10000 ? "- Established presence — monetisation and brand partnerships are realistic now" : ""}
+${ig.following > ig.followers ? "- CRITICAL: Following more than followers — this tanks credibility and algorithm ranking" : ""}
+${ig.bio.length < 50 ? "- CRITICAL: Bio is too short/empty — visitors don't know who you are or why to follow" : ""}
+${ig.posts < 20 ? "- Very few posts — consistency has been a major issue" : ""}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+      } else if (igUsername) {
+        igContext = `Instagram: @${igUsername} — profile data unavailable (private or network issue). Generate audit from form answers only.`;
+      } else {
+        igContext = `No Instagram profile provided. Generate audit purely from form answers.`;
+      }
+
+      const sysPrompt = `You are a world-class Instagram growth strategist. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
+
+Generate a JSON audit with these EXACT fields (no extras, no missing):
 {
-  "overallScore": <0-100 monetisation readiness score>,
-  "scoreLabel": "Beginner|Growing|Established|Monetisation Ready",
-  "headline": "Personalized punchy title for their audit",
-  "topInsight": "Single most important insight about their situation (1-2 sentences)",
-  "strengths": ["strength 1", "strength 2", "strength 3"],
-  "gaps": ["gap 1", "gap 2", "gap 3"],
-  "quickWins": ["win 1 (do this week)", "win 2", "win 3"],
-  "contentStrategy": "Personalized content strategy recommendation (2-3 sentences)",
-  "monetisationPath": "Best monetisation path given their goals (2-3 sentences)",
-  "competitiveEdge": "What makes them unique and how to leverage it",
+  "overallScore": <integer 0-100, based on their actual metrics and goals>,
+  "scoreLabel": <"Early Stage" | "Building Momentum" | "Established" | "Monetisation Ready">,
+  "headline": <punchy personalised headline referencing their niche and actual situation, max 12 words>,
+  "topInsight": <the single most critical insight about their account, 2-3 sentences, MUST reference their real numbers if available>,
+  "profileAnalysis": [
+    <3-4 specific observations about their REAL profile data — follower count, ratio, bio, posting frequency, mention exact numbers>,
+  ],
+  "strengths": [<3 specific strengths, referencing their data where possible>],
+  "growthOpportunities": [
+    <3 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers>
+  ],
+  "contentStrategy": <2-3 sentences specific to their content types and niche>,
+  "monetisationPath": <2-3 sentences on their best monetisation route given their goals and follower tier>,
   "90DayRoadmap": [
     {"phase": "Days 1–30", "focus": "...", "keyAction": "..."},
     {"phase": "Days 31–60", "focus": "...", "keyAction": "..."},
     {"phase": "Days 61–90", "focus": "...", "keyAction": "..."}
   ],
-  "revenueEstimate": "Realistic revenue range achievable in 90 days",
-  "platformSpecificTip": "One highly specific tip for their platform",
-  "upgradeTeaser": "What additional value they'd get from the full Brandverse system (makes them want to upgrade)"
+  "revenueEstimate": <realistic monthly revenue range achievable in 90 days, based on their current size>,
+  "revenueContext": <one sentence explaining why this is achievable for their tier>,
+  "upgradeTeaser": <1-2 sentences on what the full Oravini platform gives them that they can't do alone>
 }
-Be specific, reference their niche and platform. Be honest but encouraging.`;
 
-      const derivedPlatform = platform || (instagramUrl ? "Instagram" : "Social Media");
-      const userMsg = `Creator: ${name}
-Platform: ${derivedPlatform}
-Content Type: ${contentType || "Mixed"}
-Niche: ${niche}
-Target Audience: ${targetAudience}
-Biggest Challenge: ${biggestChallenge}
-Goals: ${goals}
+CRITICAL RULES:
+- If profile data is available, every section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
+- profileAnalysis must be data-driven observations, not opinions
+- growthOpportunities are NOT "quick wins" — they are strategic moves based on their specific gaps
+- Be honest about weaknesses but constructive
+- revenueEstimate must be calibrated to their actual follower count tier`;
+
+      const userMsg = `CREATOR PROFILE:
+Niche: ${safeNiche}
+Content Types: ${contentTypesArr.join(", ") || "Mixed"}
+Target Audience: ${targetAudience || "general audience"}
+Biggest Struggles: ${strugglesArr.join(", ") || "general growth"}
+Goals: ${goalsArr.join(", ") || "grow audience"}
 
 ${igContext}
 
-Generate their personalised audit. Be specific to their niche, content type, and platform.`;
+Generate their personalised Instagram growth audit now. Be specific, honest, and reference their real numbers.`;
 
       let auditReport: any = null;
       try {
-        const raw = await callGroqJson(sysPrompt, userMsg, 1200);
+        const raw = await callGroqJson(sysPrompt, userMsg, 1400);
         auditReport = JSON.parse(raw);
       } catch {
+        const followerStr = ig ? `${ig.followers.toLocaleString()} followers` : "your niche";
         auditReport = {
-          overallScore: 58,
-          scoreLabel: "Growing",
-          headline: `${platform} Growth Audit for ${name}`,
-          topInsight: `Your biggest opportunity is building a structured content system around your ${niche} niche with clear monetisation hooks.`,
-          strengths: ["Active creator with real goals", "Clear platform focus", "Motivated to grow"],
-          gaps: ["No defined monetisation strategy", "Content consistency needs work", "Audience connection could be stronger"],
-          quickWins: ["Post 3x this week with a clear CTA", "Optimize bio with your value proposition", "Start building your email list today"],
-          contentStrategy: `Focus on ${platform}-native formats in your ${niche} space. Lead with educational or entertaining hooks that speak directly to ${targetAudience}.`,
-          monetisationPath: `Given your goal of ${goals}, start with one digital product or service offer within 30 days.`,
-          competitiveEdge: "Your personal story and authentic perspective in your niche",
-          "90DayRoadmap": [
-            { phase: "Days 1–30", focus: "Foundation & Consistency", keyAction: "Post 4x/week, optimize profile, define content pillars" },
-            { phase: "Days 31–60", focus: "Audience Building", keyAction: "Launch first lead magnet, collaborate with 2-3 accounts in your niche" },
-            { phase: "Days 61–90", focus: "Monetisation", keyAction: "Launch first paid offer to your warm audience" },
+          overallScore: ig ? (ig.followers > 10000 ? 68 : ig.followers > 1000 ? 52 : 38) : 50,
+          scoreLabel: ig ? (ig.followers > 10000 ? "Established" : ig.followers > 1000 ? "Building Momentum" : "Early Stage") : "Building Momentum",
+          headline: `Growth Audit: ${safeNiche} Creator`,
+          topInsight: `Your biggest opportunity is building a structured content system around your ${safeNiche} niche with consistent posting and clear monetisation hooks.`,
+          profileAnalysis: ig ? [
+            `Your account has ${ig.followers.toLocaleString()} followers and ${ig.posts} posts.`,
+            ig.following > ig.followers ? `You're following ${ig.following.toLocaleString()} accounts while having ${ig.followers.toLocaleString()} followers — this ratio hurts your credibility.` : `Your follower-to-following ratio of ${(ig.followers / Math.max(ig.following, 1)).toFixed(1)}x is a good authority signal.`,
+            ig.bio.length < 50 ? "Your bio needs significant work — visitors can't tell who you are or why they should follow." : "Your bio provides decent context for new visitors.",
+          ] : ["Audit generated from your answers — add your Instagram next time for a deeper analysis."],
+          strengths: ["Clear niche focus", "Motivated to grow", `Active on ${contentTypesArr[0] || "social media"}`],
+          growthOpportunities: [
+            `Focus on posting ${contentTypesArr.includes("Reels & Short Videos") ? "Reels" : contentTypesArr[0] || "content"} consistently 4-5x per week — the algorithm rewards consistency over perfection.`,
+            `Optimise your bio to clearly state who you help and how — this alone can increase follow rate by 20-40%.`,
+            `Build one solid content pillar around your strongest topic in ${safeNiche} and go deep on it before diversifying.`,
           ],
-          revenueEstimate: "$500–2,000/mo within 90 days",
-          platformSpecificTip: `On ${platform}, the first 3 seconds determine everything — hook first, value second, CTA last.`,
-          upgradeTeaser: "Unlock competitor analysis, AI content ideas, and a done-with-you content system to 3x your speed to results.",
+          contentStrategy: `Focus on ${safeNiche}-native content that educates or entertains your target audience. Lead with strong hooks in the first 3 seconds.`,
+          monetisationPath: `Given your goals, start by building an engaged audience first, then launch a digital product or service offer once you hit consistent 3-5% engagement rate.`,
+          "90DayRoadmap": [
+            { phase: "Days 1–30", focus: "Foundation & Consistency", keyAction: "Post 4-5x/week, optimise bio, define 3 content pillars" },
+            { phase: "Days 31–60", focus: "Audience Growth", keyAction: "Launch lead magnet, engage with niche accounts daily, analyse top posts" },
+            { phase: "Days 61–90", focus: "Monetisation", keyAction: "Launch first paid offer or brand pitch to warm audience" },
+          ],
+          revenueEstimate: ig?.followers > 10000 ? "$1,500–5,000/mo" : ig?.followers > 1000 ? "$500–2,000/mo" : "$100–800/mo",
+          revenueContext: "Based on your current follower tier and the monetisation path available to you.",
+          upgradeTeaser: "Oravini gives you AI-generated content ideas, competitor analysis, brand deal tracking, and a full 90-day execution system — everything you need to hit these numbers faster.",
         };
       }
 
-      const quizAnswers = { platform: derivedPlatform, contentType, niche, targetAudience, biggestChallenge, goals, instagramUrl };
-      const existing = await storage.getLandingLeadByEmail(email);
-      let lead;
-      if (existing) {
-        lead = await storage.updateLandingLead(existing.id, {
-          name, platform, niche, targetAudience, biggestChallenge, goals, instagramUrl,
-          quizAnswers, auditData: { igProfile: igProfileData, report: auditReport }, source: "audit",
-        } as any);
-      } else {
-        lead = await storage.createLandingLead({
-          name, email, source: "audit", platform, niche, targetAudience, biggestChallenge, goals, instagramUrl,
-          quizAnswers, auditData: { igProfile: igProfileData, report: auditReport },
-        } as any);
+      const quizAnswers = { contentTypes: contentTypesArr, niche: safeNiche, targetAudience, struggles: strugglesArr, goals: goalsArr, instagramUrl };
+
+      // Save lead if email provided (optional now)
+      if (email) {
+        try {
+          const existing = await storage.getLandingLeadByEmail(email);
+          if (existing) {
+            await storage.updateLandingLead(existing.id, {
+              name: name || "Guest", platform: "Instagram", niche: safeNiche,
+              quizAnswers, auditData: { igProfile: ig, report: auditReport }, source: "audit",
+            } as any);
+          } else {
+            await storage.createLandingLead({
+              name: name || "Guest", email, source: "audit", platform: "Instagram",
+              niche: safeNiche, quizAnswers, auditData: { igProfile: ig, report: auditReport },
+            } as any);
+          }
+          syncToOraviniCRM({ email, name: name || "Guest", source: "audit", platform: "Instagram", niche: safeNiche, goals: goalsArr.join(", "), instagramUrl, auditScore: auditReport.overallScore });
+        } catch (leadErr) {
+          console.warn("[audit] Lead save failed (non-critical):", leadErr);
+        }
       }
 
-      // Return partial report for free users (tease upgrade)
+      // Return partial report
       const partialReport = {
         overallScore: auditReport.overallScore,
         scoreLabel: auditReport.scoreLabel,
         headline: auditReport.headline,
         topInsight: auditReport.topInsight,
+        profileAnalysis: auditReport.profileAnalysis,
         strengths: auditReport.strengths,
-        quickWins: auditReport.quickWins.slice(0, 2),
+        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 3),
         revenueEstimate: auditReport.revenueEstimate,
+        revenueContext: auditReport.revenueContext,
         upgradeTeaser: auditReport.upgradeTeaser,
-        // Locked fields:
-        locked: ["gaps", "contentStrategy", "monetisationPath", "competitiveEdge", "90DayRoadmap", "platformSpecificTip"],
+        locked: ["contentStrategy", "monetisationPath", "90DayRoadmap", "competitiveEdge"],
       };
 
-      syncToOraviniCRM({ email, name, source: "audit", platform, niche, targetAudience, goals, instagramUrl, auditScore: partialReport.overallScore });
-      return res.json({ report: partialReport, leadId: lead?.id });
+      return res.json({ report: partialReport });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
