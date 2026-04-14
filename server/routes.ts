@@ -447,14 +447,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Messages / Chat
   app.get("/api/messages/:otherUserId", requireAuth, async (req, res) => {
-    const userId = (req.user as any).id;
+    const caller = req.user as any;
+    let userId = caller.id;
+    // Admins share the primary inbox
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) userId = primaryAdmin.id;
+    }
     const msgs = await storage.getMessagesBetween(userId, p(req.params.otherUserId));
     await storage.markMessagesRead(p(req.params.otherUserId), userId);
     res.json(msgs);
   });
 
-  app.get("/api/conversations", requireAdmin, async (req, res) => {
-    const adminId = (req.user as any).id;
+  app.get("/api/conversations", requireAdmin, async (_req, res) => {
+    // Always use primary admin inbox regardless of which admin account is logged in
+    const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+    const adminId = primaryAdmin?.id;
+    if (!adminId) return res.json([]);
     const convs = await storage.getConversations(adminId);
     const result = await Promise.all(
       convs.map(async ({ clientId, lastMessage, unreadCount }) => {
@@ -467,10 +476,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/messages", requireAuth, async (req, res) => {
-    const senderId = (req.user as any).id;
+    const caller = req.user as any;
+    // All admin accounts share one inbox — always send from primary admin
+    let senderId = caller.id;
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) senderId = primaryAdmin.id;
+    }
     const { receiverId, content, fileUrl, fileName } = req.body;
     const msg = await storage.createMessage({ senderId, receiverId, content, fileUrl, fileName });
     sendToUser(receiverId, { type: "message", message: msg });
+    // Also notify the sender if they're in a different browser session
+    if (senderId !== caller.id) sendToUser(senderId, { type: "message", message: msg });
     res.json(msg);
   });
 
@@ -497,7 +514,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/messages/unread/count", requireAuth, async (req, res) => {
-    const count = await storage.getUnreadCount((req.user as any).id);
+    const caller = req.user as any;
+    let countId = caller.id;
+    // Admins share the primary inbox, so count unread for the primary admin
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) countId = primaryAdmin.id;
+    }
+    const count = await storage.getUnreadCount(countId);
     res.json({ count });
   });
 
