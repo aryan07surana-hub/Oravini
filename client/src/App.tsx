@@ -42,6 +42,7 @@ import Credits from "@/pages/client/Credits";
 import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
 import AdminResponses from "@/pages/admin/AdminResponses";
+import AdminCommunity from "@/pages/admin/AdminCommunity";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -353,6 +354,9 @@ function Router() {
       </Route>
       <Route path="/admin/responses">
         {() => <ProtectedRoute component={AdminResponses} adminOnly />}
+      </Route>
+      <Route path="/admin/community">
+        {() => <ProtectedRoute component={AdminCommunity} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>
