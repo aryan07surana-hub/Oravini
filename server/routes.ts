@@ -4165,6 +4165,92 @@ Return JSON:
     }
   });
 
+  // ── Clip Finder — file upload (Whisper transcribe + AI clip analysis) ──────
+  app.post("/api/clip-finder/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    try {
+      const fileStat = fs.statSync(req.file.path);
+      const MAX_WHISPER = 25 * 1024 * 1024;
+      if (fileStat.size > MAX_WHISPER) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+        return res.status(413).json({ message: "File too large — Whisper supports up to 25MB. Compress your video or export audio-only first." });
+      }
+
+      // 1. Transcribe with Groq Whisper (word-level timestamps)
+      const FormDataLib = (await import("form-data")).default;
+      const formData = new FormDataLib();
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+        ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v",
+        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
+      };
+      formData.append("file", fileBuffer, { filename: req.file.originalname || "video.mp4", contentType: mimeMap[ext] || "video/mp4" });
+      formData.append("model", "whisper-large-v3");
+      formData.append("response_format", "verbose_json");
+      formData.append("timestamp_granularities[]", "word");
+      const formBuffer = formData.getBuffer();
+
+      const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
+        body: formBuffer,
+      });
+      if (!whisperRes.ok) throw new Error(`Transcription failed: ${await whisperRes.text()}`);
+      const transcriptData = await whisperRes.json() as any;
+
+      const words: any[] = transcriptData.words || [];
+      const duration = words.length > 0 ? words[words.length - 1].end : (transcriptData.duration || 0);
+      const videoTitle = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+
+      // 2. Build timestamped transcript chunks for AI
+      const CHUNK = 20;
+      const chunks: string[] = [];
+      for (let i = 0; i < words.length; i += CHUNK) {
+        const slice = words.slice(i, i + CHUNK);
+        const text = slice.map((w: any) => w.word).join(" ").trim();
+        if (text) chunks.push(`[${fmtSecs(slice[0].start)}–${fmtSecs(slice[slice.length - 1].end)}] ${text}`);
+      }
+      const transcriptText = chunks.join("\n").slice(0, 8000);
+      if (!transcriptText) throw new Error("Could not extract transcript — ensure the video has clear speech");
+
+      // 3. AI clip analysis
+      const sysPrompt = `You are a viral content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be 15–90 seconds, self-contained, and immediately engaging. Return ONLY valid JSON.`;
+      const userPrompt = `Video: "${videoTitle}" (${Math.floor(duration / 60)}m ${Math.floor(duration % 60)}s)\n\nTranscript:\n${transcriptText}\n\nFind 5–7 best clips. Pick moments with strong hooks, emotion, humour, quotability, or storytelling peaks.\n\nReturn JSON:\n{\n  "clips": [\n    {\n      "startSeconds": number,\n      "endSeconds": number,\n      "title": "punchy clip title",\n      "hook": "one-sentence caption hook",\n      "whyViral": "why this works as a standalone clip (1-2 sentences)",\n      "viralityScore": number (0-100),\n      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling"\n    }\n  ]\n}`;
+
+      const rawJson = await callGroqJson(sysPrompt, userPrompt, 3500);
+      let parsed: any;
+      try { parsed = JSON.parse(rawJson); } catch { throw new Error("AI response parse error"); }
+      const rawClips: any[] = parsed?.clips || [];
+
+      const clips = rawClips.map((clip: any, i: number) => {
+        const start = Math.max(0, Number(clip.startSeconds) || 0);
+        const end = Math.min(duration || 9999, Number(clip.endSeconds) || start + 45);
+        return {
+          id: i + 1,
+          title: String(clip.title || `Clip ${i + 1}`),
+          startSeconds: start,
+          endSeconds: end,
+          startLabel: fmtSecs(start),
+          endLabel: fmtSecs(end),
+          durationLabel: `${Math.round(Math.abs(end - start))}s`,
+          hook: String(clip.hook || ""),
+          whyViral: String(clip.whyViral || ""),
+          viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
+          category: String(clip.category || "engaging"),
+        };
+      });
+
+      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true });
+    } catch (err: any) {
+      console.log("[clip-finder/upload] error:", err.message);
+      return res.status(500).json({ message: err.message || "Processing failed" });
+    } finally {
+      try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
+    }
+  });
+
   // POST /api/video-resources — admin create
   app.post("/api/video-resources", requireAdmin, async (req: Request, res: Response) => {
     try {
