@@ -5616,6 +5616,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   const { google } = await import("googleapis");
 
   function getSiteBase() {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
     if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
     if (domain) return `https://${domain}`;
@@ -8570,14 +8571,16 @@ Rules:
 
   // ── Google Calendar OAuth ─────────────────────────────────────────────────
 
+  function getAppBase() {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+    if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (domain) return `https://${domain}`;
+    return "http://localhost:5000";
+  }
+
   function getCalendarCallbackUrl() {
-    const base = (() => {
-      if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-      if (domain) return `https://${domain}`;
-      return "http://localhost:5000";
-    })();
-    return `${base}/api/auth/google-calendar/callback`;
+    return `${getAppBase()}/api/auth/google-calendar/callback`;
   }
 
   function getCalendarOAuth2Client() {
@@ -8613,12 +8616,7 @@ Rules:
   });
 
   app.get("/api/auth/google-calendar/callback", async (req: Request, res: Response) => {
-    const base = (() => {
-      if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-      if (domain) return `https://${domain}`;
-      return "http://localhost:5000";
-    })();
+    const base = getAppBase();
     try {
       const { code, state: userId, error } = req.query as { code?: string; state?: string; error?: string };
       if (error) {
