@@ -5,7 +5,8 @@ import {
   LayoutDashboard, FileText, MessageSquare, BarChart2, Sparkles,
   Users, Bot, Clapperboard, Zap, Layers, Settings, ChevronRight,
   CalendarPlus, ArrowUpRight, Lock, Menu, X, Target, BookOpen,
-  Brain, ListChecks, Calendar, Bookmark, Twitter, Linkedin, Youtube
+  Brain, ListChecks, Calendar, Bookmark, Twitter, Linkedin, Youtube,
+  ClipboardList, LayoutTemplate, TrendingUp, Globe
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -21,6 +22,10 @@ const NAV_ITEMS = [
   { icon: Layers, label: "AI Design", tag: "AI" },
   { icon: Bot, label: "AI Content Coach", tag: "AI" },
   { icon: Clapperboard, label: "AI Video Editor", tag: "AI" },
+  { icon: ClipboardList, label: "Forms & Quiz", tag: "New" },
+  { icon: LayoutTemplate, label: "Board Builder", tag: "New" },
+  { icon: TrendingUp, label: "IG Growth Tracker", tag: "New" },
+  { icon: Globe, label: "Community Forum", tag: null },
   { icon: Twitter, label: "X / Twitter", tag: null },
   { icon: Linkedin, label: "LinkedIn", tag: null },
   { icon: Youtube, label: "YouTube", tag: null },
@@ -37,6 +42,10 @@ const TOOL_CARDS = [
   { icon: Bot, label: "Audience Psychology", desc: "Map what drives your audience", color: "#b8962e" },
   { icon: Bot, label: "AI Content Coach", desc: "Get coached on your content strategy", color: "#d4b461" },
   { icon: Clapperboard, label: "AI Video Editor", desc: "Script & structure your video content", color: "#b8962e" },
+  { icon: ClipboardList, label: "Forms & Quiz Builder", desc: "Build lead forms and quizzes — track every response", color: "#d4b461" },
+  { icon: LayoutTemplate, label: "Board Builder", desc: "Paste a script and get an AI-generated flowchart instantly", color: "#b8962e" },
+  { icon: TrendingUp, label: "IG Growth Tracker", desc: "Auto-track follower and engagement growth daily", color: "#d4b461" },
+  { icon: Globe, label: "Community Forum", desc: "Private members-only space to share wins and strategies", color: "#b8962e" },
   { icon: BookOpen, label: "Lead Magnet", desc: "Create high-converting lead magnets", color: "#d4b461" },
   { icon: ListChecks, label: "SOP Generator", desc: "Build content creation SOPs", color: "#b8962e" },
   { icon: Calendar, label: "Content Planner", desc: "Plan your full content calendar", color: "#d4b461" },
@@ -202,10 +211,10 @@ export default function DashboardPreview() {
           {/* Stats row */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14, marginBottom: 36 }}>
             {[
-              { label: "AI Credits", value: "—", sub: "Sign up for 5/day free" },
-              { label: "Content Ideas", value: "—", sub: "Generate unlimited ideas" },
-              { label: "Brand Kit", value: "—", sub: "Your brand, on autopilot" },
-              { label: "Plan", value: "Free", sub: "Upgrade anytime" },
+              { label: "Monthly Reach", value: "2.4M", sub: "avg member reach / mo" },
+              { label: "Ideas Generated", value: "847", sub: "created this week alone" },
+              { label: "Engagement Boost", value: "+5.2%", sub: "avg lift within 30 days" },
+              { label: "Tools Available", value: "14", sub: "unlock all with free plan" },
             ].map(s => (
               <div key={s.label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "18px 16px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>

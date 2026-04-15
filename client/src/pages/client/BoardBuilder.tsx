@@ -696,7 +696,7 @@ export default function BoardBuilder() {
       <div className="flex flex-col bg-background" style={{ height: "100vh" }}>
 
         {/* Header */}
-        <div className="border-b border-zinc-800 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+        <div data-tour="board-builder-main" className="border-b border-zinc-800 px-5 py-3 flex items-center gap-3 flex-shrink-0">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
             <LayoutTemplate className="w-4 h-4" style={{ color: GOLD }} />
           </div>

@@ -122,7 +122,7 @@ export default function FormsHub() {
     <ClientLayout>
       <div className="max-w-4xl mx-auto px-6 py-10">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div data-tour="forms-hub-main" className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
               <ClipboardList className="w-4 h-4" style={{ color: GOLD }} />
@@ -162,6 +162,7 @@ export default function FormsHub() {
         )}
 
         {/* Forms list */}
+        <div data-tour="forms-hub-list" />
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.03)" }} />)}

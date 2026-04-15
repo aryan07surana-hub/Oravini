@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "Welcome to Brandverse",
-    description: "I'm your AI guide. I'll walk you through every single tool — Content Ideas, Content Coach, Video Editor, Design Studio, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how to use each one. Takes about 3 minutes.",
+    description: "I'm your AI guide. I'll walk you through every tool — Content Ideas, Content Coach, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, IG Growth Tracker, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how each one works. Takes about 4 minutes.",
     position: "center",
   },
   {
@@ -176,6 +176,55 @@ const TOUR_STEPS: TourStep[] = [
     description: "Hit START SESSION and Jarvis enters always-on mode. Your microphone stays live for 24 hours — no need to re-open it. Jarvis can write text into any field across any page, navigate anywhere, and execute any command hands-free. A red LIVE badge appears in the header when a session is active. END SESSION closes it.",
     position: "top",
     tip: "Session mode is the fastest way to use the platform — it's designed so you never have to touch the keyboard.",
+  },
+
+  // ── Forms & Quiz Builder ──────────────────────────────────────────────────
+  {
+    id: "forms-hub-header",
+    route: "/tools/forms",
+    target: '[data-tour="forms-hub-main"]',
+    title: "Forms & Quiz Builder — Overview",
+    description: "Build custom lead capture forms, quizzes, and surveys — all without any code. Create a form, publish it, share the link in your Story or bio, and every response lands straight in your dashboard. Great for lead gen, audience research, and qualifying clients.",
+    position: "bottom",
+    tip: "Use a short 3-question quiz as a lead magnet — 'What type of creator are you?' — and collect emails from the results page.",
+  },
+  {
+    id: "forms-hub-list",
+    route: "/tools/forms",
+    target: '[data-tour="forms-hub-list"]',
+    title: "Forms & Quiz Builder — Your Forms",
+    description: "All your forms live here. Click any form to edit its questions, add custom fields, or view responses. You can duplicate a form to start from an existing template, toggle it between Draft and Published, or share the public link directly. Responses update in real time.",
+    position: "bottom",
+  },
+
+  // ── Board Builder ──────────────────────────────────────────────────────────
+  {
+    id: "board-builder-header",
+    route: "/tools/board-builder",
+    target: '[data-tour="board-builder-main"]',
+    title: "Board Builder — AI Flowcharts",
+    description: "Paste any script, strategy, SOP, or content plan and the AI instantly turns it into a visual flowchart. Nodes are colour-coded by type — headers, steps, decisions, insights, results. Drag to rearrange, click any node to edit it, and export as a PNG when you're done.",
+    position: "bottom",
+    tip: "Paste your full onboarding DM script and the AI maps every step, branch, and response path as a visual flow — saves hours building it manually.",
+  },
+
+  // ── IG Growth Tracker ─────────────────────────────────────────────────────
+  {
+    id: "ig-tracker-header",
+    route: "/ig-tracker",
+    target: '[data-tour="ig-tracker-main"]',
+    title: "IG Growth Tracker — Overview",
+    description: "Add any Instagram username and the tracker automatically scans follower counts, following counts, and engagement data every day at 6AM UTC. You get a full growth history chart so you can see exactly when an account spiked and correlate it with what they posted.",
+    position: "bottom",
+  },
+  {
+    id: "ig-tracker-add",
+    route: "/ig-tracker",
+    target: '[data-tour="ig-tracker-add"]',
+    title: "IG Growth Tracker — Add a Profile",
+    description: "Type any Instagram handle here and click Track Profile. You can track yourself to monitor your own growth, or add competitor accounts to see how fast they're growing. Add up to 10 profiles — each one gets its own daily scan and growth chart.",
+    position: "bottom",
+    tip: "Track yourself AND 2-3 competitors in your niche. When a competitor spikes and you don't, dig into what they posted that day — that's your content intelligence.",
   },
 
   // ── Tracking ──────────────────────────────────────────────────────────────
@@ -368,6 +417,48 @@ const PAGE_TOURS: Record<string, TourStep[]> = {
       title: "6 Analysis Sections",
       description: "Content Strategy breaks down their best-performing formats and topics. Hook Library extracts their top opening lines. Niche Trends shows what's heating up right now. Virality Score compares your content against theirs. Content Steal generates new ideas inspired by their top posts — but made uniquely yours.",
       position: "bottom",
+    },
+  ],
+
+  "forms": [
+    {
+      id: "pt-forms-1", route: "/tools/forms", target: '[data-tour="forms-hub-main"]',
+      title: "Forms & Quiz Builder",
+      description: "Create lead capture forms, quizzes, and surveys without any code. Hit New Form, choose the type, build your questions, publish — then share the link in your bio or Story. Every response lands in your dashboard instantly.",
+      position: "bottom",
+      tip: "Use a short 3-question quiz as a lead magnet. 'What type of creator are you?' performs incredibly well for email list growth.",
+    },
+    {
+      id: "pt-forms-2", route: "/tools/forms", target: '[data-tour="forms-hub-list"]',
+      title: "Your Forms Library",
+      description: "All your forms appear here. Click to edit questions or view responses. Toggle between Draft and Published — only published forms accept submissions. Use the copy-link button to grab the public URL and drop it anywhere: bio, Story, DM, or email.",
+      position: "bottom",
+    },
+  ],
+
+  "board-builder": [
+    {
+      id: "pt-board-1", route: "/tools/board-builder", target: '[data-tour="board-builder-main"]',
+      title: "Board Builder — AI Flowcharts",
+      description: "Paste any script, SOP, content plan, or strategy into the input below and the AI instantly converts it into a colour-coded visual flowchart. Headers, steps, decisions, results, and insights are each styled differently so the structure is immediately clear.",
+      position: "bottom",
+      tip: "Paste your full DM sales script and the AI maps every branch and follow-up path as a flow. Saves hours versus building it manually.",
+    },
+  ],
+
+  "ig-tracker": [
+    {
+      id: "pt-ig-1", route: "/ig-tracker", target: '[data-tour="ig-tracker-main"]',
+      title: "IG Growth Tracker",
+      description: "This tool automatically scans follower counts, following counts, and engagement data for any Instagram account — every day at 6AM UTC. You get a full growth history chart so you can track exactly when accounts spike and why.",
+      position: "bottom",
+    },
+    {
+      id: "pt-ig-2", route: "/ig-tracker", target: '[data-tour="ig-tracker-add"]',
+      title: "Track Any Profile",
+      description: "Enter any Instagram handle and click Track Profile. Track yourself to monitor your own growth, or add competitors to benchmark against. Add up to 10 profiles — each one gets a dedicated daily scan with its own chart and history.",
+      position: "bottom",
+      tip: "Track yourself AND 2-3 competitors at similar follower counts. When one spikes and you don't, check what they posted — that's your content brief.",
     },
   ],
 

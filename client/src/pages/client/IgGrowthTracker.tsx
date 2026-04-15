@@ -114,7 +114,7 @@ export default function IgGrowthTracker() {
       <div className="min-h-screen bg-[#0a0a0a] p-6 lg:p-8">
 
         {/* Header */}
-        <div className="mb-8">
+        <div data-tour="ig-tracker-main" className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${GOLD}33, ${GOLD}11)`, border: `1px solid ${GOLD}33` }}>
               <Instagram className="w-4.5 h-4.5" style={{ color: GOLD }} />
@@ -131,7 +131,7 @@ export default function IgGrowthTracker() {
         </div>
 
         {/* Add Profile */}
-        <div className="mb-8 p-5 rounded-2xl border border-zinc-800 bg-zinc-900/50">
+        <div data-tour="ig-tracker-add" className="mb-8 p-5 rounded-2xl border border-zinc-800 bg-zinc-900/50">
           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Track a New Profile</p>
           <div className="flex gap-3">
             <div className="relative flex-1 max-w-sm">
