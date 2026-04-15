@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -11,11 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { SiGoogle } from "react-icons/si";
 import {
   Copy, CheckCheck, Link2, Clock, ExternalLink, Settings2,
   CalendarDays, Video, ChevronRight, Calendar,
   Ban, CheckCircle2, Plus, Trash2, GripVertical, Globe,
-  HelpCircle,
+  HelpCircle, Unlink,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -140,10 +142,24 @@ function BookingCard({ booking, onAction }: { booking: any; onAction: (id: strin
 /* ─── Main ─────────────────────────────────────────────────── */
 export default function AdminScheduling() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [availOpen, setAvailOpen] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<"upcoming" | "all">("upcoming");
+
+  // Handle OAuth return params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("cal_connected")) {
+      toast({ title: "Google Calendar connected!", description: "New bookings will automatically create unique Google Meet links." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/google-calendar/status"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("cal_error")) {
+      toast({ title: "Connection failed", description: params.get("cal_error") ?? "Unknown error", variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // ── Call settings state
   const [title, setTitle] = useState("Strategy Call");
@@ -163,6 +179,7 @@ export default function AdminScheduling() {
   // ── Queries
   const { data: meetingTypes = [], isLoading: mtLoading } = useQuery<any[]>({ queryKey: ["/api/admin/meeting-types"] });
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery<any[]>({ queryKey: ["/api/admin/scheduled-bookings"] });
+  const { data: calStatus } = useQuery<{ connected: boolean; email: string | null }>({ queryKey: ["/api/admin/google-calendar/status"] });
 
   const primary = meetingTypes.find((m: any) => m.isActive) ?? meetingTypes[0] ?? null;
   const bookingUrl = primary ? `${window.location.origin}/book/${primary.slug}` : null;
@@ -228,6 +245,14 @@ export default function AdminScheduling() {
   const updateBookingMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => apiRequest("PATCH", `/api/admin/scheduled-bookings/${id}`, { status }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/scheduled-bookings"] }); toast({ title: "Booking updated" }); },
+  });
+
+  const disconnectCalMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/admin/google-calendar/disconnect"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/google-calendar/status"] });
+      toast({ title: "Google Calendar disconnected" });
+    },
   });
 
   function copyLink() {
@@ -301,6 +326,50 @@ export default function AdminScheduling() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── GOOGLE CALENDAR / MEET ── */}
+        <div className={`rounded-2xl border p-5 flex items-center gap-4 ${calStatus?.connected ? "border-emerald-700/40 bg-emerald-950/20" : "border-zinc-800 bg-zinc-900/40"}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${calStatus?.connected ? "bg-emerald-500/15" : "bg-zinc-800"}`}>
+            <SiGoogle className={`w-4 h-4 ${calStatus?.connected ? "text-emerald-400" : "text-zinc-500"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
+              {calStatus?.connected ? (
+                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
+              ) : (
+                <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
+              )}
+            </div>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {calStatus?.connected
+                ? `Unique Meet links auto-generated for every booking · ${calStatus.email ?? ""}`
+                : "Connect once — every booking auto-generates a unique Google Meet link"
+              }
+            </p>
+          </div>
+          {calStatus?.connected ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0"
+              onClick={() => disconnectCalMutation.mutate()}
+              disabled={disconnectCalMutation.isPending}
+            >
+              <Unlink className="w-3.5 h-3.5" /> Disconnect
+            </Button>
+          ) : (
+            <Button
+              data-testid="button-connect-google-calendar"
+              size="sm"
+              className="gap-1.5 font-bold flex-shrink-0"
+              style={{ background: GOLD, color: "#000" }}
+              onClick={() => { window.location.href = "/api/auth/google-calendar"; }}
+            >
+              <SiGoogle className="w-3.5 h-3.5" /> Connect
+            </Button>
+          )}
         </div>
 
         {/* ── CARDS ── */}

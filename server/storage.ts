@@ -16,7 +16,8 @@ import {
   meetings,
   videoEdits,
   brollClips,
-  meetingTypes, availabilityRules, scheduledBookings,
+  meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens,
+  type GoogleCalendarToken,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
@@ -195,6 +196,11 @@ export interface IStorage {
   getYoutubeToken(userId: string): Promise<YoutubeToken | null>;
   upsertYoutubeToken(userId: string, data: Omit<YoutubeToken, "id" | "userId" | "createdAt">): Promise<YoutubeToken>;
   deleteYoutubeToken(userId: string): Promise<void>;
+
+  // Google Calendar OAuth tokens
+  getGoogleCalendarToken(userId: string): Promise<GoogleCalendarToken | null>;
+  upsertGoogleCalendarToken(userId: string, data: Omit<GoogleCalendarToken, "id" | "userId" | "createdAt">): Promise<GoogleCalendarToken>;
+  deleteGoogleCalendarToken(userId: string): Promise<void>;
   getScheduledYoutubePosts(userId: string): Promise<ScheduledYoutubePost[]>;
   getPendingDueYoutubePosts(): Promise<ScheduledYoutubePost[]>;
   createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost>;
@@ -1075,6 +1081,25 @@ class DatabaseStorage implements IStorage {
 
   async deleteYoutubeToken(userId: string): Promise<void> {
     await db.delete(youtubeTokens).where(eq(youtubeTokens.userId, userId));
+  }
+
+  async getGoogleCalendarToken(userId: string): Promise<GoogleCalendarToken | null> {
+    const [row] = await db.select().from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId));
+    return row ?? null;
+  }
+
+  async upsertGoogleCalendarToken(userId: string, data: Omit<GoogleCalendarToken, "id" | "userId" | "createdAt">): Promise<GoogleCalendarToken> {
+    const existing = await this.getGoogleCalendarToken(userId);
+    if (existing) {
+      const [row] = await db.update(googleCalendarTokens).set(data).where(eq(googleCalendarTokens.userId, userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(googleCalendarTokens).values({ userId, ...data }).returning();
+    return row;
+  }
+
+  async deleteGoogleCalendarToken(userId: string): Promise<void> {
+    await db.delete(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId));
   }
 
   async getScheduledYoutubePosts(userId: string): Promise<ScheduledYoutubePost[]> {

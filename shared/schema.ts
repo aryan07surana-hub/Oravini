@@ -705,10 +705,22 @@ export const scheduledBookings = pgTable("scheduled_bookings", {
   endTime: timestamp("end_time").notNull(),
   status: text("status").notNull().default("scheduled"), // scheduled | cancelled | completed
   notes: text("notes"),
+  meetLink: text("meet_link"),
   reminder24Sent: boolean("reminder_24_sent").notNull().default(false),
   reminder1Sent: boolean("reminder_1_sent").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const googleCalendarTokens = pgTable("google_calendar_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  connectedEmail: text("connected_email"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type GoogleCalendarToken = typeof googleCalendarTokens.$inferSelect;
 export const insertScheduledBookingSchema = createInsertSchema(scheduledBookings).omit({ id: true, createdAt: true, reminder24Sent: true, reminder1Sent: true });
 export type InsertScheduledBooking = z.infer<typeof insertScheduledBookingSchema>;
 export type ScheduledBooking = typeof scheduledBookings.$inferSelect;

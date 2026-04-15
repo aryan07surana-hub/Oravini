@@ -8330,21 +8330,29 @@ Rules:
     }
   }
 
-  function bookingEmailHtml(params: { title: string; clientName: string; startTime: Date; endTime: Date; location?: string | null; notes?: string | null; isAdmin?: boolean }) {
+  function bookingEmailHtml(params: { title: string; clientName: string; startTime: Date; endTime: Date; location?: string | null; notes?: string | null; isAdmin?: boolean; meetLink?: string }) {
     const fmt = (d: Date) => d.toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
     const duration = Math.round((params.endTime.getTime() - params.startTime.getTime()) / 60000);
+    const notesFormatted = params.notes ? params.notes.replace(/\n/g, "<br>") : null;
     return `
       <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto">
         <h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2>
         <p style="color:#aaa;margin-bottom:24px;font-size:13px">Scheduling System</p>
-        <h3 style="color:#fff;margin-bottom:16px">${params.isAdmin ? "New Booking" : "Booking Confirmed"}: ${params.title}</h3>
+        <h3 style="color:#fff;margin-bottom:16px">${params.isAdmin ? "📅 New Booking" : "✅ Booking Confirmed"}: ${params.title}</h3>
         <div style="background:#222;border:1px solid #333;border-radius:8px;padding:20px;margin-bottom:20px">
-          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Who:</strong> ${params.clientName}</p>
-          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(params.startTime)}</p>
-          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Duration:</strong> ${duration} minutes</p>
-          ${params.location ? `<p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${params.location}</p>` : ""}
-          ${params.notes ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Notes:</strong> ${params.notes}</p>` : ""}
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Who:</strong> ${params.clientName}</p>
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(params.startTime)}</p>
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Duration:</strong> ${duration} minutes</p>
+          ${params.location && !params.meetLink ? `<p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${params.location}</p>` : ""}
+          ${notesFormatted ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Notes:</strong><br>${notesFormatted}</p>` : ""}
         </div>
+        ${params.meetLink ? `
+        <div style="text-align:center;margin-bottom:24px">
+          <a href="${params.meetLink}" style="display:inline-block;background:#d4b461;color:#000;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.3px">
+            🎥 Join Google Meet
+          </a>
+          <p style="color:#888;font-size:11px;margin-top:8px">${params.meetLink}</p>
+        </div>` : ""}
         <p style="color:#666;font-size:12px">If you need to cancel or reschedule, please reach out directly.</p>
       </div>`;
   }
@@ -8560,6 +8568,162 @@ Rules:
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── Google Calendar OAuth ─────────────────────────────────────────────────
+
+  function getCalendarCallbackUrl() {
+    const base = (() => {
+      if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (domain) return `https://${domain}`;
+      return "http://localhost:5000";
+    })();
+    return `${base}/api/auth/google-calendar/callback`;
+  }
+
+  function getCalendarOAuth2Client() {
+    const { google } = require("googleapis");
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getCalendarCallbackUrl(),
+    );
+  }
+
+  app.get("/api/admin/google-calendar/status", requireAdmin, async (req, res) => {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) return res.json({ connected: false });
+      const token = await storage.getGoogleCalendarToken(admin.id);
+      res.json({ connected: !!token, email: token?.connectedEmail ?? null });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/auth/google-calendar", requireAdmin, (req: Request, res: Response) => {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(500).json({ message: "Google credentials not configured" });
+    }
+    const oauth2Client = getCalendarOAuth2Client();
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: ["https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/userinfo.email"],
+      prompt: "consent",
+      state: (req.user as any).id,
+    });
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/google-calendar/callback", async (req: Request, res: Response) => {
+    const base = (() => {
+      if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (domain) return `https://${domain}`;
+      return "http://localhost:5000";
+    })();
+    try {
+      const { code, state: userId, error } = req.query as { code?: string; state?: string; error?: string };
+      if (error) {
+        console.log(`[google-calendar] OAuth denied: ${error}`);
+        return res.redirect(`${base}/admin/scheduling?cal_error=${encodeURIComponent(error)}`);
+      }
+      if (!code || !userId) return res.redirect(`${base}/admin/scheduling?cal_error=missing_code`);
+
+      const oauth2Client = getCalendarOAuth2Client();
+      const { tokens } = await oauth2Client.getToken(code as string);
+      oauth2Client.setCredentials(tokens);
+
+      if (!tokens.access_token) throw new Error("No access token received");
+
+      // Get connected email
+      const { google } = await import("googleapis");
+      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+      const connectedEmail = userInfo.data.email ?? null;
+
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) throw new Error("Admin not found");
+
+      await storage.upsertGoogleCalendarToken(admin.id, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        connectedEmail,
+      });
+
+      console.log(`[google-calendar] Connected: ${connectedEmail}`);
+      return res.redirect(`${base}/admin/scheduling?cal_connected=1`);
+    } catch (err: any) {
+      console.log(`[google-calendar] Callback error: ${err.message}`);
+      return res.redirect(`${base}/admin/scheduling?cal_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  app.delete("/api/admin/google-calendar/disconnect", requireAdmin, async (req, res) => {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) await storage.deleteGoogleCalendarToken(admin.id);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Helper: create Google Calendar event with Meet link ──────────────────
+  async function createGoogleMeetEvent(booking: { id: string; clientName: string; clientEmail: string; startTime: Date; endTime: Date }, meetingTitle: string, location?: string | null): Promise<string | null> {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) return null;
+      const calToken = await storage.getGoogleCalendarToken(admin.id);
+      if (!calToken) return null;
+
+      const { google } = await import("googleapis");
+      const oauth2Client = getCalendarOAuth2Client();
+      oauth2Client.setCredentials({
+        access_token: calToken.accessToken,
+        refresh_token: calToken.refreshToken,
+        expiry_date: calToken.expiresAt?.getTime(),
+      });
+
+      // Auto-refresh token if expired
+      oauth2Client.on("tokens", async (newTokens) => {
+        if (newTokens.access_token && admin) {
+          await storage.upsertGoogleCalendarToken(admin.id, {
+            accessToken: newTokens.access_token,
+            refreshToken: newTokens.refresh_token ?? calToken.refreshToken,
+            expiresAt: newTokens.expiry_date ? new Date(newTokens.expiry_date) : calToken.expiresAt,
+            connectedEmail: calToken.connectedEmail,
+          });
+        }
+      });
+
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      const event = await calendar.events.insert({
+        calendarId: "primary",
+        conferenceDataVersion: 1,
+        sendUpdates: "all",
+        requestBody: {
+          summary: `${meetingTitle} with ${booking.clientName}`,
+          description: location ? `Meeting link: ${location}` : undefined,
+          start: { dateTime: booking.startTime.toISOString() },
+          end: { dateTime: booking.endTime.toISOString() },
+          attendees: [
+            { email: booking.clientEmail, displayName: booking.clientName },
+          ],
+          conferenceData: {
+            createRequest: {
+              requestId: `oravini-${booking.id}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        },
+      });
+
+      const meetLink = event.data.hangoutLink ?? event.data.conferenceData?.entryPoints?.[0]?.uri ?? null;
+      console.log(`[google-calendar] Event created: ${meetLink}`);
+      return meetLink;
+    } catch (err: any) {
+      console.log(`[google-calendar] Failed to create event: ${err.message}`);
+      return null;
+    }
+  }
+
   // Public — Get meeting type info
   app.get("/api/book/:slug", async (req, res) => {
     try {
@@ -8635,18 +8799,33 @@ Rules:
       }
       const fullNotes = [customAnswersText, notes].filter(Boolean).join("\n\n") || null;
 
+      // Create booking first so we have an ID for the Meet event
       const booking = await storage.createScheduledBooking({
         meetingTypeId: mt.id, clientName, clientEmail,
         startTime: start, endTime: end, status: "scheduled", notes: fullNotes,
       });
 
+      // Auto-create Google Meet link if Calendar is connected
+      const meetLink = await createGoogleMeetEvent(
+        { id: booking.id, clientName, clientEmail, startTime: start, endTime: end },
+        mt.title,
+        mt.location,
+      );
+
+      // Store Meet link on booking if generated
+      if (meetLink) {
+        await storage.updateScheduledBooking(booking.id, { meetLink });
+      }
+
+      const effectiveLocation = meetLink ?? mt.location ?? null;
+
       // Send confirmation emails
-      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes: fullNotes });
+      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, meetLink: meetLink ?? undefined });
       sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
       const adminEmail = process.env.EMAIL_USER;
-      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes: fullNotes, isAdmin: true }));
+      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, isAdmin: true, meetLink: meetLink ?? undefined }));
 
-      res.json(booking);
+      res.json({ ...booking, meetLink });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
