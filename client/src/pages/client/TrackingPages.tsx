@@ -1825,7 +1825,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   return (
     <ClientLayout>
       <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
+        <div data-tour="ig-tracker-main" className="flex items-center gap-3">
           <Link href={backHref}>
             <button data-testid="button-back-content" className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-accent">
               <ArrowLeft className="w-5 h-5" />
@@ -1893,7 +1893,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         {/* Follower Growth Tracker — Instagram only */}
         {!isYt && <IgFollowerPanel />}
 
-        <div className="grid grid-cols-3 gap-3">
+        <div data-tour="ig-tracker-add" className="grid grid-cols-3 gap-3">
           <Card className="border border-card-border">
             <CardContent className="p-3">
               {isYt ? <Youtube className="w-4 h-4 text-red-400 mb-1.5" /> : <Instagram className="w-4 h-4 text-pink-400 mb-1.5" />}

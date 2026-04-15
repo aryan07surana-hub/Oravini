@@ -191,20 +191,20 @@ const TOUR_STEPS: TourStep[] = [
   // ── IG Growth Tracker ─────────────────────────────────────────────────────
   {
     id: "ig-tracker-header",
-    route: "/ig-tracker",
+    route: "/tracking/content/instagram",
     target: '[data-tour="ig-tracker-main"]',
-    title: "IG Growth Tracker — Overview",
-    description: "Add any Instagram username and the tracker automatically scans follower counts, following counts, and engagement data every day at 6AM UTC. You get a full growth history chart so you can see exactly when an account spiked and correlate it with what they posted.",
+    title: "Instagram Tracking — Overview",
+    description: "This is your Instagram performance hub. It shows your month-by-month post data — total posts, views, and follower growth. The follower growth panel at the top auto-scans any Instagram profile daily so you always have live data on yourself and your competitors.",
     position: "bottom",
   },
   {
     id: "ig-tracker-add",
-    route: "/ig-tracker",
+    route: "/tracking/content/instagram",
     target: '[data-tour="ig-tracker-add"]',
-    title: "IG Growth Tracker — Add a Profile",
-    description: "Type any Instagram handle here and click Track Profile. You can track yourself to monitor your own growth, or add competitor accounts to see how fast they're growing. Add up to 10 profiles — each one gets its own daily scan and growth chart.",
+    title: "Instagram Tracking — Your Stats",
+    description: "These three cards show your total posts logged, total views across all content, and follower gain. Log each post after you publish it and the numbers build up over time. The data compounds — after 30 days you'll have a clear picture of exactly what content is growing your account.",
     position: "bottom",
-    tip: "Track yourself AND 2-3 competitors in your niche. When a competitor spikes and you don't, dig into what they posted that day — that's your content intelligence.",
+    tip: "Import your Instagram profile using the Import button to pull your last 20 posts automatically — no manual logging needed.",
   },
 
   // ── Tracking ──────────────────────────────────────────────────────────────
@@ -428,17 +428,17 @@ const PAGE_TOURS: Record<string, TourStep[]> = {
 
   "ig-tracker": [
     {
-      id: "pt-ig-1", route: "/ig-tracker", target: '[data-tour="ig-tracker-main"]',
-      title: "IG Growth Tracker",
-      description: "This tool automatically scans follower counts, following counts, and engagement data for any Instagram account — every day at 6AM UTC. You get a full growth history chart so you can track exactly when accounts spike and why.",
+      id: "pt-ig-1", route: "/tracking/content/instagram", target: '[data-tour="ig-tracker-main"]',
+      title: "Instagram Tracking",
+      description: "This is your Instagram performance hub. It shows month-by-month post data — total posts, views, and follower growth. The follower growth panel auto-scans Instagram profiles daily so you always have live data on yourself and your competitors.",
       position: "bottom",
     },
     {
-      id: "pt-ig-2", route: "/ig-tracker", target: '[data-tour="ig-tracker-add"]',
-      title: "Track Any Profile",
-      description: "Enter any Instagram handle and click Track Profile. Track yourself to monitor your own growth, or add competitors to benchmark against. Add up to 10 profiles — each one gets a dedicated daily scan with its own chart and history.",
+      id: "pt-ig-2", route: "/tracking/content/instagram", target: '[data-tour="ig-tracker-add"]',
+      title: "Your Stats",
+      description: "These cards show total posts logged, total views, and follower gain. Log each post after publishing and the data compounds over time. Use the Import button to pull your last 20 posts automatically — no manual logging needed.",
       position: "bottom",
-      tip: "Track yourself AND 2-3 competitors at similar follower counts. When one spikes and you don't, check what they posted — that's your content brief.",
+      tip: "After 30 days of logging, you'll see exactly which content type drives the most growth — that data is worth more than any course.",
     },
   ],
 
