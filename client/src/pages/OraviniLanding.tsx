@@ -306,12 +306,18 @@ const FEATURES = [
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
+  { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
+  { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
+  { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
+  { icon: "🗓️", title: "1-on-1 Strategy Calls", desc: "Book a private call directly from your dashboard. Auto-generates a Google Meet link the moment you confirm.", tag: "Google Meet" },
+  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
+  { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },
 ];
 
 const STATS = [
   { val: 5, suffix: "%+", label: "Avg. Engagement Boost", prefix: "" },
   { val: 2, suffix: ".3×", label: "Faster Follower Growth", prefix: "" },
-  { val: 9, suffix: "", label: "AI-Powered Tools", prefix: "" },
+  { val: 15, suffix: "", label: "Powerful Tools", prefix: "" },
 ];
 
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
@@ -520,7 +526,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Toolkit</div>
-            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>9 AI tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>15 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
           </Anim>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 18 }}>
             {FEATURES.map((f, i) => (
@@ -635,6 +641,95 @@ export default function OraviniLanding() {
         <style>{`@media(max-width:768px){ .outcomes-grid{ grid-template-columns:1fr !important; gap:40px !important; } }`}</style>
       </section>
 
+
+      {/* ── COMMUNITY & CALLS ─────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: `radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212,180,97,0.04) 0%, transparent 70%)` }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 72 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Beyond the Tools</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
+              A system. A community.<br /><span style={{ color: GOLD }}>A team behind you.</span>
+            </h2>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginTop: 18, maxWidth: 560, margin: "18px auto 0", lineHeight: 1.75 }}>
+              Oravini isn't just software — it's the whole infrastructure for growing your personal brand, with real people and real support built in.
+            </p>
+          </Anim>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+            {/* Community */}
+            <Anim delay={0}>
+              <TiltCard>
+                <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid rgba(212,180,97,0.2)`, borderRadius: 20, padding: "36px 32px", height: "100%", transition: "border-color 0.3s" }}>
+                  <div style={{ fontSize: 40, marginBottom: 20 }}>🏛️</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Members Only</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>Private Community Forum</div>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
+                    A private space exclusively for Oravini members. Share wins, ask questions, get feedback on your content, and connect with creators who are actually building.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {["Post updates & get community feedback", "Browse member wins for inspiration", "Like & comment on posts", "Pinned announcements & resources"].map(f => (
+                      <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                        <span style={{ color: GOLD, fontSize: 11, marginTop: 2 }}>✦</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TiltCard>
+            </Anim>
+
+            {/* 1-on-1 Calls */}
+            <Anim delay={100}>
+              <TiltCard>
+                <div style={{ background: `linear-gradient(135deg, rgba(212,180,97,0.07) 0%, rgba(212,180,97,0.02) 100%)`, border: `1px solid ${GOLD}44`, borderRadius: 20, padding: "36px 32px", height: "100%", position: "relative", overflow: "hidden", transition: "border-color 0.3s", boxShadow: `0 0 60px rgba(212,180,97,0.06)` }}>
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                  <div style={{ fontSize: 40, marginBottom: 20 }}>🗓️</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Google Meet</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>1-on-1 Strategy Calls</div>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
+                    Book a private strategy session directly from your dashboard. Pick a date, pick a time — a unique Google Meet link is auto-generated and emailed to you instantly.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
+                    {["Live calendar with real-time availability", "Auto Google Meet link on every booking", "Confirmation email with all details", "Custom intake questions before the call"].map(f => (
+                      <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                        <span style={{ color: GOLD, fontSize: 11, marginTop: 2 }}>✦</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <a href="/book/strategy-call" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `linear-gradient(135deg, #f0c84b, #d4b461)`, color: "#000", fontWeight: 800, fontSize: 14, borderRadius: 10, padding: "12px 24px", textDecoration: "none" }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = "0.88")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = "1")}>
+                    Book a Free Strategy Call →
+                  </a>
+                </div>
+              </TiltCard>
+            </Anim>
+
+            {/* Private Chat */}
+            <Anim delay={200}>
+              <TiltCard>
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "36px 32px", height: "100%", transition: "border-color 0.3s" }}>
+                  <div style={{ fontSize: 40, marginBottom: 20 }}>💬</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Elite & Pro</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>Private Support Chat</div>
+                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
+                    A direct line to the Brandverse team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {["Direct messaging inside the dashboard", "Strategy & content Q&A support", "Platform help & troubleshooting", "Available to Pro & Elite members"].map(f => (
+                      <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                        <span style={{ color: GOLD, fontSize: 11, marginTop: 2 }}>✦</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{f}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TiltCard>
+            </Anim>
+          </div>
+        </div>
+      </section>
 
       {/* ── PRICING ──────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
