@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -139,10 +138,111 @@ function BookingCard({ booking, onAction }: { booking: any; onAction: (id: strin
   );
 }
 
+/* ─── Google Calendar Widget ────────────────────────────────── */
+function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnecting }: {
+  calStatus?: { connected: boolean; email: string | null };
+  onConnect: () => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
+}) {
+  const [copiedCb, setCopiedCb] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const callbackUrl = `${window.location.origin}/api/auth/google-calendar/callback`;
+
+  function copyCallback() {
+    navigator.clipboard.writeText(callbackUrl);
+    setCopiedCb(true);
+    setTimeout(() => setCopiedCb(false), 2000);
+  }
+
+  if (calStatus?.connected) {
+    return (
+      <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-5 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/15">
+          <SiGoogle className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
+            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
+          </div>
+          <p className="text-xs text-zinc-500 mt-0.5">Every booking auto-generates a unique Google Meet link · <span className="text-emerald-400/70">{calStatus.email ?? ""}</span></p>
+        </div>
+        <Button variant="outline" size="sm" className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0" onClick={onDisconnect} disabled={disconnecting}>
+          <Unlink className="w-3.5 h-3.5" /> Disconnect
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+      {/* Header row */}
+      <div className="p-5 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-zinc-800">
+          <SiGoogle className="w-4 h-4 text-zinc-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
+            <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
+          </div>
+          <p className="text-xs text-zinc-500 mt-0.5">Connect once — every booking auto-creates a unique Google Meet link</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button variant="ghost" size="sm" className="text-zinc-500 text-xs gap-1 h-8 px-3" onClick={() => setShowSetup(s => !s)}>
+            <HelpCircle className="w-3.5 h-3.5" /> {showSetup ? "Hide" : "Setup guide"}
+          </Button>
+          <Button data-testid="button-connect-google-calendar" size="sm" className="gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={onConnect}>
+            <SiGoogle className="w-3.5 h-3.5" /> Connect
+          </Button>
+        </div>
+      </div>
+
+      {/* Setup instructions — collapsible */}
+      {showSetup && (
+        <div className="border-t border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-4">
+          <p className="text-xs font-bold text-white uppercase tracking-wider">One-time Google Cloud setup</p>
+          <ol className="space-y-3 text-xs text-zinc-400">
+            <li className="flex gap-2">
+              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">1</span>
+              <span>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline text-zinc-300 hover:text-white">console.cloud.google.com/apis/credentials</a> and open your OAuth 2.0 Client ID.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">2</span>
+              <span>Under <strong className="text-white">Authorized redirect URIs</strong>, click <strong className="text-white">Add URI</strong> and paste the URL below exactly:</span>
+            </li>
+          </ol>
+          {/* Callback URL copy box */}
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5">
+            <code className="flex-1 text-[11px] text-amber-300 font-mono break-all">{callbackUrl}</code>
+            <button onClick={copyCallback} className="flex-shrink-0 text-zinc-400 hover:text-white transition-colors ml-2">
+              {copiedCb ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <ol className="space-y-3 text-xs text-zinc-400" start={3}>
+            <li className="flex gap-2">
+              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">3</span>
+              <span>Click <strong className="text-white">Save</strong> in Google Cloud Console.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">4</span>
+              <span>Make sure the <strong className="text-white">Google Calendar API</strong> is enabled at <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noreferrer" className="underline text-zinc-300 hover:text-white">APIs &amp; Services → Library</a>.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">5</span>
+              <span>Click <strong className="text-white">Connect</strong> above and authorize. Done — every booking will now auto-generate a unique Meet link.</span>
+            </li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Main ─────────────────────────────────────────────────── */
 export default function AdminScheduling() {
   const { toast } = useToast();
-  const [, navigate] = useLocation();
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [availOpen, setAvailOpen] = useState(false);
@@ -329,48 +429,7 @@ export default function AdminScheduling() {
         </div>
 
         {/* ── GOOGLE CALENDAR / MEET ── */}
-        <div className={`rounded-2xl border p-5 flex items-center gap-4 ${calStatus?.connected ? "border-emerald-700/40 bg-emerald-950/20" : "border-zinc-800 bg-zinc-900/40"}`}>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${calStatus?.connected ? "bg-emerald-500/15" : "bg-zinc-800"}`}>
-            <SiGoogle className={`w-4 h-4 ${calStatus?.connected ? "text-emerald-400" : "text-zinc-500"}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
-              {calStatus?.connected ? (
-                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
-              ) : (
-                <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
-              )}
-            </div>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {calStatus?.connected
-                ? `Unique Meet links auto-generated for every booking · ${calStatus.email ?? ""}`
-                : "Connect once — every booking auto-generates a unique Google Meet link"
-              }
-            </p>
-          </div>
-          {calStatus?.connected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0"
-              onClick={() => disconnectCalMutation.mutate()}
-              disabled={disconnectCalMutation.isPending}
-            >
-              <Unlink className="w-3.5 h-3.5" /> Disconnect
-            </Button>
-          ) : (
-            <Button
-              data-testid="button-connect-google-calendar"
-              size="sm"
-              className="gap-1.5 font-bold flex-shrink-0"
-              style={{ background: GOLD, color: "#000" }}
-              onClick={() => { window.location.href = "/api/auth/google-calendar"; }}
-            >
-              <SiGoogle className="w-3.5 h-3.5" /> Connect
-            </Button>
-          )}
-        </div>
+        <GoogleCalendarWidget calStatus={calStatus} onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} onDisconnect={() => disconnectCalMutation.mutate()} disconnecting={disconnectCalMutation.isPending} />
 
         {/* ── CARDS ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
