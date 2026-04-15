@@ -8314,5 +8314,328 @@ Rules:
     }
   });
 
+  // ── Scheduling System ────────────────────────────────────────────────────────
+
+  const schedulingTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
+
+  async function sendBookingEmail(to: string, subject: string, html: string) {
+    try {
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+      await schedulingTransporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html });
+    } catch (e: any) {
+      console.error("[scheduling] email error:", e.message);
+    }
+  }
+
+  function bookingEmailHtml(params: { title: string; clientName: string; startTime: Date; endTime: Date; location?: string | null; notes?: string | null; isAdmin?: boolean }) {
+    const fmt = (d: Date) => d.toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    const duration = Math.round((params.endTime.getTime() - params.startTime.getTime()) / 60000);
+    return `
+      <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto">
+        <h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2>
+        <p style="color:#aaa;margin-bottom:24px;font-size:13px">Scheduling System</p>
+        <h3 style="color:#fff;margin-bottom:16px">${params.isAdmin ? "New Booking" : "Booking Confirmed"}: ${params.title}</h3>
+        <div style="background:#222;border:1px solid #333;border-radius:8px;padding:20px;margin-bottom:20px">
+          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Who:</strong> ${params.clientName}</p>
+          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(params.startTime)}</p>
+          <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Duration:</strong> ${duration} minutes</p>
+          ${params.location ? `<p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${params.location}</p>` : ""}
+          ${params.notes ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Notes:</strong> ${params.notes}</p>` : ""}
+        </div>
+        <p style="color:#666;font-size:12px">If you need to cancel or reschedule, please reach out directly.</p>
+      </div>`;
+  }
+
+  // Admin CRUD — Meeting Types
+  app.get("/api/admin/meeting-types", requireAdmin, async (_req, res) => {
+    const types = await storage.getMeetingTypes();
+    res.json(types);
+  });
+
+  app.post("/api/admin/meeting-types", requireAdmin, async (req, res) => {
+    try {
+      const { insertMeetingTypeSchema } = await import("@shared/schema");
+      const parsed = insertMeetingTypeSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const mt = await storage.createMeetingType(parsed.data);
+      res.json(mt);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch("/api/admin/meeting-types/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateMeetingType(p(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/meeting-types/:id", requireAdmin, async (req, res) => {
+    await storage.deleteMeetingType(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Admin — Availability Rules
+  app.get("/api/admin/meeting-types/:id/availability", requireAdmin, async (req, res) => {
+    const rules = await storage.getAvailabilityRules(p(req.params.id));
+    res.json(rules);
+  });
+
+  app.put("/api/admin/meeting-types/:id/availability", requireAdmin, async (req, res) => {
+    try {
+      const rules = await storage.upsertAvailabilityRules(p(req.params.id), req.body);
+      res.json(rules);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — All Bookings
+  app.get("/api/admin/scheduled-bookings", requireAdmin, async (_req, res) => {
+    const bookings = await storage.getScheduledBookings();
+    res.json(bookings);
+  });
+
+  app.patch("/api/admin/scheduled-bookings/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateScheduledBooking(p(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Scheduling timezone helpers ───────────────────────────────────────────
+
+  // Convert a local calendar date + HH:MM time in the given IANA timezone to UTC.
+  function toUTCFromLocalTime(dateStr: string, timeStr: string, timezone: string): Date {
+    const [y, mo, d] = dateStr.split("-").map(Number);
+    const [h, mi] = timeStr.split(":").map(Number);
+    // Start with an approximation: treat the calendar date/time as UTC
+    let approxUtc = new Date(Date.UTC(y, mo - 1, d, h, mi, 0));
+    // Iterate to converge on the correct UTC instant (handles DST, sub-hour offsets)
+    for (let i = 0; i < 4; i++) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        year: "numeric", month: "numeric", day: "numeric",
+        hour: "numeric", minute: "numeric", hour12: false,
+      }).formatToParts(approxUtc);
+      const pmap: Record<string, number> = {};
+      for (const p of parts) if (p.type !== "literal") pmap[p.type] = parseInt(p.value) || 0;
+      const localMs = Date.UTC(pmap.year, pmap.month - 1, pmap.day, pmap.hour % 24, pmap.minute);
+      const targetMs = Date.UTC(y, mo - 1, d, h, mi);
+      const diff = targetMs - localMs;
+      if (Math.abs(diff) < 60000) break;
+      approxUtc = new Date(approxUtc.getTime() + diff);
+    }
+    return approxUtc;
+  }
+
+  // Return day-of-week (0=Sun…6=Sat) for a YYYY-MM-DD date in the given IANA timezone.
+  function getDayOfWeekInTimezone(dateStr: string, timezone: string): number {
+    const [y, mo, d] = dateStr.split("-").map(Number);
+    const refDate = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)); // noon UTC to avoid edge cases
+    const dayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(refDate);
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dayName);
+  }
+
+  // Return YYYY-MM-DD string for a UTC Date in the given timezone.
+  function getLocalDateStr(utcDate: Date, timezone: string): string {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(utcDate);
+  }
+
+  // Public — Get available slots for a meeting type (per-day)
+  app.get("/api/book/:slug/slots", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+
+      const { date } = req.query; // date as YYYY-MM-DD (interpreted in mt.timezone)
+      if (!date || typeof date !== "string") return res.status(400).json({ message: "date required (YYYY-MM-DD)" });
+
+      const tz = mt.timezone || "UTC";
+      const dayOfWeek = getDayOfWeekInTimezone(date, tz);
+      const rules = await storage.getAvailabilityRules(mt.id);
+      const rule = rules.find(r => r.dayOfWeek === dayOfWeek && r.isEnabled);
+      if (!rule) return res.json({ slots: [] });
+
+      // Compute window start/end in UTC
+      const windowStart = toUTCFromLocalTime(date, rule.startTime, tz);
+      const windowEnd = toUTCFromLocalTime(date, rule.endTime, tz);
+
+      // Fetch bookings for this meeting type and filter to this day's window
+      const existingBookings = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const dayBookings = existingBookings.filter(b =>
+        b.status !== "cancelled" &&
+        new Date(b.startTime) < windowEnd &&
+        new Date(b.endTime) > windowStart
+      );
+
+      // Generate slots in UTC
+      const slots: string[] = [];
+      const now = new Date();
+      const slotInterval = mt.duration + mt.bufferTime;
+      let curMs = windowStart.getTime();
+
+      while (curMs + mt.duration * 60000 <= windowEnd.getTime()) {
+        const slotStart = new Date(curMs);
+        const slotEnd = new Date(curMs + mt.duration * 60000);
+
+        if (slotStart > now) {
+          const conflict = dayBookings.some(b => {
+            const bStart = new Date(b.startTime).getTime();
+            const bEnd = new Date(b.endTime).getTime();
+            return slotStart.getTime() < bEnd && slotEnd.getTime() > bStart;
+          });
+          if (!conflict) slots.push(slotStart.toISOString());
+        }
+        curMs += slotInterval * 60000;
+      }
+      res.json({ slots, meetingType: mt });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Public — Get available calendar dates for a month (for calendar highlighting)
+  // Only returns dates that have at least one genuinely free slot.
+  app.get("/api/book/:slug/available-dates", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+
+      const { year, month } = req.query;
+      if (!year || !month) return res.status(400).json({ message: "year and month required" });
+
+      const y = parseInt(year as string);
+      const mo = parseInt(month as string); // 1-based
+      const tz = mt.timezone || "UTC";
+      const rules = await storage.getAvailabilityRules(mt.id);
+
+      // Fetch all non-cancelled bookings for this meeting type once
+      const allBookings = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const activeBookings = allBookings.filter(b => b.status !== "cancelled");
+
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      const now = new Date();
+      const availableDates: string[] = [];
+      const slotInterval = mt.duration + mt.bufferTime;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const dow = getDayOfWeekInTimezone(dateStr, tz);
+        const rule = rules.find(r => r.dayOfWeek === dow && r.isEnabled);
+        if (!rule) continue;
+
+        const windowStart = toUTCFromLocalTime(dateStr, rule.startTime, tz);
+        const windowEnd = toUTCFromLocalTime(dateStr, rule.endTime, tz);
+        if (windowEnd <= now) continue;
+
+        // Filter bookings that overlap this day's window
+        const dayBookings = activeBookings.filter(b =>
+          new Date(b.startTime) < windowEnd && new Date(b.endTime) > windowStart
+        );
+
+        // Check if at least one slot is free
+        let hasFreeSlot = false;
+        let curMs = Math.max(windowStart.getTime(), now.getTime());
+        // Round up to the next slot boundary
+        if (curMs > windowStart.getTime()) {
+          const elapsed = curMs - windowStart.getTime();
+          const intervalMs = slotInterval * 60000;
+          curMs = windowStart.getTime() + Math.ceil(elapsed / intervalMs) * intervalMs;
+        }
+        while (curMs + mt.duration * 60000 <= windowEnd.getTime()) {
+          const slotStart = new Date(curMs);
+          const slotEnd = new Date(curMs + mt.duration * 60000);
+          const conflict = dayBookings.some(b =>
+            slotStart.getTime() < new Date(b.endTime).getTime() && slotEnd.getTime() > new Date(b.startTime).getTime()
+          );
+          if (!conflict) { hasFreeSlot = true; break; }
+          curMs += slotInterval * 60000;
+        }
+
+        if (hasFreeSlot) availableDates.push(dateStr);
+      }
+
+      res.json({ availableDates });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Public — Get meeting type info
+  app.get("/api/book/:slug", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+      res.json(mt);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Public — Create booking (with full server-side availability validation)
+  app.post("/api/book/:slug", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+
+      const { clientName, clientEmail, startTime, notes } = req.body;
+      if (!clientName || !clientEmail || !startTime) {
+        return res.status(400).json({ message: "clientName, clientEmail, startTime required" });
+      }
+
+      const start = new Date(startTime);
+      if (isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+      if (start <= new Date()) return res.status(400).json({ message: "Cannot book a slot in the past" });
+
+      const end = new Date(start.getTime() + mt.duration * 60000);
+      const tz = mt.timezone || "UTC";
+
+      // Determine the local calendar date in the meeting type's timezone
+      const localDateStr = getLocalDateStr(start, tz);
+      const dayOfWeek = getDayOfWeekInTimezone(localDateStr, tz);
+
+      // Validate against availability rules
+      const rules = await storage.getAvailabilityRules(mt.id);
+      const rule = rules.find(r => r.dayOfWeek === dayOfWeek && r.isEnabled);
+      if (!rule) {
+        return res.status(400).json({ message: "No availability configured for that day" });
+      }
+
+      // Compute the allowed UTC window for that day
+      const windowStart = toUTCFromLocalTime(localDateStr, rule.startTime, tz);
+      const windowEnd = toUTCFromLocalTime(localDateStr, rule.endTime, tz);
+
+      if (start < windowStart || end > windowEnd) {
+        return res.status(400).json({ message: "Requested time is outside configured availability" });
+      }
+
+      // Validate duration aligns with slot interval
+      const durationMs = end.getTime() - start.getTime();
+      if (durationMs !== mt.duration * 60000) {
+        return res.status(400).json({ message: "Slot duration does not match meeting type" });
+      }
+
+      // Check for booking conflicts
+      const existing = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const conflict = existing.some(b => {
+        if (b.status === "cancelled") return false;
+        const bStart = new Date(b.startTime).getTime();
+        const bEnd = new Date(b.endTime).getTime();
+        return start.getTime() < bEnd && end.getTime() > bStart;
+      });
+      if (conflict) return res.status(409).json({ message: "This time slot is no longer available" });
+
+      const booking = await storage.createScheduledBooking({
+        meetingTypeId: mt.id, clientName, clientEmail,
+        startTime: start, endTime: end, status: "scheduled", notes: notes || null,
+      });
+
+      // Send confirmation emails
+      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes });
+      sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
+      const adminEmail = process.env.EMAIL_USER;
+      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes, isAdmin: true }));
+
+      res.json(booking);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   return httpServer;
 }

@@ -77,6 +77,8 @@ import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import PublicForm from "@/pages/PublicForm";
+import AdminScheduling from "@/pages/admin/AdminScheduling";
+import PublicBooking from "@/pages/PublicBooking";
 
 const GOLD = "#d4b461";
 
@@ -302,6 +304,9 @@ function Router() {
       <Route path="/f/:slug">
         {(params) => <PublicForm />}
       </Route>
+      <Route path="/book/:slug">
+        {(params) => <PublicBooking />}
+      </Route>
       <Route path="/tracking">
         {() => <ProtectedRoute component={TrackingHome} />}
       </Route>
@@ -349,6 +354,9 @@ function Router() {
       </Route>
       <Route path="/admin/sessions">
         {() => <ProtectedRoute component={AdminSessions} adminOnly />}
+      </Route>
+      <Route path="/admin/scheduling">
+        {() => <ProtectedRoute component={AdminScheduling} adminOnly />}
       </Route>
       <Route path="/admin/credits">
         {() => <ProtectedRoute component={AdminCredits} adminOnly />}

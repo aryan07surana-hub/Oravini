@@ -333,11 +333,64 @@ async function syncIgFollowerCounts() {
   log("IG Tracker: daily auto-scan complete", "cron");
 }
 
+async function sendBookingReminders() {
+  try {
+    const upcoming = await storage.getUpcomingBookingsForReminders();
+    if (upcoming.length === 0) return;
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.default.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+    const fmt = (d: Date) => d.toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    const now = new Date();
+    for (const booking of upcoming) {
+      const hoursUntil = (new Date(booking.startTime).getTime() - now.getTime()) / (1000 * 60 * 60);
+      const mt = booking.meetingType;
+      if (!mt) continue;
+      const html = (hoursLabel: string) => `
+        <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto">
+          <h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2>
+          <p style="color:#aaa;margin-bottom:24px;font-size:13px">Reminder</p>
+          <h3 style="color:#fff;margin-bottom:16px">Your meeting starts in ${hoursLabel}</h3>
+          <div style="background:#222;border:1px solid #333;border-radius:8px;padding:20px">
+            <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Meeting:</strong> ${mt.title}</p>
+            <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(new Date(booking.startTime))}</p>
+            ${mt.location ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${mt.location}</p>` : ""}
+          </div>
+        </div>`;
+      // 24h reminder: send between 23h and 25h before meeting (±1h window around 24h, cron runs every 15min)
+      if (hoursUntil <= 25 && hoursUntil >= 23 && !booking.reminder24Sent) {
+        try {
+          if (process.env.EMAIL_USER) {
+            await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 24 hours`, html: html("24 hours") });
+          }
+          await storage.updateScheduledBooking(booking.id, { reminder24Sent: true });
+          log(`Booking reminder 24h sent to ${booking.clientEmail}`, "cron");
+        } catch (e: any) { log(`Reminder 24h failed: ${e.message}`, "cron"); }
+      }
+      // 1h reminder: send between 0 and 1h15m before meeting (±15min window around 1h)
+      if (hoursUntil <= 1.25 && hoursUntil > 0 && !booking.reminder1Sent) {
+        try {
+          if (process.env.EMAIL_USER) {
+            await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 1 hour`, html: html("1 hour") });
+          }
+          await storage.updateScheduledBooking(booking.id, { reminder1Sent: true });
+          log(`Booking reminder 1h sent to ${booking.clientEmail}`, "cron");
+        } catch (e: any) { log(`Reminder 1h failed: ${e.message}`, "cron"); }
+      }
+    }
+  } catch (e: any) {
+    log(`Booking reminders error: ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes", "cron");
+  cron.schedule("*/15 * * * *", sendBookingReminders);
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes; booking reminders every 15 minutes", "cron");
 }

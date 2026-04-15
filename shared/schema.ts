@@ -665,6 +665,53 @@ export const insertIgFollowerSnapshotSchema = createInsertSchema(igFollowerSnaps
 export type IgFollowerSnapshot = typeof igFollowerSnapshots.$inferSelect;
 export type InsertIgFollowerSnapshot = z.infer<typeof insertIgFollowerSnapshotSchema>;
 
+// ── Scheduling System ──────────────────────────────────────────────────────
+export const meetingTypes = pgTable("meeting_types", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description"),
+  duration: integer("duration").notNull().default(30),
+  color: text("color").notNull().default("#d4b461"),
+  location: text("location"),
+  timezone: text("timezone").notNull().default("UTC"),
+  bufferTime: integer("buffer_time").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertMeetingTypeSchema = createInsertSchema(meetingTypes).omit({ id: true, createdAt: true });
+export type InsertMeetingType = z.infer<typeof insertMeetingTypeSchema>;
+export type MeetingType = typeof meetingTypes.$inferSelect;
+
+export const availabilityRules = pgTable("availability_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetingTypeId: varchar("meeting_type_id").notNull().references(() => meetingTypes.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sun, 1=Mon, ... 6=Sat
+  startTime: text("start_time").notNull(), // "09:00"
+  endTime: text("end_time").notNull(),     // "17:00"
+  isEnabled: boolean("is_enabled").notNull().default(true),
+});
+export const insertAvailabilityRuleSchema = createInsertSchema(availabilityRules).omit({ id: true });
+export type InsertAvailabilityRule = z.infer<typeof insertAvailabilityRuleSchema>;
+export type AvailabilityRule = typeof availabilityRules.$inferSelect;
+
+export const scheduledBookings = pgTable("scheduled_bookings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetingTypeId: varchar("meeting_type_id").notNull().references(() => meetingTypes.id, { onDelete: "cascade" }),
+  clientName: text("client_name").notNull(),
+  clientEmail: text("client_email").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  status: text("status").notNull().default("scheduled"), // scheduled | cancelled | completed
+  notes: text("notes"),
+  reminder24Sent: boolean("reminder_24_sent").notNull().default(false),
+  reminder1Sent: boolean("reminder_1_sent").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertScheduledBookingSchema = createInsertSchema(scheduledBookings).omit({ id: true, createdAt: true, reminder24Sent: true, reminder1Sent: true });
+export type InsertScheduledBooking = z.infer<typeof insertScheduledBookingSchema>;
+export type ScheduledBooking = typeof scheduledBookings.$inferSelect;
+
 export const onboardingSurveys = pgTable("onboarding_surveys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),

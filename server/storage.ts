@@ -16,6 +16,7 @@ import {
   meetings,
   videoEdits,
   brollClips,
+  meetingTypes, availabilityRules, scheduledBookings,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
@@ -41,6 +42,9 @@ import {
   type Meeting, type InsertMeeting,
   type VideoEdit, type InsertVideoEdit,
   type BrollClip, type InsertBrollClip,
+  type MeetingType, type InsertMeetingType,
+  type AvailabilityRule, type InsertAvailabilityRule,
+  type ScheduledBooking, type InsertScheduledBooking,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -222,6 +226,22 @@ export interface IStorage {
   getBrollClips(userId: string): Promise<BrollClip[]>;
   createBrollClip(data: InsertBrollClip): Promise<BrollClip>;
   deleteBrollClip(id: number, userId: string): Promise<void>;
+
+  // Scheduling System
+  getMeetingTypes(): Promise<MeetingType[]>;
+  getMeetingTypeBySlug(slug: string): Promise<MeetingType | undefined>;
+  getMeetingType(id: string): Promise<MeetingType | undefined>;
+  createMeetingType(data: InsertMeetingType): Promise<MeetingType>;
+  updateMeetingType(id: string, data: Partial<InsertMeetingType>): Promise<MeetingType | undefined>;
+  deleteMeetingType(id: string): Promise<void>;
+  getAvailabilityRules(meetingTypeId: string): Promise<AvailabilityRule[]>;
+  upsertAvailabilityRules(meetingTypeId: string, rules: Omit<InsertAvailabilityRule, "meetingTypeId">[]): Promise<AvailabilityRule[]>;
+  getScheduledBookings(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
+  getScheduledBookingsByMeetingType(meetingTypeId: string): Promise<ScheduledBooking[]>;
+  getScheduledBooking(id: string): Promise<ScheduledBooking | undefined>;
+  createScheduledBooking(data: InsertScheduledBooking): Promise<ScheduledBooking>;
+  updateScheduledBooking(id: string, data: Partial<ScheduledBooking>): Promise<ScheduledBooking | undefined>;
+  getUpcomingBookingsForReminders(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1281,6 +1301,85 @@ class DatabaseStorage implements IStorage {
 
   async deleteIgBotCampaign(id: number, userId: string) {
     await db.delete(igBotCampaigns).where(and(eq(igBotCampaigns.id, id), eq(igBotCampaigns.userId, userId)));
+  }
+
+  // ── Scheduling System ────────────────────────────────────────────────────────
+  async getMeetingTypes(): Promise<MeetingType[]> {
+    return db.select().from(meetingTypes).orderBy(desc(meetingTypes.createdAt));
+  }
+
+  async getMeetingTypeBySlug(slug: string): Promise<MeetingType | undefined> {
+    const [row] = await db.select().from(meetingTypes).where(eq(meetingTypes.slug, slug));
+    return row;
+  }
+
+  async getMeetingType(id: string): Promise<MeetingType | undefined> {
+    const [row] = await db.select().from(meetingTypes).where(eq(meetingTypes.id, id));
+    return row;
+  }
+
+  async createMeetingType(data: InsertMeetingType): Promise<MeetingType> {
+    const [row] = await db.insert(meetingTypes).values(data).returning();
+    return row;
+  }
+
+  async updateMeetingType(id: string, data: Partial<InsertMeetingType>): Promise<MeetingType | undefined> {
+    const [row] = await db.update(meetingTypes).set(data).where(eq(meetingTypes.id, id)).returning();
+    return row;
+  }
+
+  async deleteMeetingType(id: string): Promise<void> {
+    await db.delete(meetingTypes).where(eq(meetingTypes.id, id));
+  }
+
+  async getAvailabilityRules(meetingTypeId: string): Promise<AvailabilityRule[]> {
+    return db.select().from(availabilityRules).where(eq(availabilityRules.meetingTypeId, meetingTypeId)).orderBy(availabilityRules.dayOfWeek);
+  }
+
+  async upsertAvailabilityRules(meetingTypeId: string, rules: Omit<InsertAvailabilityRule, "meetingTypeId">[]): Promise<AvailabilityRule[]> {
+    await db.delete(availabilityRules).where(eq(availabilityRules.meetingTypeId, meetingTypeId));
+    if (rules.length === 0) return [];
+    const inserted = await db.insert(availabilityRules).values(rules.map(r => ({ ...r, meetingTypeId }))).returning();
+    return inserted;
+  }
+
+  async getScheduledBookings(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]> {
+    const bookings = await db.select().from(scheduledBookings).orderBy(desc(scheduledBookings.startTime));
+    const types = await db.select().from(meetingTypes);
+    return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
+  }
+
+  async getScheduledBookingsByMeetingType(meetingTypeId: string): Promise<ScheduledBooking[]> {
+    return db.select().from(scheduledBookings).where(eq(scheduledBookings.meetingTypeId, meetingTypeId)).orderBy(desc(scheduledBookings.startTime));
+  }
+
+  async getScheduledBooking(id: string): Promise<ScheduledBooking | undefined> {
+    const [row] = await db.select().from(scheduledBookings).where(eq(scheduledBookings.id, id));
+    return row;
+  }
+
+  async createScheduledBooking(data: InsertScheduledBooking): Promise<ScheduledBooking> {
+    const [row] = await db.insert(scheduledBookings).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledBooking(id: string, data: Partial<ScheduledBooking>): Promise<ScheduledBooking | undefined> {
+    const [row] = await db.update(scheduledBookings).set(data).where(eq(scheduledBookings.id, id)).returning();
+    return row;
+  }
+
+  async getUpcomingBookingsForReminders(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]> {
+    const now = new Date();
+    const in25Hours = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+    const bookings = await db.select().from(scheduledBookings).where(
+      and(
+        eq(scheduledBookings.status, "scheduled"),
+        gte(scheduledBookings.startTime, now),
+        lte(scheduledBookings.startTime, in25Hours)
+      )
+    );
+    const types = await db.select().from(meetingTypes);
+    return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
   }
 }
 

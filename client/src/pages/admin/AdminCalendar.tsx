@@ -1,29 +1,33 @@
 import { useState } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, ChevronLeft, ChevronRight, Phone, Clock, User, Video, Instagram, Youtube, CalendarPlus } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { CalendarDays, ChevronLeft, ChevronRight, Phone, Clock, User, CalendarPlus, Video } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, isSameMonth, isToday } from "date-fns";
 
 type CalEvent = {
   id: string;
   title: string;
   date: Date;
-  type: "call" | "booking" | "content";
+  type: "call" | "booking" | "self_booking";
   clientName?: string;
   clientEmail?: string;
   time?: string;
   status?: string;
-  platform?: string;
-  contentType?: string;
+  raw?: any;
 };
 
 export default function AdminCalendar() {
+  const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
+  const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null);
 
   const { data: callFeedbacks = [], isLoading: cfLoading } = useQuery<any[]>({
     queryKey: ["/api/call-feedback/all"],
@@ -33,11 +37,25 @@ export default function AdminCalendar() {
     queryKey: ["/api/call-bookings"],
   });
 
+  const { data: scheduledBookings = [], isLoading: sbLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/scheduled-bookings"],
+  });
+
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ["/api/clients"],
   });
 
-  const isLoading = cfLoading || cbLoading;
+  const isLoading = cfLoading || cbLoading || sbLoading;
+
+  const updateBookingMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      apiRequest("PATCH", `/api/admin/scheduled-bookings/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scheduled-bookings"] });
+      setSelectedEvent(null);
+      toast({ title: "Booking updated" });
+    },
+  });
 
   const events: CalEvent[] = [
     ...callFeedbacks.map((cf: any) => ({
@@ -58,6 +76,18 @@ export default function AdminCalendar() {
       clientEmail: cb.inviteeEmail,
       time: format(new Date(cb.startTime), "h:mm a"),
       status: cb.status,
+      raw: cb,
+    })),
+    ...scheduledBookings.map((sb: any) => ({
+      id: sb.id,
+      title: sb.meetingType?.title ? `${sb.meetingType.title} w/ ${sb.clientName}` : `Meeting w/ ${sb.clientName}`,
+      date: new Date(sb.startTime),
+      type: "self_booking" as const,
+      clientName: sb.clientName,
+      clientEmail: sb.clientEmail,
+      time: format(new Date(sb.startTime), "h:mm a"),
+      status: sb.status,
+      raw: sb,
     })),
   ];
 
@@ -73,19 +103,28 @@ export default function AdminCalendar() {
   const getEventsForDay = (day: Date) => events.filter(e => isSameDay(e.date, day));
 
   const eventTypeColor = (type: string, status?: string) => {
+    if (type === "self_booking") return status === "cancelled" ? "bg-red-500" : "bg-emerald-500";
     if (type === "booking") return status === "canceled" ? "bg-red-500" : "bg-primary";
     if (type === "call") return "bg-blue-500";
     return "bg-purple-500";
   };
 
   const eventTypeBadge = (type: string) => {
+    if (type === "self_booking") return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
     if (type === "booking") return "bg-primary/10 text-primary border-primary/20";
     if (type === "call") return "bg-blue-500/10 text-blue-400 border-blue-500/20";
     return "bg-purple-500/10 text-purple-400 border-purple-500/20";
   };
 
+  const eventTypeLabel = (type: string) => {
+    if (type === "self_booking") return "Self-Hosted Booking";
+    if (type === "booking") return "Calendly Booking";
+    return "Call Record";
+  };
+
   const monthEvents = events.filter(e => isSameMonth(e.date, currentMonth));
   const upcomingBookings = callBookings.filter((b: any) => b.status === "scheduled" && new Date(b.startTime) >= new Date());
+  const upcomingSelfBookings = scheduledBookings.filter((b: any) => b.status === "scheduled" && new Date(b.startTime) >= new Date());
 
   return (
     <AdminLayout>
@@ -155,12 +194,52 @@ export default function AdminCalendar() {
                   })}
                 </div>
 
-                <div className="flex items-center gap-4 pt-4 border-t border-border mt-3">
-                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary" /><span className="text-xs text-muted-foreground">Booking</span></div>
+                <div className="flex items-center gap-4 pt-4 border-t border-border mt-3 flex-wrap">
+                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /><span className="text-xs text-muted-foreground">Self-Hosted</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-primary" /><span className="text-xs text-muted-foreground">Calendly</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /><span className="text-xs text-muted-foreground">Call Record</span></div>
                 </div>
               </CardContent>
             </Card>
+
+            {upcomingSelfBookings.length > 0 && (
+              <Card className="border border-emerald-500/20 bg-emerald-500/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Video className="w-4 h-4 text-emerald-400" /> Upcoming Self-Hosted Bookings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {isLoading ? Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-full" />) :
+                    upcomingSelfBookings.slice(0, 5).map((b: any) => (
+                      <div
+                        key={b.id}
+                        className="flex items-center gap-3 p-3 bg-card border border-card-border rounded-xl cursor-pointer hover:bg-muted/20"
+                        data-testid={`self-booking-${b.id}`}
+                        onClick={() => setSelectedEvent({
+                          id: b.id, title: b.meetingType?.title || "Meeting", date: new Date(b.startTime),
+                          type: "self_booking", clientName: b.clientName, clientEmail: b.clientEmail,
+                          time: format(new Date(b.startTime), "h:mm a"), status: b.status, raw: b,
+                        })}
+                      >
+                        <div className="w-9 h-9 bg-emerald-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Video className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground">{b.clientName}</p>
+                          <p className="text-xs text-muted-foreground">{b.meetingType?.title || "Meeting"}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-semibold text-foreground">{format(new Date(b.startTime), "MMM d")}</p>
+                          <p className="text-xs text-muted-foreground">{format(new Date(b.startTime), "h:mm a")}</p>
+                        </div>
+                        <Badge className="text-[10px] bg-green-500/10 text-green-400 border border-green-500/20">Scheduled</Badge>
+                      </div>
+                    ))
+                  }
+                </CardContent>
+              </Card>
+            )}
 
             {upcomingBookings.length > 0 && (
               <Card className="border border-primary/20 bg-primary/5">
@@ -209,10 +288,17 @@ export default function AdminCalendar() {
                 ) : (
                   <div className="space-y-3">
                     {selectedDayEvents.map(ev => (
-                      <div key={ev.id} data-testid={`event-${ev.id}`} className="p-3 bg-card border border-card-border rounded-xl">
+                      <div
+                        key={ev.id}
+                        data-testid={`event-${ev.id}`}
+                        className={`p-3 bg-card border border-card-border rounded-xl ${ev.type === "self_booking" ? "cursor-pointer hover:bg-muted/20" : ""}`}
+                        onClick={() => ev.type === "self_booking" && setSelectedEvent(ev)}
+                      >
                         <div className="flex items-start gap-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${ev.type === "booking" ? "bg-primary/10" : "bg-blue-500/10"}`}>
-                            {ev.type === "booking" ? <CalendarPlus className="w-4 h-4 text-primary" /> : <Phone className="w-4 h-4 text-blue-400" />}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${ev.type === "self_booking" ? "bg-emerald-500/10" : ev.type === "booking" ? "bg-primary/10" : "bg-blue-500/10"}`}>
+                            {ev.type === "self_booking" ? <Video className="w-4 h-4 text-emerald-400" /> :
+                             ev.type === "booking" ? <CalendarPlus className="w-4 h-4 text-primary" /> :
+                             <Phone className="w-4 h-4 text-blue-400" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-foreground leading-tight">{ev.title}</p>
@@ -220,9 +306,16 @@ export default function AdminCalendar() {
                             {ev.time && <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5"><Clock className="w-2.5 h-2.5" />{ev.time}</p>}
                           </div>
                         </div>
-                        <Badge variant="outline" className={`text-[9px] mt-2 border ${eventTypeBadge(ev.type)}`}>
-                          {ev.type === "booking" ? "Calendly Booking" : "Call Record"}
-                        </Badge>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className={`text-[9px] border ${eventTypeBadge(ev.type)}`}>
+                            {eventTypeLabel(ev.type)}
+                          </Badge>
+                          {ev.status && ev.status !== "completed" && (
+                            <Badge variant="outline" className={`text-[9px] border ${ev.status === "scheduled" ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"}`}>
+                              {ev.status}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -237,6 +330,13 @@ export default function AdminCalendar() {
               <CardContent className="space-y-3">
                 {isLoading ? Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-8 w-full" />) : (
                   <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <span className="text-xs text-muted-foreground">Self-Hosted</span>
+                      </div>
+                      <span className="text-sm font-bold text-foreground">{monthEvents.filter(e => e.type === "self_booking").length}</span>
+                    </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full bg-primary" />
@@ -262,6 +362,75 @@ export default function AdminCalendar() {
           </div>
         </div>
       </div>
+
+      {/* Self-hosted booking detail dialog */}
+      {selectedEvent && selectedEvent.type === "self_booking" && (
+        <Dialog open onOpenChange={() => setSelectedEvent(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Booking Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">Meeting</span>
+                  <span className="text-sm font-medium text-foreground">{selectedEvent.raw?.meetingType?.title || "—"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">Client</span>
+                  <span className="text-sm font-medium text-foreground">{selectedEvent.clientName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">Email</span>
+                  <span className="text-sm text-foreground">{selectedEvent.clientEmail}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">Start</span>
+                  <span className="text-sm text-foreground">{format(new Date(selectedEvent.raw.startTime), "PPpp")}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">End</span>
+                  <span className="text-sm text-foreground">{format(new Date(selectedEvent.raw.endTime), "h:mm a")}</span>
+                </div>
+                {selectedEvent.raw?.notes && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs text-muted-foreground w-24">Notes</span>
+                    <span className="text-sm text-foreground flex-1">{selectedEvent.raw.notes}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-24">Status</span>
+                  <Badge variant="outline" className={`text-[10px] ${selectedEvent.status === "scheduled" ? "border-green-500/30 text-green-400" : selectedEvent.status === "cancelled" ? "border-red-500/30 text-red-400" : "border-muted text-muted-foreground"}`}>
+                    {selectedEvent.status}
+                  </Badge>
+                </div>
+              </div>
+              {selectedEvent.status === "scheduled" && (
+                <div className="flex gap-2">
+                  <Button
+                    data-testid="btn-cancel-booking"
+                    variant="outline"
+                    className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    disabled={updateBookingMutation.isPending}
+                    onClick={() => updateBookingMutation.mutate({ id: selectedEvent.id, data: { status: "cancelled" } })}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    data-testid="btn-complete-booking"
+                    className="flex-1 font-semibold"
+                    style={{ background: "#d4b461", color: "#000" }}
+                    disabled={updateBookingMutation.isPending}
+                    onClick={() => updateBookingMutation.mutate({ id: selectedEvent.id, data: { status: "completed" } })}
+                  >
+                    Mark Complete
+                  </Button>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </AdminLayout>
   );
 }
