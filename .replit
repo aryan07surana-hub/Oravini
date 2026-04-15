@@ -46,3 +46,7 @@ waitForPort = 5000
 META_WEBHOOK_VERIFY_TOKEN = "brandverse_meta_verify_2024"
 ORAVINI_CRM_KEY = "crm_6938789d8979d4a8bdf36396ac77ae355064807aebbe73e2"
 APP_URL = "https://oravini.com"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
