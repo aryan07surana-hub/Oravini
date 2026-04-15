@@ -309,7 +309,6 @@ const FEATURES = [
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
   { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
   { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
-  { icon: "🗓️", title: "1-on-1 Strategy Calls", desc: "Book a private call directly from your dashboard. Auto-generates a Google Meet link the moment you confirm.", tag: "Google Meet" },
   { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
   { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },
 ];
@@ -317,7 +316,7 @@ const FEATURES = [
 const STATS = [
   { val: 5, suffix: "%+", label: "Avg. Engagement Boost", prefix: "" },
   { val: 2, suffix: ".3×", label: "Faster Follower Growth", prefix: "" },
-  { val: 15, suffix: "", label: "Powerful Tools", prefix: "" },
+  { val: 14, suffix: "", label: "Powerful Tools", prefix: "" },
 ];
 
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
@@ -526,7 +525,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Toolkit</div>
-            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>15 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>14 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
           </Anim>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 18 }}>
             {FEATURES.map((f, i) => (
@@ -678,36 +677,8 @@ export default function OraviniLanding() {
               </TiltCard>
             </Anim>
 
-            {/* 1-on-1 Calls */}
-            <Anim delay={100}>
-              <TiltCard>
-                <div style={{ background: `linear-gradient(135deg, rgba(212,180,97,0.07) 0%, rgba(212,180,97,0.02) 100%)`, border: `1px solid ${GOLD}44`, borderRadius: 20, padding: "36px 32px", height: "100%", position: "relative", overflow: "hidden", transition: "border-color 0.3s", boxShadow: `0 0 60px rgba(212,180,97,0.06)` }}>
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
-                  <div style={{ fontSize: 40, marginBottom: 20 }}>🗓️</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Google Meet</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>1-on-1 Strategy Calls</div>
-                  <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
-                    Book a private strategy session directly from your dashboard. Pick a date, pick a time — a unique Google Meet link is auto-generated and emailed to you instantly.
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}>
-                    {["Live calendar with real-time availability", "Auto Google Meet link on every booking", "Confirmation email with all details", "Custom intake questions before the call"].map(f => (
-                      <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                        <span style={{ color: GOLD, fontSize: 11, marginTop: 2 }}>✦</span>
-                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <a href="/book/strategy-call" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `linear-gradient(135deg, #f0c84b, #d4b461)`, color: "#000", fontWeight: 800, fontSize: 14, borderRadius: 10, padding: "12px 24px", textDecoration: "none" }}
-                    onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = "0.88")}
-                    onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.opacity = "1")}>
-                    Book a Free Strategy Call →
-                  </a>
-                </div>
-              </TiltCard>
-            </Anim>
-
             {/* Private Chat */}
-            <Anim delay={200}>
+            <Anim delay={100}>
               <TiltCard>
                 <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "36px 32px", height: "100%", transition: "border-color 0.3s" }}>
                   <div style={{ fontSize: 40, marginBottom: 20 }}>💬</div>
