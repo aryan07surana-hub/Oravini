@@ -88,6 +88,8 @@ function SoonBadge() {
 
 const comingSoonItems = [
   { label: "DM Tracker", icon: MessageCircle },
+  { label: "IG Bot", icon: Bot },
+  { label: "IG Comment Bot", icon: MessageSquare },
 ];
 
 const topNavItems = [
