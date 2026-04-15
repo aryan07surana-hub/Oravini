@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import {
   Bell, CheckCircle2, Circle, FileText, MessageSquare, Calendar,
   TrendingUp, Clock, ArrowRight, AlertCircle, CalendarPlus, Target, Eye, Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock, Trash2, Check,
-  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2, Bot, Clapperboard
+  Sparkles, RefreshCw, ChevronRight, Zap, BarChart2, Lightbulb, Music2, Bot, Clapperboard, Map
 } from "lucide-react";
+import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -772,6 +773,7 @@ export default function ClientDashboard() {
                 Auto
               </button>
             </div>
+            <TourButton />
             {user?.nextCallDate && (
               <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5">
                 <Calendar className="w-4 h-4 text-primary" />
@@ -781,6 +783,31 @@ export default function ClientDashboard() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Take a Tour — prominent onboarding banner */}
+        <div
+          className="relative overflow-hidden rounded-2xl px-5 py-4 cursor-pointer group"
+          style={{
+            background: "linear-gradient(135deg, rgba(18,14,30,0.97) 0%, rgba(22,16,36,0.97) 100%)",
+            border: "1px solid rgba(212,180,97,0.22)",
+          }}
+          data-testid="tour-banner"
+        >
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 10% 50%, rgba(212,180,97,0.06) 0%, transparent 60%)" }} />
+          <div className="flex items-center gap-4">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform"
+              style={{ background: "linear-gradient(135deg, #b89848 0%, #d4b461 50%, #f0d280 100%)", boxShadow: "0 0 16px rgba(212,180,97,0.4)" }}
+            >
+              <Bot className="w-6 h-6 text-black" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">New here? Take the guided tour</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Your AI guide walks you through every tool — Content Ideas, Coach, Design, Tracking and more. Takes 3 minutes.</p>
+            </div>
+            <TourButton className="flex-shrink-0" />
           </div>
         </div>
 

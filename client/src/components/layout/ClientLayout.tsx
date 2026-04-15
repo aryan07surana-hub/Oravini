@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
@@ -69,6 +69,26 @@ function CreditWidget() {
   );
 }
 
+function SoonBadge() {
+  return (
+    <span style={{
+      background: `${GOLD}18`,
+      border: `1px solid ${GOLD}44`,
+      borderRadius: 10,
+      padding: "1px 7px",
+      color: GOLD,
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: 0.8,
+      textTransform: "uppercase" as const,
+      flexShrink: 0,
+    }}>Soon</span>
+  );
+}
+
+const comingSoonItems = [
+  { label: "DM Tracker", icon: MessageCircle },
+];
 
 const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -245,6 +265,24 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             })}
           </div>
 
+          {/* ── Coming Soon ── */}
+          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Coming Soon</p>
+            <div className="space-y-1">
+              {comingSoonItems.map(({ label, icon: Icon }) => (
+                <div
+                  key={label}
+                  data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
+                  style={{ opacity: 0.4 }}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  <SoonBadge />
+                </div>
+              ))}
+            </div>
+          </div>
 
         </nav>
 
