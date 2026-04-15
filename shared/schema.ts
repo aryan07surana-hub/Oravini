@@ -677,6 +677,7 @@ export const meetingTypes = pgTable("meeting_types", {
   timezone: text("timezone").notNull().default("UTC"),
   bufferTime: integer("buffer_time").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
+  customQuestions: text("custom_questions").default("[]"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertMeetingTypeSchema = createInsertSchema(meetingTypes).omit({ id: true, createdAt: true });

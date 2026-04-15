@@ -207,17 +207,35 @@ export default function PublicBooking() {
   });
   const slots = slotData?.slots ?? [];
 
+  // Parse custom questions from meeting type
+  const customQuestions: { id: string; label: string; required: boolean }[] = (() => {
+    try { return JSON.parse(mt?.customQuestions ?? "[]"); } catch { return []; }
+  })();
+
+  // Custom answers stored outside react-hook-form for simplicity
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
+
   const form = useForm<BookingForm>({
     resolver: zodResolver(bookingSchema),
     defaultValues: { clientName: "", clientEmail: "", notes: "" },
   });
+
+  function validateCustom() {
+    const errs: Record<string, string> = {};
+    for (const q of customQuestions) {
+      if (q.required && !customAnswers[q.id]?.trim()) errs[q.id] = "This field is required";
+    }
+    setCustomErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   const bookMutation = useMutation({
     mutationFn: (data: BookingForm) =>
       fetch(`/api/book/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, startTime: selectedSlot }),
+        body: JSON.stringify({ ...data, startTime: selectedSlot, customAnswers }),
       }).then(async r => {
         if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Booking failed"); }
         return r.json();
@@ -371,10 +389,32 @@ export default function PublicBooking() {
                     </FormItem>
                   )} />
 
+                  {/* Custom questions */}
+                  {customQuestions.map(q => (
+                    <div key={q.id} className="space-y-1.5">
+                      <label className="text-zinc-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                        {q.label}
+                        {q.required && <span className="text-red-400 font-bold">*</span>}
+                        {!q.required && <span className="text-zinc-600 normal-case font-normal">(optional)</span>}
+                      </label>
+                      <Input
+                        data-testid={`input-custom-${q.id}`}
+                        value={customAnswers[q.id] ?? ""}
+                        onChange={e => {
+                          setCustomAnswers(a => ({ ...a, [q.id]: e.target.value }));
+                          if (customErrors[q.id]) setCustomErrors(er => ({ ...er, [q.id]: "" }));
+                        }}
+                        placeholder="Your answer…"
+                        className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 focus:border-yellow-600"
+                      />
+                      {customErrors[q.id] && <p className="text-xs text-red-400">{customErrors[q.id]}</p>}
+                    </div>
+                  ))}
+
                   <FormField control={form.control} name="notes" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
-                        Anything you'd like to share? <span className="text-zinc-600 normal-case font-normal">(optional)</span>
+                        Anything else to share? <span className="text-zinc-600 normal-case font-normal">(optional)</span>
                       </FormLabel>
                       <FormControl>
                         <div className="relative">
@@ -400,7 +440,11 @@ export default function PublicBooking() {
 
                   <Button
                     data-testid="button-confirm-booking"
-                    type="submit"
+                    type="button"
+                    onClick={form.handleSubmit(d => {
+                      if (!validateCustom()) return;
+                      bookMutation.mutate(d);
+                    })}
                     className="w-full h-12 font-bold text-sm"
                     style={{ background: GOLD, color: "#000" }}
                     disabled={bookMutation.isPending}

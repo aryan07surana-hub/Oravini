@@ -8575,7 +8575,7 @@ Rules:
       const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
       if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
 
-      const { clientName, clientEmail, startTime, notes } = req.body;
+      const { clientName, clientEmail, startTime, notes, customAnswers } = req.body;
       if (!clientName || !clientEmail || !startTime) {
         return res.status(400).json({ message: "clientName, clientEmail, startTime required" });
       }
@@ -8622,16 +8622,29 @@ Rules:
       });
       if (conflict) return res.status(409).json({ message: "This time slot is no longer available" });
 
+      // Format custom question answers to include in notes
+      let customAnswersText = "";
+      if (customAnswers && typeof customAnswers === "object") {
+        try {
+          const questions: { id: string; label: string }[] = JSON.parse((mt as any).customQuestions ?? "[]");
+          const lines = questions
+            .filter(q => customAnswers[q.id]?.trim())
+            .map(q => `${q.label}: ${customAnswers[q.id].trim()}`);
+          if (lines.length) customAnswersText = lines.join("\n");
+        } catch { /* ignore */ }
+      }
+      const fullNotes = [customAnswersText, notes].filter(Boolean).join("\n\n") || null;
+
       const booking = await storage.createScheduledBooking({
         meetingTypeId: mt.id, clientName, clientEmail,
-        startTime: start, endTime: end, status: "scheduled", notes: notes || null,
+        startTime: start, endTime: end, status: "scheduled", notes: fullNotes,
       });
 
       // Send confirmation emails
-      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes });
+      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes: fullNotes });
       sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
       const adminEmail = process.env.EMAIL_USER;
-      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes, isAdmin: true }));
+      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: mt.location, notes: fullNotes, isAdmin: true }));
 
       res.json(booking);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
