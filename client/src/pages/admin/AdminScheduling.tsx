@@ -2,10 +2,6 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,562 +9,540 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Plus, Pencil, Trash2, Calendar, Clock, Link2, Copy, CheckCheck,
-  Users, ChevronDown, ChevronUp, X, CalendarDays, ExternalLink
+  Copy, CheckCheck, Link2, Clock, ExternalLink, Settings2,
+  CalendarDays, Video, ChevronRight, X, Check, User, Mail,
+  Calendar, Pencil, MoreHorizontal, Ban, CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 
 const GOLD = "#d4b461";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DURATIONS = [15, 20, 30, 45, 60, 90];
 
-const meetingTypeSchema = z.object({
-  title: z.string().min(1, "Title required"),
-  slug: z.string().min(1, "Slug required").regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens"),
-  description: z.string().optional(),
-  duration: z.coerce.number().min(5, "Minimum 5 minutes").max(480),
-  color: z.string().default("#d4b461"),
-  location: z.string().optional(),
-  timezone: z.string().default("UTC"),
-  bufferTime: z.coerce.number().min(0).default(0),
-  isActive: z.boolean().default(true),
-});
+function slugify(s: string) {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
 
-type MeetingTypeForm = z.infer<typeof meetingTypeSchema>;
+/* ─── Availability row ─────────────────────────────────────── */
+type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean };
 
-type AvailabilityRule = {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  isEnabled: boolean;
-};
+function AvailRow({ rule, onChange }: { rule: AvailRule; onChange: (r: AvailRule) => void }) {
+  return (
+    <div className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${rule.isEnabled ? "bg-zinc-900 border border-zinc-700" : "bg-zinc-950 border border-zinc-800/50"}`}>
+      <Switch
+        checked={rule.isEnabled}
+        onCheckedChange={v => onChange({ ...rule, isEnabled: v })}
+        data-testid={`avail-toggle-${rule.dayOfWeek}`}
+      />
+      <span className={`text-sm font-semibold w-24 ${rule.isEnabled ? "text-white" : "text-zinc-500"}`}>
+        {DAYS[rule.dayOfWeek]}
+      </span>
+      {rule.isEnabled ? (
+        <div className="flex items-center gap-2 flex-1">
+          <Input
+            type="time"
+            value={rule.startTime}
+            onChange={e => onChange({ ...rule, startTime: e.target.value })}
+            className="w-28 text-xs bg-zinc-800 border-zinc-700 text-white"
+          />
+          <span className="text-zinc-500 text-xs">to</span>
+          <Input
+            type="time"
+            value={rule.endTime}
+            onChange={e => onChange({ ...rule, endTime: e.target.value })}
+            className="w-28 text-xs bg-zinc-800 border-zinc-700 text-white"
+          />
+          <span className="text-xs text-zinc-500 ml-1">
+            {(() => {
+              const [sh, sm] = rule.startTime.split(":").map(Number);
+              const [eh, em] = rule.endTime.split(":").map(Number);
+              const mins = (eh * 60 + em) - (sh * 60 + sm);
+              return mins > 0 ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? ` ${mins % 60}m` : ""}` : "";
+            })()}
+          </span>
+        </div>
+      ) : (
+        <span className="text-xs text-zinc-600">Unavailable</span>
+      )}
+    </div>
+  );
+}
 
+/* ─── Booking card ─────────────────────────────────────────── */
+function BookingCard({ booking, onAction }: { booking: any; onAction: (id: string, status: string) => void }) {
+  const isUpcoming = booking.status === "scheduled" && new Date(booking.startTime) > new Date();
+  const isPast = new Date(booking.startTime) < new Date();
+  return (
+    <div
+      data-testid={`booking-card-${booking.id}`}
+      className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 transition-colors group"
+    >
+      <div className={`w-2 h-10 rounded-full flex-shrink-0 ${
+        booking.status === "cancelled" ? "bg-red-500/60" :
+        isPast ? "bg-zinc-600" : "bg-emerald-500"
+      }`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-white">{booking.clientName}</p>
+          <Badge
+            variant="outline"
+            className={`text-[10px] ${
+              booking.status === "cancelled" ? "border-red-500/30 text-red-400" :
+              booking.status === "completed" ? "border-zinc-500/30 text-zinc-400" :
+              isUpcoming ? "border-emerald-500/30 text-emerald-400" :
+              "border-zinc-600/30 text-zinc-500"
+            }`}
+          >
+            {booking.status === "scheduled" && isPast ? "past" : booking.status}
+          </Badge>
+        </div>
+        <p className="text-xs text-zinc-500 mt-0.5">{booking.clientEmail}</p>
+        {booking.notes && <p className="text-xs text-zinc-600 mt-0.5 italic truncate">{booking.notes}</p>}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="text-xs font-semibold text-white">{format(new Date(booking.startTime), "MMM d, yyyy")}</p>
+        <p className="text-xs text-zinc-500">{format(new Date(booking.startTime), "h:mm a")}</p>
+        <p className="text-xs text-zinc-600">{booking.meetingType?.duration ?? 30} min</p>
+      </div>
+      {booking.status === "scheduled" && (
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onAction(booking.id, "completed")}
+            className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-zinc-500 hover:text-emerald-400 transition-colors"
+            title="Mark complete"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onAction(booking.id, "cancelled")}
+            className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+            title="Cancel"
+          >
+            <Ban className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Main ─────────────────────────────────────────────────── */
 export default function AdminScheduling() {
   const { toast } = useToast();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [availDialog, setAvailDialog] = useState<string | null>(null);
-  const [expandedBookings, setExpandedBookings] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [availOpen, setAvailOpen] = useState(false);
+  const [bookingFilter, setBookingFilter] = useState<"upcoming" | "all">("upcoming");
 
-  const { data: meetingTypes = [], isLoading } = useQuery<any[]>({
+  // Form state for settings
+  const [title, setTitle] = useState("Strategy Call");
+  const [duration, setDuration] = useState(30);
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [isActive, setIsActive] = useState(true);
+
+  // Availability
+  const [rules, setRules] = useState<AvailRule[]>(
+    DAYS.map((_, i) => ({ dayOfWeek: i, startTime: "09:00", endTime: "17:00", isEnabled: i >= 1 && i <= 5 }))
+  );
+
+  const { data: meetingTypes = [], isLoading: mtLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/meeting-types"],
   });
-
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/scheduled-bookings"],
   });
 
-  const form = useForm<MeetingTypeForm>({
-    resolver: zodResolver(meetingTypeSchema),
-    defaultValues: { title: "", slug: "", description: "", duration: 30, color: "#d4b461", location: "", timezone: "UTC", bufferTime: 0, isActive: true },
-  });
+  // Primary meeting type = first active one, or first one
+  const primary = meetingTypes.find((m: any) => m.isActive) ?? meetingTypes[0] ?? null;
+  const bookingUrl = primary ? `${window.location.origin}/book/${primary.slug}` : null;
 
-  const openCreate = () => {
-    setEditing(null);
-    form.reset({ title: "", slug: "", description: "", duration: 30, color: "#d4b461", location: "", timezone: "UTC", bufferTime: 0, isActive: true });
-    setDialogOpen(true);
-  };
+  // Sync form when primary loads
+  useEffect(() => {
+    if (primary) {
+      setTitle(primary.title);
+      setDuration(primary.duration);
+      setDescription(primary.description ?? "");
+      setLocation(primary.location ?? "");
+      setIsActive(primary.isActive ?? true);
+    }
+  }, [primary?.id]);
 
-  const openEdit = (mt: any) => {
-    setEditing(mt);
-    form.reset({ title: mt.title, slug: mt.slug, description: mt.description || "", duration: mt.duration, color: mt.color || "#d4b461", location: mt.location || "", timezone: mt.timezone || "UTC", bufferTime: mt.bufferTime || 0, isActive: mt.isActive });
-    setDialogOpen(true);
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: (data: MeetingTypeForm) => editing
-      ? apiRequest("PATCH", `/api/admin/meeting-types/${editing.id}`, data)
-      : apiRequest("POST", "/api/admin/meeting-types", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/meeting-types"] });
-      setDialogOpen(false);
-      toast({ title: editing ? "Meeting type updated" : "Meeting type created" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/meeting-types/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/meeting-types"] });
-      toast({ title: "Deleted" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const toggleActiveMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiRequest("PATCH", `/api/admin/meeting-types/${id}`, { isActive }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/meeting-types"] }),
-  });
-
-  const saveAvailMutation = useMutation({
-    mutationFn: (data: { id: string; rules: AvailabilityRule[] }) =>
-      apiRequest("PUT", `/api/admin/meeting-types/${data.id}/availability`, data.rules),
-    onSuccess: () => {
-      setAvailDialog(null);
-      toast({ title: "Availability saved" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const updateBookingMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      apiRequest("PATCH", `/api/admin/scheduled-bookings/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/scheduled-bookings"] });
-      setSelectedBooking(null);
-      toast({ title: "Booking updated" });
-    },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const copyLink = (slug: string, id: string) => {
-    const url = `${window.location.origin}/book/${slug}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const upcomingBookings = bookings.filter((b: any) => b.status === "scheduled" && new Date(b.startTime) > new Date());
-
-  return (
-    <AdminLayout>
-      <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Scheduling</h1>
-            <p className="text-sm text-muted-foreground mt-1">Create meeting types, manage availability, and view all bookings</p>
-          </div>
-          <Button data-testid="button-create-meeting-type" onClick={openCreate} style={{ background: GOLD, color: "#000" }} className="font-semibold">
-            <Plus className="w-4 h-4 mr-2" /> New Meeting Type
-          </Button>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            ["Meeting Types", meetingTypes.length, "text-foreground"],
-            ["Active Types", meetingTypes.filter((m: any) => m.isActive).length, "text-green-400"],
-            ["Upcoming", upcomingBookings.length, "text-primary"],
-            ["Total Bookings", bookings.length, "text-muted-foreground"],
-          ].map(([label, val, cls]) => (
-            <div key={label as string} className="rounded-xl border border-border bg-card p-4 text-center">
-              <p className={`text-2xl font-bold ${cls}`}>{val}</p>
-              <p className="text-xs text-muted-foreground mt-1">{label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Meeting Types List */}
-        <Card className="border border-border">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" /> Meeting Types
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {isLoading ? (
-              <div className="p-4 space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
-            ) : meetingTypes.length === 0 ? (
-              <div className="p-12 text-center">
-                <CalendarDays className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-muted-foreground">No meeting types yet — create your first one</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">
-                {meetingTypes.map((mt: any) => (
-                  <div key={mt.id} data-testid={`meeting-type-${mt.id}`} className="flex items-center gap-4 p-4 hover:bg-muted/20">
-                    <div className="w-3 h-10 rounded-full flex-shrink-0" style={{ background: mt.color || GOLD }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-foreground">{mt.title}</p>
-                        <Badge variant="outline" className={`text-[10px] ${mt.isActive ? "border-green-500/30 text-green-400" : "border-muted text-muted-foreground"}`}>
-                          {mt.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-                      <div className="flex gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{mt.duration} min</span>
-                        {mt.bufferTime > 0 && <span>+{mt.bufferTime} min buffer</span>}
-                        {mt.location && <span>{mt.location}</span>}
-                        <span className="text-primary/70 flex items-center gap-1 cursor-pointer hover:text-primary" onClick={() => copyLink(mt.slug, mt.id)}>
-                          <Link2 className="w-3 h-3" /> /book/{mt.slug}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Switch
-                        data-testid={`toggle-active-${mt.id}`}
-                        checked={mt.isActive}
-                        onCheckedChange={v => toggleActiveMutation.mutate({ id: mt.id, isActive: v })}
-                      />
-                      <Button
-                        data-testid={`btn-copy-${mt.id}`}
-                        variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => copyLink(mt.slug, mt.id)}
-                        title="Copy booking link"
-                      >
-                        {copiedId === mt.id ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </Button>
-                      <Button
-                        data-testid={`btn-avail-${mt.id}`}
-                        variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => setAvailDialog(mt.id)}
-                        title="Edit availability"
-                      >
-                        <CalendarDays className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button data-testid={`btn-edit-${mt.id}`} variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(mt)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button data-testid={`btn-delete-${mt.id}`} variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(mt.id)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="sm" className="h-8 text-xs gap-1"
-                        onClick={() => window.open(`/book/${mt.slug}`, "_blank")}
-                      >
-                        <ExternalLink className="w-3 h-3" /> Preview
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Bookings */}
-        <Card className="border border-border">
-          <button
-            className="w-full flex items-center justify-between p-4 hover:bg-muted/20"
-            onClick={() => setExpandedBookings(!expandedBookings)}
-            data-testid="toggle-bookings"
-          >
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4 text-primary" /> All Bookings
-              <Badge className="text-[10px] bg-primary/10 text-primary">{bookings.length}</Badge>
-            </CardTitle>
-            {expandedBookings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          {expandedBookings && (
-            <CardContent className="p-0 border-t border-border">
-              {bookingsLoading ? (
-                <div className="p-4 space-y-3">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-              ) : bookings.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground text-sm">No bookings yet</div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {bookings.map((b: any) => (
-                    <div
-                      key={b.id}
-                      data-testid={`booking-row-${b.id}`}
-                      className="flex items-center gap-4 p-4 hover:bg-muted/20 cursor-pointer"
-                      onClick={() => setSelectedBooking(b)}
-                    >
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${b.status === "scheduled" ? "bg-green-400" : b.status === "cancelled" ? "bg-red-400" : "bg-muted-foreground"}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{b.clientName}</p>
-                        <p className="text-xs text-muted-foreground">{b.clientEmail}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs font-semibold text-foreground">{b.meetingType?.title || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(b.startTime), "MMM d, h:mm a")}</p>
-                      </div>
-                      <Badge variant="outline" className={`text-[10px] ${b.status === "scheduled" ? "border-green-500/30 text-green-400" : b.status === "cancelled" ? "border-red-500/30 text-red-400" : "border-muted text-muted-foreground"}`}>
-                        {b.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Meeting Type Form Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Edit Meeting Type" : "New Meeting Type"}</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(d => saveMutation.mutate(d))} className="space-y-4">
-                <FormField control={form.control} name="title" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title *</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-mt-title" placeholder="30-min Discovery Call" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="slug" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL Slug *</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center">
-                        <span className="text-xs text-muted-foreground mr-1">/book/</span>
-                        <Input {...field} data-testid="input-mt-slug" placeholder="discovery-call" />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="description" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl><Textarea {...field} rows={2} placeholder="What is this meeting about?" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={form.control} name="duration" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Duration (minutes)</FormLabel>
-                      <FormControl><Input {...field} type="number" min={5} data-testid="input-mt-duration" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="bufferTime" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Buffer (minutes)</FormLabel>
-                      <FormControl><Input {...field} type="number" min={0} placeholder="0" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
-
-                <FormField control={form.control} name="location" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location / Meeting Link</FormLabel>
-                    <FormControl><Input {...field} placeholder="Zoom link, Google Meet, or address" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField control={form.control} name="color" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Color</FormLabel>
-                      <FormControl>
-                        <div className="flex items-center gap-2">
-                          <input type="color" value={field.value} onChange={e => field.onChange(e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0" />
-                          <Input {...field} className="flex-1" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="timezone" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Timezone</FormLabel>
-                      <FormControl><Input {...field} placeholder="UTC" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
-
-                <FormField control={form.control} name="isActive" render={({ field }) => (
-                  <FormItem className="flex items-center gap-3">
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                    <FormLabel className="!mt-0">Active (accept bookings)</FormLabel>
-                  </FormItem>
-                )} />
-
-                <div className="flex gap-2 pt-2">
-                  <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button
-                    data-testid="button-save-meeting-type"
-                    type="submit" className="flex-1 font-semibold"
-                    style={{ background: GOLD, color: "#000" }}
-                    disabled={saveMutation.isPending}
-                  >
-                    {saveMutation.isPending ? "Saving..." : editing ? "Save Changes" : "Create"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Availability Dialog */}
-        {availDialog && (
-          <AvailabilityDialog
-            meetingTypeId={availDialog}
-            meetingTypeName={meetingTypes.find((m: any) => m.id === availDialog)?.title || ""}
-            onClose={() => setAvailDialog(null)}
-            onSave={(rules) => saveAvailMutation.mutate({ id: availDialog, rules })}
-            isPending={saveAvailMutation.isPending}
-          />
-        )}
-
-        {/* Booking Detail Dialog */}
-        {selectedBooking && (
-          <BookingDetailDialog
-            booking={selectedBooking}
-            onClose={() => setSelectedBooking(null)}
-            onUpdate={(id, data) => updateBookingMutation.mutate({ id, data })}
-            isPending={updateBookingMutation.isPending}
-          />
-        )}
-      </div>
-    </AdminLayout>
-  );
-}
-
-function AvailabilityDialog({ meetingTypeId, meetingTypeName, onClose, onSave, isPending }: {
-  meetingTypeId: string; meetingTypeName: string;
-  onClose: () => void; onSave: (rules: AvailabilityRule[]) => void; isPending: boolean;
-}) {
+  // Availability rules query (for the primary meeting type)
   const { data: existingRules } = useQuery<any[]>({
-    queryKey: ["/api/admin/meeting-types", meetingTypeId, "availability"],
-    queryFn: () => fetch(`/api/admin/meeting-types/${meetingTypeId}/availability`, { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/admin/meeting-types", primary?.id, "availability"],
+    queryFn: () => primary
+      ? fetch(`/api/admin/meeting-types/${primary.id}/availability`, { credentials: "include" }).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!primary,
   });
-
-  const [rules, setRules] = useState<AvailabilityRule[]>(() =>
-    DAYS.map((_, i) => ({ dayOfWeek: i, startTime: "09:00", endTime: "17:00", isEnabled: i >= 1 && i <= 5 }))
-  );
-
-  // Once existing rules load from the server, populate local state
   useEffect(() => {
     if (existingRules && existingRules.length > 0) {
       setRules(DAYS.map((_, i) => {
         const r = existingRules.find((x: any) => x.dayOfWeek === i);
         return r
-          ? { dayOfWeek: i, startTime: r.startTime, endTime: r.endTime, isEnabled: r.isEnabled }
+          ? { dayOfWeek: i, startTime: r.startTime, endTime: r.endTime, isEnabled: r.isEnabled ?? true }
           : { dayOfWeek: i, startTime: "09:00", endTime: "17:00", isEnabled: false };
       }));
     }
   }, [existingRules]);
 
-  const update = (i: number, field: keyof AvailabilityRule, value: any) => {
-    setRules(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
-  };
+  // Save call settings
+  const saveSettingsMutation = useMutation({
+    mutationFn: () => {
+      const slug = slugify(title) || "strategy-call";
+      const body = { title, slug, duration, description, location, isActive };
+      return primary
+        ? apiRequest("PATCH", `/api/admin/meeting-types/${primary.id}`, body)
+        : apiRequest("POST", "/api/admin/meeting-types", body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/meeting-types"] });
+      setSettingsOpen(false);
+      toast({ title: "Settings saved" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Availability — {meetingTypeName}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {DAYS.map((day, i) => (
-            <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${rules[i].isEnabled ? "border-primary/20 bg-primary/5" : "border-border"}`}>
-              <Switch
-                data-testid={`avail-toggle-${i}`}
-                checked={rules[i].isEnabled}
-                onCheckedChange={v => update(i, "isEnabled", v)}
-              />
-              <span className="text-sm w-24 flex-shrink-0 font-medium">{day}</span>
-              {rules[i].isEnabled ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <Input type="time" value={rules[i].startTime} onChange={e => update(i, "startTime", e.target.value)} className="w-28 text-xs" />
-                  <span className="text-muted-foreground text-xs">to</span>
-                  <Input type="time" value={rules[i].endTime} onChange={e => update(i, "endTime", e.target.value)} className="w-28 text-xs" />
-                </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">Unavailable</span>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-          <Button
-            data-testid="button-save-availability"
-            className="flex-1 font-semibold"
-            style={{ background: "#d4b461", color: "#000" }}
-            disabled={isPending}
-            onClick={() => onSave(rules)}
-          >
-            {isPending ? "Saving..." : "Save Availability"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+  // Save availability
+  const saveAvailMutation = useMutation({
+    mutationFn: () => {
+      if (!primary) return Promise.reject("No meeting type yet");
+      return apiRequest("PUT", `/api/admin/meeting-types/${primary.id}/availability`, rules);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/meeting-types", primary?.id, "availability"] });
+      setAvailOpen(false);
+      toast({ title: "Availability saved" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Update booking status
+  const updateBookingMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiRequest("PATCH", `/api/admin/scheduled-bookings/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scheduled-bookings"] });
+      toast({ title: "Booking updated" });
+    },
+  });
+
+  function copyLink() {
+    if (!bookingUrl) return;
+    navigator.clipboard.writeText(bookingUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const upcomingBookings = bookings.filter((b: any) =>
+    b.status === "scheduled" && new Date(b.startTime) > new Date()
   );
-}
+  const displayBookings = bookingFilter === "upcoming" ? upcomingBookings : bookings;
 
-function BookingDetailDialog({ booking, onClose, onUpdate, isPending }: {
-  booking: any; onClose: () => void;
-  onUpdate: (id: string, data: any) => void; isPending: boolean;
-}) {
+  const enabledDays = rules.filter(r => r.isEnabled);
+
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Booking Details</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="p-4 rounded-lg border border-border bg-card space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">Meeting</span>
-              <span className="text-sm font-medium text-foreground">{booking.meetingType?.title || "—"}</span>
+    <AdminLayout>
+      <div className="p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
+
+        {/* Page title */}
+        <div>
+          <h1 className="text-2xl font-bold text-white">Scheduling</h1>
+          <p className="text-sm text-zinc-400 mt-1">Share your link — prospects pick a time and book a call with you</p>
+        </div>
+
+        {/* ── YOUR BOOKING LINK ── */}
+        <div className="rounded-2xl border border-zinc-700 bg-zinc-900 overflow-hidden">
+          <div className="px-6 py-5 border-b border-zinc-800 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}18` }}>
+              <Link2 className="w-4 h-4" style={{ color: GOLD }} />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">Client</span>
-              <span className="text-sm font-medium text-foreground">{booking.clientName}</span>
+            <div>
+              <p className="text-sm font-bold text-white">Your Booking Link</p>
+              <p className="text-xs text-zinc-500">Share this with anyone you want to book a call</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">Email</span>
-              <span className="text-sm text-foreground">{booking.clientEmail}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">Start</span>
-              <span className="text-sm text-foreground">{format(new Date(booking.startTime), "PPpp")}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">End</span>
-              <span className="text-sm text-foreground">{format(new Date(booking.endTime), "h:mm a")}</span>
-            </div>
-            {booking.notes && (
-              <div className="flex items-start gap-2">
-                <span className="text-xs text-muted-foreground w-24">Notes</span>
-                <span className="text-sm text-foreground flex-1">{booking.notes}</span>
+          </div>
+          <div className="px-6 py-5">
+            {mtLoading ? (
+              <Skeleton className="h-12 w-full rounded-xl" />
+            ) : bookingUrl ? (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-800/60">
+                  <span className="text-sm text-zinc-300 font-mono truncate">{bookingUrl}</span>
+                </div>
+                <Button
+                  onClick={copyLink}
+                  data-testid="button-copy-link"
+                  className="gap-2 font-bold flex-shrink-0 h-11"
+                  style={{ background: GOLD, color: "#000" }}
+                >
+                  {copied ? <><CheckCheck className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy Link</>}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 border-zinc-700 flex-shrink-0"
+                  onClick={() => window.open(bookingUrl, "_blank")}
+                  title="Preview booking page"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-zinc-400 text-sm mb-3">Set up your call type to get your booking link</p>
+                <Button onClick={() => setSettingsOpen(true)} style={{ background: GOLD, color: "#000" }} className="font-bold">
+                  Set Up Now
+                </Button>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-24">Status</span>
-              <Badge variant="outline" className={`text-[10px] ${booking.status === "scheduled" ? "border-green-500/30 text-green-400" : booking.status === "cancelled" ? "border-red-500/30 text-red-400" : "border-muted text-muted-foreground"}`}>
-                {booking.status}
-              </Badge>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {booking.status === "scheduled" && (
-              <>
-                <Button
-                  data-testid="btn-cancel-booking"
-                  variant="outline"
-                  className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                  disabled={isPending}
-                  onClick={() => onUpdate(booking.id, { status: "cancelled" })}
-                >
-                  Cancel Booking
-                </Button>
-                <Button
-                  data-testid="btn-complete-booking"
-                  className="flex-1"
-                  style={{ background: "#d4b461", color: "#000" }}
-                  disabled={isPending}
-                  onClick={() => onUpdate(booking.id, { status: "completed" })}
-                >
-                  Mark Complete
-                </Button>
-              </>
-            )}
-            {booking.status !== "scheduled" && (
-              <Button variant="outline" className="flex-1" onClick={onClose}>Close</Button>
+
+            {/* Quick stats row */}
+            {primary && (
+              <div className="flex items-center gap-6 mt-4 pt-4 border-t border-zinc-800 flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <Clock className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  <span>{primary.duration} min call</span>
+                </div>
+                {primary.location && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <Video className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                    <span className="truncate max-w-[200px]">{primary.location}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <CalendarDays className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  <span>{enabledDays.length} days available</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className={`w-2 h-2 rounded-full ${primary.isActive ? "bg-emerald-500" : "bg-zinc-500"}`} />
+                  <span className={primary.isActive ? "text-emerald-400" : "text-zinc-500"}>
+                    {primary.isActive ? "Accepting bookings" : "Paused"}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* ── TWO COLUMNS: settings + availability ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* Call Settings */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            data-testid="button-call-settings"
+            className="text-left rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 hover:border-zinc-600 hover:bg-zinc-900 transition-all group"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}15` }}>
+                <Settings2 className="w-4 h-4" style={{ color: GOLD }} />
+              </div>
+              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+            </div>
+            <p className="text-sm font-bold text-white mb-1">Call Settings</p>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              {primary
+                ? `"${primary.title}" · ${primary.duration} min${primary.location ? ` · ${primary.location.slice(0, 25)}${primary.location.length > 25 ? "…" : ""}` : ""}`
+                : "Set your call name, duration, and meeting link"
+              }
+            </p>
+          </button>
+
+          {/* Availability */}
+          <button
+            onClick={() => setAvailOpen(true)}
+            data-testid="button-set-availability"
+            className="text-left rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 hover:border-zinc-600 hover:bg-zinc-900 transition-all group"
+            disabled={!primary}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#3b82f615" }}>
+                <CalendarDays className="w-4 h-4 text-blue-400" />
+              </div>
+              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+            </div>
+            <p className="text-sm font-bold text-white mb-1">Your Availability</p>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              {enabledDays.length > 0
+                ? enabledDays.map(r => DAYS[r.dayOfWeek].slice(0, 3)).join(", ") + ` · ${enabledDays[0]?.startTime} – ${enabledDays[enabledDays.length - 1]?.endTime}`
+                : "Set which days and hours you're available"}
+            </p>
+          </button>
+
+        </div>
+
+        {/* ── BOOKINGS ── */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-zinc-400" />
+              Bookings
+              <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">
+                {upcomingBookings.length} upcoming
+              </Badge>
+            </h2>
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+              {(["upcoming", "all"] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setBookingFilter(f)}
+                  className="text-[11px] px-3 py-1 rounded-lg font-medium transition-colors capitalize"
+                  style={{
+                    background: bookingFilter === f ? GOLD : "transparent",
+                    color: bookingFilter === f ? "#000" : "#71717a",
+                  }}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {bookingsLoading ? (
+            <div className="space-y-2">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+          ) : displayBookings.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 py-14 text-center">
+              <CalendarDays className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+              <p className="text-zinc-400 text-sm font-medium">No {bookingFilter === "upcoming" ? "upcoming" : ""} bookings yet</p>
+              <p className="text-zinc-600 text-xs mt-1">Share your booking link to start getting calls</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {displayBookings.map((b: any) => (
+                <BookingCard
+                  key={b.id}
+                  booking={b}
+                  onAction={(id, status) => updateBookingMutation.mutate({ id, status })}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── SETTINGS DIALOG ── */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Call Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Call Name</label>
+              <Input
+                data-testid="input-call-title"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="Strategy Call"
+                className="bg-zinc-900 border-zinc-700 text-white"
+              />
+              {title && (
+                <p className="text-[11px] text-zinc-600">Booking link: /book/{slugify(title) || "strategy-call"}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</label>
+              <Select value={String(duration)} onValueChange={v => setDuration(Number(v))}>
+                <SelectTrigger data-testid="select-duration" className="bg-zinc-900 border-zinc-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-700">
+                  {DURATIONS.map(d => (
+                    <SelectItem key={d} value={String(d)} className="text-white">{d} minutes</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Meeting Link</label>
+              <Input
+                data-testid="input-location"
+                value={location}
+                onChange={e => setLocation(e.target.value)}
+                placeholder="Zoom link, Google Meet URL, or phone"
+                className="bg-zinc-900 border-zinc-700 text-white"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Description (optional)</label>
+              <Textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="What will you cover in this call?"
+                rows={2}
+                className="bg-zinc-900 border-zinc-700 text-white resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-3 px-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+              <div>
+                <p className="text-sm font-semibold text-white">Accept bookings</p>
+                <p className="text-xs text-zinc-500">Turn off to pause all new bookings</p>
+              </div>
+              <Switch
+                data-testid="toggle-active"
+                checked={isActive}
+                onCheckedChange={setIsActive}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1 border-zinc-700" onClick={() => setSettingsOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                data-testid="button-save-settings"
+                onClick={() => saveSettingsMutation.mutate()}
+                disabled={saveSettingsMutation.isPending || !title.trim()}
+                className="flex-1 font-bold"
+                style={{ background: GOLD, color: "#000" }}
+              >
+                {saveSettingsMutation.isPending ? "Saving…" : "Save Settings"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AVAILABILITY DIALOG ── */}
+      <Dialog open={availOpen} onOpenChange={setAvailOpen}>
+        <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Your Availability</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-zinc-500 -mt-1">Set which days and hours prospects can book a call</p>
+          <div className="space-y-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
+            {rules.map((rule, i) => (
+              <AvailRow key={i} rule={rule} onChange={r => setRules(rs => rs.map((x, j) => j === i ? r : x))} />
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1 border-zinc-700" onClick={() => setAvailOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              data-testid="button-save-availability"
+              onClick={() => saveAvailMutation.mutate()}
+              disabled={saveAvailMutation.isPending}
+              className="flex-1 font-bold"
+              style={{ background: GOLD, color: "#000" }}
+            >
+              {saveAvailMutation.isPending ? "Saving…" : "Save Availability"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+    </AdminLayout>
   );
 }
