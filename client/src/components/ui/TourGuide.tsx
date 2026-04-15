@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "Welcome to Brandverse",
-    description: "I'm your AI guide. I'll walk you through every tool — Content Ideas, Content Coach, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, IG Growth Tracker, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how each one works. Takes about 4 minutes.",
+    description: "I'm your AI guide. I'll walk you through every tool — Content Ideas, Content Coach, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, IG Growth Tracker, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how each one works. Takes about 3 minutes.",
     position: "center",
   },
   {
@@ -156,26 +156,6 @@ const TOUR_STEPS: TourStep[] = [
     description: "Each card here is a different design workflow. Carousel Creator builds multi-slide carousels with hooks and CTA slides. Social Graphics generates single post visuals. Audience Psychology creates visuals based on emotional triggers. Brand Kit stores your colours, fonts, and logo for consistent use across everything. Click any tool to open it.",
     position: "bottom",
     tip: "Carousels consistently get 3-5x more saves than single images — run them weekly for reach and authority building.",
-  },
-
-  // ── Jarvis AI ──────────────────────────────────────────────────────────────
-  {
-    id: "jarvis-intro",
-    route: "/jarvis",
-    target: '[data-tour="jarvis-orb"]',
-    title: "Jarvis AI — Your Voice Command Centre",
-    description: "This is Jarvis AI — a pure voice agent with full access to the entire platform. No typing needed. Just speak and Jarvis navigates, writes, generates, and controls every tool for you. Say 'go to content ideas', 'write my hook for Instagram', 'open competitor study' — and it happens instantly.",
-    position: "bottom",
-    tip: "Jarvis is always listening on any page. The gold sparkle button in the corner is live — tap it or just start speaking.",
-  },
-  {
-    id: "jarvis-session",
-    route: "/jarvis",
-    target: '[data-tour="jarvis-session"]',
-    title: "Jarvis AI — Session Mode",
-    description: "Hit START SESSION and Jarvis enters always-on mode. Your microphone stays live for 24 hours — no need to re-open it. Jarvis can write text into any field across any page, navigate anywhere, and execute any command hands-free. A red LIVE badge appears in the header when a session is active. END SESSION closes it.",
-    position: "top",
-    tip: "Session mode is the fastest way to use the platform — it's designed so you never have to touch the keyboard.",
   },
 
   // ── Forms & Quiz Builder ──────────────────────────────────────────────────
