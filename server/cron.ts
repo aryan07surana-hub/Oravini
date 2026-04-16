@@ -385,6 +385,55 @@ async function sendBookingReminders() {
   }
 }
 
+async function processEmailSequences() {
+  try {
+    const pending = await storage.getPendingEnrollments();
+    for (const enrollment of pending) {
+      try {
+        const seqEmails = await storage.getSequenceEmails(enrollment.sequenceId);
+        if (!seqEmails.length || enrollment.currentStep >= seqEmails.length) {
+          await storage.advanceEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+        const emailToSend = seqEmails[enrollment.currentStep];
+        if (!emailToSend) {
+          await storage.advanceEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+        // Check sequence is still active
+        const seq = await storage.getEmailSequence(enrollment.sequenceId);
+        if (!seq?.active) continue;
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) continue;
+        if (await storage.isEmailUnsubscribed(enrollment.userEmail)) {
+          await storage.advanceEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+        const emailLog = await storage.logEmail({ toEmail: enrollment.userEmail, toName: enrollment.userName ?? undefined, subject: emailToSend.subject, sequenceEmailId: emailToSend.id });
+        const appBase = process.env.APP_URL || "https://oravini.com";
+        const openPixel = `<img src="${appBase}/api/email/open/${emailLog.id}.gif" width="1" height="1" style="display:none" alt="" />`;
+        const unsubUrl = `${appBase}/api/email/unsubscribe?email=${encodeURIComponent(enrollment.userEmail)}`;
+        const name = enrollment.userName || "there";
+        const filledHtml = emailToSend.bodyHtml.replace(/\{\{(\w+)\}\}/g, (_: string, k: string) => ({ name, email: enrollment.userEmail }[k] ?? ""));
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;"><div style="max-width:580px;margin:0 auto;padding:40px 24px;"><div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.08);"><span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span></div>${filledHtml}${openPixel}<div style="margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.07);"><p style="color:rgba(255,255,255,0.22);font-size:11px;line-height:1.7;margin:0;">You're receiving this because you joined Oravini.<br><a href="${unsubUrl}" style="color:#d4b461;text-decoration:none;">Unsubscribe</a></p></div></div></body></html>`;
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+        await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: enrollment.userEmail, subject: emailToSend.subject, html: fullHtml });
+        // Advance to next step
+        const nextStep = enrollment.currentStep + 1;
+        const isLast = nextStep >= seqEmails.length;
+        const nextEmail = seqEmails[nextStep];
+        const nextSendAt = isLast ? null : new Date(Date.now() + (nextEmail?.delayDays || 1) * 24 * 60 * 60 * 1000);
+        await storage.advanceEnrollment(enrollment.id, nextStep, nextSendAt, isLast);
+        log(`Sequence email sent to ${enrollment.userEmail} (step ${enrollment.currentStep + 1}/${seqEmails.length})`, "cron");
+      } catch (e: any) {
+        log(`Sequence send error for ${enrollment.userEmail}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`processEmailSequences error: ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
@@ -392,5 +441,6 @@ export function startCronJobs() {
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
   cron.schedule("*/15 * * * *", sendBookingReminders);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes; booking reminders every 15 minutes", "cron");
+  cron.schedule("0 * * * *", processEmailSequences);
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour", "cron");
 }

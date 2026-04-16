@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Users, Mail, Zap, Crown, TrendingUp, Search, FileText, ChevronDown, ChevronUp, ClipboardCheck, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Users, Mail, Zap, Crown, TrendingUp, Search, FileText, ChevronDown, ChevronUp, ChevronRight, ClipboardCheck, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -41,11 +41,20 @@ function ScoreGauge({ score }: { score: number }) {
   );
 }
 
+const TIER_CONFIG = [
+  { plan: "free",    tier: "Tier 1", label: "Free",    color: "#71717a",  bg: "rgba(113,113,122,0.08)", next: "Starter ($29)", nextPlan: "starter" },
+  { plan: "starter", tier: "Tier 2", label: "Starter", color: "#60a5fa",  bg: "rgba(96,165,250,0.08)",  next: "Growth ($59)",  nextPlan: "growth"  },
+  { plan: "growth",  tier: "Tier 3", label: "Growth",  color: "#a78bfa",  bg: "rgba(167,139,250,0.08)", next: "Pro ($79)",     nextPlan: "pro"     },
+  { plan: "pro",     tier: "Tier 4", label: "Pro",     color: "#34d399",  bg: "rgba(52,211,153,0.08)",  next: "Elite",        nextPlan: "elite"   },
+  { plan: "elite",   tier: "Tier 5", label: "Elite",   color: "#d4b461",  bg: "rgba(212,180,97,0.08)",  next: null,           nextPlan: null      },
+];
+
 export default function AdminCRM() {
-  const [activeTab, setActiveTab] = useState<"leads" | "clients">("clients");
+  const [activeTab, setActiveTab] = useState<"tiers" | "leads" | "clients">("tiers");
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
+  const [expandedTier, setExpandedTier] = useState<string | null>("free");
   const [syncResult, setSyncResult] = useState<{ synced: number } | null>(null);
 
   const { data, isLoading } = useQuery<{ clients: any[]; leads: any[] }>({
@@ -160,14 +169,14 @@ export default function AdminCRM() {
         {/* Tabs + filters */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="flex rounded-lg border border-zinc-800 p-1 gap-1">
-            {(["clients", "leads"] as const).map(tab => (
+            {(["tiers", "clients", "leads"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === tab ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-white"}`}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all capitalize ${activeTab === tab ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-white"}`}
                 data-testid={`tab-crm-${tab}`}
               >
-                {tab === "clients" ? `Clients (${clients.length})` : `Email Leads (${leads.length})`}
+                {tab === "tiers" ? "Tier Breakdown" : tab === "clients" ? `Clients (${clients.length})` : `Email Leads (${leads.length})`}
               </button>
             ))}
           </div>
@@ -196,6 +205,78 @@ export default function AdminCRM() {
             </div>
           )}
         </div>
+
+        {/* Tiers tab */}
+        {activeTab === "tiers" && (
+          <div className="space-y-3">
+            {TIER_CONFIG.map(tierCfg => {
+              const tierClients = clients.filter(c => c.plan === tierCfg.plan);
+              const isOpen = expandedTier === tierCfg.plan;
+              const pct = clients.length > 0 ? Math.round((tierClients.length / clients.length) * 100) : 0;
+              return (
+                <Card key={tierCfg.plan} className="border border-card-border overflow-hidden" data-testid={`tier-card-${tierCfg.plan}`}>
+                  <button
+                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-zinc-800/30 transition-colors text-left"
+                    onClick={() => setExpandedTier(isOpen ? null : tierCfg.plan)}
+                    data-testid={`tier-toggle-${tierCfg.plan}`}
+                  >
+                    <div className="w-2 h-9 rounded-full shrink-0" style={{ background: tierCfg.color }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold tracking-widest uppercase" style={{ color: tierCfg.color }}>{tierCfg.tier}</span>
+                        <span className="text-sm font-semibold text-white">{tierCfg.label}</span>
+                        {tierCfg.next && <span className="text-[11px] text-zinc-600 hidden sm:block">→ upsell to {tierCfg.next}</span>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-1.5 rounded-full bg-zinc-800 max-w-[160px]">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: tierCfg.color }} />
+                        </div>
+                        <span className="text-xs text-zinc-500">{pct}%</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-2xl font-bold text-white">{tierClients.length}</p>
+                      <p className="text-xs text-zinc-600">member{tierClients.length !== 1 ? "s" : ""}</p>
+                    </div>
+                    {isOpen ? <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />}
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-zinc-800">
+                      {tierClients.length === 0 ? (
+                        <p className="text-center text-sm text-zinc-600 py-6">No members in this tier.</p>
+                      ) : (
+                        <div className="divide-y divide-zinc-800/60">
+                          {tierClients.map((client: any) => {
+                            const initials = client.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?";
+                            return (
+                              <div key={client.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-zinc-800/20 transition-colors" data-testid={`tier-client-${client.id}`}>
+                                <Avatar className="w-8 h-8 shrink-0">
+                                  <AvatarFallback className="bg-zinc-700 text-white text-xs font-bold">{initials}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-white truncate">{client.name}</p>
+                                  <p className="text-xs text-zinc-500 truncate">{client.email}</p>
+                                </div>
+                                {tierCfg.next && (
+                                  <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-500 hidden sm:flex shrink-0">
+                                    → {tierCfg.next}
+                                  </Badge>
+                                )}
+                                <span className="text-[11px] text-zinc-600 shrink-0">
+                                  {client.createdAt ? new Date(client.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* Clients tab */}
         {activeTab === "clients" && (

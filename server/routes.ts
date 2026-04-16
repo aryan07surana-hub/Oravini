@@ -101,6 +101,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const hashed = await hashPassword(password);
       const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: false });
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
+      // Auto-enroll in "join" sequences
+      storage.getEmailSequences().then(seqs => {
+        seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
+      }).catch(() => {});
       req.logIn(user, (err) => {
         if (err) return res.status(500).json({ message: "Login after register failed" });
         const { password: _, ...safe } = user;
@@ -192,6 +196,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Immediately activate the correct credit allowance for the new plan
     const activatedPlan = update.plan || "free";
     await storage.activatePlanCredits(userId, activatedPlan);
+    // Auto-enroll in "upgrade" sequences if plan is paid
+    if (update.plan && update.plan !== "free") {
+      storage.getEmailSequences().then(seqs => {
+        seqs.filter(s => s.trigger === "upgrade" && s.active).forEach(s => storage.enrollUserInSequence(userId, s.id).catch(() => {}));
+      }).catch(() => {});
+    }
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;
     res.json(safe);
@@ -8896,6 +8906,191 @@ Rules:
 
       res.json({ ...booking, meetLink });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Email Marketing ────────────────────────────────────────────────────────
+
+  function emailMarketingTemplate(name: string, content: string, unsubUrl: string): string {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Oravini</title></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="max-width:580px;margin:0 auto;padding:40px 24px;">
+  <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.08);">
+    <span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span>
+  </div>
+  ${content}
+  <div style="margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.07);">
+    <p style="color:rgba(255,255,255,0.22);font-size:11px;line-height:1.7;margin:0;">
+      You're receiving this because you joined Oravini.<br>
+      <a href="${unsubUrl}" style="color:#d4b461;text-decoration:none;">Unsubscribe</a> &nbsp;·&nbsp; <a href="https://oravini.com" style="color:rgba(255,255,255,0.35);text-decoration:none;">Visit Oravini</a>
+    </p>
+  </div>
+</div>
+</body></html>`;
+  }
+
+  function applyEmailVars(html: string, vars: Record<string, string>): string {
+    return html.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+  }
+
+  async function sendMarketingEmail(to: string, name: string, subject: string, bodyHtml: string, logData: { sequenceEmailId?: string; broadcastId?: string }) {
+    const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+    if (await storage.isEmailUnsubscribed(to)) return;
+    const log = await storage.logEmail({ toEmail: to, toName: name, subject, ...logData });
+    const appBase = process.env.APP_URL || "https://oravini.com";
+    const openPixel = `<img src="${appBase}/api/email/open/${log.id}.gif" width="1" height="1" style="display:none" alt="" />`;
+    const unsubUrl = `${appBase}/api/email/unsubscribe?email=${encodeURIComponent(to)}`;
+    const filledHtml = applyEmailVars(bodyHtml, { name, email: to });
+    const fullHtml = emailMarketingTemplate(name, filledHtml + openPixel, unsubUrl);
+    await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html: fullHtml });
+  }
+
+  // Open tracking pixel
+  app.get("/api/email/open/:logId.gif", async (req, res) => {
+    const { logId } = req.params;
+    await storage.markEmailOpened(logId).catch(() => {});
+    const gif1x1 = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+    res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store" });
+    res.send(gif1x1);
+  });
+
+  // Unsubscribe
+  app.get("/api/email/unsubscribe", async (req, res) => {
+    const { email } = req.query as { email?: string };
+    if (email) await storage.addEmailUnsubscribe(email).catch(() => {});
+    res.send(`<!DOCTYPE html><html><body style="background:#0a0a0a;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;padding:40px;"><p style="color:#d4b461;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px">ORAVINI</p><h2 style="margin:0 0 12px;font-size:24px;">You've been unsubscribed</h2><p style="color:rgba(255,255,255,0.4);margin:0;">You won't receive marketing emails from us anymore.</p></div></body></html>`);
+  });
+
+  // Sequences — list
+  app.get("/api/admin/email/sequences", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getEmailSequences();
+    const result = await Promise.all(seqs.map(async s => {
+      const emails = await storage.getSequenceEmails(s.id);
+      return { ...s, emailCount: emails.length };
+    }));
+    res.json(result);
+  });
+
+  // Sequences — create
+  app.post("/api/admin/email/sequences", requireAdmin, async (req, res) => {
+    const { name, description, trigger } = req.body;
+    if (!name || !trigger) return res.status(400).json({ message: "name and trigger required" });
+    const seq = await storage.createEmailSequence({ name, description, trigger, active: true });
+    res.json(seq);
+  });
+
+  // Sequences — update
+  app.patch("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
+    const seq = await storage.updateEmailSequence(req.params.id, req.body);
+    res.json(seq);
+  });
+
+  // Sequences — delete
+  app.delete("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
+    await storage.deleteEmailSequence(req.params.id);
+    res.json({ ok: true });
+  });
+
+  // Sequence emails — list
+  app.get("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
+    const emails = await storage.getSequenceEmails(req.params.id);
+    res.json(emails);
+  });
+
+  // Sequence emails — create
+  app.post("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
+    const { subject, bodyHtml, delayDays, sortOrder } = req.body;
+    if (!subject || !bodyHtml) return res.status(400).json({ message: "subject and bodyHtml required" });
+    const email = await storage.createSequenceEmail({ sequenceId: req.params.id, subject, bodyHtml, delayDays: delayDays ?? 0, sortOrder: sortOrder ?? 0 });
+    res.json(email);
+  });
+
+  // Sequence emails — update
+  app.patch("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
+    const email = await storage.updateSequenceEmail(req.params.id, req.body);
+    res.json(email);
+  });
+
+  // Sequence emails — delete
+  app.delete("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSequenceEmail(req.params.id);
+    res.json({ ok: true });
+  });
+
+  // Stats + recent logs
+  app.get("/api/admin/email/stats", requireAdmin, async (_req, res) => {
+    const stats = await storage.getEmailStats();
+    const logs = await storage.getEmailLogs(30);
+    res.json({ stats, logs });
+  });
+
+  // Broadcasts — list
+  app.get("/api/admin/email/broadcasts", requireAdmin, async (_req, res) => {
+    res.json(await storage.getEmailBroadcasts());
+  });
+
+  // Broadcasts — send
+  app.post("/api/admin/email/broadcast", requireAdmin, async (req, res) => {
+    const { name, subject, bodyHtml, segment } = req.body;
+    if (!name || !subject || !bodyHtml) return res.status(400).json({ message: "name, subject, bodyHtml required" });
+    const broadcast = await storage.createEmailBroadcast({ name, subject, bodyHtml, segment: segment || "all" });
+    const allClients = await storage.getAllClients();
+    const targets = allClients.filter(c => {
+      if (segment === "all" || !segment) return true;
+      return c.plan === segment;
+    });
+    let sent = 0;
+    for (const client of targets) {
+      try {
+        await sendMarketingEmail(client.email, client.name, subject, bodyHtml, { broadcastId: broadcast.id });
+        sent++;
+      } catch { /* skip failed */ }
+    }
+    await storage.updateEmailBroadcast(broadcast.id, { sentAt: new Date(), recipientsCount: sent });
+    res.json({ ok: true, sent, broadcastId: broadcast.id });
+  });
+
+  // Manual enroll — admin can enroll all users in a trigger
+  app.post("/api/admin/email/enroll-trigger", requireAdmin, async (req, res) => {
+    const { trigger } = req.body;
+    if (!trigger) return res.status(400).json({ message: "trigger required" });
+    const sequences = await storage.getEmailSequences();
+    const matching = sequences.filter(s => s.trigger === trigger && s.active);
+    if (!matching.length) return res.status(404).json({ message: "No active sequences for that trigger" });
+    const clients = await storage.getAllClients();
+    let enrolled = 0;
+    for (const seq of matching) {
+      for (const client of clients) {
+        const e = await storage.enrollUserInSequence(client.id, seq.id);
+        if (e) enrolled++;
+      }
+    }
+    res.json({ ok: true, enrolled });
+  });
+
+  // Seed pre-built sequences
+  app.post("/api/admin/email/seed-sequences", requireAdmin, async (_req, res) => {
+    const existing = await storage.getEmailSequences();
+    if (existing.length > 0) return res.json({ message: "Sequences already seeded", count: existing.length });
+
+    const welcomeSeq = await storage.createEmailSequence({ name: "Welcome Sequence", description: "Automatically sent when a new member joins. Nurtures them toward Starter (Tier 2).", trigger: "join", active: true });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "You're in, {{name}} 👋", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Welcome to Oravini, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You just made a decision most creators never make — you invested in your growth. That counts for something.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Here's what to do in the next 10 minutes:</p><ol style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;"><li>Log in to your dashboard and complete your profile</li><li>Check out the <strong style="color:#fff;">Content Ideas generator</strong> — drop in your niche and see what comes out</li><li>Set up your Instagram tracker — this alone will change how you think about your content</li></ol><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:20px 0 24px;">We'll be in touch with more. But for now — log in and explore.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Go to Dashboard →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "3 moves that will change your content game", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Hey {{name}} — 3 things to shift right now.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Most creators grind for months without seeing results because they're optimising the wrong things. Here's what actually moves the needle:</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">01 — Track everything</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You can't improve what you don't measure. Log every post. Even the flops — especially the flops. The pattern will show itself in 30 days.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">02 — Study one competitor obsessively</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Pick one creator in your niche who is 6–12 months ahead of you. Use the Competitor Study tool to analyse their content. Reverse-engineer what's working.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">03 — Batch your content ideas</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Spend 30 minutes once a week generating ideas with the AI tools. You'll never stare at a blank page again.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Open Your Tools →</a>`, delayDays: 2, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "The #1 mistake creators make at your stage", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">{{name}}, I see this all the time.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Creators spend 80% of their time making content and 20% understanding why it worked or didn't. The ones who grow fast flip that ratio.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">They spend time understanding their audience, their hooks, their patterns — and then content creation becomes fast because they know exactly what to make.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">The Audience Psychology Map tool inside your dashboard will help you build a detailed profile of your ideal viewer — what they fear, what they want, what they scroll past. Use it before you write your next piece of content.</p><a href="https://oravini.com/audience-psychology-map" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Try It Now →</a>`, delayDays: 5, sortOrder: 3 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "Unlock your full creator toolkit 🔓", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You're leaving tools on the table, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You've been using Oravini for a week now. You've seen what the free tools can do. But here's what you're missing:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 20px;"><li><strong style="color:#fff;">150 AI credits/month</strong> — generate scripts, hooks, captions at scale</li><li><strong style="color:#fff;">AI Content Coach</strong> — personalised strategy feedback on your content</li><li><strong style="color:#fff;">Full Brand Kit Builder</strong> — lock in your visual identity</li><li><strong style="color:#fff;">SOP Generator</strong> — document your content process so you can delegate</li></ul><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">The Starter plan is $29/month. Less than a coffee a day. And it compounds — every month you're using it, you're building an advantage over creators who aren't.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Upgrade to Starter — $29/mo →</a>`, delayDays: 10, sortOrder: 4 });
+
+    const upgradeSeq = await storage.createEmailSequence({ name: "Upgrade Sequence", description: "Triggered when a member upgrades their plan. Celebrates the move and upsells to the next tier.", trigger: "upgrade", active: true });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Level up confirmed 🔥", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You just levelled up, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Your upgrade is live. Your new tools are waiting. This is the part where the serious creators separate from the ones who just talk about it.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Log in now and explore everything that's just unlocked for you. The AI credits have already been added to your account — don't let them sit.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Explore Your New Tools →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Here's exactly how to use your new tools", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Make the most of your plan, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">Three things to do this week with your upgraded access:</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">1 — Use your AI credits on hooks first</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">The hook is 80% of the result. Use the AI Ideas and Content Coach tools to generate 10 hook variations for your next piece. Pick the sharpest one.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">2 — Set up your content calendar</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">Map out the next 30 days of content. Use the Calendar tool and the AI Planner to batch everything in one session.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">3 — Build your ICP</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Use the ICP Builder to lock in exactly who you're making content for. Everything gets easier when you know your audience precisely.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Open Your Dashboard →</a>`, delayDays: 3, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "What our top members do differently", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">The pattern we've noticed, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The members who grow the fastest with Oravini all do a few things in common:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 20px;"><li>They log their content performance every week — obsessively</li><li>They use the AI tools to save 5+ hours a week, and reinvest that time into distribution</li><li>They study one competitor every fortnight and document what they're seeing</li><li>They engage with the Community to stay sharp and accountable</li></ul><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Which of these are you doing? Start with the tracking if you haven't already — that's the foundation everything else is built on.</p><a href="https://oravini.com/tracking" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">View Your Tracking →</a>`, delayDays: 7, sortOrder: 3 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Ready for the next level? 🚀", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">One more tier to go, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You've been using your current plan for two weeks. If you've been consistent, you should already be seeing the compound effects — better ideas, faster content, clearer strategy.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The next tier unlocks the full toolkit: more AI credits, advanced video editing, the complete AI Content Coach, and the SOP Generator to document and delegate your process.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Creators who move through tiers consistently are the ones who build sustainable businesses — not just viral moments. When you're ready, we're here.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Explore Next Tier →</a>`, delayDays: 14, sortOrder: 4 });
+
+    const likedSeq = await storage.createEmailSequence({ name: "Re-engagement Sequence", description: "For members showing strong engagement. Deepens relationship and upsells.", trigger: "liked", active: true });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "{{name}}, we love having you here", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You're one of the good ones, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">We track engagement across the platform. And you're one of the members who actually shows up, does the work, and takes this seriously.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">That's rare. And it's the thing that separates the creators who get to where they want to go from the ones who stay stuck.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">We wanted to reach out personally and let you know — if there's anything you need, we're here. And keep watching your dashboard, because we're always adding new tools based on what our most engaged members ask for.</p><a href="https://oravini.com/community" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Join the Community →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "Your biggest untapped growth lever", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Most creators miss this, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Distribution. Not content quality. Not posting frequency. Distribution is the single biggest lever most creators aren't pulling.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You can have the best content in your niche, but if you're not getting it in front of the right eyes consistently, you'll stay stuck. The algorithms reward accounts that already have momentum — so you have to build it intentionally.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Here's what's working right now for creators in our community:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 24px;"><li>Cross-posting the same content across 2–3 platforms with minor tweaks</li><li>Replying to every comment in the first hour after posting</li><li>Collaborating with 1 creator in an adjacent niche every month</li></ul><a href="https://oravini.com/ai-ideas" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Generate Content Ideas →</a>`, delayDays: 3, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "This is why your top competitors are pulling ahead", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">The gap is widening, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The creators in your niche who are growing the fastest right now are using better tools, faster feedback loops, and systems you probably don't have yet.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The good news: you're already on Oravini. The gap between what you have access to on your current plan and what's waiting on the next tier is significant.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">More AI credits. Full content coach. Advanced analytics. Video editing at scale. The creators using these tools are building moats that are hard to catch up to.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">You're doing the work. Make sure your tools match your ambition.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Upgrade Your Plan →</a>`, delayDays: 7, sortOrder: 3 });
+
+    res.json({ seeded: true, sequences: 3 });
   });
 
   return httpServer;

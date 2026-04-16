@@ -41,6 +41,7 @@ import AdminSessions from "@/pages/admin/AdminSessions";
 import Credits from "@/pages/client/Credits";
 import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
+import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
 import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import Privacy from "@/pages/Privacy";
@@ -369,6 +370,9 @@ function Router() {
       </Route>
       <Route path="/admin/crm">
         {() => <ProtectedRoute component={AdminCRM} adminOnly />}
+      </Route>
+      <Route path="/admin/email-marketing">
+        {() => <ProtectedRoute component={AdminEmailMarketing} adminOnly />}
       </Route>
       <Route path="/admin/responses">
         {() => <ProtectedRoute component={AdminResponses} adminOnly />}

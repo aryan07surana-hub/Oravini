@@ -741,3 +741,75 @@ export const onboardingSurveys = pgTable("onboarding_surveys", {
 export const insertOnboardingSurveySchema = createInsertSchema(onboardingSurveys).omit({ id: true, completedAt: true });
 export type OnboardingSurvey = typeof onboardingSurveys.$inferSelect;
 export type InsertOnboardingSurvey = z.infer<typeof insertOnboardingSurveySchema>;
+
+// ── Email Marketing ─────────────────────────────────────────────────────────
+export const emailSequences = pgTable("email_sequences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  trigger: text("trigger").notNull(), // "join" | "upgrade" | "liked"
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertEmailSequenceSchema = createInsertSchema(emailSequences).omit({ id: true, createdAt: true });
+export type InsertEmailSequence = z.infer<typeof insertEmailSequenceSchema>;
+export type EmailSequence = typeof emailSequences.$inferSelect;
+
+export const sequenceEmails = pgTable("sequence_emails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => emailSequences.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html").notNull(),
+  delayDays: integer("delay_days").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSequenceEmailSchema = createInsertSchema(sequenceEmails).omit({ id: true, createdAt: true });
+export type InsertSequenceEmail = z.infer<typeof insertSequenceEmailSchema>;
+export type SequenceEmail = typeof sequenceEmails.$inferSelect;
+
+export const emailEnrollments = pgTable("email_enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sequenceId: varchar("sequence_id").notNull().references(() => emailSequences.id, { onDelete: "cascade" }),
+  currentStep: integer("current_step").notNull().default(0),
+  completed: boolean("completed").notNull().default(false),
+  unsubscribed: boolean("unsubscribed").notNull().default(false),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+  nextSendAt: timestamp("next_send_at"),
+});
+export const insertEmailEnrollmentSchema = createInsertSchema(emailEnrollments).omit({ id: true, enrolledAt: true });
+export type InsertEmailEnrollment = z.infer<typeof insertEmailEnrollmentSchema>;
+export type EmailEnrollment = typeof emailEnrollments.$inferSelect;
+
+export const emailLogs = pgTable("email_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  toEmail: text("to_email").notNull(),
+  toName: text("to_name"),
+  subject: text("subject").notNull(),
+  sequenceEmailId: varchar("sequence_email_id"),
+  broadcastId: varchar("broadcast_id"),
+  openedAt: timestamp("opened_at"),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+export type EmailLog = typeof emailLogs.$inferSelect;
+
+export const emailBroadcasts = pgTable("email_broadcasts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html").notNull(),
+  segment: text("segment").notNull().default("all"),
+  recipientsCount: integer("recipients_count"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertEmailBroadcastSchema = createInsertSchema(emailBroadcasts).omit({ id: true, createdAt: true, sentAt: true, recipientsCount: true });
+export type InsertEmailBroadcast = z.infer<typeof insertEmailBroadcastSchema>;
+export type EmailBroadcast = typeof emailBroadcasts.$inferSelect;
+
+export const emailUnsubscribes = pgTable("email_unsubscribes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  unsubscribedAt: timestamp("unsubscribed_at").defaultNow(),
+});

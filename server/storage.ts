@@ -10,6 +10,7 @@ import {
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
+  emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
   youtubeTokens, scheduledYoutubePosts,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
@@ -46,6 +47,11 @@ import {
   type MeetingType, type InsertMeetingType,
   type AvailabilityRule, type InsertAvailabilityRule,
   type ScheduledBooking, type InsertScheduledBooking,
+  type EmailSequence, type InsertEmailSequence,
+  type SequenceEmail, type InsertSequenceEmail,
+  type EmailEnrollment, type InsertEmailEnrollment,
+  type EmailLog,
+  type EmailBroadcast, type InsertEmailBroadcast,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -250,6 +256,29 @@ export interface IStorage {
   createScheduledBooking(data: InsertScheduledBooking): Promise<ScheduledBooking>;
   updateScheduledBooking(id: string, data: Partial<ScheduledBooking>): Promise<ScheduledBooking | undefined>;
   getUpcomingBookingsForReminders(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
+
+  // Email Marketing
+  getEmailSequences(): Promise<EmailSequence[]>;
+  getEmailSequence(id: string): Promise<EmailSequence | undefined>;
+  createEmailSequence(data: InsertEmailSequence): Promise<EmailSequence>;
+  updateEmailSequence(id: string, data: Partial<InsertEmailSequence>): Promise<EmailSequence | undefined>;
+  deleteEmailSequence(id: string): Promise<void>;
+  getSequenceEmails(sequenceId: string): Promise<SequenceEmail[]>;
+  createSequenceEmail(data: InsertSequenceEmail): Promise<SequenceEmail>;
+  updateSequenceEmail(id: string, data: Partial<InsertSequenceEmail>): Promise<SequenceEmail | undefined>;
+  deleteSequenceEmail(id: string): Promise<void>;
+  enrollUserInSequence(userId: string, sequenceId: string): Promise<EmailEnrollment | null>;
+  getPendingEnrollments(): Promise<(EmailEnrollment & { userEmail: string; userName: string | null })[]>;
+  advanceEnrollment(id: string, nextStep: number, nextSendAt: Date | null, completed?: boolean): Promise<void>;
+  logEmail(data: { toEmail: string; toName?: string; subject: string; sequenceEmailId?: string; broadcastId?: string }): Promise<EmailLog>;
+  markEmailOpened(logId: string): Promise<void>;
+  getEmailStats(): Promise<{ totalSent: number; totalOpened: number; sentToday: number; activeEnrollments: number }>;
+  getEmailLogs(limit?: number): Promise<EmailLog[]>;
+  createEmailBroadcast(data: InsertEmailBroadcast): Promise<EmailBroadcast>;
+  getEmailBroadcasts(): Promise<EmailBroadcast[]>;
+  updateEmailBroadcast(id: string, data: Partial<EmailBroadcast>): Promise<void>;
+  isEmailUnsubscribed(email: string): Promise<boolean>;
+  addEmailUnsubscribe(email: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1416,6 +1445,108 @@ class DatabaseStorage implements IStorage {
     );
     const types = await db.select().from(meetingTypes);
     return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
+  }
+
+  // ── Email Marketing ────────────────────────────────────────────────────────
+  async getEmailSequences() {
+    return db.select().from(emailSequences).orderBy(desc(emailSequences.createdAt));
+  }
+  async getEmailSequence(id: string) {
+    const [row] = await db.select().from(emailSequences).where(eq(emailSequences.id, id));
+    return row;
+  }
+  async createEmailSequence(data: InsertEmailSequence) {
+    const [row] = await db.insert(emailSequences).values(data).returning();
+    return row;
+  }
+  async updateEmailSequence(id: string, data: Partial<InsertEmailSequence>) {
+    const [row] = await db.update(emailSequences).set(data).where(eq(emailSequences.id, id)).returning();
+    return row;
+  }
+  async deleteEmailSequence(id: string) {
+    await db.delete(emailSequences).where(eq(emailSequences.id, id));
+  }
+  async getSequenceEmails(sequenceId: string) {
+    return db.select().from(sequenceEmails).where(eq(sequenceEmails.sequenceId, sequenceId)).orderBy(sequenceEmails.sortOrder, sequenceEmails.delayDays);
+  }
+  async createSequenceEmail(data: InsertSequenceEmail) {
+    const [row] = await db.insert(sequenceEmails).values(data).returning();
+    return row;
+  }
+  async updateSequenceEmail(id: string, data: Partial<InsertSequenceEmail>) {
+    const [row] = await db.update(sequenceEmails).set(data).where(eq(sequenceEmails.id, id)).returning();
+    return row;
+  }
+  async deleteSequenceEmail(id: string) {
+    await db.delete(sequenceEmails).where(eq(sequenceEmails.id, id));
+  }
+  async enrollUserInSequence(userId: string, sequenceId: string): Promise<EmailEnrollment | null> {
+    // Don't enroll if already enrolled (and not completed/unsubscribed)
+    const existing = await db.select().from(emailEnrollments).where(
+      and(eq(emailEnrollments.userId, userId), eq(emailEnrollments.sequenceId, sequenceId))
+    );
+    if (existing.length > 0) return null;
+    const [row] = await db.insert(emailEnrollments).values({
+      userId, sequenceId, currentStep: 0, completed: false, unsubscribed: false, nextSendAt: new Date(),
+    }).returning();
+    return row;
+  }
+  async getPendingEnrollments() {
+    const now = new Date();
+    const rows = await db.select({
+      enrollment: emailEnrollments,
+      userEmail: users.email,
+      userName: users.name,
+    }).from(emailEnrollments)
+      .innerJoin(users, eq(emailEnrollments.userId, users.id))
+      .where(
+        and(
+          eq(emailEnrollments.completed, false),
+          eq(emailEnrollments.unsubscribed, false),
+          lte(emailEnrollments.nextSendAt, now),
+        )
+      );
+    return rows.map(r => ({ ...r.enrollment, userEmail: r.userEmail, userName: r.userName }));
+  }
+  async advanceEnrollment(id: string, nextStep: number, nextSendAt: Date | null, completed = false) {
+    await db.update(emailEnrollments).set({ currentStep: nextStep, nextSendAt: nextSendAt ?? undefined, completed }).where(eq(emailEnrollments.id, id));
+  }
+  async logEmail(data: { toEmail: string; toName?: string; subject: string; sequenceEmailId?: string; broadcastId?: string }) {
+    const [row] = await db.insert(emailLogs).values({ ...data, sentAt: new Date() }).returning();
+    return row;
+  }
+  async markEmailOpened(logId: string) {
+    await db.update(emailLogs).set({ openedAt: new Date() }).where(and(eq(emailLogs.id, logId), isNull(emailLogs.openedAt)));
+  }
+  async getEmailStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const allLogs = await db.select().from(emailLogs);
+    const totalSent = allLogs.length;
+    const totalOpened = allLogs.filter(l => l.openedAt).length;
+    const sentToday = allLogs.filter(l => l.sentAt && l.sentAt >= today).length;
+    const activeEnrollments = await db.select().from(emailEnrollments).where(and(eq(emailEnrollments.completed, false), eq(emailEnrollments.unsubscribed, false)));
+    return { totalSent, totalOpened, sentToday, activeEnrollments: activeEnrollments.length };
+  }
+  async getEmailLogs(limit = 50) {
+    return db.select().from(emailLogs).orderBy(desc(emailLogs.sentAt)).limit(limit);
+  }
+  async createEmailBroadcast(data: InsertEmailBroadcast) {
+    const [row] = await db.insert(emailBroadcasts).values(data).returning();
+    return row;
+  }
+  async getEmailBroadcasts() {
+    return db.select().from(emailBroadcasts).orderBy(desc(emailBroadcasts.createdAt));
+  }
+  async updateEmailBroadcast(id: string, data: Partial<EmailBroadcast>) {
+    await db.update(emailBroadcasts).set(data).where(eq(emailBroadcasts.id, id));
+  }
+  async isEmailUnsubscribed(email: string) {
+    const [row] = await db.select().from(emailUnsubscribes).where(eq(emailUnsubscribes.email, email));
+    return !!row;
+  }
+  async addEmailUnsubscribe(email: string) {
+    await db.insert(emailUnsubscribes).values({ email }).onConflictDoNothing();
   }
 }
 
