@@ -18,7 +18,7 @@ const TOUR_STEPS: TourStep[] = [
     id: "welcome",
     route: "/dashboard",
     target: null,
-    title: "Welcome to Brandverse",
+    title: "Welcome to Oravini",
     description: "I'm your AI guide. I'll walk you through every tool — Content Ideas, Content Coach, Video Editor, Design Studio, Forms & Quiz Builder, Board Builder, IG Growth Tracker, Tracking, Competitor Study, Credits, and Settings. Follow along and I'll explain exactly how each one works. Takes about 3 minutes.",
     position: "center",
   },

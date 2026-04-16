@@ -508,7 +508,7 @@ function GoalDialog({ userId, autoOpen }: { userId: string; autoOpen: boolean })
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-xl">Welcome to Brandverse! 🎉</DialogTitle>
+          <DialogTitle className="text-xl">Welcome to Oravini! 🎉</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground mt-1">Let's start by setting your income goal. How much money do you want to make in the next 6 months?</p>
         <div className="space-y-4 mt-3">
