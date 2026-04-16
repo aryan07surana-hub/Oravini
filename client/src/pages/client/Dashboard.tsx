@@ -533,6 +533,276 @@ function IncomeGoalCard({ userId }: { userId: string }) {
 }
 
 /* ─────────────────────────────────────────────
+   CREATOR SCORE
+───────────────────────────────────────────── */
+const SCORE_RANKS = [
+  { min: 0,   label: "Just Starting",  emoji: "🌱", color: "#71717a",  desc: "Every legend starts somewhere. Let's go!" },
+  { min: 50,  label: "Rising Creator", emoji: "🚀", color: "#60a5fa",  desc: "You're building real momentum. Keep pushing." },
+  { min: 150, label: "Content Pro",    emoji: "⚡", color: "#a78bfa",  desc: "You're consistent and getting sharper every day." },
+  { min: 300, label: "Creator Beast",  emoji: "🔥", color: "#fb923c",  desc: "You operate at a level most creators never reach." },
+  { min: 500, label: "Elite Status",   emoji: "👑", color: GOLD,       desc: "You're in the top tier. The platform bends to your will." },
+];
+
+function CreatorScore({ streak, monthActions, contentCount }: { streak: number; monthActions: number; contentCount: number }) {
+  const score = Math.min(999, streak * 5 + monthActions * 3 + contentCount * 10);
+  const rank = [...SCORE_RANKS].reverse().find(r => score >= r.min) || SCORE_RANKS[0];
+  const nextRank = SCORE_RANKS[SCORE_RANKS.indexOf(rank) + 1];
+  const progress = nextRank ? Math.round(((score - rank.min) / (nextRank.min - rank.min)) * 100) : 100;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${rank.color}12 0%, ${rank.color}05 100%)`, border: `1px solid ${rank.color}30` }}>
+      <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-15 pointer-events-none" style={{ background: rank.color, transform: "translate(40%, -40%)" }} />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0" style={{ background: `${rank.color}18`, border: `1px solid ${rank.color}30` }}>
+            {rank.emoji}
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Creator Score</p>
+            <div className="flex items-end gap-2 mt-0.5">
+              <p className="text-4xl font-black text-foreground">{score}</p>
+              <p className="text-sm font-bold mb-1" style={{ color: rank.color }}>{rank.label}</p>
+            </div>
+            <p className="text-xs text-zinc-500 mt-0.5">{rank.desc}</p>
+          </div>
+        </div>
+        {nextRank && (
+          <div className="hidden sm:flex flex-col items-end gap-2 shrink-0 min-w-[130px]">
+            <p className="text-[10px] text-zinc-500">Next: <span className="font-semibold" style={{ color: nextRank.color }}>{nextRank.emoji} {nextRank.label}</span></p>
+            <div className="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${rank.color}, ${nextRank.color})` }} />
+            </div>
+            <p className="text-[10px] text-zinc-600">{nextRank.min - score} pts to go</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   MY BIG 3 TODAY
+───────────────────────────────────────────── */
+const BIG3_KEY = `oravini_big3_${new Date().toISOString().split("T")[0]}`;
+
+function BigThreeToday() {
+  const [priorities, setPriorities] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(BIG3_KEY) || "[]"); } catch { return []; }
+  });
+  const [input, setInput] = useState("");
+
+  const add = () => {
+    const v = input.trim();
+    if (!v || priorities.length >= 3) return;
+    const next = [...priorities, v];
+    setPriorities(next);
+    localStorage.setItem(BIG3_KEY, JSON.stringify(next));
+    setInput("");
+  };
+
+  const remove = (i: number) => {
+    const next = priorities.filter((_, idx) => idx !== i);
+    setPriorities(next);
+    localStorage.setItem(BIG3_KEY, JSON.stringify(next));
+  };
+
+  const COLORS = ["#d4b461", "#a78bfa", "#34d399"];
+  const LABELS = ["🥇 Top Priority", "🥈 Second Focus", "🥉 Third Action"];
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 p-5 h-full" style={{ background: "rgba(255,255,255,0.015)" }}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm font-bold text-foreground">My Big 3 Today</p>
+          <p className="text-xs text-zinc-500 mt-0.5">3 things you will do today — no excuses</p>
+        </div>
+        <Target className="w-4 h-4 shrink-0" style={{ color: GOLD }} />
+      </div>
+
+      <div className="space-y-2 mb-4">
+        {[0, 1, 2].map(i => (
+          <div
+            key={i}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
+            style={{
+              background: priorities[i] ? `${COLORS[i]}0d` : "rgba(255,255,255,0.02)",
+              border: `1px solid ${priorities[i] ? `${COLORS[i]}30` : "rgba(255,255,255,0.05)"}`,
+            }}
+          >
+            <span className="text-[10px] font-bold shrink-0" style={{ color: priorities[i] ? COLORS[i] : "rgba(255,255,255,0.15)" }}>{LABELS[i]}</span>
+            {priorities[i] ? (
+              <>
+                <p className="text-xs text-foreground flex-1 truncate">{priorities[i]}</p>
+                <button onClick={() => remove(i)} className="text-zinc-600 hover:text-red-400 transition-colors shrink-0"><Trash2 className="w-3 h-3" /></button>
+              </>
+            ) : (
+              <p className="text-xs text-zinc-600 flex-1">Not set yet…</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {priorities.length < 3 && (
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && add()}
+            placeholder={`Add priority ${priorities.length + 1}…`}
+            className="flex-1 text-xs bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-foreground placeholder:text-zinc-600 focus:outline-none focus:border-primary/50 transition-colors"
+            data-testid="input-big3"
+          />
+          <button
+            onClick={add}
+            className="px-3 py-2 rounded-xl text-xs font-bold transition-colors"
+            style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}
+            data-testid="button-add-big3"
+          >
+            Add
+          </button>
+        </div>
+      )}
+      {priorities.length === 3 && (
+        <p className="text-[10px] text-zinc-600 text-center">Locked in. Now go execute 💪</p>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   CONNECTED PLATFORMS
+───────────────────────────────────────────── */
+function ConnectedPlatforms() {
+  const { data: twitter }   = useQuery<any>({ queryKey: ["/api/twitter/status"],  staleTime: 60000 });
+  const { data: youtube }   = useQuery<any>({ queryKey: ["/api/youtube/status"],  staleTime: 60000 });
+  const { data: linkedin }  = useQuery<any>({ queryKey: ["/api/linkedin/status"], staleTime: 60000 });
+  const { data: instagram } = useQuery<any>({ queryKey: ["/api/meta/account"],    staleTime: 60000 });
+  const { data: canva }     = useQuery<any>({ queryKey: ["/api/canva/status"],    staleTime: 60000 });
+
+  const platforms = [
+    { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", href: "/instagram-scheduler", connected: instagram?.connected ?? false },
+    { id: "youtube",   label: "YouTube",   icon: Youtube,       color: "#f87171", href: "/youtube-scheduler",   connected: youtube?.connected ?? false  },
+    { id: "twitter",   label: "Twitter/X", icon: MessageSquare, color: "#60a5fa", href: "/twitter-scheduler",   connected: twitter?.connected ?? false  },
+    { id: "linkedin",  label: "LinkedIn",  icon: Users,         color: "#818cf8", href: "/linkedin-scheduler",  connected: linkedin?.connected ?? false  },
+    { id: "canva",     label: "Canva",     icon: Palette,       color: "#a78bfa", href: "/video-editor",        connected: canva?.connected ?? false    },
+  ];
+
+  const connectedCount = platforms.filter(p => p.connected).length;
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 p-5" style={{ background: "rgba(255,255,255,0.015)" }}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm font-bold text-foreground">Connected Platforms</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{connectedCount} of {platforms.length} connected</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {[...Array(platforms.length)].map((_, i) => (
+            <div key={i} className="w-1.5 h-1.5 rounded-full transition-all" style={{ background: i < connectedCount ? GOLD : "rgba(255,255,255,0.08)" }} />
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {platforms.map(({ id, label, icon: Icon, color, href, connected }) => (
+          <Link key={id} href={href}>
+            <div
+              data-testid={`platform-${id}`}
+              title={label}
+              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl cursor-pointer transition-all group"
+              style={{
+                background: connected ? `${color}12` : "rgba(255,255,255,0.02)",
+                border: `1px solid ${connected ? `${color}35` : "rgba(255,255,255,0.05)"}`,
+                boxShadow: connected ? `0 0 12px ${color}18` : "none",
+              }}
+            >
+              <Icon className="w-5 h-5 transition-all group-hover:scale-110" style={{ color: connected ? color : "rgba(255,255,255,0.2)" }} />
+              <p className="text-[9px] font-semibold text-center leading-tight" style={{ color: connected ? color : "rgba(255,255,255,0.25)" }}>{label}</p>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: connected ? color : "rgba(255,255,255,0.1)", boxShadow: connected ? `0 0 5px ${color}` : "none" }} />
+            </div>
+          </Link>
+        ))}
+      </div>
+      {connectedCount < platforms.length && (
+        <p className="text-[10px] text-zinc-600 text-center mt-3">Connect more platforms to supercharge your reach →</p>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   COMMUNITY PULSE
+───────────────────────────────────────────── */
+function CommunityPulse() {
+  const { data: posts, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/community/posts"],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const recent = (posts || []).slice(0, 3);
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 overflow-hidden" style={{ background: "rgba(255,255,255,0.015)" }}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <p className="text-sm font-bold text-foreground">Community Pulse</p>
+        </div>
+        <Link href="/community" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+          View all <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="divide-y divide-zinc-800/60">
+        {isLoading ? (
+          Array(3).fill(0).map((_, i) => (
+            <div key={i} className="px-5 py-3 flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-zinc-800 animate-pulse shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-2.5 bg-zinc-800 rounded animate-pulse w-24" />
+                <div className="h-2 bg-zinc-800 rounded animate-pulse w-full" />
+              </div>
+            </div>
+          ))
+        ) : recent.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <MessageSquare className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
+            <p className="text-xs text-zinc-600">No posts yet — be the first to post!</p>
+            <Link href="/community">
+              <button className="mt-3 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors" style={{ background: "rgba(212,180,97,0.15)", color: GOLD }}>Start a discussion</button>
+            </Link>
+          </div>
+        ) : (
+          recent.map((post: any) => {
+            const initials = (post.authorName || "?").split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+            const colors = ["#d4b461", "#a78bfa", "#34d399", "#f472b6", "#60a5fa"];
+            const color = colors[(post.authorName || "").charCodeAt(0) % colors.length];
+            return (
+              <Link key={post.id} href="/community">
+                <div className="flex items-start gap-3 px-5 py-3 hover:bg-zinc-800/20 transition-colors cursor-pointer group">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: `${color}20`, color, border: `1px solid ${color}30` }}>
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold text-foreground truncate">{post.authorName || "Member"}</p>
+                      {post.channel && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-500">#{post.channel}</span>}
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{post.content}</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-zinc-600 shrink-0">
+                    <Star className="w-2.5 h-2.5" />
+                    <span>{post.likes || 0}</span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    WORLD CLOCK
 ───────────────────────────────────────────── */
 const WORLD_CITIES = [
@@ -916,6 +1186,9 @@ export default function ClientDashboard() {
             </div>
           </div>
 
+          {/* ── CREATOR SCORE ── */}
+          <CreatorScore streak={streak} monthActions={monthActions} contentCount={(contentPosts || []).length} />
+
           {/* ── ACTIVITY COMMAND CENTER ── */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -977,6 +1250,9 @@ export default function ClientDashboard() {
             <CreatorTipCard />
           </div>
 
+          {/* ── BIG 3 TODAY ── */}
+          <BigThreeToday />
+
           {/* ── QUICK TOOLS ── */}
           <div data-tour="quick-tools">
             <div className="flex items-center justify-between mb-3">
@@ -1006,6 +1282,9 @@ export default function ClientDashboard() {
               ))}
             </div>
           </div>
+
+          {/* ── CONNECTED PLATFORMS ── */}
+          <ConnectedPlatforms />
 
           {/* ── INCOME GOAL + DAILY QUOTE ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1047,6 +1326,9 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
+
+          {/* ── COMMUNITY PULSE ── */}
+          <CommunityPulse />
 
           {/* ── NOTIFICATIONS ── */}
           {(notifications || []).length > 0 && (
