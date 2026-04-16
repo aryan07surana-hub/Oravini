@@ -129,10 +129,10 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
 
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
-  // Block clients who haven't selected a plan yet
-  if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
-  // Block clients who haven't completed the onboarding survey yet
+  // Block clients who haven't completed the onboarding survey yet (survey comes first)
   if (user.role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
+  // Block clients who haven't selected a plan yet (pricing comes after survey)
+  if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
 
   return <Component {...props} />;
 }
@@ -146,10 +146,10 @@ function HomeRedirect() {
   );
   if (!user) return <OraviniLanding />;
   if (user.role === "admin") return <Redirect to="/admin" />;
-  // Client logged in but hasn't chosen a plan yet — send to plan selection
-  if (!user.planConfirmed) return <Redirect to="/select-plan" />;
-  // Client logged in but hasn't completed the onboarding survey yet
+  // Survey comes first — before plan selection
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
+  // Then pricing — if they haven't chosen a plan yet
+  if (!user.planConfirmed) return <Redirect to="/select-plan" />;
   return <Redirect to="/dashboard" />;
 }
 
