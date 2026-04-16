@@ -16,7 +16,8 @@ import {
   Instagram, Youtube, Users, DollarSign, Globe, Quote, BookOpen, Lock,
   Trash2, Check, Sparkles, RefreshCw, ChevronRight, Zap, BarChart2,
   Lightbulb, Music2, Bot, Clapperboard, Map, Flame, Activity, Brain,
-  Palette, ScanSearch, Layers, ImagePlay, Wand2, Mic2
+  Palette, ScanSearch, Layers, ImagePlay, Wand2, Mic2, Star, TrendingDown,
+  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay
 } from "lucide-react";
 import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
@@ -532,6 +533,123 @@ function IncomeGoalCard({ userId }: { userId: string }) {
 }
 
 /* ─────────────────────────────────────────────
+   WORLD CLOCK
+───────────────────────────────────────────── */
+const WORLD_CITIES = [
+  { city: "Dubai",    timezone: "Asia/Dubai",        flag: "🇦🇪", color: "#f59e0b" },
+  { city: "London",   timezone: "Europe/London",     flag: "🇬🇧", color: "#60a5fa" },
+  { city: "New York", timezone: "America/New_York",  flag: "🇺🇸", color: "#34d399" },
+];
+
+function CityClockCard({ city, timezone, flag, color }: { city: string; timezone: string; flag: string; color: string }) {
+  const [time, setTime] = useState("");
+  const [date, setDate] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      setTime(new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: timezone }).format(new Date()));
+      setDate(new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: timezone }).format(new Date()));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [timezone]);
+
+  const hour24 = parseInt(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: timezone }).format(new Date()));
+  const isDaytime = hour24 >= 6 && hour24 < 20;
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all" style={{ background: `${color}09`, border: `1px solid ${color}20` }}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="text-lg">{flag}</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{city}</span>
+        <span className="text-[10px]">{isDaytime ? "☀️" : "🌙"}</span>
+      </div>
+      <p className="text-xl font-bold font-mono tabular-nums text-foreground">{time || "--:--:--"}</p>
+      <p className="text-[10px] text-zinc-500 mt-1">{date}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   CREATOR TIPS
+───────────────────────────────────────────── */
+const CREATOR_TIPS = [
+  { icon: Rocket,    color: "#f472b6", bg: "rgba(244,114,182,0.12)", tip: "Post within the first 2 hours of peak time. Timing is 30% of your reach." },
+  { icon: Hash,      color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  tip: "Use 5–8 niche hashtags rather than 30 generic ones. Quality beats quantity." },
+  { icon: Brain,     color: "#a78bfa", bg: "rgba(167,139,250,0.12)", tip: "Hook your viewers in the first 3 seconds — that's when 60% decide to keep watching." },
+  { icon: Megaphone, color: "#34d399", bg: "rgba(52,211,153,0.12)",  tip: "Reply to every comment in your first hour. The algorithm rewards early engagement." },
+  { icon: Star,      color: GOLD,      bg: "rgba(212,180,97,0.12)",  tip: "Batch create content on one day. Posting consistently beats posting perfectly." },
+  { icon: TrendingUp,color: "#fb923c", bg: "rgba(251,146,60,0.12)",  tip: "Repurpose your top-performing content to 3 other platforms — don't leave reach on the table." },
+  { icon: Coffee,    color: "#f87171", bg: "rgba(248,113,113,0.12)", tip: "Study one competitor's top 5 posts every week. Learn what works before reinventing the wheel." },
+  { icon: MonitorPlay,color:"#c084fc", bg: "rgba(192,132,252,0.12)", tip: "Video thumbnails with a face get 38% more clicks. Show up visually." },
+];
+
+function CreatorTipCard() {
+  const dayIndex = Math.floor(Date.now() / 86400000) % CREATOR_TIPS.length;
+  const { icon: Icon, color, bg, tip } = CREATOR_TIPS[dayIndex];
+
+  return (
+    <div className="rounded-2xl p-5 h-full flex flex-col" style={{ background: bg, border: `1px solid ${color}25` }}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}20` }}>
+          <Icon className="w-4 h-4" style={{ color }} />
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>Creator Tip · Today</span>
+      </div>
+      <p className="text-sm text-zinc-200 leading-relaxed flex-1 italic">"{tip}"</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   GROWTH MILESTONE TRACKER
+───────────────────────────────────────────── */
+const MILESTONES = [
+  { label: "First Post",       icon: "🎬", threshold: 1  },
+  { label: "7-Day Streak",     icon: "🔥", threshold: 7  },
+  { label: "10 Tools Used",    icon: "⚡", threshold: 10 },
+  { label: "30-Day Active",    icon: "📅", threshold: 30 },
+  { label: "Creator Pro",      icon: "👑", threshold: 50 },
+];
+
+function GrowthMilestones({ streak, monthActions }: { streak: number; monthActions: number }) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 p-5" style={{ background: "rgba(255,255,255,0.015)" }}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-sm font-bold text-foreground">Growth Milestones</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Your creator journey checkpoints</p>
+        </div>
+        <Crown className="w-4 h-4" style={{ color: GOLD }} />
+      </div>
+      <div className="flex items-center gap-2">
+        {MILESTONES.map((m, i) => {
+          const achieved = (i === 0 && monthActions >= 1) || (i === 1 && streak >= 7) || (i === 2 && monthActions >= 10) || (i === 3 && streak >= 30) || (i === 4 && monthActions >= 50);
+          const partial = !achieved && ((i === 0 && monthActions >= 0) || (i === 1 && streak > 0) || (i === 2 && monthActions > 0) || (i === 3 && streak > 7) || (i === 4 && monthActions > 10));
+          return (
+            <div key={m.label} className="flex-1 flex flex-col items-center gap-1.5" title={m.label}>
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all"
+                style={{
+                  background: achieved ? `rgba(212,180,97,0.2)` : partial ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                  border: achieved ? `1px solid rgba(212,180,97,0.5)` : "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: achieved ? "0 0 12px rgba(212,180,97,0.25)" : "none",
+                  filter: achieved ? "none" : "grayscale(0.7) opacity(0.4)",
+                }}
+              >
+                {m.icon}
+              </div>
+              <p className="text-[9px] text-center leading-tight" style={{ color: achieved ? GOLD : "rgba(255,255,255,0.3)" }}>{m.label}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    ACTIVITY STAT TILE
 ───────────────────────────────────────────── */
 function ActivityTile({ icon: Icon, label, value, sub, accentColor, gradient }: {
@@ -702,7 +820,6 @@ export default function ClientDashboard() {
   }, [autoRefresh]);
 
   const streak = activity?.streak ?? 0;
-  const todayCredits = activity?.today?.creditsUsed ?? 0;
   const todayTools = activity?.today?.toolsUsed ?? 0;
   const weekHistory = activity?.weekHistory ?? Array(7).fill({ date: "", creditsUsed: 0, actions: 0 });
   const monthActions = activity?.thisMonth?.totalActions ?? 0;
@@ -786,6 +903,19 @@ export default function ClientDashboard() {
             </div>
           </div>
 
+          {/* ── WORLD CLOCK ── */}
+          <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-3.5 h-3.5 text-zinc-500" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
+            </div>
+            <div className="flex gap-3">
+              {WORLD_CITIES.map(c => (
+                <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
+              ))}
+            </div>
+          </div>
+
           {/* ── ACTIVITY COMMAND CENTER ── */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -798,15 +928,7 @@ export default function ClientDashboard() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <ActivityTile
-                icon={Zap}
-                label="Credits Used Today"
-                value={todayCredits}
-                sub="AI tool actions"
-                accentColor={GOLD}
-                gradient="linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <ActivityTile
                 icon={Sparkles}
                 label="Tools Used Today"
@@ -839,7 +961,7 @@ export default function ClientDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-sm font-bold text-foreground">7-Day Activity</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Your credit usage across the last week</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Your tool usage across the last week</p>
               </div>
               <div className="flex items-center gap-2 text-[10px] text-zinc-600">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ background: "rgba(255,255,255,0.04)", display: "inline-block" }} /> No activity</span>
@@ -847,6 +969,12 @@ export default function ClientDashboard() {
               </div>
             </div>
             <ActivityHeatmap weekHistory={weekHistory} />
+          </div>
+
+          {/* ── GROWTH MILESTONES + CREATOR TIP ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <GrowthMilestones streak={streak} monthActions={monthActions} />
+            <CreatorTipCard />
           </div>
 
           {/* ── QUICK TOOLS ── */}
