@@ -386,7 +386,7 @@ function OtherBox({ prompt, placeholder, value, onChange }: {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Onboarding() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [step, setStep] = useState(0);
 
   const [awareness, setAwareness]             = useState("");
@@ -408,8 +408,9 @@ export default function Onboarding() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  if (user && (user as any).surveyCompleted) return <Redirect to="/select-plan" />;
+  if (isLoading) return null;
   if (!user) return <Redirect to="/login" />;
+  if ((user as any).surveyCompleted) return <Redirect to="/select-plan" />;
 
   const total = STEPS.length;
 

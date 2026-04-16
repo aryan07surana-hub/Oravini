@@ -93,7 +93,7 @@ export default function Login() {
     if (!isLoading && user) {
       if (user.role === "admin") return navigate("/admin");
       if (redirectTo === "audit") return navigate("/audit");
-      navigate(user.planConfirmed ? "/dashboard" : "/select-plan");
+      navigate(!(user as any).surveyCompleted ? "/onboarding" : user.planConfirmed ? "/dashboard" : "/select-plan");
     }
   }, [user, isLoading]);
 
@@ -111,7 +111,7 @@ export default function Login() {
     queryClient.setQueryData(["/api/auth/me"], u);
     if (u.role === "admin") return navigate("/admin");
     if (redirectTo === "audit") return navigate("/audit");
-    navigate(u.planConfirmed ? "/dashboard" : "/select-plan");
+    navigate(!u.surveyCompleted ? "/onboarding" : u.planConfirmed ? "/dashboard" : "/select-plan");
   };
 
   const login = useMutation({
