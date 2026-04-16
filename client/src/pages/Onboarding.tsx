@@ -408,6 +408,49 @@ export default function Onboarding() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
+  // ── useMutation MUST be declared before any early returns (Rules of Hooks) ──
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const resolveOther = (arr: string[], other: string) =>
+        arr.includes("Other") && other.trim()
+          ? [...arr.filter(x => x !== "Other"), `Other: ${other.trim()}`]
+          : arr;
+
+      const allFields    = resolveOther(fields, otherField);
+      const allStruggles = resolveOther(struggles, otherStruggle);
+      const allHeard     = resolveOther(heardAbout, otherHeard);
+      const finalDescriptor =
+        descriptor === "Other" && otherDescriptor.trim()
+          ? `Other: ${otherDescriptor.trim()}`
+          : descriptor;
+
+      return apiRequest("POST", "/api/user/onboarding-survey", {
+        awareness,
+        field: allFields.join(", "),
+        fields: allFields,
+        struggles: allStruggles,
+        contentTypes,
+        descriptor: finalDescriptor,
+        experience,
+        followerCount,
+        monthlyRevenue,
+        primaryGoal,
+        platform: platforms.join(", "),
+        platforms,
+        heardAbout: allHeard,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/onboarding-status"] });
+      navigate("/select-plan");
+    },
+    onError: (e: any) => {
+      toast({ title: "Something went wrong", description: e?.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  // ── Early returns AFTER all hooks ─────────────────────────────────────────
   if (isLoading) return null;
   if (!user) return <Redirect to="/login" />;
   if ((user as any).surveyCompleted) return <Redirect to="/select-plan" />;
@@ -452,48 +495,6 @@ export default function Onboarding() {
     (step === 2 && struggles.includes("Other") && !otherStruggle.trim()) ||
     (step === 4 && descriptor === "Other" && !otherDescriptor.trim()) ||
     (step === 10 && heardAbout.includes("Other") && !otherHeard.trim());
-
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const resolveOther = (arr: string[], other: string) =>
-        arr.includes("Other") && other.trim()
-          ? [...arr.filter(x => x !== "Other"), `Other: ${other.trim()}`]
-          : arr;
-
-      const allFields    = resolveOther(fields, otherField);
-      const allStruggles = resolveOther(struggles, otherStruggle);
-      const allHeard     = resolveOther(heardAbout, otherHeard);
-      const finalDescriptor =
-        descriptor === "Other" && otherDescriptor.trim()
-          ? `Other: ${otherDescriptor.trim()}`
-          : descriptor;
-
-      return apiRequest("POST", "/api/user/onboarding-survey", {
-        awareness,
-        field: allFields.join(", "),
-        fields: allFields,
-        struggles: allStruggles,
-        contentTypes,
-        descriptor: finalDescriptor,
-        experience,
-        followerCount,
-        monthlyRevenue,
-        primaryGoal,
-        platform: platforms.join(", "),
-        platforms,
-        heardAbout: allHeard,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/onboarding-status"] });
-      // Always go to pricing page next — after survey, before dashboard
-      navigate("/select-plan");
-    },
-    onError: (e: any) => {
-      toast({ title: "Something went wrong", description: e?.message || "Please try again.", variant: "destructive" });
-    },
-  });
 
   const handleNext = () => {
     if (!canAdvance()) return;
