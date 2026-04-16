@@ -99,7 +99,12 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         if (!user) {
           user = await storage.getUserByEmail(email);
           if (user) {
-            await storage.updateUser(user.id, { googleId: profile.id, avatar: user.avatar || profile.photos?.[0]?.value });
+            // Link Google ID to existing account
+            const updateData: any = { googleId: profile.id, avatar: user.avatar || profile.photos?.[0]?.value };
+            // If no survey record exists, reset surveyCompleted so the user goes through onboarding
+            const hasSurvey = await storage.getOnboardingSurvey(user.id);
+            if (!hasSurvey) updateData.surveyCompleted = false;
+            await storage.updateUser(user.id, updateData);
             user = await storage.getUser(user.id);
           }
         }
