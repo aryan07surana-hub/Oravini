@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   program: text("program"),
   nextCallDate: timestamp("next_call_date"),
   phone: text("phone"),
+  phoneVerified: boolean("phone_verified").notNull().default(true),
   googleId: text("google_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
   planConfirmed: boolean("plan_confirmed").notNull().default(false),

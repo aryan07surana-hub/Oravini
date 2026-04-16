@@ -112,6 +112,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             avatar: profile.photos?.[0]?.value,
             googleId: profile.id,
             planConfirmed: false,
+            phoneVerified: false,
           });
         }
         return done(null, user!);

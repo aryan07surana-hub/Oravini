@@ -99,7 +99,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(400).json({ message: "An account with this email already exists" });
       const hashed = await hashPassword(password);
-      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false });
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: false });
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
       req.logIn(user, (err) => {
         if (err) return res.status(500).json({ message: "Login after register failed" });
@@ -108,6 +108,77 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Registration failed" });
+    }
+  });
+
+  // ── Phone OTP — request ────────────────────────────────────────────────────
+  app.post("/api/auth/phone/request-otp", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      let { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "Phone number is required" });
+      // Normalise: strip spaces, ensure +country prefix
+      phone = phone.replace(/\s+/g, "");
+      if (!phone.startsWith("+")) return res.status(400).json({ message: "Phone must start with country code, e.g. +91..." });
+
+      // Check if phone already taken by a DIFFERENT user
+      const existing = await storage.getUserByPhone(phone);
+      if (existing && existing.id !== userId) {
+        return res.status(400).json({ message: "This phone number is already linked to another account" });
+      }
+
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken  = process.env.TWILIO_AUTH_TOKEN;
+      const fromPhone  = process.env.TWILIO_PHONE_NUMBER;
+      if (!accountSid || !authToken || !fromPhone) {
+        return res.status(503).json({ message: "SMS service not configured yet" });
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await storage.createOtpCode(phone, code, expiresAt);
+
+      const twilio = (await import("twilio")).default;
+      const client = twilio(accountSid, authToken);
+      await client.messages.create({
+        to: phone,
+        from: fromPhone,
+        body: `Your Oravini verification code is: ${code}. Valid for 10 minutes.`,
+      });
+
+      res.json({ message: "OTP sent" });
+    } catch (err: any) {
+      console.error("[phone-otp] request error:", err);
+      res.status(500).json({ message: err.message || "Failed to send OTP" });
+    }
+  });
+
+  // ── Phone OTP — verify ─────────────────────────────────────────────────────
+  app.post("/api/auth/phone/verify-otp", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      let { phone, code } = req.body;
+      if (!phone || !code) return res.status(400).json({ message: "Phone and code are required" });
+      phone = phone.replace(/\s+/g, "");
+
+      // Check if phone taken by another user
+      const existing = await storage.getUserByPhone(phone);
+      if (existing && existing.id !== userId) {
+        return res.status(400).json({ message: "This phone number is already linked to another account" });
+      }
+
+      const otp = await storage.getValidOtpCode(phone, code);
+      if (!otp) return res.status(400).json({ message: "Invalid or expired code. Please request a new one." });
+
+      await storage.markOtpUsed(otp.id);
+      await storage.setPhoneVerified(userId, phone);
+
+      const user = await storage.getUser(userId);
+      const { password: _, ...safe } = user!;
+      res.json(safe);
+    } catch (err: any) {
+      console.error("[phone-otp] verify error:", err);
+      res.status(500).json({ message: err.message || "Verification failed" });
     }
   });
 

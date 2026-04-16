@@ -79,6 +79,7 @@ import Community from "@/pages/client/Community";
 import PublicForm from "@/pages/PublicForm";
 import AdminScheduling from "@/pages/admin/AdminScheduling";
 import PublicBooking from "@/pages/PublicBooking";
+import VerifyPhone from "@/pages/VerifyPhone";
 
 const GOLD = "#d4b461";
 
@@ -126,6 +127,8 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
 
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && user.role !== "admin") return <Redirect to="/dashboard" />;
+  // Block clients who haven't verified their phone yet
+  if (user.role !== "admin" && !(user as any).phoneVerified) return <Redirect to="/verify-phone" />;
   // Block clients who haven't selected a plan yet
   if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
 
@@ -141,6 +144,8 @@ function HomeRedirect() {
   );
   if (!user) return <OraviniLanding />;
   if (user.role === "admin") return <Redirect to="/admin" />;
+  // Client logged in but hasn't verified phone yet
+  if (!(user as any).phoneVerified) return <Redirect to="/verify-phone" />;
   // Client logged in but hasn't chosen a plan yet — send to plan selection
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
   return <Redirect to="/dashboard" />;
@@ -153,6 +158,7 @@ function Router() {
       <Route path="/oravini" component={OraviniLanding} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/select-plan" component={SelectPlan} />
+      <Route path="/verify-phone" component={VerifyPhone} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
       <Route path="/privacy" component={Privacy} />

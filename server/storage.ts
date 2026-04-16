@@ -108,6 +108,8 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByPhone(phone: string): Promise<User | undefined>;
+  setPhoneVerified(userId: string, phone: string): Promise<void>;
   getAllClients(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User>;
@@ -281,6 +283,15 @@ class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string) {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
+  }
+
+  async getUserByPhone(phone: string) {
+    const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    return user;
+  }
+
+  async setPhoneVerified(userId: string, phone: string): Promise<void> {
+    await db.update(users).set({ phone, phoneVerified: true }).where(eq(users.id, userId));
   }
 
   async getAllClients() {
