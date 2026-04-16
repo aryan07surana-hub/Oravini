@@ -269,7 +269,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error("[google-oauth] login error:", loginErr);
             return res.redirect("/login?error=google_failed");
           }
-          const dest = user.role === "admin" ? "/admin" : user.planConfirmed ? "/dashboard" : "/select-plan";
+          const dest = user.role === "admin"
+            ? "/admin"
+            : !(user as any).surveyCompleted
+              ? "/onboarding"
+              : user.planConfirmed
+                ? "/dashboard"
+                : "/select-plan";
           return res.redirect(dest);
         });
       })(req, res, next);

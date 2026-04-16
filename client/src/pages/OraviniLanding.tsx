@@ -766,9 +766,17 @@ export default function OraviniLanding() {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => nav("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "16px 44px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
-                  Learn About Tier 5 →
-                </button>
+                <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                  <button onClick={() => nav("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
+                    Learn About Tier 5 →
+                  </button>
+                  <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.04)", border: `1.5px solid ${GOLD}55`, color: GOLD, fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "15px 32px", cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 0.2s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = `rgba(212,180,97,0.1)`)}
+                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                  >
+                    📞 Book a Call
+                  </a>
+                </div>
               </div>
             </div>
           </Anim>
