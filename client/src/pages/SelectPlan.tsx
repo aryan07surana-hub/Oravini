@@ -155,13 +155,13 @@ export default function SelectPlan() {
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <img src={oraviniLogoPath} alt="Oravini" style={{ height: 36, width: 36, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6 }} />
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/oravini")}
             style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: 500, transition: "color 0.2s", padding: 0 }}
             onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}
           >
             <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
-            Back to home
+            Go back to home page
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
