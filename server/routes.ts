@@ -4787,6 +4787,70 @@ Return JSON:
     }
   });
 
+  // GET /api/activity/summary — user's activity tracking for dashboard
+  app.get("/api/activity/summary", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+
+      // Fetch last 30 days of transactions (only deductions = tool usage)
+      const rows = await pool.query(
+        `SELECT amount, type, created_at FROM credit_transactions
+         WHERE user_id = $1 AND amount < 0
+         ORDER BY created_at DESC
+         LIMIT 200`,
+        [userId]
+      );
+      const txns: { amount: number; type: string; created_at: Date }[] = rows.rows;
+
+      const now = new Date();
+      const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+
+      // Today stats
+      const todayTxns = txns.filter(t => new Date(t.created_at) >= todayStart);
+      const todayCreditsUsed = todayTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const todayToolTypes = [...new Set(todayTxns.map(t => t.type))];
+
+      // 7-day history
+      const weekHistory = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const dayTxns = txns.filter(t => { const d = new Date(t.created_at); return d >= dayStart && d < dayEnd; });
+        weekHistory.push({
+          date: dayStart.toISOString().split("T")[0],
+          creditsUsed: dayTxns.reduce((s, t) => s + Math.abs(t.amount), 0),
+          actions: dayTxns.length,
+        });
+      }
+
+      // Streak: consecutive days with at least one tool use (starting from today going back)
+      let streak = 0;
+      for (let i = 0; i < 30; i++) {
+        const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const hasActivity = txns.some(t => { const d = new Date(t.created_at); return d >= dayStart && d < dayEnd; });
+        if (hasActivity) { streak++; }
+        else if (i > 0) break; // today with no activity doesn't break streak yet
+      }
+
+      // Monthly stats
+      const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const monthTxns = txns.filter(t => new Date(t.created_at) >= monthStart);
+      const monthCreditsUsed = monthTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const uniqueMonthTools = new Set(monthTxns.map(t => t.type)).size;
+
+      return res.json({
+        today: { creditsUsed: todayCreditsUsed, toolsUsed: todayToolTypes.length, toolNames: todayToolTypes },
+        weekHistory,
+        streak,
+        thisMonth: { creditsUsed: monthCreditsUsed, uniqueTools: uniqueMonthTools, totalActions: monthTxns.length },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/credits/all — admin: all users' balances
   app.get("/api/credits/all", requireAdmin, async (_req: Request, res: Response) => {
     try {
