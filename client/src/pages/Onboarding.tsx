@@ -10,11 +10,11 @@ const GOLD = "#d4b461";
 
 // ── Step 0 — awareness ───────────────────────────────────────────────────────
 const AWARENESS_OPTIONS = [
-  "I'm starting from zero — I have no idea where to begin",
-  "I know a little but I'm still figuring things out",
-  "I have a decent understanding of what it takes",
-  "I'm pretty knowledgeable — I just need better tools",
-  "I know exactly what I'm doing — I need execution support",
+  "Complete beginner — I'm just starting to explore it",
+  "I know the basics but haven't really started yet",
+  "I've been creating content for a while but still learning",
+  "I'm experienced — I know what works and what doesn't",
+  "I do this professionally — I need execution support, not education",
 ];
 
 // ── Step 1 — field ───────────────────────────────────────────────────────────
@@ -199,12 +199,11 @@ const HEARD_OPTIONS = [
   "Other",
 ];
 
-// ── STEPS config ─────────────────────────────────────────────────────────────
 const STEPS = [
   {
     key: "awareness",
-    title: "How well do you know this space?",
-    sub: "Be honest — it helps us set the right starting point for you.",
+    title: "How familiar are you with content creation?",
+    sub: "Be honest — this helps us set the right starting point for you on the platform.",
     multi: false, hasOther: false,
   },
   {
@@ -212,7 +211,7 @@ const STEPS = [
     title: "What field are you in?",
     sub: "Pick all that apply — helps us tailor your AI strategy.",
     multi: true, hasOther: true,
-    otherPrompt: "Tell us your specific niche or field:",
+    otherPrompt: "Tell us your specific niche or field",
     otherPlaceholder: "e.g. Sustainable fashion, Crypto trading, Dog training…",
   },
   {
@@ -233,7 +232,9 @@ const STEPS = [
     key: "descriptor",
     title: "What best describes you?",
     sub: "Pick the one that fits you best right now.",
-    multi: false, hasOther: false,
+    multi: false, hasOther: true,
+    otherPrompt: "How would you describe yourself?",
+    otherPlaceholder: "e.g. Part-time fitness coach turning creator, retired teacher sharing knowledge…",
   },
   {
     key: "experience",
@@ -275,10 +276,8 @@ const STEPS = [
   },
 ];
 
-// ── UI components ─────────────────────────────────────────────────────────────
-function Chip({
-  label, selected, onClick, isOther = false,
-}: {
+// ── Chip (multi-select) ───────────────────────────────────────────────────────
+function Chip({ label, selected, onClick, isOther = false }: {
   label: string; selected: boolean; onClick: () => void; isOther?: boolean;
 }) {
   return (
@@ -286,25 +285,19 @@ function Chip({
       type="button"
       onClick={onClick}
       style={{
-        padding: "10px 16px",
-        borderRadius: 10,
-        border: `1.5px solid ${selected ? (isOther ? "#f59e0b" : GOLD) : "rgba(255,255,255,0.12)"}`,
-        background: selected ? (isOther ? "rgba(245,158,11,0.12)" : `${GOLD}18`) : "rgba(255,255,255,0.03)",
-        color: selected ? (isOther ? "#f59e0b" : GOLD) : "rgba(255,255,255,0.65)",
-        fontSize: 14,
-        fontWeight: selected ? 700 : 400,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
+        padding: "10px 16px", borderRadius: 10, textAlign: "left",
+        border: `1.5px solid ${selected ? GOLD : "rgba(255,255,255,0.12)"}`,
+        background: selected ? `${GOLD}18` : "rgba(255,255,255,0.03)",
+        color: selected ? GOLD : isOther ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.65)",
+        fontSize: 14, fontWeight: selected ? 700 : 400,
+        cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
         transition: "all 0.15s",
-        textAlign: "left",
       }}
     >
       <span style={{
         width: 16, height: 16, borderRadius: 4,
-        border: `2px solid ${selected ? (isOther ? "#f59e0b" : GOLD) : "rgba(255,255,255,0.2)"}`,
-        background: selected ? (isOther ? "#f59e0b" : GOLD) : "transparent",
+        border: `2px solid ${selected ? GOLD : "rgba(255,255,255,0.2)"}`,
+        background: selected ? GOLD : "transparent",
         flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         {selected && <span style={{ color: "#000", fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
@@ -314,14 +307,14 @@ function Chip({
   );
 }
 
+// ── Radio (single-select) ─────────────────────────────────────────────────────
 function Radio({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        width: "100%", textAlign: "left",
-        padding: "13px 16px", borderRadius: 10,
+        width: "100%", textAlign: "left", padding: "13px 16px", borderRadius: 10,
         border: `1.5px solid ${selected ? GOLD : "rgba(255,255,255,0.1)"}`,
         background: selected ? `${GOLD}15` : "rgba(255,255,255,0.03)",
         color: selected ? GOLD : "rgba(255,255,255,0.75)",
@@ -343,71 +336,79 @@ function Radio({ label, selected, onClick }: { label: string; selected: boolean;
   );
 }
 
-function OtherBox({
-  prompt, placeholder, value, onChange,
-}: {
+// ── Other text box ─────────────────────────────────────────────────────────────
+function OtherBox({ prompt, placeholder, value, onChange }: {
   prompt: string; placeholder: string; value: string; onChange: (v: string) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
+
   return (
-    <div style={{
-      marginTop: 16, padding: "16px 18px", borderRadius: 12,
-      border: `1.5px solid ${value.trim() ? GOLD : "rgba(245,158,11,0.4)"}`,
-      background: "rgba(245,158,11,0.05)", transition: "border-color 0.2s",
-    }}>
-      <p style={{
-        fontSize: 12, fontWeight: 700, color: "#f59e0b",
-        letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 10px",
+    <div style={{ marginTop: 12 }}>
+      <label style={{
+        display: "block", fontSize: 12, fontWeight: 600,
+        color: "rgba(255,255,255,0.5)", marginBottom: 6, letterSpacing: "0.04em",
       }}>
-        ✱ Required — {prompt}
-      </p>
-      <textarea
-        ref={ref}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={2}
-        data-testid="input-other-specify"
-        style={{
-          width: "100%", background: "transparent", border: "none",
-          outline: "none", color: "#fff", fontSize: 14, lineHeight: 1.6,
-          resize: "none", fontFamily: "inherit",
-        }}
-      />
+        {prompt} <span style={{ color: GOLD }}>*</span>
+      </label>
+      <div style={{
+        borderRadius: 10,
+        border: `1.5px solid ${value.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+        background: "rgba(255,255,255,0.05)",
+        transition: "border-color 0.2s",
+        overflow: "hidden",
+      }}>
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          data-testid="input-other-specify"
+          style={{
+            display: "block", width: "100%",
+            background: "transparent", border: "none", outline: "none",
+            color: "#fff", fontSize: 14, lineHeight: 1.7,
+            resize: "none", fontFamily: "inherit",
+            padding: "12px 14px",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
       {!value.trim() && (
-        <p style={{ fontSize: 11, color: "rgba(245,158,11,0.5)", margin: "6px 0 0" }}>
-          You must fill this in to continue
+        <p style={{ fontSize: 11, color: GOLD, marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
+          <span>✱</span> Required — fill this in to continue
         </p>
       )}
     </div>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function Onboarding() {
   const { user } = useAuth();
   const [step, setStep] = useState(0);
 
-  const [awareness, setAwareness]         = useState("");
-  const [fields, setFields]               = useState<string[]>([]);
-  const [otherField, setOtherField]       = useState("");
-  const [struggles, setStruggles]         = useState<string[]>([]);
-  const [otherStruggle, setOtherStruggle] = useState("");
-  const [contentTypes, setContentTypes]   = useState<string[]>([]);
-  const [descriptor, setDescriptor]       = useState("");
-  const [experience, setExperience]       = useState("");
-  const [followerCount, setFollowerCount] = useState("");
-  const [monthlyRevenue, setRevenue]      = useState("");
-  const [primaryGoal, setGoal]            = useState("");
-  const [platforms, setPlatforms]         = useState<string[]>([]);
-  const [heardAbout, setHeardAbout]       = useState<string[]>([]);
-  const [otherHeard, setOtherHeard]       = useState("");
+  const [awareness, setAwareness]             = useState("");
+  const [fields, setFields]                   = useState<string[]>([]);
+  const [otherField, setOtherField]           = useState("");
+  const [struggles, setStruggles]             = useState<string[]>([]);
+  const [otherStruggle, setOtherStruggle]     = useState("");
+  const [contentTypes, setContentTypes]       = useState<string[]>([]);
+  const [descriptor, setDescriptor]           = useState("");
+  const [otherDescriptor, setOtherDescriptor] = useState("");
+  const [experience, setExperience]           = useState("");
+  const [followerCount, setFollowerCount]     = useState("");
+  const [monthlyRevenue, setRevenue]          = useState("");
+  const [primaryGoal, setGoal]                = useState("");
+  const [platforms, setPlatforms]             = useState<string[]>([]);
+  const [heardAbout, setHeardAbout]           = useState<string[]>([]);
+  const [otherHeard, setOtherHeard]           = useState("");
 
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  if (user && (user as any).surveyCompleted) return <Redirect to="/dashboard" />;
+  if (user && (user as any).surveyCompleted) return <Redirect to="/select-plan" />;
   if (!user) return <Redirect to="/login" />;
 
   const total = STEPS.length;
@@ -421,7 +422,7 @@ export default function Onboarding() {
       case 1:  return fields.length > 0 && !(fields.includes("Other") && !otherField.trim());
       case 2:  return struggles.length > 0 && !(struggles.includes("Other") && !otherStruggle.trim());
       case 3:  return contentTypes.length > 0;
-      case 4:  return !!descriptor;
+      case 4:  return !!descriptor && !(descriptor === "Other" && !otherDescriptor.trim());
       case 5:  return !!experience;
       case 6:  return !!followerCount;
       case 7:  return !!monthlyRevenue;
@@ -434,14 +435,22 @@ export default function Onboarding() {
 
   const blockReason = (): string => {
     if (step === 1 && fields.includes("Other") && !otherField.trim())
-      return "Please specify your field in the box above";
+      return "Please fill in the text box above to continue";
     if (step === 2 && struggles.includes("Other") && !otherStruggle.trim())
-      return "Please describe your other struggle in the box above";
+      return "Please fill in the text box above to continue";
+    if (step === 4 && descriptor === "Other" && !otherDescriptor.trim())
+      return "Please fill in the text box above to continue";
     if (step === 10 && heardAbout.includes("Other") && !otherHeard.trim())
-      return "Please specify how you heard about us in the box above";
+      return "Please fill in the text box above to continue";
     const s = STEPS[step];
     return s.multi ? "Select at least one option to continue" : "Choose an option to continue";
   };
+
+  const isOtherBlocked =
+    (step === 1 && fields.includes("Other") && !otherField.trim()) ||
+    (step === 2 && struggles.includes("Other") && !otherStruggle.trim()) ||
+    (step === 4 && descriptor === "Other" && !otherDescriptor.trim()) ||
+    (step === 10 && heardAbout.includes("Other") && !otherHeard.trim());
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -453,6 +462,10 @@ export default function Onboarding() {
       const allFields    = resolveOther(fields, otherField);
       const allStruggles = resolveOther(struggles, otherStruggle);
       const allHeard     = resolveOther(heardAbout, otherHeard);
+      const finalDescriptor =
+        descriptor === "Other" && otherDescriptor.trim()
+          ? `Other: ${otherDescriptor.trim()}`
+          : descriptor;
 
       return apiRequest("POST", "/api/user/onboarding-survey", {
         awareness,
@@ -460,7 +473,7 @@ export default function Onboarding() {
         fields: allFields,
         struggles: allStruggles,
         contentTypes,
-        descriptor,
+        descriptor: finalDescriptor,
         experience,
         followerCount,
         monthlyRevenue,
@@ -473,7 +486,8 @@ export default function Onboarding() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       queryClient.invalidateQueries({ queryKey: ["/api/user/onboarding-status"] });
-      navigate("/dashboard");
+      // Always go to pricing page next — after survey, before dashboard
+      navigate("/select-plan");
     },
     onError: (e: any) => {
       toast({ title: "Something went wrong", description: e?.message || "Please try again.", variant: "destructive" });
@@ -493,12 +507,6 @@ export default function Onboarding() {
   const pct = ((step + 1) / total) * 100;
   const current = STEPS[step];
   const ok = canAdvance();
-
-  // Highlight hint when "Other" text is missing specifically
-  const isOtherBlocked =
-    (step === 1 && fields.includes("Other") && !otherField.trim()) ||
-    (step === 2 && struggles.includes("Other") && !otherStruggle.trim()) ||
-    (step === 10 && heardAbout.includes("Other") && !otherHeard.trim());
 
   return (
     <div style={{
@@ -558,21 +566,13 @@ export default function Onboarding() {
           <div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {FIELDS.map(f => (
-                <Chip
-                  key={f} label={f}
-                  selected={fields.includes(f)}
-                  onClick={() => toggle(fields, setFields, f)}
-                  isOther={f === "Other"}
-                />
+                <Chip key={f} label={f} selected={fields.includes(f)}
+                  onClick={() => toggle(fields, setFields, f)} isOther={f === "Other"} />
               ))}
             </div>
             {fields.includes("Other") && (
-              <OtherBox
-                prompt={current.otherPrompt!}
-                placeholder={current.otherPlaceholder!}
-                value={otherField}
-                onChange={setOtherField}
-              />
+              <OtherBox prompt={current.otherPrompt!} placeholder={current.otherPlaceholder!}
+                value={otherField} onChange={setOtherField} />
             )}
           </div>
         )}
@@ -582,21 +582,13 @@ export default function Onboarding() {
           <div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {STRUGGLES.map(s => (
-                <Chip
-                  key={s} label={s}
-                  selected={struggles.includes(s)}
-                  onClick={() => toggle(struggles, setStruggles, s)}
-                  isOther={s === "Other"}
-                />
+                <Chip key={s} label={s} selected={struggles.includes(s)}
+                  onClick={() => toggle(struggles, setStruggles, s)} isOther={s === "Other"} />
               ))}
             </div>
             {struggles.includes("Other") && (
-              <OtherBox
-                prompt={current.otherPrompt!}
-                placeholder={current.otherPlaceholder!}
-                value={otherStruggle}
-                onChange={setOtherStruggle}
-              />
+              <OtherBox prompt={current.otherPrompt!} placeholder={current.otherPlaceholder!}
+                value={otherStruggle} onChange={setOtherStruggle} />
             )}
           </div>
         )}
@@ -605,17 +597,24 @@ export default function Onboarding() {
         {step === 3 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {CONTENT_TYPES.map(c => (
-              <Chip key={c} label={c} selected={contentTypes.includes(c)} onClick={() => toggle(contentTypes, setContentTypes, c)} />
+              <Chip key={c} label={c} selected={contentTypes.includes(c)}
+                onClick={() => toggle(contentTypes, setContentTypes, c)} />
             ))}
           </div>
         )}
 
-        {/* ── Step 4: What best describes you ── */}
+        {/* ── Step 4: Descriptor ── */}
         {step === 4 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {DESCRIPTOR_OPTIONS.map(o => (
-              <Radio key={o} label={o} selected={descriptor === o} onClick={() => setDescriptor(o)} />
-            ))}
+          <div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {DESCRIPTOR_OPTIONS.map(o => (
+                <Radio key={o} label={o} selected={descriptor === o} onClick={() => setDescriptor(o)} />
+              ))}
+            </div>
+            {descriptor === "Other" && (
+              <OtherBox prompt={current.otherPrompt!} placeholder={current.otherPlaceholder!}
+                value={otherDescriptor} onChange={setOtherDescriptor} />
+            )}
           </div>
         )}
 
@@ -659,7 +658,8 @@ export default function Onboarding() {
         {step === 9 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {PLATFORM_OPTIONS.map(p => (
-              <Chip key={p} label={p} selected={platforms.includes(p)} onClick={() => toggle(platforms, setPlatforms, p)} />
+              <Chip key={p} label={p} selected={platforms.includes(p)}
+                onClick={() => toggle(platforms, setPlatforms, p)} />
             ))}
           </div>
         )}
@@ -669,21 +669,13 @@ export default function Onboarding() {
           <div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {HEARD_OPTIONS.map(h => (
-                <Chip
-                  key={h} label={h}
-                  selected={heardAbout.includes(h)}
-                  onClick={() => toggle(heardAbout, setHeardAbout, h)}
-                  isOther={h === "Other"}
-                />
+                <Chip key={h} label={h} selected={heardAbout.includes(h)}
+                  onClick={() => toggle(heardAbout, setHeardAbout, h)} isOther={h === "Other"} />
               ))}
             </div>
             {heardAbout.includes("Other") && (
-              <OtherBox
-                prompt={current.otherPrompt!}
-                placeholder={current.otherPlaceholder!}
-                value={otherHeard}
-                onChange={setOtherHeard}
-              />
+              <OtherBox prompt={current.otherPrompt!} placeholder={current.otherPlaceholder!}
+                value={otherHeard} onChange={setOtherHeard} />
             )}
           </div>
         )}
@@ -703,7 +695,7 @@ export default function Onboarding() {
           {!ok && (
             <p style={{
               textAlign: "center", fontSize: 12,
-              color: isOtherBlocked ? "rgba(245,158,11,0.75)" : "rgba(255,255,255,0.28)",
+              color: isOtherBlocked ? GOLD : "rgba(255,255,255,0.28)",
               margin: "0 0 8px",
             }}>
               {blockReason()}
@@ -727,7 +719,7 @@ export default function Onboarding() {
               ? "Saving your profile…"
               : step < total - 1
                 ? "Continue →"
-                : "Complete Setup →"}
+                : "See Pricing →"}
           </button>
           {step > 0 && (
             <button

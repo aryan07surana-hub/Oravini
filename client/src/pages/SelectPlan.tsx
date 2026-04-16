@@ -164,7 +164,23 @@ export default function SelectPlan() {
             Back to home
           </button>
         </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Choose Your Plan</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {user && (user as any).planConfirmed && (
+            <button
+              onClick={() => navigate("/dashboard")}
+              style={{
+                background: "none", border: `1px solid rgba(255,255,255,0.12)`,
+                cursor: "pointer", color: "rgba(255,255,255,0.5)", fontSize: 13,
+                fontWeight: 500, padding: "7px 16px", borderRadius: 8, transition: "all 0.2s",
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#fff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.3)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.5)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.12)"; }}
+            >
+              Go to Dashboard →
+            </button>
+          )}
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Choose Your Plan</div>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "56px 24px 80px" }}>
