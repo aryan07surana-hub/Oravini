@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+import LowCreditsBanner from "@/components/LowCreditsBanner";
+import UpgradeModal from "@/components/UpgradeModal";
 
 const GOLD = "#d4b461";
 
@@ -362,6 +364,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
         </header>
 
+        {!isAdmin && <LowCreditsBanner />}
         <main
           className="flex-1 overflow-auto"
           style={!isAdmin ? { userSelect: "none" } : undefined}
@@ -371,6 +374,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       </div>
 
       <FocusMusicPlayer />
+      {!isAdmin && <UpgradeModal />}
     </div>
     </>
   );

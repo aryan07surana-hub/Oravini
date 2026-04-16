@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
+import CreditCostBadge from "@/components/CreditCostBadge";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import ViralityTester from "@/pages/client/ViralityTester";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -2212,7 +2213,7 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
             <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
               {analyze.isPending
                 ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
-                : <><Sparkles className="w-4 h-4" />Run Deep Analysis</>}
+                : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={10} level="heavy" className="ml-1.5" /></>}
             </Button>
           </CardContent>
         </Card>

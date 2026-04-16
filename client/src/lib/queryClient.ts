@@ -20,6 +20,9 @@ async function throwIfResNotOk(res: Response) {
       data = JSON.parse(text);
       message = data.message || text;
     } catch {}
+    if (res.status === 402 && data?.insufficientCredits) {
+      window.dispatchEvent(new CustomEvent("oravini:credits-exhausted", { detail: data }));
+    }
     throw new ApiError(message, res.status, data);
   }
 }

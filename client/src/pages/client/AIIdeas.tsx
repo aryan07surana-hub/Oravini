@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { PageTourButton } from "@/components/ui/TourGuide";
+import CreditCostBadge from "@/components/CreditCostBadge";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1475,6 +1476,7 @@ export default function AIIdeas() {
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
                   {isProfileLinked ? `Generate Ideas for ${detectedHandle}` : "Generate Content Ideas"}
+                  <CreditCostBadge cost={2} level="light" className="ml-2" />
                 </>
               )}
             </Button>
