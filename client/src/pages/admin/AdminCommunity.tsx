@@ -371,7 +371,7 @@ export default function AdminCommunity() {
           {/* Admin compose */}
           <div className="px-6 pb-5 pt-3 border-t border-zinc-800 bg-zinc-950/30">
             <p className="text-[10px] font-semibold text-[#d4b461] uppercase tracking-wider mb-2">
-              Post as Brandverse Admin
+              Post as Oravini Admin
             </p>
             <div className="flex gap-3 items-end">
               <Textarea

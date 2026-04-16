@@ -4,7 +4,7 @@ import { hashPassword } from "./auth";
 export async function seedDatabase() {
   try {
     const admins = [
-      { email: "admin@brandverse.com", name: "Brandverse Admin", password: "Brandverse@2024" },
+      { email: "admin@brandverse.com", name: "Oravini Admin Paddle", password: "Brandverse@2024" },
       { email: "admin1@brandverse.com", name: "Co-Founder Admin", password: "Brandverse2024" },
     ];
 
