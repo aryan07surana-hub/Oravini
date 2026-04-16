@@ -99,7 +99,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(400).json({ message: "An account with this email already exists" });
       const hashed = await hashPassword(password);
-      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: false });
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: false, surveyCompleted: false } as any);
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
       // Auto-enroll in "join" sequences
       storage.getEmailSequences().then(seqs => {
@@ -422,11 +422,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const userId = (req.user as any).id;
       const { field, struggles, experience, monthlyRevenue, primaryGoal, platform } = req.body;
+      if (!field || !experience || !monthlyRevenue || !primaryGoal) {
+        return res.status(400).json({ message: "All survey questions must be answered." });
+      }
       const saved = await storage.saveOnboardingSurvey({
         userId, field, struggles, experience, monthlyRevenue, primaryGoal, platform,
         answers: { field, struggles, experience, monthlyRevenue, primaryGoal, platform },
       });
-      res.json({ success: true, survey: saved });
+      await storage.updateUser(userId, { surveyCompleted: true } as any);
+      const updated = await storage.getUser(userId);
+      if (req.user) Object.assign(req.user as any, { surveyCompleted: true });
+      res.json({ success: true, survey: saved, user: updated });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

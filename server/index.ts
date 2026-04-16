@@ -113,7 +113,8 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             googleId: profile.id,
             planConfirmed: false,
             phoneVerified: false,
-          });
+            surveyCompleted: false,
+          } as any);
         }
         return done(null, user!);
       } catch (err) {

@@ -81,6 +81,7 @@ import PublicForm from "@/pages/PublicForm";
 import AdminScheduling from "@/pages/admin/AdminScheduling";
 import PublicBooking from "@/pages/PublicBooking";
 import VerifyPhone from "@/pages/VerifyPhone";
+import Onboarding from "@/pages/Onboarding";
 
 const GOLD = "#d4b461";
 
@@ -132,6 +133,8 @@ function ProtectedRoute({ component: Component, adminOnly = false, ...props }: a
   if (user.role !== "admin" && !(user as any).phoneVerified) return <Redirect to="/verify-phone" />;
   // Block clients who haven't selected a plan yet
   if (user.role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
+  // Block clients who haven't completed the onboarding survey yet
+  if (user.role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
 
   return <Component {...props} />;
 }
@@ -149,6 +152,8 @@ function HomeRedirect() {
   if (!(user as any).phoneVerified) return <Redirect to="/verify-phone" />;
   // Client logged in but hasn't chosen a plan yet — send to plan selection
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
+  // Client logged in but hasn't completed the onboarding survey yet
+  if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   return <Redirect to="/dashboard" />;
 }
 
@@ -160,6 +165,7 @@ function Router() {
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/select-plan" component={SelectPlan} />
       <Route path="/verify-phone" component={VerifyPhone} />
+      <Route path="/onboarding" component={Onboarding} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
       <Route path="/privacy" component={Privacy} />
