@@ -421,13 +421,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const { field, struggles, experience, monthlyRevenue, primaryGoal, platform } = req.body;
-      if (!field || !experience || !monthlyRevenue || !primaryGoal) {
+      const {
+        awareness, field, fields, struggles, contentTypes,
+        descriptor, experience, followerCount, monthlyRevenue,
+        primaryGoal, platform, platforms, heardAbout,
+      } = req.body;
+      if (!experience || !monthlyRevenue || !primaryGoal) {
         return res.status(400).json({ message: "All survey questions must be answered." });
       }
       const saved = await storage.saveOnboardingSurvey({
-        userId, field, struggles, experience, monthlyRevenue, primaryGoal, platform,
-        answers: { field, struggles, experience, monthlyRevenue, primaryGoal, platform },
+        userId,
+        awareness, field, fields, struggles, contentTypes,
+        descriptor, experience, followerCount, monthlyRevenue,
+        primaryGoal, platform, platforms, heardAbout,
+        answers: {
+          awareness, field, fields, struggles, contentTypes,
+          descriptor, experience, followerCount, monthlyRevenue,
+          primaryGoal, platform, platforms, heardAbout,
+        },
       });
       await storage.updateUser(userId, { surveyCompleted: true } as any);
       const updated = await storage.getUser(userId);

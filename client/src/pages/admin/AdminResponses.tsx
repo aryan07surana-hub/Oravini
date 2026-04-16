@@ -5,7 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, ChevronDown, ChevronUp, Users, TrendingUp, Target, DollarSign, Layers, BarChart2 } from "lucide-react";
+import {
+  Search, ChevronDown, ChevronUp, Users, TrendingUp, Target,
+  DollarSign, Layers, BarChart2, Lightbulb, Star, Radio as RadioIcon,
+  Megaphone, Video, MapPin,
+} from "lucide-react";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -22,8 +26,7 @@ const PLAN_COLORS: Record<string, string> = {
   elite:   `border-[#d4b461]/60 text-[#d4b461]`,
 };
 
-const PIE_COLORS = [GOLD, "#60a5fa", "#4ade80", "#f87171", "#a78bfa", "#fb923c", "#34d399"];
-const BAR_COLOR = GOLD;
+const PIE_COLORS = [GOLD, "#60a5fa", "#4ade80", "#f87171", "#a78bfa", "#fb923c", "#34d399", "#f472b6", "#38bdf8", "#facc15"];
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -39,12 +42,44 @@ function HBar({ label, count, total, color }: { label: string; count: number; to
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-zinc-400 w-44 shrink-0 truncate">{label}</span>
+      <span className="text-xs text-zinc-400 w-44 shrink-0 truncate" title={label}>{label}</span>
       <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
         <div style={{ width: `${pct}%`, background: color ?? GOLD }} className="h-full rounded-full transition-all" />
       </div>
-      <span className="text-xs text-zinc-400 w-16 text-right">{count} <span className="text-zinc-600">({pct}%)</span></span>
+      <span className="text-xs text-zinc-500 w-16 text-right">{count} <span className="text-zinc-700">({pct}%)</span></span>
     </div>
+  );
+}
+
+function TagList({ items, color }: { items: string[]; color: string }) {
+  if (!items?.length) return <p className="text-xs text-zinc-600 italic">Not answered</p>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item: string) => (
+        <span key={item} className="inline-block text-xs px-2.5 py-1 rounded-full" style={{
+          border: `1px solid ${color}40`, background: `${color}12`, color,
+        }}>{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function ChartCard({
+  icon, title, iconColor, chartEl,
+}: {
+  icon: any; title: string; iconColor: string; chartEl: any;
+}) {
+  const Icon = icon;
+  return (
+    <Card className="border border-card-border">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Icon className={`w-4 h-4 ${iconColor}`} />
+          <p className="text-sm font-semibold text-white">{title}</p>
+        </div>
+        {chartEl}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -61,69 +96,109 @@ export default function AdminResponses() {
     !search ||
     s.user_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.user_email?.toLowerCase().includes(search.toLowerCase()) ||
-    s.field?.toLowerCase().includes(search.toLowerCase())
+    s.field?.toLowerCase().includes(search.toLowerCase()) ||
+    s.descriptor?.toLowerCase().includes(search.toLowerCase())
   );
 
   const total = surveys.length;
 
-  const fieldCounts: Record<string, number> = {};
-  const struggleCounts: Record<string, number> = {};
-  const goalCounts: Record<string, number> = {};
-  const platformCounts: Record<string, number> = {};
-  const revenueCounts: Record<string, number> = {};
+  // Aggregate all fields
+  const awarenessCounts:   Record<string, number> = {};
+  const fieldCounts:       Record<string, number> = {};
+  const struggleCounts:    Record<string, number> = {};
+  const contentTypeCounts: Record<string, number> = {};
+  const descriptorCounts:  Record<string, number> = {};
+  const followerCounts:    Record<string, number> = {};
+  const revenueCounts:     Record<string, number> = {};
+  const goalCounts:        Record<string, number> = {};
+  const platformCounts:    Record<string, number> = {};
+  const heardCounts:       Record<string, number> = {};
+
+  const inc = (obj: Record<string, number>, key: string | null | undefined) => {
+    if (!key) return;
+    obj[key] = (obj[key] ?? 0) + 1;
+  };
+  const incArr = (obj: Record<string, number>, arr: string[] | null | undefined) => {
+    if (!Array.isArray(arr)) return;
+    for (const v of arr) inc(obj, v);
+  };
 
   for (const s of surveys) {
-    if (s.field) fieldCounts[s.field] = (fieldCounts[s.field] ?? 0) + 1;
-    if (s.primary_goal) goalCounts[s.primary_goal] = (goalCounts[s.primary_goal] ?? 0) + 1;
-    if (s.platform) platformCounts[s.platform] = (platformCounts[s.platform] ?? 0) + 1;
-    if (s.monthly_revenue) revenueCounts[s.monthly_revenue] = (revenueCounts[s.monthly_revenue] ?? 0) + 1;
-    if (Array.isArray(s.struggles)) {
-      for (const str of s.struggles) struggleCounts[str] = (struggleCounts[str] ?? 0) + 1;
-    }
+    inc(awarenessCounts,  s.awareness);
+    inc(fieldCounts,      s.field);
+    incArr(fieldCounts,   s.fields);
+    incArr(struggleCounts, s.struggles);
+    incArr(contentTypeCounts, s.content_types);
+    inc(descriptorCounts, s.descriptor);
+    inc(followerCounts,   s.follower_count);
+    inc(revenueCounts,    s.monthly_revenue);
+    inc(goalCounts,       s.primary_goal);
+    inc(platformCounts,   s.platform);
+    incArr(platformCounts, s.platforms);
+    incArr(heardCounts,   s.heard_about);
   }
 
-  const top = (obj: Record<string, number>, n = 6) =>
+  const top = (obj: Record<string, number>, n = 7) =>
     Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
 
-  const toBarData = (obj: Record<string, number>, n = 6) =>
-    top(obj, n).map(([name, value]) => ({ name: name.length > 22 ? name.slice(0, 20) + "…" : name, value }));
+  const toBarData = (obj: Record<string, number>, n = 7) =>
+    top(obj, n).map(([name, value]) => ({ name: name.length > 24 ? name.slice(0, 22) + "…" : name, value }));
 
-  const toPieData = (obj: Record<string, number>, n = 6) =>
+  const toPieData = (obj: Record<string, number>, n = 7) =>
     top(obj, n).map(([name, value]) => ({ name, value }));
 
-  const renderChart = (data: { name: string; value: number }[], colorStart?: string) => {
+  const makeChart = (obj: Record<string, number>, barColor: string, n = 7) => {
     if (chartType === "pie") {
+      const data = toPieData(obj, n);
       return (
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
             <Pie data={data} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={2}>
               {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={(v: any) => [`${v} response${v !== 1 ? "s" : ""}`, ""]} contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 12 }} />
-            <Legend formatter={(v) => <span className="text-xs text-zinc-400">{v}</span>} wrapperStyle={{ fontSize: 11 }} />
+            <Tooltip formatter={(v: any) => [`${v} response${v !== 1 ? "s" : ""}`, ""]} contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, fontSize: 11 }} />
+            <Legend formatter={(v) => <span className="text-[10px] text-zinc-400">{v}</span>} wrapperStyle={{ fontSize: 10 }} />
           </PieChart>
         </ResponsiveContainer>
       );
     }
+    const data = toBarData(obj, n);
     return (
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={14}>
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40} />
+          <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#71717a" }} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={44} />
           <YAxis tick={{ fontSize: 10, fill: "#71717a" }} tickLine={false} axisLine={false} allowDecimals={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Bar dataKey="value" fill={colorStart ?? BAR_COLOR} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="value" fill={barColor} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     );
   };
 
+  const chartDefs = [
+    { icon: Lightbulb,  title: "Creator Awareness Level",    color: "text-amber-400",   obj: awarenessCounts,   barColor: "#f59e0b" },
+    { icon: Layers,     title: "Top Fields / Niches",        color: "text-[#d4b461]",   obj: fieldCounts,       barColor: GOLD },
+    { icon: TrendingUp, title: "Biggest Struggles",          color: "text-red-400",     obj: struggleCounts,    barColor: "#ef4444" },
+    { icon: Video,      title: "Content Types Created",      color: "text-sky-400",     obj: contentTypeCounts, barColor: "#38bdf8" },
+    { icon: Star,       title: "What Best Describes Them",   color: "text-violet-400",  obj: descriptorCounts,  barColor: "#a78bfa" },
+    { icon: RadioIcon,  title: "Follower Count Ranges",      color: "text-emerald-400", obj: followerCounts,    barColor: "#22c55e" },
+    { icon: DollarSign, title: "Current Revenue",            color: "text-purple-400",  obj: revenueCounts,     barColor: "#c084fc" },
+    { icon: Target,     title: "Primary Goals",              color: "text-green-400",   obj: goalCounts,        barColor: "#4ade80" },
+    { icon: MapPin,     title: "Active Platforms",           color: "text-blue-400",    obj: platformCounts,    barColor: "#60a5fa" },
+    { icon: Megaphone,  title: "How They Heard About Us",    color: "text-pink-400",    obj: heardCounts,       barColor: "#f472b6" },
+  ];
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
+
+        {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-white">Onboarding Responses</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">Survey answers from clients — {total} total response{total !== 1 ? "s" : ""}</p>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              Survey answers from clients — {total} total response{total !== 1 ? "s" : ""}
+            </p>
           </div>
           {total > 0 && (
             <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg p-1">
@@ -145,82 +220,49 @@ export default function AdminResponses() {
           )}
         </div>
 
+        {/* Charts — all 10 */}
         {total > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {chartDefs.map(({ icon, title, color, obj, barColor }) => (
+                <ChartCard
+                  key={title}
+                  icon={icon}
+                  title={title}
+                  iconColor={color}
+                  chartEl={makeChart(obj, barColor)}
+                />
+              ))}
 
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Layers className="w-4 h-4 text-[#d4b461]" />
-                  <p className="text-sm font-semibold text-white">Top Fields</p>
-                </div>
-                {renderChart(toBarData(fieldCounts))}
-              </CardContent>
-            </Card>
-
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <TrendingUp className="w-4 h-4 text-red-400" />
-                  <p className="text-sm font-semibold text-white">Biggest Struggles</p>
-                </div>
-                {renderChart(toBarData(struggleCounts), "#ef4444")}
-              </CardContent>
-            </Card>
-
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Target className="w-4 h-4 text-emerald-400" />
-                  <p className="text-sm font-semibold text-white">Primary Goals</p>
-                </div>
-                {renderChart(toBarData(goalCounts), "#22c55e")}
-              </CardContent>
-            </Card>
-
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart2 className="w-4 h-4 text-blue-400" />
-                  <p className="text-sm font-semibold text-white">Platforms</p>
-                </div>
-                {renderChart(toPieData(platformCounts), "#60a5fa")}
-              </CardContent>
-            </Card>
-
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <DollarSign className="w-4 h-4 text-violet-400" />
-                  <p className="text-sm font-semibold text-white">Current Revenue</p>
-                </div>
-                {renderChart(toPieData(revenueCounts), "#a78bfa")}
-              </CardContent>
-            </Card>
-
-            <Card className="border border-card-border">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-4 h-4 text-[#d4b461]" />
-                  <p className="text-sm font-semibold text-white">Summary</p>
-                </div>
-                <div className="space-y-3">
-                  {[
-                    { label: "Most common field", value: top(fieldCounts, 1)[0]?.[0], color: "text-[#d4b461]" },
-                    { label: "Top struggle", value: top(struggleCounts, 1)[0]?.[0], color: "text-red-400" },
-                    { label: "Top goal", value: top(goalCounts, 1)[0]?.[0], color: "text-emerald-400" },
-                    { label: "Main platform", value: top(platformCounts, 1)[0]?.[0], color: "text-blue-400" },
-                    { label: "Most common revenue", value: top(revenueCounts, 1)[0]?.[0], color: "text-violet-400" },
-                  ].map(({ label, value, color }) => (
-                    <div key={label}>
-                      <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
-                      <p className={`text-sm font-semibold ${color}`}>{value ?? "—"}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              {/* Summary card */}
+              <Card className="border border-card-border">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-4 h-4 text-[#d4b461]" />
+                    <p className="text-sm font-semibold text-white">Audience Summary</p>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Most common niche",       value: top(fieldCounts, 1)[0]?.[0],       color: "text-[#d4b461]" },
+                      { label: "Top struggle",            value: top(struggleCounts, 1)[0]?.[0],     color: "text-red-400" },
+                      { label: "Most common role",        value: top(descriptorCounts, 1)[0]?.[0],   color: "text-violet-400" },
+                      { label: "Main content type",       value: top(contentTypeCounts, 1)[0]?.[0],  color: "text-sky-400" },
+                      { label: "Top follower range",      value: top(followerCounts, 1)[0]?.[0],     color: "text-emerald-400" },
+                      { label: "Top goal",                value: top(goalCounts, 1)[0]?.[0],         color: "text-green-400" },
+                      { label: "Most common revenue",     value: top(revenueCounts, 1)[0]?.[0],      color: "text-purple-400" },
+                      { label: "Main platform",           value: top(platformCounts, 1)[0]?.[0],     color: "text-blue-400" },
+                      { label: "Top referral source",     value: top(heardCounts, 1)[0]?.[0],        color: "text-pink-400" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label}>
+                        <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
+                        <p className={`text-sm font-semibold ${color} truncate`}>{value ?? "—"}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </>
         )}
 
         {/* Individual responses */}
@@ -231,7 +273,7 @@ export default function AdminResponses() {
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, email, or field…"
+                placeholder="Search by name, email, field…"
                 className="pl-9 h-9 text-sm bg-zinc-900 border-zinc-700"
                 data-testid="input-responses-search"
               />
@@ -246,7 +288,11 @@ export default function AdminResponses() {
           ) : filtered.length === 0 ? (
             <Card className="border border-card-border">
               <CardContent className="p-12 text-center">
-                <p className="text-zinc-500 text-sm">{total === 0 ? "No responses yet — they'll appear here when clients complete the onboarding survey." : "No results match your search."}</p>
+                <p className="text-zinc-500 text-sm">
+                  {total === 0
+                    ? "No responses yet — they'll appear here when clients complete the onboarding survey."
+                    : "No results match your search."}
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -272,12 +318,17 @@ export default function AdminResponses() {
                                 {s.user_plan}
                               </Badge>
                             )}
+                            {s.descriptor && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-400">
+                                {s.descriptor}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-zinc-500 truncate">{s.user_email}</p>
                         </div>
                         <div className="hidden sm:flex flex-col items-end gap-1 shrink-0">
-                          {s.field && <span className="text-xs text-zinc-400">{s.field}</span>}
-                          {s.platform && <span className="text-xs text-zinc-600">{s.platform}</span>}
+                          {s.field && <span className="text-xs text-zinc-400 truncate max-w-[160px]">{s.field}</span>}
+                          {s.follower_count && <span className="text-xs text-zinc-600">{s.follower_count} followers</span>}
                         </div>
                         <div className="shrink-0">
                           {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
@@ -285,26 +336,39 @@ export default function AdminResponses() {
                       </button>
 
                       {isOpen && (
-                        <div className="border-t border-zinc-800/60 px-4 pb-4 pt-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <ResponseField label="Field / Niche" value={s.field} />
-                            <ResponseField label="Primary Platform" value={s.platform} />
-                            <ResponseField label="Experience" value={s.experience} />
-                            <ResponseField label="Monthly Revenue" value={s.monthly_revenue} />
-                            <ResponseField label="Primary Goal" value={s.primary_goal} />
-                            <div>
-                              <p className="text-xs text-zinc-500 mb-1.5 font-medium uppercase tracking-wide">Biggest Struggles</p>
-                              {Array.isArray(s.struggles) && s.struggles.length > 0 ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {s.struggles.map((str: string) => (
-                                    <span key={str} className="inline-block text-xs px-2.5 py-1 rounded-full border border-red-500/30 bg-red-500/10 text-red-400">{str}</span>
-                                  ))}
-                                </div>
-                              ) : <p className="text-xs text-zinc-600 italic">None specified</p>}
-                            </div>
+                        <div className="border-t border-zinc-800/60 px-4 pb-5 pt-4 space-y-5">
+
+                          {/* Row 1 */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <SField label="Awareness Level" value={s.awareness} />
+                            <SField label="What Best Describes Them" value={s.descriptor} color="text-violet-400" />
+                            <SField label="Experience" value={s.experience} />
+                            <SField label="Follower Count" value={s.follower_count} color="text-emerald-400" />
+                            <SField label="Monthly Revenue" value={s.monthly_revenue} color="text-purple-400" />
+                            <SField label="Primary Goal" value={s.primary_goal} color="text-green-400" />
                           </div>
+
+                          {/* Tags */}
+                          <div className="space-y-3">
+                            <STagField
+                              label="Fields / Niches"
+                              items={Array.isArray(s.fields) && s.fields.length ? s.fields : s.field ? [s.field] : []}
+                              color={GOLD}
+                            />
+                            <STagField label="Struggles" items={s.struggles} color="#ef4444" />
+                            <STagField label="Content Types" items={s.content_types} color="#38bdf8" />
+                            <STagField
+                              label="Platforms"
+                              items={Array.isArray(s.platforms) && s.platforms.length ? s.platforms : s.platform ? [s.platform] : []}
+                              color="#60a5fa"
+                            />
+                            <STagField label="How They Heard About Us" items={s.heard_about} color="#f472b6" />
+                          </div>
+
                           {s.completed_at && (
-                            <p className="text-xs text-zinc-600 mt-3">Submitted {format(new Date(s.completed_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                            <p className="text-xs text-zinc-600">
+                              Submitted {format(new Date(s.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                            </p>
                           )}
                         </div>
                       )}
@@ -320,11 +384,22 @@ export default function AdminResponses() {
   );
 }
 
-function ResponseField({ label, value }: { label: string; value?: string | null }) {
+function SField({ label, value, color }: { label: string; value?: string | null; color?: string }) {
   return (
     <div>
-      <p className="text-xs text-zinc-500 mb-0.5 font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-sm text-white">{value ?? <span className="text-zinc-600 italic">Not answered</span>}</p>
+      <p className="text-[10px] text-zinc-500 mb-0.5 font-semibold uppercase tracking-wider">{label}</p>
+      <p className={`text-sm font-medium ${color ?? "text-white"}`}>
+        {value ?? <span className="text-zinc-600 italic font-normal">Not answered</span>}
+      </p>
+    </div>
+  );
+}
+
+function STagField({ label, items, color }: { label: string; items?: string[] | null; color: string }) {
+  return (
+    <div>
+      <p className="text-[10px] text-zinc-500 mb-1.5 font-semibold uppercase tracking-wider">{label}</p>
+      <TagList items={items ?? []} color={color} />
     </div>
   );
 }

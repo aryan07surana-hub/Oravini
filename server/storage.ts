@@ -801,14 +801,37 @@ class DatabaseStorage implements IStorage {
   // ── Onboarding Surveys ─────────────────────────────────────────────────────
   async saveOnboardingSurvey(data: any): Promise<any> {
     const result = await pool.query(
-      `INSERT INTO onboarding_surveys (user_id, field, struggles, experience, monthly_revenue, primary_goal, platform, answers)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO onboarding_surveys
+         (user_id, awareness, field, fields, struggles, content_types, descriptor, experience, follower_count, monthly_revenue, primary_goal, platform, platforms, heard_about, answers)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        ON CONFLICT (user_id) DO UPDATE SET
-         field=EXCLUDED.field, struggles=EXCLUDED.struggles, experience=EXCLUDED.experience,
-         monthly_revenue=EXCLUDED.monthly_revenue, primary_goal=EXCLUDED.primary_goal,
-         platform=EXCLUDED.platform, answers=EXCLUDED.answers, completed_at=NOW()
+         awareness=EXCLUDED.awareness,
+         field=EXCLUDED.field, fields=EXCLUDED.fields,
+         struggles=EXCLUDED.struggles, content_types=EXCLUDED.content_types,
+         descriptor=EXCLUDED.descriptor, experience=EXCLUDED.experience,
+         follower_count=EXCLUDED.follower_count, monthly_revenue=EXCLUDED.monthly_revenue,
+         primary_goal=EXCLUDED.primary_goal,
+         platform=EXCLUDED.platform, platforms=EXCLUDED.platforms,
+         heard_about=EXCLUDED.heard_about,
+         answers=EXCLUDED.answers, completed_at=NOW()
        RETURNING *`,
-      [data.userId, data.field, data.struggles, data.experience, data.monthlyRevenue, data.primaryGoal, data.platform, JSON.stringify(data.answers ?? {})]
+      [
+        data.userId,
+        data.awareness ?? null,
+        data.field ?? null,
+        data.fields ?? null,
+        data.struggles ?? null,
+        data.contentTypes ?? null,
+        data.descriptor ?? null,
+        data.experience ?? null,
+        data.followerCount ?? null,
+        data.monthlyRevenue ?? null,
+        data.primaryGoal ?? null,
+        data.platform ?? null,
+        data.platforms ?? null,
+        data.heardAbout ?? null,
+        JSON.stringify(data.answers ?? {}),
+      ]
     );
     return result.rows[0];
   }
