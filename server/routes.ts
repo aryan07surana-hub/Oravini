@@ -395,6 +395,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/account/delete — user submits exit survey then deletes own account
+  app.post("/api/account/delete", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { reason, duration, rating, favoriteFeature, wouldReturn } = req.body;
+      if (!reason || !duration || !rating || !favoriteFeature || !wouldReturn) {
+        return res.status(400).json({ message: "All survey questions are required" });
+      }
+      // Save survey answers
+      await pool.query(
+        `INSERT INTO deletion_surveys (user_id, user_name, user_email, user_plan, reason, duration, rating, favorite_feature, would_return)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [user.id, user.name, user.email, user.plan || "free", reason, duration, rating, favoriteFeature, wouldReturn]
+      );
+      // Delete the user account
+      await storage.deleteUser(user.id);
+      // Destroy session
+      req.logout(() => {});
+      return res.json({ message: "Account deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/deletion-surveys — admin: see all exit survey responses
+  app.get("/api/admin/deletion-surveys", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const rows = await pool.query(
+        `SELECT * FROM deletion_surveys ORDER BY created_at DESC`
+      );
+      return res.json(rows.rows);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   app.patch("/api/clients/:id/reset-password", requireAdmin, async (req, res) => {
     const { newPassword } = req.body;
     if (!newPassword) return res.status(400).json({ message: "newPassword required" });

@@ -42,6 +42,7 @@ import Credits from "@/pages/client/Credits";
 import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
 import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
+import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
 import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import Privacy from "@/pages/Privacy";
@@ -375,6 +376,9 @@ function Router() {
       </Route>
       <Route path="/admin/email-marketing">
         {() => <ProtectedRoute component={AdminEmailMarketing} adminOnly />}
+      </Route>
+      <Route path="/admin/churn">
+        {() => <ProtectedRoute component={AdminChurnAnalysis} adminOnly />}
       </Route>
       <Route path="/admin/responses">
         {() => <ProtectedRoute component={AdminResponses} adminOnly />}

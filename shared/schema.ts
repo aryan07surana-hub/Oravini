@@ -821,3 +821,20 @@ export const emailUnsubscribes = pgTable("email_unsubscribes", {
   email: text("email").notNull().unique(),
   unsubscribedAt: timestamp("unsubscribed_at").defaultNow(),
 });
+
+export const deletionSurveys = pgTable("deletion_surveys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  userName: text("user_name"),
+  userEmail: text("user_email"),
+  userPlan: text("user_plan"),
+  reason: text("reason").notNull(),
+  duration: text("duration").notNull(),
+  rating: text("rating").notNull(),
+  favoriteFeature: text("favorite_feature").notNull(),
+  wouldReturn: text("would_return").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDeletionSurveySchema = createInsertSchema(deletionSurveys).omit({ id: true, createdAt: true });
+export type InsertDeletionSurvey = z.infer<typeof insertDeletionSurveySchema>;
+export type DeletionSurvey = typeof deletionSurveys.$inferSelect;

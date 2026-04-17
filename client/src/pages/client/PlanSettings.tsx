@@ -3,8 +3,12 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings, Rocket, AlertTriangle, X, ExternalLink } from "lucide-react";
+import {
+  Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings,
+  Rocket, AlertTriangle, X, ExternalLink, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 
 const PLANS = [
   {
@@ -80,12 +84,281 @@ const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
 const PLATFORM_URL = "https://oravini.com";
 const WHOP_MANAGE_URL = "https://whop.com/manage-membership";
 
+/* ─── Exit Survey Questions ─── */
+const SURVEY_QUESTIONS = [
+  {
+    key: "reason",
+    question: "Why are you deleting your account?",
+    emoji: "🤔",
+    options: [
+      "I no longer need the service",
+      "It's too expensive for me right now",
+      "I found a better alternative",
+      "I'm not getting the results I expected",
+      "Technical issues or bugs",
+      "Other",
+    ],
+  },
+  {
+    key: "duration",
+    question: "How long were you a member?",
+    emoji: "📅",
+    options: [
+      "Less than 1 week",
+      "1–4 weeks",
+      "1–3 months",
+      "3–6 months",
+      "More than 6 months",
+    ],
+  },
+  {
+    key: "rating",
+    question: "How would you rate your overall experience?",
+    emoji: "⭐",
+    options: [
+      "⭐ Very poor",
+      "⭐⭐ Poor",
+      "⭐⭐⭐ Average",
+      "⭐⭐⭐⭐ Good",
+      "⭐⭐⭐⭐⭐ Excellent",
+    ],
+  },
+  {
+    key: "favoriteFeature",
+    question: "What feature did you find most useful?",
+    emoji: "🛠️",
+    options: [
+      "AI Content Ideas",
+      "Competitor Study",
+      "Carousel Studio",
+      "AI Coach",
+      "Video Editor",
+      "None of the above",
+    ],
+  },
+  {
+    key: "wouldReturn",
+    question: "Would you consider coming back?",
+    emoji: "🔄",
+    options: [
+      "Yes, definitely",
+      "Maybe if the price changes",
+      "Maybe if more features are added",
+      "Probably not",
+      "No",
+    ],
+  },
+];
+
+/* ─── Delete Account Modal ─── */
+function DeleteAccountModal({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const [step, setStep] = useState(0); // 0 = intro, 1-5 = questions, 6 = confirm
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [confirmText, setConfirmText] = useState("");
+
+  const totalSteps = SURVEY_QUESTIONS.length;
+  const isIntro = step === 0;
+  const isConfirm = step === totalSteps + 1;
+  const currentQ = !isIntro && !isConfirm ? SURVEY_QUESTIONS[step - 1] : null;
+  const currentAnswer = currentQ ? answers[currentQ.key] : null;
+
+  const deleteAccount = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/account/delete", {
+      reason: answers.reason,
+      duration: answers.duration,
+      rating: answers.rating,
+      favoriteFeature: answers.favoriteFeature,
+      wouldReturn: answers.wouldReturn,
+    }),
+    onSuccess: () => {
+      toast({ title: "Account deleted", description: "Your account has been permanently deleted." });
+      queryClient.clear();
+      window.location.href = "/";
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const handleSelect = (key: string, value: string) => {
+    setAnswers(prev => ({ ...prev, [key]: value }));
+  };
+
+  const canProceed = isIntro || isConfirm || (currentQ && !!answers[currentQ.key]);
+  const allAnswered = SURVEY_QUESTIONS.every(q => !!answers[q.key]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
+      <div className="w-full max-w-lg rounded-3xl overflow-hidden" style={{ background: "rgba(10,8,18,0.98)", border: "1px solid rgba(239,68,68,0.2)" }}>
+
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-zinc-800/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Delete Account</p>
+                <p className="text-[10px] text-zinc-500">
+                  {isIntro ? "Before you go…" : isConfirm ? "Final confirmation" : `Question ${step} of ${totalSteps}`}
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Progress bar */}
+          {!isIntro && (
+            <div className="mt-4 flex gap-1">
+              {SURVEY_QUESTIONS.map((_, i) => (
+                <div
+                  key={i}
+                  className="flex-1 h-1 rounded-full transition-all"
+                  style={{ background: i < step - 1 ? "#ef4444" : i === step - 1 ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.06)" }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-6 min-h-[320px] flex flex-col">
+
+          {/* Intro */}
+          {isIntro && (
+            <div className="flex-1 flex flex-col justify-center text-center">
+              <div className="text-5xl mb-4">😢</div>
+              <p className="text-lg font-bold text-white mb-2">We're sorry to see you go</p>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+                Before we permanently delete your account, we'd love to understand why you're leaving.
+                It only takes 60 seconds and helps us build a better platform for everyone.
+              </p>
+              <div className="space-y-2 text-left mb-6">
+                {[
+                  "All your data will be permanently erased",
+                  "You cannot undo this action",
+                  "Your subscription remains active on Whop — cancel it separately",
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-zinc-500">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setStep(1)}
+                className="w-full py-3 rounded-xl text-sm font-bold transition-all hover:opacity-90"
+                style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+                data-testid="button-start-survey"
+              >
+                Continue to survey →
+              </button>
+            </div>
+          )}
+
+          {/* MCQ Question */}
+          {currentQ && (
+            <div className="flex-1 flex flex-col">
+              <div className="mb-5">
+                <span className="text-2xl">{currentQ.emoji}</span>
+                <p className="text-base font-bold text-white mt-2">{currentQ.question}</p>
+              </div>
+              <div className="flex-1 space-y-2">
+                {currentQ.options.map(opt => {
+                  const selected = answers[currentQ.key] === opt;
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => handleSelect(currentQ.key, opt)}
+                      data-testid={`survey-option-${opt.toLowerCase().replace(/\s+/g, "-").slice(0, 30)}`}
+                      className="w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all"
+                      style={{
+                        background: selected ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${selected ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.07)"}`,
+                        color: selected ? "#f87171" : "rgba(255,255,255,0.7)",
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center" style={{ borderColor: selected ? "#f87171" : "rgba(255,255,255,0.15)" }}>
+                          {selected && <div className="w-2 h-2 rounded-full bg-red-400" />}
+                        </div>
+                        {opt}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Final Confirm */}
+          {isConfirm && (
+            <div className="flex-1 flex flex-col justify-center">
+              <div className="rounded-2xl p-4 mb-5" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Final Warning</p>
+                <p className="text-sm text-zinc-300 leading-relaxed">
+                  This action is <strong className="text-white">permanent and irreversible</strong>. All your data, history, credits, and progress will be deleted forever.
+                </p>
+              </div>
+              <p className="text-xs text-zinc-500 mb-2">Type <span className="font-mono font-bold text-red-400">DELETE</span> to confirm:</p>
+              <input
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value.toUpperCase())}
+                placeholder="Type DELETE to confirm"
+                className="w-full px-4 py-3 rounded-xl text-sm bg-zinc-900 border text-white placeholder:text-zinc-600 focus:outline-none mb-4 font-mono"
+                style={{ borderColor: confirmText === "DELETE" ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.08)" }}
+                data-testid="input-delete-confirm"
+              />
+              <button
+                onClick={() => deleteAccount.mutate()}
+                disabled={confirmText !== "DELETE" || deleteAccount.isPending}
+                className="w-full py-3 rounded-xl text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", color: "#f87171" }}
+                data-testid="button-confirm-delete"
+              >
+                {deleteAccount.isPending ? "Deleting account…" : "🗑️ Permanently Delete My Account"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Footer nav */}
+        {!isIntro && (
+          <div className="px-6 pb-6 flex items-center justify-between">
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> Back
+            </button>
+            {!isConfirm && (
+              <button
+                onClick={() => setStep(s => s + 1)}
+                disabled={!canProceed}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-30"
+                style={{ background: canProceed ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${canProceed ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.06)"}`, color: canProceed ? "#f87171" : "rgba(255,255,255,0.3)" }}
+                data-testid="button-survey-next"
+              >
+                {step === totalSteps ? "Next: Confirm" : "Next"} <ChevronRightIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Settings Page ─── */
 export default function PlanSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const currentPlan = (user as any)?.plan || "free";
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
@@ -131,6 +404,8 @@ export default function PlanSettings() {
 
   return (
     <ClientLayout>
+      {showDeleteModal && <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />}
+
       <div className="max-w-3xl mx-auto px-6 py-10">
 
         {/* Page header */}
@@ -283,7 +558,6 @@ export default function PlanSettings() {
                         opacity: isDowngrade ? 0.4 : 1,
                       }}
                     >
-                      {/* Plan info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-bold text-white">{plan.name}</span>
@@ -316,8 +590,6 @@ export default function PlanSettings() {
                           )}
                         </div>
                       </div>
-
-                      {/* Action */}
                       <div className="flex-shrink-0 pt-1">
                         {isCurrent ? (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: `${plan.accentColor}18` }}>
@@ -352,6 +624,37 @@ export default function PlanSettings() {
             </div>
           </div>
         )}
+
+        {/* ── DELETE ACCOUNT ── */}
+        <div className="mt-6">
+          <div
+            className="rounded-2xl p-6 cursor-pointer group transition-all"
+            style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.12)" }}
+            data-testid="delete-account-card"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all group-hover:scale-105" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Delete Account</p>
+                <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                  Permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                data-testid="button-open-delete-modal"
+                className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </ClientLayout>
   );

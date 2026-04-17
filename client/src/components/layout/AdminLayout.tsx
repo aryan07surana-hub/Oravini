@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail
+  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ const mainNavItems = [
   { href: "/admin/crm", label: "CRM", icon: Database },
   { href: "/admin/email-marketing", label: "Email Marketing", icon: Mail },
   { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
+  { href: "/admin/churn", label: "Churn Analysis", icon: TrendingDown },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/scheduling", label: "Scheduling", icon: CalendarDays },
   { href: "/admin/credits", label: "Credits", icon: Zap },
