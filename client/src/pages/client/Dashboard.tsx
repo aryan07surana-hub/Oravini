@@ -1624,6 +1624,9 @@ export default function ClientDashboard() {
           {/* ── CREATOR SCORE ── */}
           <CreatorScore streak={streak} monthActions={monthActions} contentCount={(contentPosts || []).length} />
 
+          {/* ── REFERRAL WIDGET ── */}
+          <ReferralWidget stats={referralStats} />
+
           {/* ── ACTIVITY COMMAND CENTER ── */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -1918,9 +1921,6 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
-
-          {/* ── REFERRAL WIDGET ── */}
-          <ReferralWidget stats={referralStats} />
 
           {/* ── COURSE MODULES ── */}
           <div className="rounded-2xl border border-zinc-800 p-5">

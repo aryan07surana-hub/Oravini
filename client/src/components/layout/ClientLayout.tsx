@@ -12,9 +12,9 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 import LowCreditsBanner from "@/components/LowCreditsBanner";
 import UpgradeModal from "@/components/UpgradeModal";
@@ -67,6 +67,111 @@ function CreditWidget() {
           <ChevronRight className="w-3 h-3 text-zinc-600" />
         </div>
       </Link>
+    </div>
+  );
+}
+
+function SidebarReferralWidget() {
+  const { data: stats } = useQuery<any>({
+    queryKey: ["/api/referral/my-stats"],
+    staleTime: 60000,
+  });
+  const [copied, setCopied] = useState(false);
+  const [hovered, setHovered] = useState(false);
+
+  const link = stats?.link || "";
+  const code = stats?.code || "";
+  const signups = stats?.signups ?? 0;
+
+  const copy = useCallback(() => {
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [link]);
+
+  return (
+    <div className="px-4 pb-3">
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          borderRadius: 12,
+          border: `1.5px solid ${hovered ? GOLD + "50" : GOLD + "28"}`,
+          background: hovered
+            ? `linear-gradient(135deg, ${GOLD}10 0%, rgba(255,255,255,0.02) 100%)`
+            : `linear-gradient(135deg, ${GOLD}07 0%, transparent 100%)`,
+          padding: "10px 12px",
+          transition: "border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease",
+          boxShadow: hovered ? `0 4px 20px ${GOLD}18` : "none",
+        }}
+      >
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+          <div style={{
+            width: 22, height: 22, borderRadius: 6,
+            background: `${GOLD}20`, display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "transform 0.2s ease",
+            transform: hovered ? "scale(1.1)" : "scale(1)",
+          }}>
+            <Gift style={{ width: 11, height: 11, color: GOLD }} />
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.02em" }}>Refer &amp; Earn</span>
+          {signups > 0 && (
+            <span style={{
+              marginLeft: "auto", fontSize: 9, fontWeight: 700,
+              background: `${GOLD}20`, color: GOLD, borderRadius: 99,
+              padding: "2px 6px", border: `1px solid ${GOLD}30`,
+            }}>
+              {signups} signup{signups !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Code + copy row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{
+            flex: 1, display: "flex", alignItems: "center",
+            padding: "5px 8px", borderRadius: 7,
+            background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)",
+            minWidth: 0,
+          }}>
+            <span style={{
+              fontFamily: "monospace", fontSize: 10, color: code ? "#c4b37a" : "#52525b",
+              letterSpacing: "0.08em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {code || "loading…"}
+            </span>
+          </div>
+          <button
+            data-testid="sidebar-copy-referral"
+            onClick={copy}
+            disabled={!link}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 26, height: 26, borderRadius: 7,
+              background: copied ? "rgba(34,197,94,0.25)" : `${GOLD}20`,
+              border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : GOLD + "35"}`,
+              cursor: link ? "pointer" : "not-allowed",
+              transition: "background 0.25s ease, border-color 0.25s ease, transform 0.15s ease",
+              transform: copied ? "scale(0.95)" : "scale(1)",
+            }}
+            onMouseEnter={e => { if (link) (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)"; }}
+            onMouseLeave={e => { if (!copied) (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
+          >
+            {copied
+              ? <Check style={{ width: 11, height: 11, color: "#22c55e" }} />
+              : <Copy style={{ width: 11, height: 11, color: GOLD }} />
+            }
+          </button>
+        </div>
+
+        {/* Subtext */}
+        <p style={{ fontSize: 9, color: "#52525b", marginTop: 6, lineHeight: 1.5 }}>
+          +50 credits per friend who joins
+        </p>
+      </div>
     </div>
   );
 }
@@ -288,6 +393,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
         </nav>
 
+        <SidebarReferralWidget />
         <CreditWidget />
 
         {(user as any)?.plan === "elite" && (
