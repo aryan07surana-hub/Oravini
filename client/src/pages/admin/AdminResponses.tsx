@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Search, ChevronDown, ChevronUp, Users, TrendingUp, Target,
   DollarSign, Layers, BarChart2, Lightbulb, Star, Radio as RadioIcon,
-  Megaphone, Video, MapPin,
+  Megaphone, Video, MapPin, Crown, Flame, Mail, ArrowRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -123,6 +123,10 @@ export default function AdminResponses() {
     for (const v of arr) inc(obj, v);
   };
 
+  // Elite interest (12th question) — most important
+  const eliteCounts = { yes: 0, not_now: 0, maybe: 0, unanswered: 0 };
+  const eliteYesUsers: any[] = [];
+
   for (const s of surveys) {
     inc(awarenessCounts,  s.awareness);
     inc(fieldCounts,      s.field);
@@ -136,7 +140,17 @@ export default function AdminResponses() {
     inc(platformCounts,   s.platform);
     incArr(platformCounts, s.platforms);
     incArr(heardCounts,   s.heard_about);
+
+    const ei = s.answers?.eliteInterest;
+    if (ei === "yes") { eliteCounts.yes++; eliteYesUsers.push(s); }
+    else if (ei === "not_now") eliteCounts.not_now++;
+    else if (ei === "maybe") eliteCounts.maybe++;
+    else eliteCounts.unanswered++;
   }
+  const eliteAnswered = eliteCounts.yes + eliteCounts.not_now + eliteCounts.maybe;
+  const eliteYesPct = eliteAnswered > 0 ? Math.round((eliteCounts.yes / eliteAnswered) * 100) : 0;
+  const eliteNotNowPct = eliteAnswered > 0 ? Math.round((eliteCounts.not_now / eliteAnswered) * 100) : 0;
+  const eliteMaybePct = eliteAnswered > 0 ? Math.round((eliteCounts.maybe / eliteAnswered) * 100) : 0;
 
   const top = (obj: Record<string, number>, n = 7) =>
     Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
@@ -220,6 +234,143 @@ export default function AdminResponses() {
           )}
         </div>
 
+        {/* ── ELITE INTEREST — TIER 5 / 12TH QUESTION ── */}
+        {total > 0 && (
+          <Card
+            className="border-0 overflow-hidden relative"
+            style={{
+              background: "linear-gradient(135deg, rgba(212,180,97,0.12) 0%, rgba(212,180,97,0.04) 50%, rgba(0,0,0,0.4) 100%)",
+              border: "1px solid rgba(212,180,97,0.4)",
+              boxShadow: "0 0 60px rgba(212,180,97,0.15)",
+            }}
+            data-testid="card-elite-interest"
+          >
+            <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none"
+              style={{ background: GOLD, opacity: 0.08, transform: "translate(35%, -35%)" }} />
+
+            <CardContent className="relative p-6">
+              <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Crown className="w-4 h-4" style={{ color: GOLD }} />
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>
+                      Tier 5 · Elite Interest · Hottest Signal
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-black text-white">Who wants help scaling their offer?</h2>
+                  <p className="text-sm text-zinc-400 mt-1">
+                    The most important question — these answers tell you who's ready for high-ticket coaching today.
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Total answered</p>
+                  <p className="text-3xl font-black text-white mt-1">{eliteAnswered}<span className="text-base text-zinc-600 font-normal"> / {total}</span></p>
+                </div>
+              </div>
+
+              {/* Big stat tiles */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                {/* YES — most prominent */}
+                <div className="rounded-2xl p-5 relative overflow-hidden"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(212,180,97,0.18), rgba(212,180,97,0.06))",
+                    border: `2px solid ${GOLD}`,
+                    boxShadow: `0 0 28px ${GOLD}30`,
+                  }}>
+                  <div className="absolute top-2 right-2">
+                    <div className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest" style={{ background: GOLD, color: "#000" }}>
+                      🔥 Hot Lead
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Flame className="w-4 h-4" style={{ color: GOLD }} />
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: GOLD }}>Yes — wants more</p>
+                  </div>
+                  <p className="text-5xl font-black text-white leading-none">{eliteCounts.yes}</p>
+                  <p className="text-sm font-semibold mt-2" style={{ color: GOLD }}>{eliteYesPct}% of answered</p>
+                  <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                    Ready for Tier 5 outreach — message these users about Elite right away.
+                  </p>
+                </div>
+
+                {/* NOT NOW */}
+                <div className="rounded-2xl p-5"
+                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <RadioIcon className="w-3.5 h-3.5 text-zinc-400" />
+                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Not right now</p>
+                  </div>
+                  <p className="text-4xl font-black text-zinc-200 leading-none">{eliteCounts.not_now}</p>
+                  <p className="text-sm font-semibold text-zinc-400 mt-2">{eliteNotNowPct}% of answered</p>
+                  <p className="text-xs text-zinc-600 mt-2 leading-relaxed">
+                    Open in 3–6 months. Add to nurture sequence.
+                  </p>
+                </div>
+
+                {/* MAYBE */}
+                <div className="rounded-2xl p-5"
+                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lightbulb className="w-3.5 h-3.5 text-zinc-400" />
+                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Maybe later</p>
+                  </div>
+                  <p className="text-4xl font-black text-zinc-200 leading-none">{eliteCounts.maybe}</p>
+                  <p className="text-sm font-semibold text-zinc-400 mt-2">{eliteMaybePct}% of answered</p>
+                  <p className="text-xs text-zinc-600 mt-2 leading-relaxed">
+                    Long-term prospects — nurture with content & case studies.
+                  </p>
+                </div>
+              </div>
+
+              {/* Hot leads list */}
+              {eliteYesUsers.length > 0 && (
+                <div className="rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${GOLD}25` }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Crown className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                      <p className="text-xs font-bold uppercase tracking-widest" style={{ color: GOLD }}>
+                        Hot Leads — Reach out to these {eliteYesUsers.length}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+                    {eliteYesUsers.map(u => {
+                      const initials = (u.user_name ?? "?").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+                      return (
+                        <button
+                          key={u.user_id}
+                          onClick={() => setExpanded(u.user_id)}
+                          className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors text-left"
+                          style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20` }}
+                          data-testid={`hot-lead-${u.user_id}`}
+                        >
+                          <Avatar className="w-8 h-8 shrink-0">
+                            <AvatarFallback className="text-[10px] font-bold" style={{ background: `${GOLD}20`, color: GOLD }}>{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">{u.user_name ?? "Unknown"}</p>
+                            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                              <Mail className="w-2.5 h-2.5" />
+                              <span className="truncate">{u.user_email}</span>
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {eliteCounts.unanswered > 0 && (
+                <p className="text-[11px] text-zinc-600 mt-3 text-center">
+                  {eliteCounts.unanswered} user{eliteCounts.unanswered !== 1 ? "s" : ""} haven't been asked yet (older surveys).
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Charts — all 10 */}
         {total > 0 && (
           <>
@@ -300,19 +451,37 @@ export default function AdminResponses() {
               {filtered.map(s => {
                 const isOpen = expanded === s.user_id;
                 const initials = (s.user_name ?? "?").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+                const eliteAnswer = s.answers?.eliteInterest;
+                const isHotLead = eliteAnswer === "yes";
                 return (
-                  <Card key={s.user_id} className="border border-card-border transition-all" data-testid={`card-response-${s.user_id}`}>
+                  <Card
+                    key={s.user_id}
+                    className="border transition-all"
+                    style={isHotLead ? { borderColor: `${GOLD}60`, boxShadow: `0 0 16px ${GOLD}15` } : undefined}
+                    data-testid={`card-response-${s.user_id}`}
+                  >
                     <CardContent className="p-0">
                       <button
                         onClick={() => setExpanded(isOpen ? null : s.user_id)}
                         className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl"
                       >
                         <Avatar className="w-9 h-9 shrink-0">
-                          <AvatarFallback className="bg-zinc-800 text-zinc-300 text-sm font-semibold">{initials}</AvatarFallback>
+                          <AvatarFallback
+                            className="text-sm font-semibold"
+                            style={isHotLead ? { background: `${GOLD}20`, color: GOLD } : { background: "rgb(39,39,42)", color: "rgb(212,212,216)" }}
+                          >{initials}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-semibold text-white truncate">{s.user_name ?? "Unknown"}</p>
+                            {isHotLead && (
+                              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                                style={{ background: GOLD, color: "#000", letterSpacing: "0.08em" }}
+                                data-testid={`badge-hot-lead-${s.user_id}`}
+                              >
+                                <Crown className="w-2.5 h-2.5" /> Hot Lead
+                              </span>
+                            )}
                             {s.user_plan && (
                               <Badge variant="outline" className={`text-[10px] h-4 px-1.5 ${PLAN_COLORS[s.user_plan] ?? ""}`}>
                                 {s.user_plan}
@@ -337,6 +506,34 @@ export default function AdminResponses() {
 
                       {isOpen && (
                         <div className="border-t border-zinc-800/60 px-4 pb-5 pt-4 space-y-5">
+
+                          {/* Elite Interest — top priority answer */}
+                          {eliteAnswer && (
+                            <div
+                              className="rounded-xl p-4"
+                              style={{
+                                background: isHotLead ? `${GOLD}10` : "rgba(255,255,255,0.03)",
+                                border: `1px solid ${isHotLead ? `${GOLD}50` : "rgba(255,255,255,0.08)"}`,
+                              }}
+                            >
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <Crown className="w-3.5 h-3.5" style={{ color: isHotLead ? GOLD : "#71717a" }} />
+                                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isHotLead ? GOLD : "#71717a" }}>
+                                  Tier 5 / Elite Interest (12th Question)
+                                </p>
+                              </div>
+                              <p className="text-sm font-bold" style={{ color: isHotLead ? GOLD : "#fff" }}>
+                                {eliteAnswer === "yes" && "🔥 Yes — wants help scaling their offer"}
+                                {eliteAnswer === "not_now" && "⏳ Not right now"}
+                                {eliteAnswer === "maybe" && "💭 Maybe in the future"}
+                              </p>
+                              {isHotLead && (
+                                <p className="text-xs text-zinc-400 mt-1.5">
+                                  This user explicitly asked to know more about Tier 5 — prime outreach candidate.
+                                </p>
+                              )}
+                            </div>
+                          )}
 
                           {/* Row 1 */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

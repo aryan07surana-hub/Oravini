@@ -91,7 +91,6 @@ function SoonBadge() {
 const comingSoonItems = [
   { label: "DM Tracker", icon: MessageCircle },
   { label: "IG Bot", icon: Bot },
-  { label: "IG Comment Bot", icon: MessageSquare },
 ];
 
 const topNavItems = [
@@ -106,7 +105,6 @@ const topNavItems = [
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
-  { href: "/ig-bot", label: "IG Comment Bot", icon: Instagram },
 ];
 
 const bottomNavItems = [
