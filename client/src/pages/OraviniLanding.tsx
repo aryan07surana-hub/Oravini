@@ -554,6 +554,116 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── HOW IT WORKS ─────────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(212,180,97,0.04) 0%, transparent 65%)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 80 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>How It Works</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
+              The AI scans everything.<br /><span style={{ color: GOLD }}>Then builds your playbook.</span>
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "clamp(15px, 1.8vw, 17px)", maxWidth: 560, margin: "0 auto", lineHeight: 1.75 }}>
+              From your first login to your first viral post — Oravini maps your niche, dissects your competitors, and hands you a precision strategy built around your specific goals.
+            </p>
+          </Anim>
+
+          {/* Steps grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2, position: "relative" }}>
+            {[
+              {
+                num: "01",
+                icon: "🧬",
+                title: "You Tell Us Everything",
+                body: "An 11-question onboarding quiz maps your niche, audience, goals, content formats, and monetisation model. Oravini builds your full creator profile before you post a single thing.",
+                bullets: ["Niche + audience profiling", "Content format preferences", "Revenue model mapping"],
+              },
+              {
+                num: "02",
+                icon: "🔍",
+                title: "The AI Scans Your Niche",
+                body: "Oravini deep-scrapes top performers in your space — their hooks, posting cadence, engagement patterns, and content gaps. It maps exactly where the opportunity is before you spend a second creating.",
+                bullets: ["Competitor hook analysis", "Engagement pattern mapping", "Content gap detection"],
+              },
+              {
+                num: "03",
+                icon: "⚡",
+                title: "Your Strategy Lands",
+                body: "The AI assembles a custom playbook: your content pillars, hook formulas, ideal posting schedule, repurposing system, and the exact tools inside Oravini you need to execute at a high level.",
+                bullets: ["Content pillar framework", "Hook formula library", "Tool-by-tool action plan"],
+              },
+              {
+                num: "04",
+                icon: "📈",
+                title: "Track, Adapt & Keep Winning",
+                body: "Every post, follower spike, and engagement shift is tracked automatically. As your account grows, the AI recalibrates — surfacing what's working, killing what isn't, and keeping you one step ahead.",
+                bullets: ["Automatic post tracking", "Growth trend alerts", "Strategy recalibration"],
+              },
+            ].map((step, i) => (
+              <Anim key={step.num} delay={i * 100}>
+                <div
+                  style={{
+                    position: "relative",
+                    background: i === 1 ? `rgba(212,180,97,0.04)` : "rgba(255,255,255,0.015)",
+                    border: i === 1 ? `1px solid rgba(212,180,97,0.22)` : "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 20,
+                    padding: "36px 30px",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 0,
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Large background step number */}
+                  <div style={{
+                    position: "absolute", top: -12, right: 20,
+                    fontSize: 110, fontWeight: 900, lineHeight: 1,
+                    color: i === 1 ? `rgba(212,180,97,0.07)` : "rgba(255,255,255,0.04)",
+                    userSelect: "none", pointerEvents: "none", letterSpacing: "-0.04em",
+                  }}>{step.num}</div>
+
+                  {/* Icon */}
+                  <div style={{ fontSize: 30, marginBottom: 16 }}>{step.icon}</div>
+
+                  {/* Step label */}
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: "0.18em",
+                    textTransform: "uppercase", marginBottom: 10,
+                    color: i === 1 ? GOLD : "rgba(255,255,255,0.3)",
+                  }}>Step {step.num}</div>
+
+                  {/* Title */}
+                  <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", marginBottom: 14, lineHeight: 1.25 }}>{step.title}</div>
+
+                  {/* Body */}
+                  <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.42)", lineHeight: 1.8, margin: "0 0 22px", flex: 1 }}>{step.body}</p>
+
+                  {/* Bullets */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {step.bullets.map(b => (
+                      <div key={b} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: i === 1 ? GOLD : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", fontWeight: 500 }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Anim>
+            ))}
+          </div>
+
+          {/* Bottom note */}
+          <Anim style={{ textAlign: "center", marginTop: 64 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.18)", borderRadius: 99, padding: "12px 28px" }}>
+              <span style={{ fontSize: 16 }}>🤖</span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>
+                The AI runs in the background 24/7 — you just show up and create.
+              </span>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
       {/* ── QUICK PREVIEW ────────────────────────────────────────────────────── */}
       <section style={{ padding: "100px 24px", background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(212,180,97,0.05) 0%, transparent 70%)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }} className="preview-grid">
