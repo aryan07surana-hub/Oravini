@@ -855,10 +855,189 @@ const CREATOR_TIPS = [
   { icon: MonitorPlay,color:"#c084fc", bg: "rgba(192,132,252,0.12)", tip: "Video thumbnails with a face get 38% more clicks. Show up visually." },
 ];
 
-function CreatorTipCard() {
+/* ─────────────────────────────────────────────
+   PERSONALIZATION DATA
+───────────────────────────────────────────── */
+const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string }> = {
+  "Growing my followers":              { action: "Run a competitor scan to find content already winning in your niche, then model what works.",          href: "/competitor-study",       tool: "Competitor Intel" },
+  "Low engagement on posts":           { action: "Score your next post through the Virality Tester before publishing — find the weak spots first.",       href: "/virality-tester",        tool: "Virality Tester" },
+  "Coming up with content ideas":      { action: "Generate a full week of niche-specific ideas with hooks and formats in 60 seconds.",                     href: "/ai-ideas",               tool: "AI Content Ideas" },
+  "Monetising my audience":            { action: "Build your Ideal Customer Profile — identify exactly who you're selling to and what they need most.",    href: "/icp-builder",            tool: "ICP Builder" },
+  "Staying consistent":                { action: "Set up your content board and schedule the next 30 days in one batch session.",                          href: "/board-builder",          tool: "Board Builder" },
+  "Understanding analytics":           { action: "Log your last 5 posts and generate a performance report to see what's actually working.",                href: "/tracking/content",       tool: "Content Tracker" },
+  "Building brand partnerships":       { action: "Build your brand kit — colours, tone, and a media kit ready to send to potential sponsors.",             href: "/brand-kit-builder",      tool: "Brand Kit Builder" },
+  "Managing time efficiently":         { action: "Block one creation day per week and plan the full month with your content calendar.",                    href: "/content-calendar",       tool: "Content Calendar" },
+  "Standing out in a crowded niche":   { action: "Map your audience psychology to find the emotional angles your competitors consistently miss.",          href: "/audience-psychology",    tool: "Audience Psychology" },
+  "Converting followers to customers": { action: "Create a lead magnet that captures emails and starts your sales funnel — first offer under $97.",        href: "/lead-magnet-generator",  tool: "Lead Magnet Generator" },
+  "Dealing with algorithm changes":    { action: "Track your IG follower count and engagement rate daily — spot trend drops before they compound.",        href: "/ig-growth-tracker",      tool: "IG Growth Tracker" },
+  "Building a personal brand identity":{ action: "Generate your complete brand kit — colours, fonts, voice, and positioning in one session.",             href: "/brand-kit-builder",      tool: "Brand Kit Builder" },
+  "Knowing what content to create":    { action: "Generate a 30-day content plan with hooks, formats, and a posting cadence built for your niche.",       href: "/content-calendar",       tool: "Content Calendar" },
+  "Getting views / reach":             { action: "Score your next script with the Virality Tester — fix the hook before posting, not after.",              href: "/virality-tester",        tool: "Virality Tester" },
+  "Building confidence on camera":     { action: "Generate camera-friendly scripts with natural delivery cues — practice with the words, not just ideas.", href: "/ai-ideas",               tool: "AI Content Ideas" },
+  "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-editor",           tool: "AI Video Editor" },
+};
+
+const PLATFORM_EMOJI: Record<string, string> = {
+  Instagram: "📸", YouTube: "🎬", TikTok: "🎵", LinkedIn: "💼",
+  "Twitter / X": "𝕏", Pinterest: "📌", Threads: "🧵", Facebook: "👥",
+  Snapchat: "👻", Twitch: "🎮", "Substack / Newsletter": "📧",
+  "Podcast platforms (Spotify, Apple)": "🎙️",
+};
+
+const STRUGGLE_TIPS: Record<string, { tip: string; icon: any; color: string; bg: string }> = {
+  "Growing my followers":              { tip: "Post 4–5× per week minimum. Follower growth is a volume-consistency game — the algorithm rewards those who show up.",             icon: TrendingUp,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
+  "Low engagement on posts":           { tip: "Reply to every comment within the first hour. Early engagement signals push your content to a wider audience.",                  icon: Megaphone,    color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
+  "Coming up with content ideas":      { tip: "Look at your top 3 performing posts. Find the common angle — that's your winning formula. Remix it, don't reinvent.",           icon: Lightbulb,    color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Monetising my audience":            { tip: "Your first offer should solve one specific problem. Start under $97 — low friction, high learning, and real revenue proof.",     icon: DollarSign,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
+  "Staying consistent":                { tip: "Batch create on one day per week, post from a queue. Showing up consistently always beats posting perfectly.",                   icon: Clock,        color: "#a78bfa",  bg: "rgba(167,139,250,0.12)"  },
+  "Understanding analytics":           { tip: "Track 3 metrics only: views, saves, and profile visits. These 3 tell you if your content is actually working.",                 icon: BarChart2,    color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
+  "Managing time efficiently":         { tip: "Block 2–3 hour creation windows, not 20-minute gaps. Deep work creates better content — treat it like a non-negotiable meeting.",icon: Clock,        color: "#fb923c",  bg: "rgba(251,146,60,0.12)"   },
+  "Standing out in a crowded niche":   { tip: "Your unique angle isn't your niche — it's your point of view on it. Develop a consistent take that only you would say.",        icon: Star,         color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Converting followers to customers": { tip: "Add one clear CTA to every post: 'Comment X', 'Link in bio', or 'DM me'. Most creators forget this and leave money behind.",   icon: Target,       color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
+  "Getting views / reach":             { tip: "Hook your viewer in the first 1.5 seconds. Make them think 'I need to see where this goes' before they scroll away.",            icon: Rocket,       color: "#f472b6",  bg: "rgba(244,114,182,0.12)"  },
+  "Building confidence on camera":     { tip: "Record 10 bad videos and throw them away. Confidence on camera is a skill — the only way through is volume.",                   icon: Brain,        color: "#a78bfa",  bg: "rgba(167,139,250,0.12)"  },
+  "Editing and production quality":    { tip: "Clean audio matters more than a great camera. A $15 clip-on mic upgrades your content more than any lens or lighting rig.",     icon: Mic2,         color: "#60a5fa",  bg: "rgba(96,165,250,0.12)"   },
+  "Dealing with algorithm changes":    { tip: "The algorithm rewards consistency and early engagement, not luck. Track your data daily and respond to what it shows you.",      icon: TrendingUp,   color: "#34d399",  bg: "rgba(52,211,153,0.12)"   },
+  "Building a personal brand identity":{ tip: "Pick 3 content pillars and stick to them for 90 days. Consistency of topic trains your audience to expect — and seek — your content.", icon: Palette, color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
+  "Knowing what content to create":    { tip: "Steal the format, not the content. Take your competitor's best-performing video structure and apply your unique perspective.",   icon: Lightbulb,    color: GOLD,       bg: "rgba(212,180,97,0.12)"   },
+  "Building brand partnerships":       { tip: "Brands don't care about your follower count — they care about engagement and niche fit. A 5K engaged audience beats 50K passive.", icon: UserCheck, color: "#34d399", bg: "rgba(52,211,153,0.12)" },
+};
+
+/* ─────────────────────────────────────────────
+   CREATOR BRIEFING (survey-personalised)
+───────────────────────────────────────────── */
+function CreatorBriefing() {
+  const { user } = useAuth();
+  const u = user as any;
+  const niche: string[] = u?.fields || [];
+  const struggles: string[] = (u?.struggles || []).slice(0, 5);
+  const platforms: string[] = u?.platforms || [];
+  const primaryGoal: string = u?.primaryGoal || "";
+  const followerCount: string = u?.followerCount || "";
+  const experience: string = u?.experience || "";
+  const descriptor: string = u?.descriptor || "";
+
+  if (!niche.length && !struggles.length && !primaryGoal) return null;
+
+  return (
+    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(212,180,97,0.2)", background: "rgba(212,180,97,0.025)" }} data-testid="creator-briefing">
+      {/* Header */}
+      <div className="px-5 py-4 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: "rgba(212,180,97,0.12)" }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.15)" }}>
+            <Target className="w-4 h-4" style={{ color: GOLD }} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Your Creator Briefing</p>
+            <p className="text-[10px] text-zinc-500">Personalised from your onboarding answers</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {followerCount && (
+            <div className="text-right">
+              <p className="text-xs font-bold" style={{ color: GOLD }}>{followerCount}</p>
+              <p className="text-[10px] text-zinc-500">current followers</p>
+            </div>
+          )}
+          {descriptor && (
+            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              {descriptor}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Niche + Platform chips */}
+        {(niche.length > 0 || platforms.length > 0) && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2.5">Niche & Platforms</p>
+            <div className="flex flex-wrap gap-2">
+              {niche.slice(0, 4).map(n => (
+                <span key={n} className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: "rgba(212,180,97,0.12)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>
+                  {n}
+                </span>
+              ))}
+              {platforms.slice(0, 5).map(p => (
+                <span key={p} className="text-xs px-2.5 py-1.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  {PLATFORM_EMOJI[p] || "📱"} {p.split(" ")[0]}
+                </span>
+              ))}
+              {experience && (
+                <span className="text-xs px-2.5 py-1.5 rounded-full font-medium" style={{ background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  🕐 {experience}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Primary Goal */}
+        {primaryGoal && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}>
+            <Target className="w-4 h-4 shrink-0" style={{ color: "#34d399" }} />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: "rgba(52,211,153,0.6)" }}>Primary Goal</p>
+              <p className="text-sm font-semibold text-foreground">{primaryGoal}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Struggles with actions */}
+        {struggles.length > 0 && (
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Your Focus Areas — What to Work On Now</p>
+            <div className="space-y-2">
+              {struggles.map((s, i) => {
+                const mapped = STRUGGLE_MAP[s];
+                return (
+                  <div key={s} className="flex items-start gap-3 rounded-xl p-3.5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD }}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground mb-0.5">{s}</p>
+                      <p className="text-xs text-zinc-500 leading-relaxed">{mapped?.action ?? "Use the AI tools below to tackle this area."}</p>
+                    </div>
+                    {mapped && (
+                      <Link href={mapped.href}>
+                        <button className="shrink-0 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all hover:opacity-80" style={{ background: "rgba(212,180,97,0.1)", color: GOLD, border: "1px solid rgba(212,180,97,0.2)", whiteSpace: "nowrap" }} data-testid={`briefing-tool-${i}`}>
+                          {mapped.tool} →
+                        </button>
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CreatorTipCard({ struggles }: { struggles: string[] }) {
+  const topStruggle = struggles.find(s => STRUGGLE_TIPS[s]);
+  if (topStruggle) {
+    const { tip, icon: Icon, color, bg } = STRUGGLE_TIPS[topStruggle];
+    return (
+      <div className="rounded-2xl p-5 h-full flex flex-col" style={{ background: bg, border: `1px solid ${color}25` }}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}20` }}>
+            <Icon className="w-4 h-4" style={{ color }} />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>Tip For You</span>
+            <p className="text-[9px] text-zinc-500 mt-0.5 truncate max-w-[160px]">{topStruggle}</p>
+          </div>
+        </div>
+        <p className="text-sm text-zinc-200 leading-relaxed flex-1 italic">"{tip}"</p>
+      </div>
+    );
+  }
   const dayIndex = Math.floor(Date.now() / 86400000) % CREATOR_TIPS.length;
   const { icon: Icon, color, bg, tip } = CREATOR_TIPS[dayIndex];
-
   return (
     <div className="rounded-2xl p-5 h-full flex flex-col" style={{ background: bg, border: `1px solid ${color}25` }}>
       <div className="flex items-center gap-2 mb-3">
@@ -1496,6 +1675,8 @@ export default function ClientDashboard() {
   const weekHistory = activity?.weekHistory ?? Array(7).fill({ date: "", creditsUsed: 0, actions: 0 });
   const monthActions = activity?.thisMonth?.totalActions ?? 0;
   const todayToolNames: string[] = activity?.today?.toolNames ?? [];
+
+  const userStruggles: string[] = (user as any)?.struggles || [];
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";

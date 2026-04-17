@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import {
   Users, Mail, Zap, Crown, TrendingUp, Search, FileText, ChevronDown,
   ChevronUp, ChevronRight, ClipboardCheck, RefreshCw, CheckCircle2,
-  ExternalLink, Send, ShieldCheck, ShieldOff, CalendarDays, CreditCard
+  ExternalLink, Send, ShieldCheck, ShieldOff, CalendarDays, CreditCard,
+  Instagram, Youtube, Linkedin, Globe, Bookmark, Activity
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -364,21 +365,38 @@ export default function AdminCRM() {
                                   <AvatarFallback className="bg-zinc-700 text-white text-xs font-bold">{initials}</AvatarFallback>
                                 </Avatar>
 
-                                {/* Name + email */}
+                                {/* Name + email + niche */}
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold text-white truncate">{client.name}</p>
                                     {client.planConfirmed ? (
                                       <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" title="Plan confirmed" />
                                     ) : (
                                       <ShieldOff className="w-3 h-3 text-zinc-600 shrink-0" title="Plan not confirmed" />
                                     )}
+                                    {client.surveyCompleted && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(212,180,97,0.1)", color: GOLD, border: "1px solid rgba(212,180,97,0.2)" }} title="Survey completed">✓</span>
+                                    )}
                                   </div>
-                                  <p className="text-xs text-zinc-500 truncate">{client.email}</p>
+                                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                    <p className="text-xs text-zinc-500 truncate">{client.email}</p>
+                                    {/* Niche pill */}
+                                    {client.fields?.[0] && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0" style={{ background: "rgba(212,180,97,0.08)", color: "rgba(212,180,97,0.7)" }}>
+                                        {client.fields[0]}
+                                      </span>
+                                    )}
+                                    {/* Platforms */}
+                                    {(client.platforms || []).slice(0, 2).map((p: string) => {
+                                      const icons: Record<string, any> = { Instagram, YouTube: Youtube, LinkedIn: Linkedin, TikTok: Activity };
+                                      const PIcon = icons[p] || Globe;
+                                      return <PIcon key={p} className="w-3 h-3 text-zinc-600 shrink-0" title={p} />;
+                                    })}
+                                  </div>
                                 </div>
 
                                 {/* Credits bar */}
-                                <div className="hidden md:flex flex-col gap-0.5 min-w-[110px]">
+                                <div className="hidden md:flex flex-col gap-0.5 min-w-[100px]">
                                   <p className="text-[10px] text-zinc-600 flex items-center gap-1">
                                     <Zap className="w-2.5 h-2.5" style={{ color: GOLD }} />
                                     Credits
@@ -386,21 +404,19 @@ export default function AdminCRM() {
                                   <CreditBar credits={client.credits} plan={client.plan} />
                                 </div>
 
-                                {/* Upsell badge */}
-                                {tierCfg.next && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] border-zinc-700 text-zinc-500 hidden lg:flex shrink-0"
-                                  >
-                                    → {tierCfg.next}
-                                  </Badge>
+                                {/* Primary goal (survey) */}
+                                {client.primaryGoal && (
+                                  <div className="hidden xl:flex flex-col gap-0.5 min-w-[100px] max-w-[130px]">
+                                    <p className="text-[10px] text-zinc-600">Goal</p>
+                                    <p className="text-[10px] text-zinc-400 truncate" title={client.primaryGoal}>{client.primaryGoal}</p>
+                                  </div>
                                 )}
 
                                 {/* Join date */}
                                 <div className="hidden sm:flex items-center gap-1 text-[11px] text-zinc-600 shrink-0">
                                   <CalendarDays className="w-3 h-3" />
                                   {client.createdAt
-                                    ? new Date(client.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                    ? new Date(client.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
                                     : "—"}
                                 </div>
 

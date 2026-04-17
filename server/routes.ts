@@ -359,6 +359,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
               console.error("[referral] google signup referral failed for", user.id, "code:", capturedRefCode, refErr);
             }
           }
+          // Auto-enroll new Google users in "join" sequences
+          if ((user as any)._isNewGoogleUser) {
+            storage.getEmailSequences().then(seqs => {
+              seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
+            }).catch(() => {});
+          }
           const dest = user.role === "admin"
             ? "/admin"
             : !(user as any).surveyCompleted
@@ -462,6 +468,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const hashed = await hashPassword(parsed.data.password);
     const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client", planConfirmed: true });
     await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
+    // Auto-enroll admin-created clients in "join" sequences
+    storage.getEmailSequences().then(seqs => {
+      seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
+    }).catch(() => {});
     const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
     syncToOraviniCRM({ email: user.email, name: user.name, source: "client_signup", plan: user.plan, tierLabel: tierNames[user.plan || "free"] || user.plan, event: "new_signup" });
     const { password, ...safe } = user;
@@ -9294,6 +9304,34 @@ Rules:
       }
     }
     res.json({ ok: true, enrolled });
+  });
+
+  // Manual: run sequence sending immediately (for testing / admin triggers)
+  app.post("/api/admin/email/run-sequences", requireAdmin, async (_req, res) => {
+    try {
+      const { processEmailSequences } = await import("./cron");
+      await processEmailSequences();
+      res.json({ ok: true, message: "Sequence processing complete" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Enrollments breakdown per sequence
+  app.get("/api/admin/email/enrollments", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getEmailSequences();
+    const enrollments = await db.select().from(emailEnrollments);
+    const result = seqs.map(s => ({
+      sequenceId: s.id,
+      sequenceName: s.name,
+      trigger: s.trigger,
+      active: s.active,
+      totalEnrolled: enrollments.filter(e => e.sequenceId === s.id).length,
+      pending: enrollments.filter(e => e.sequenceId === s.id && !e.completed && !e.unsubscribed).length,
+      completed: enrollments.filter(e => e.sequenceId === s.id && e.completed).length,
+      unsubscribed: enrollments.filter(e => e.sequenceId === s.id && e.unsubscribed).length,
+    }));
+    res.json(result);
   });
 
   // Seed pre-built sequences
