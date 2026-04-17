@@ -920,6 +920,120 @@ function GrowthMilestones({ streak, monthActions }: { streak: number; monthActio
 }
 
 /* ─────────────────────────────────────────────
+   TIER DISPLAY + NEXT TIER BENEFITS
+───────────────────────────────────────────── */
+export const TIER_DISPLAY: Record<string, { name: string; color: string }> = {
+  free:    { name: "Tier 1 · Free",    color: "#71717a" },
+  starter: { name: "Tier 2 · Starter", color: "#818cf8" },
+  growth:  { name: "Tier 3 · Growth",  color: "#d4b461" },
+  pro:     { name: "Tier 4 · Pro",     color: "#34d399" },
+  elite:   { name: "Tier 5 · Elite",   color: "#d4b461" },
+};
+
+const NEXT_TIER_INFO: Record<string, {
+  nextName: string; nextPrice: string; color: string; bg: string; border: string;
+  perks: { icon: any; title: string; desc: string }[];
+}> = {
+  free: {
+    nextName: "Tier 2 · Starter", nextPrice: "$29/mo",
+    color: "#818cf8", bg: "rgba(99,102,241,0.07)", border: "rgba(99,102,241,0.2)",
+    perks: [
+      { icon: Zap,       title: "30× more credits",        desc: "150 monthly credits vs 5 per day — more room to experiment and create." },
+      { icon: ScanSearch,title: "Full audit access",        desc: "See your complete growth score and a clear breakdown of what to improve." },
+      { icon: Layers,    title: "Carousel & Caption Studio",desc: "Create scroll-stopping carousels and polished captions — fully unlocked." },
+      { icon: Target,    title: "Lead Magnet Generator",    desc: "Build audience-growing lead magnets with AI guidance, start to finish." },
+    ],
+  },
+  starter: {
+    nextName: "Tier 3 · Growth", nextPrice: "$59/mo",
+    color: "#d4b461", bg: "rgba(212,180,97,0.07)", border: "rgba(212,180,97,0.2)",
+    perks: [
+      { icon: Zap,       title: "350 monthly credits",      desc: "More than double your current credits — more experiments, more content." },
+      { icon: Users,     title: "Competitor Intelligence",  desc: "See exactly what's working in your niche before investing your effort." },
+      { icon: Brain,     title: "Audience Psychology Map",  desc: "Understand the deeper motivations driving your audience's decisions." },
+      { icon: Palette,   title: "Brand Kit Builder",        desc: "Build a consistent brand identity system in minutes, not weeks." },
+    ],
+  },
+  growth: {
+    nextName: "Tier 4 · Pro", nextPrice: "$79/mo",
+    color: "#34d399", bg: "rgba(52,211,153,0.07)", border: "rgba(52,211,153,0.2)",
+    perks: [
+      { icon: Zap,       title: "700 monthly credits",      desc: "Double the creative capacity — almost unlimited room to build and grow." },
+      { icon: Clapperboard,title:"AI Video Editor",         desc: "Edit Reels and short-form video with AI assistance, inside the platform." },
+      { icon: Bot,       title: "Full AI Content Coach",    desc: "Get personalised strategy recommendations based on your real data." },
+      { icon: Map,       title: "SOP + Content Planner",    desc: "Build repeatable systems and map your content weeks in advance." },
+    ],
+  },
+  pro: {
+    nextName: "Tier 5 · Elite", nextPrice: "Application only",
+    color: "#d4b461", bg: "rgba(212,180,97,0.07)", border: "rgba(212,180,97,0.25)",
+    perks: [
+      { icon: Zap,         title: "Unlimited credits, no cap",  desc: "Use every tool as much as you want — no monthly limits, ever." },
+      { icon: Crown,       title: "Done-with-you strategy",     desc: "The team works alongside you on your content and growth plan." },
+      { icon: CalendarPlus,title: "1-on-1 strategy calls",      desc: "Book dedicated time with the team whenever you need direction." },
+      { icon: MessageSquare,title:"Direct team access",         desc: "Message and collaborate directly with the Oravini team in-platform." },
+    ],
+  },
+};
+
+function NextTierBenefits({ plan }: { plan: string }) {
+  const info = NEXT_TIER_INFO[plan];
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => {
+    if (!info) return;
+    const id = setInterval(() => setActiveIdx(i => (i + 1) % info.perks.length), 5000);
+    return () => clearInterval(id);
+  }, [info]);
+
+  if (!info) return null;
+
+  const perk = info.perks[activeIdx];
+  const PerkIcon = perk.icon;
+
+  return (
+    <div
+      className="rounded-2xl px-5 py-4 flex items-center gap-4"
+      style={{ background: info.bg, border: `1px solid ${info.border}` }}
+      data-testid="next-tier-benefits"
+    >
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${info.color}18` }}>
+        <PerkIcon className="w-4 h-4" style={{ color: info.color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: info.color }}>{info.nextName}</span>
+          <span className="text-[10px] text-zinc-600">· {info.nextPrice}</span>
+        </div>
+        <p className="text-sm font-semibold text-white">{perk.title}</p>
+        <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">{perk.desc}</p>
+      </div>
+      <div className="flex flex-col items-end gap-2.5 shrink-0">
+        <Link href="/settings/plan">
+          <button
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+            style={{ background: `${info.color}15`, color: info.color, border: `1px solid ${info.color}25` }}
+            data-testid="button-next-tier-learn-more"
+          >
+            See all perks →
+          </button>
+        </Link>
+        <div className="flex gap-1">
+          {info.perks.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIdx(i)}
+              className="w-1.5 h-1.5 rounded-full transition-all"
+              style={{ background: i === activeIdx ? info.color : "rgba(255,255,255,0.12)" }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    ACTIVITY STAT TILE
 ───────────────────────────────────────────── */
 function ActivityTile({ icon: Icon, label, value, sub, accentColor, gradient }: {
@@ -1119,6 +1233,24 @@ export default function ClientDashboard() {
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Tier badge */}
+              {(user as any)?.plan && TIER_DISPLAY[(user as any).plan] && (
+                <Link href="/settings/plan">
+                  <div
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{
+                      background: `${TIER_DISPLAY[(user as any).plan].color}15`,
+                      border: `1px solid ${TIER_DISPLAY[(user as any).plan].color}30`,
+                    }}
+                    data-testid="text-tier-badge"
+                  >
+                    <Crown className="w-3 h-3" style={{ color: TIER_DISPLAY[(user as any).plan].color }} />
+                    <span className="text-xs font-bold" style={{ color: TIER_DISPLAY[(user as any).plan].color }}>
+                      {TIER_DISPLAY[(user as any).plan].name}
+                    </span>
+                  </div>
+                </Link>
+              )}
               {/* Refresh controls */}
               <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5">
                 <button
@@ -1172,6 +1304,11 @@ export default function ClientDashboard() {
               <TourButton className="shrink-0" />
             </div>
           </div>
+
+          {/* ── NEXT TIER BENEFITS ── */}
+          {(user as any)?.plan !== "elite" && (user as any)?.plan && (
+            <NextTierBenefits plan={(user as any).plan} />
+          )}
 
           {/* ── WORLD CLOCK ── */}
           <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
