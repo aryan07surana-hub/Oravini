@@ -1175,7 +1175,7 @@ export default function ClientDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: onboardingStatus } = useQuery<{ done: boolean }>({
+  const { data: onboardingStatus } = useQuery<{ done: boolean; survey: any }>({
     queryKey: ["/api/user/onboarding-status"],
     enabled: !!user?.id,
     staleTime: Infinity,
@@ -1713,9 +1713,12 @@ export default function ClientDashboard() {
       </ClientLayout>
 
       {showOnboarding && (
-        <OnboardingModal onComplete={() => {
-          queryClient.setQueryData(["/api/user/onboarding-status"], { done: true });
-        }} />
+        <OnboardingModal
+          existingSurvey={onboardingStatus?.survey}
+          onComplete={() => {
+            queryClient.setQueryData(["/api/user/onboarding-status"], { done: true, survey: null });
+          }}
+        />
       )}
     </>
   );

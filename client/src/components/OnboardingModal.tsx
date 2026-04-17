@@ -67,6 +67,7 @@ const PLATFORM_OPTIONS = [
 
 interface Props {
   onComplete: () => void;
+  existingSurvey?: any;
 }
 
 function MultiChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
@@ -175,14 +176,17 @@ const STEPS = [
   { key: "eliteInterest", title: "Do you need help scaling your info or coaching offer?", sub: "Tier 5 is our done-with-you programme — real strategy, real support, real results." },
 ];
 
-export default function OnboardingModal({ onComplete }: Props) {
-  const [step, setStep] = useState(0);
-  const [fields, setFields] = useState<string[]>([]);
-  const [struggles, setStruggles] = useState<string[]>([]);
-  const [experience, setExperience] = useState("");
-  const [monthlyRevenue, setMonthlyRevenue] = useState("");
-  const [primaryGoal, setPrimaryGoal] = useState("");
-  const [platforms, setPlatforms] = useState<string[]>([]);
+export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
+  // If user already completed the original 6 steps but is missing eliteInterest,
+  // jump straight to step 6 with their previous answers preserved.
+  const eliteOnly = !!existingSurvey && !existingSurvey?.answers?.eliteInterest;
+  const [step, setStep] = useState(eliteOnly ? 6 : 0);
+  const [fields, setFields] = useState<string[]>(existingSurvey?.fields || []);
+  const [struggles, setStruggles] = useState<string[]>(existingSurvey?.struggles || []);
+  const [experience, setExperience] = useState(existingSurvey?.experience || "");
+  const [monthlyRevenue, setMonthlyRevenue] = useState(existingSurvey?.monthlyRevenue || "");
+  const [primaryGoal, setPrimaryGoal] = useState(existingSurvey?.primaryGoal || "");
+  const [platforms, setPlatforms] = useState<string[]>(existingSurvey?.platforms || []);
   const [eliteInterest, setEliteInterest] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -255,7 +259,7 @@ export default function OnboardingModal({ onComplete }: Props) {
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ display: "inline-block", background: `${GOLD}14`, border: `1px solid ${GOLD}35`, borderRadius: 100, padding: "4px 14px", marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Quick Setup · {total - step} question{total - step !== 1 ? "s" : ""} left
+                {eliteOnly ? "One quick question" : `Quick Setup · ${total - step} question${total - step !== 1 ? "s" : ""} left`}
               </span>
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 4 }}>
@@ -516,7 +520,7 @@ export default function OnboardingModal({ onComplete }: Props) {
         {/* Sticky footer — always visible */}
         <div style={{ padding: "16px 32px 24px", flexShrink: 0, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", gap: 10 }}>
-            {step > 0 && (
+            {step > 0 && !eliteOnly && (
               <button
                 onClick={() => setStep(s => s - 1)}
                 style={{ flex: 1, padding: "13px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: 14, cursor: "pointer" }}

@@ -457,7 +457,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/user/onboarding-status", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const survey = await storage.getOnboardingSurvey(userId);
-    res.json({ done: !!survey, survey: survey || null });
+    const hasEliteAnswer = !!(survey as any)?.answers?.eliteInterest;
+    res.json({ done: !!survey && hasEliteAnswer, survey: survey || null });
   });
 
   app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {
@@ -467,7 +468,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         awareness, field, fields, struggles, contentTypes,
         descriptor, experience, followerCount, monthlyRevenue,
         primaryGoal, platform, platforms, heardAbout,
+        answers: bodyAnswers,
       } = req.body;
+      const eliteInterest = bodyAnswers?.eliteInterest;
       if (!experience || !monthlyRevenue || !primaryGoal) {
         return res.status(400).json({ message: "All survey questions must be answered." });
       }
@@ -480,6 +483,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           awareness, field, fields, struggles, contentTypes,
           descriptor, experience, followerCount, monthlyRevenue,
           primaryGoal, platform, platforms, heardAbout,
+          eliteInterest,
         },
       });
       await storage.updateUser(userId, { surveyCompleted: true } as any);
