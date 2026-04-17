@@ -154,22 +154,21 @@ const SURVEY_QUESTIONS = [
 function DeleteAccountModal({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const [step, setStep] = useState(0); // 0 = intro, 1-5 = questions, 6 = confirm
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [confirmText, setConfirmText] = useState("");
 
   const totalSteps = SURVEY_QUESTIONS.length;
   const isIntro = step === 0;
   const isConfirm = step === totalSteps + 1;
   const currentQ = !isIntro && !isConfirm ? SURVEY_QUESTIONS[step - 1] : null;
-  const currentAnswer = currentQ ? answers[currentQ.key] : null;
 
   const deleteAccount = useMutation({
     mutationFn: () => apiRequest("POST", "/api/account/delete", {
-      reason: answers.reason,
-      duration: answers.duration,
-      rating: answers.rating,
-      favoriteFeature: answers.favoriteFeature,
-      wouldReturn: answers.wouldReturn,
+      reason: (answers.reason ?? []).join(", ") || "No answer",
+      duration: (answers.duration ?? []).join(", ") || "No answer",
+      rating: (answers.rating ?? []).join(", ") || "No answer",
+      favoriteFeature: (answers.favoriteFeature ?? []).join(", ") || "No answer",
+      wouldReturn: (answers.wouldReturn ?? []).join(", ") || "No answer",
     }),
     onSuccess: () => {
       toast({ title: "Account deleted", description: "Your account has been permanently deleted." });
@@ -179,12 +178,19 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const handleSelect = (key: string, value: string) => {
-    setAnswers(prev => ({ ...prev, [key]: value }));
+  const handleToggle = (key: string, value: string) => {
+    setAnswers(prev => {
+      const current = prev[key] ?? [];
+      const exists = current.includes(value);
+      return {
+        ...prev,
+        [key]: exists ? current.filter(v => v !== value) : [...current, value],
+      };
+    });
   };
 
-  const canProceed = isIntro || isConfirm || (currentQ && !!answers[currentQ.key]);
-  const allAnswered = SURVEY_QUESTIONS.every(q => !!answers[q.key]);
+  const canProceed = isIntro || isConfirm || (currentQ && (answers[currentQ.key]?.length ?? 0) > 0);
+  const allAnswered = SURVEY_QUESTIONS.every(q => (answers[q.key]?.length ?? 0) > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
@@ -261,17 +267,18 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
           {/* MCQ Question */}
           {currentQ && (
             <div className="flex-1 flex flex-col">
-              <div className="mb-5">
+              <div className="mb-4">
                 <span className="text-2xl">{currentQ.emoji}</span>
                 <p className="text-base font-bold text-white mt-2">{currentQ.question}</p>
+                <p className="text-[10px] text-zinc-600 mt-0.5">Select all that apply</p>
               </div>
               <div className="flex-1 space-y-2">
                 {currentQ.options.map(opt => {
-                  const selected = answers[currentQ.key] === opt;
+                  const selected = (answers[currentQ.key] ?? []).includes(opt);
                   return (
                     <button
                       key={opt}
-                      onClick={() => handleSelect(currentQ.key, opt)}
+                      onClick={() => handleToggle(currentQ.key, opt)}
                       data-testid={`survey-option-${opt.toLowerCase().replace(/\s+/g, "-").slice(0, 30)}`}
                       className="w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all"
                       style={{
@@ -281,8 +288,18 @@ function DeleteAccountModal({ onClose }: { onClose: () => void }) {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center" style={{ borderColor: selected ? "#f87171" : "rgba(255,255,255,0.15)" }}>
-                          {selected && <div className="w-2 h-2 rounded-full bg-red-400" />}
+                        <div
+                          className="w-4 h-4 rounded-md border-2 shrink-0 flex items-center justify-center transition-all"
+                          style={{
+                            borderColor: selected ? "#f87171" : "rgba(255,255,255,0.15)",
+                            background: selected ? "rgba(239,68,68,0.2)" : "transparent",
+                          }}
+                        >
+                          {selected && (
+                            <svg className="w-2.5 h-2.5 text-red-400" viewBox="0 0 10 10" fill="none">
+                              <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#f87171" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
                         </div>
                         {opt}
                       </div>
