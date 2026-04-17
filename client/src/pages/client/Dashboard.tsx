@@ -1170,66 +1170,209 @@ function ActivityHeatmap({ weekHistory }: { weekHistory: { date: string; credits
 
 function ReferralWidget({ stats }: { stats: any }) {
   const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const [visible, setVisible] = useState(false);
   const link = stats?.link || "";
   const code = stats?.code || "";
 
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
   function copyLink() {
     if (!link) return;
-    navigator.clipboard.writeText(link).then(() =>
-      toast({ title: "Link copied!", description: "Share it to earn 50 credits per signup." })
-    );
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      toast({ title: "Link copied!", description: "Share it to earn 50 credits per signup." });
+      setTimeout(() => setCopied(false), 2200);
+    });
   }
 
+  function shareOn(platform: "twitter" | "whatsapp") {
+    if (!link) return;
+    const msg = encodeURIComponent(`Join me on Oravini — the AI-powered content growth platform for influencers. Sign up with my link and let's grow together:`);
+    const url = encodeURIComponent(link);
+    const target =
+      platform === "twitter"
+        ? `https://twitter.com/intent/tweet?text=${msg}%20${url}`
+        : `https://wa.me/?text=${msg}%20${url}`;
+    window.open(target, "_blank", "noopener");
+  }
+
+  const statItems = [
+    { icon: MousePointerClick, label: "Clicks",        value: stats?.clicks  ?? "—", color: "#a78bfa" },
+    { icon: UserCheck,         label: "Signups",       value: stats?.signups ?? "—", color: GOLD },
+    { icon: Zap,               label: "Credits Earned",value: stats?.signups ? stats.signups * 50 : "—", color: "#34d399" },
+  ];
+
   return (
-    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: `${GOLD}30`, background: `linear-gradient(135deg, ${GOLD}08 0%, transparent 60%)` }}>
-      <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: `${GOLD}20` }}>
-        <Gift className="w-4 h-4" style={{ color: GOLD }} />
-        <p className="text-sm font-bold text-foreground">Refer & Earn</p>
-        <span className="ml-auto text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background: `${GOLD}20`, color: GOLD }}>
-          50 credits per signup
-        </span>
+    <div
+      style={{
+        borderRadius: 20,
+        border: `1.5px solid ${GOLD}28`,
+        background: "linear-gradient(145deg, rgba(212,180,97,0.06) 0%, transparent 55%)",
+        overflow: "hidden",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(12px)",
+        transition: "opacity 0.45s ease, transform 0.45s ease",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "14px 20px", borderBottom: `1px solid ${GOLD}18`,
+          background: `linear-gradient(90deg, ${GOLD}0a 0%, transparent 100%)`,
+        }}
+      >
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${GOLD}20`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Gift className="w-4 h-4" style={{ color: GOLD }} />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-foreground">Refer &amp; Earn</p>
+          <p className="text-[10px] text-zinc-500">Invite friends, grow your credits</p>
+        </div>
+        <div
+          className="ml-auto text-xs font-bold px-3 py-1 rounded-full"
+          style={{
+            background: `${GOLD}18`, color: GOLD,
+            border: `1px solid ${GOLD}30`,
+            animation: "subtlePulse 3s ease-in-out infinite",
+          }}
+        >
+          +50 credits per signup
+        </div>
       </div>
-      <div className="p-5 space-y-4">
-        <p className="text-xs text-zinc-400 leading-relaxed">
-          Share your unique referral link. Every time someone signs up through your link, you instantly receive 50 bonus credits.
-        </p>
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { icon: MousePointerClick, label: "Clicks", value: stats?.clicks ?? "—" },
-            { icon: UserCheck, label: "Signups", value: stats?.signups ?? "—" },
-            { icon: Zap, label: "Credits Earned", value: stats?.signups ? stats.signups * 50 : "—" },
-          ].map(({ icon: Icon, label, value }) => (
-            <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center">
-              <Icon className="w-4 h-4 mx-auto mb-1 text-zinc-500" />
-              <p className="text-lg font-bold text-foreground">{value}</p>
-              <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
+
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Stat cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+          {statItems.map(({ icon: Icon, label, value, color }, i) => (
+            <div
+              key={label}
+              style={{
+                borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.025)",
+                padding: "12px 10px", textAlign: "center",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease",
+                cursor: "default",
+                opacity: visible ? 1 : 0,
+                transform: visible ? "translateY(0)" : "translateY(8px)",
+                transitionDelay: `${0.1 + i * 0.08}s`,
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)";
+                (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${color}18`;
+                (e.currentTarget as HTMLDivElement).style.borderColor = `${color}35`;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+                (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.06)";
+              }}
+            >
+              <Icon className="w-4 h-4 mx-auto mb-2" style={{ color }} />
+              <p className="text-xl font-bold text-foreground leading-none mb-1">{value}</p>
+              <p className="text-[10px] text-zinc-500">{label}</p>
             </div>
           ))}
         </div>
-        {/* Link copy row */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900/60 min-w-0">
-            <Link2 className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            <span className="text-xs text-zinc-300 truncate font-mono">{link || "Generating your link…"}</span>
+
+        {/* Link bar */}
+        <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+          <div
+            style={{
+              flex: 1, display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 14px", borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
+              minWidth: 0,
+            }}
+          >
+            <Link2 className="w-3.5 h-3.5 shrink-0" style={{ color: GOLD, opacity: 0.7 }} />
+            <span
+              className="text-xs font-mono truncate"
+              style={{ color: link ? "#d4d4d4" : "#52525b" }}
+            >
+              {link || "Generating your link…"}
+            </span>
           </div>
           <button
             data-testid="button-copy-referral"
             onClick={copyLink}
             disabled={!link}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shrink-0 disabled:opacity-40"
-            style={{ background: GOLD, color: "#000" }}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "10px 16px", borderRadius: 12,
+              background: copied ? "#22c55e" : GOLD,
+              color: "#000", fontSize: 12, fontWeight: 700,
+              border: "none", cursor: link ? "pointer" : "not-allowed",
+              opacity: link ? 1 : 0.4,
+              transition: "background 0.3s ease, transform 0.15s ease",
+              whiteSpace: "nowrap", shrink: 0,
+            }}
+            onMouseEnter={e => { if (link) (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.03)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}
           >
-            <Copy className="w-3.5 h-3.5" />
-            Copy
+            {copied
+              ? <><Check className="w-3.5 h-3.5" /> Copied!</>
+              : <><Copy className="w-3.5 h-3.5" /> Copy Link</>
+            }
           </button>
         </div>
+
+        {/* Share buttons */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => shareOn("twitter")}
+            disabled={!link}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              background: "rgba(29,161,242,0.1)", border: "1px solid rgba(29,161,242,0.2)",
+              color: "#1da1f2", cursor: link ? "pointer" : "not-allowed",
+              opacity: link ? 1 : 0.4,
+              transition: "background 0.2s, transform 0.15s",
+            }}
+            onMouseEnter={e => { if (link) { (e.currentTarget as HTMLButtonElement).style.background = "rgba(29,161,242,0.18)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(29,161,242,0.1)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Share on X
+          </button>
+          <button
+            onClick={() => shareOn("whatsapp")}
+            disabled={!link}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              padding: "9px 0", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.2)",
+              color: "#25d366", cursor: link ? "pointer" : "not-allowed",
+              opacity: link ? 1 : 0.4,
+              transition: "background 0.2s, transform 0.15s",
+            }}
+            onMouseEnter={e => { if (link) { (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,211,102,0.18)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,211,102,0.1)"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.115.553 4.1 1.522 5.827L0 24l6.335-1.509A11.96 11.96 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.371l-.359-.214-3.753.893.938-3.666-.234-.376A9.818 9.818 0 0 1 12 2.182c5.427 0 9.818 4.391 9.818 9.818s-4.391 9.818-9.818 9.818z"/></svg>
+            Share on WhatsApp
+          </button>
+        </div>
+
         {code && (
-          <p className="text-[11px] text-zinc-600 text-center">
-            Your code: <span className="font-mono text-zinc-400">{code}</span>
+          <p style={{ textAlign: "center", fontSize: 11, color: "#52525b" }}>
+            Your code: <span style={{ fontFamily: "monospace", color: "#a1a1aa", letterSpacing: 1 }}>{code}</span>
           </p>
         )}
       </div>
+
+      <style>{`
+        @keyframes subtlePulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      `}</style>
     </div>
   );
 }

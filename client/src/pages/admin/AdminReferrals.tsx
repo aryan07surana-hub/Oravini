@@ -3,24 +3,85 @@ import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Users, MousePointerClick, UserCheck, TrendingUp, Gift } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const GOLD = "#d4b461";
 
-function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: number | string }) {
+function useCountUp(target: number, duration = 900) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!target) { setVal(0); return; }
+    let start: number | null = null;
+    const step = (ts: number) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setVal(Math.round(ease * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+  return val;
+}
+
+function StatCard({ icon: Icon, label, value, color, delay = 0 }: {
+  icon: any; label: string; value: number; color: string; delay?: number;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const animated = useCountUp(visible ? value : 0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 flex items-center gap-4">
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
-        <Icon className="w-5 h-5" style={{ color: GOLD }} />
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: 18,
+        border: `1.5px solid ${hovered ? color + "35" : "rgba(255,255,255,0.06)"}`,
+        background: hovered
+          ? `linear-gradient(135deg, ${color}0c 0%, rgba(255,255,255,0.02) 100%)`
+          : "rgba(255,255,255,0.025)",
+        padding: "20px 18px",
+        display: "flex", alignItems: "center", gap: 14,
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(10px)",
+        transition: "opacity 0.4s ease, transform 0.4s ease, border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease",
+        boxShadow: hovered ? `0 8px 28px ${color}18` : "none",
+        cursor: "default",
+      }}
+    >
+      <div style={{
+        width: 44, height: 44, borderRadius: 12,
+        background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+        transition: "transform 0.2s ease",
+        transform: hovered ? "scale(1.1)" : "scale(1)",
+      }}>
+        <Icon style={{ width: 20, height: 20, color }} />
       </div>
       <div>
-        <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
-        <p className="text-2xl font-bold text-foreground">{value}</p>
+        <p style={{ fontSize: 11, color: "#71717a", marginBottom: 2 }}>{label}</p>
+        <p style={{ fontSize: 26, fontWeight: 800, color: "#fafafa", lineHeight: 1 }}>{animated}</p>
       </div>
     </div>
   );
 }
 
+const RANK_STYLES: Record<number, { bg: string; color: string; label: string }> = {
+  0: { bg: "rgba(212,180,97,0.18)", color: "#d4b461", label: "🥇" },
+  1: { bg: "rgba(148,163,184,0.15)", color: "#94a3b8", label: "🥈" },
+  2: { bg: "rgba(180,120,70,0.15)",  color: "#b47846", label: "🥉" },
+};
+
 export default function AdminReferrals() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setMounted(true), 60); return () => clearTimeout(t); }, []);
+
   const { data: stats = [], isLoading: statsLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/referral-stats"],
   });
@@ -28,82 +89,100 @@ export default function AdminReferrals() {
     queryKey: ["/api/admin/referral-leads"],
   });
 
-  const totalClicks = stats.reduce((a: number, r: any) => a + Number(r.clicks || 0), 0);
-  const totalSignups = stats.reduce((a: number, r: any) => a + Number(r.signups || 0), 0);
+  const totalClicks      = stats.reduce((a: number, r: any) => a + Number(r.clicks      || 0), 0);
+  const totalSignups     = stats.reduce((a: number, r: any) => a + Number(r.signups     || 0), 0);
   const totalConversions = stats.reduce((a: number, r: any) => a + Number(r.conversions || 0), 0);
 
   return (
     <AdminLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Gift className="w-6 h-6" style={{ color: GOLD }} />
-            Referral Program
-          </h1>
-          <p className="text-sm text-zinc-500 mt-1">Track referral links, clicks, signups, and 50-credit bonuses.</p>
+      <div style={{ padding: "28px 24px", maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 32 }}>
+
+        {/* Page header */}
+        <div
+          style={{
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? "translateY(0)" : "translateY(-8px)",
+            transition: "opacity 0.4s ease, transform 0.4s ease",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${GOLD}20`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Gift style={{ width: 18, height: 18, color: GOLD }} />
+            </div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "#fafafa", margin: 0 }}>Referral Program</h1>
+          </div>
+          <p style={{ fontSize: 13, color: "#71717a", margin: 0 }}>
+            Track referral links, clicks, signups, and 50-credit bonuses in real time.
+          </p>
         </div>
 
         {/* Overview stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={Users} label="Active Referrers" value={stats.length} />
-          <StatCard icon={MousePointerClick} label="Total Clicks" value={totalClicks} />
-          <StatCard icon={UserCheck} label="Signups" value={totalSignups} />
-          <StatCard icon={TrendingUp} label="Conversions" value={totalConversions} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+          <StatCard icon={Users}             label="Active Referrers" value={stats.length}     color="#a78bfa" delay={80}  />
+          <StatCard icon={MousePointerClick} label="Total Clicks"     value={totalClicks}      color="#60a5fa" delay={140} />
+          <StatCard icon={UserCheck}         label="Signups"          value={totalSignups}     color={GOLD}    delay={200} />
+          <StatCard icon={TrendingUp}        label="Conversions"      value={totalConversions} color="#34d399" delay={260} />
         </div>
 
         {/* Leaderboard */}
-        <div className="rounded-2xl border border-zinc-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
-            <p className="text-sm font-bold text-foreground">Referral Leaderboard</p>
-            <Badge variant="secondary" className="text-[10px]">{stats.length} referrers</Badge>
+        <div
+          style={{
+            borderRadius: 20, border: "1px solid rgba(255,255,255,0.07)",
+            background: "rgba(255,255,255,0.015)", overflow: "hidden",
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? "translateY(0)" : "translateY(12px)",
+            transition: "opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s",
+          }}
+        >
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.02)",
+          }}>
+            <p style={{ fontWeight: 700, fontSize: 14, color: "#fafafa", margin: 0 }}>Referral Leaderboard</p>
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
+              background: "rgba(255,255,255,0.07)", color: "#a1a1aa",
+            }}>{stats.length} referrers</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/30">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">#</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Member</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Plan</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Code</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-500">Clicks</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-500">Signups</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-zinc-500">Conversions</th>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  {["#", "Member", "Plan", "Code", "Clicks", "Signups", "Conversions"].map((h, i) => (
+                    <th key={h} style={{
+                      padding: "12px 18px", textAlign: i >= 4 ? "right" : "left",
+                      fontSize: 11, fontWeight: 600, color: "#71717a",
+                      background: "rgba(0,0,0,0.2)", letterSpacing: "0.03em",
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {statsLoading ? (
                   Array(5).fill(0).map((_, i) => (
-                    <tr key={i} className="border-b border-zinc-800/50">
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                       {Array(7).fill(0).map((_, j) => (
-                        <td key={j} className="px-5 py-3"><Skeleton className="h-4 w-full" /></td>
+                        <td key={j} style={{ padding: "14px 18px" }}>
+                          <Skeleton className="h-4" style={{ width: j === 1 ? 120 : 60 }} />
+                        </td>
                       ))}
                     </tr>
                   ))
                 ) : stats.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-zinc-500 text-sm">No referral data yet.</td>
+                    <td colSpan={7} style={{ padding: "48px 20px", textAlign: "center", color: "#52525b", fontSize: 13 }}>
+                      No referral data yet — share the program with your members.
+                    </td>
                   </tr>
                 ) : (
-                  stats.map((row: any, i: number) => (
-                    <tr key={row.user_id} data-testid={`referral-row-${row.user_id}`} className="border-b border-zinc-800/50 hover:bg-zinc-900/40 transition-colors">
-                      <td className="px-5 py-3 text-zinc-400 font-semibold">{i + 1}</td>
-                      <td className="px-5 py-3">
-                        <div>
-                          <p className="font-semibold text-foreground">{row.name || "—"}</p>
-                          <p className="text-xs text-zinc-500">{row.email}</p>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <Badge variant="outline" className="text-[10px] capitalize">{row.plan || "free"}</Badge>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">{row.code}</span>
-                      </td>
-                      <td className="px-5 py-3 text-right text-zinc-300">{row.clicks}</td>
-                      <td className="px-5 py-3 text-right font-semibold" style={{ color: Number(row.signups) > 0 ? GOLD : "inherit" }}>{row.signups}</td>
-                      <td className="px-5 py-3 text-right text-emerald-400 font-semibold">{row.conversions}</td>
-                    </tr>
-                  ))
+                  stats.map((row: any, i: number) => {
+                    const rank = RANK_STYLES[i];
+                    return (
+                      <ReferralRow key={row.user_id} row={row} i={i} rank={rank} delay={i * 40} />
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -111,66 +190,60 @@ export default function AdminReferrals() {
         </div>
 
         {/* Referral Leads */}
-        <div className="rounded-2xl border border-zinc-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
-            <p className="text-sm font-bold text-foreground">All Referral Leads</p>
-            <Badge variant="secondary" className="text-[10px]">{leads.length} leads</Badge>
+        <div
+          style={{
+            borderRadius: 20, border: "1px solid rgba(255,255,255,0.07)",
+            background: "rgba(255,255,255,0.015)", overflow: "hidden",
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? "translateY(0)" : "translateY(12px)",
+            transition: "opacity 0.5s ease 0.35s, transform 0.5s ease 0.35s",
+          }}
+        >
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.02)",
+          }}>
+            <p style={{ fontWeight: 700, fontSize: 14, color: "#fafafa", margin: 0 }}>All Referral Leads</p>
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
+              background: "rgba(255,255,255,0.07)", color: "#a1a1aa",
+            }}>{leads.length} leads</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-900/30">
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Referred User</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Referred By</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Plan</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-zinc-500">Date</th>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  {["Referred User", "Referred By", "Plan", "Status", "Date"].map(h => (
+                    <th key={h} style={{
+                      padding: "12px 18px", textAlign: "left",
+                      fontSize: 11, fontWeight: 600, color: "#71717a",
+                      background: "rgba(0,0,0,0.2)", letterSpacing: "0.03em",
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {leadsLoading ? (
                   Array(4).fill(0).map((_, i) => (
-                    <tr key={i} className="border-b border-zinc-800/50">
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                       {Array(5).fill(0).map((_, j) => (
-                        <td key={j} className="px-5 py-3"><Skeleton className="h-4 w-full" /></td>
+                        <td key={j} style={{ padding: "14px 18px" }}>
+                          <Skeleton className="h-4" style={{ width: j === 0 ? 130 : 90 }} />
+                        </td>
                       ))}
                     </tr>
                   ))
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-zinc-500 text-sm">No referral leads yet.</td>
+                    <td colSpan={5} style={{ padding: "48px 20px", textAlign: "center", color: "#52525b", fontSize: 13 }}>
+                      No referral leads yet.
+                    </td>
                   </tr>
                 ) : (
-                  leads.map((lead: any) => (
-                    <tr key={lead.id} data-testid={`lead-row-${lead.id}`} className="border-b border-zinc-800/50 hover:bg-zinc-900/40 transition-colors">
-                      <td className="px-5 py-3">
-                        <div>
-                          <p className="font-medium text-foreground">{lead.referred_name || lead.referred_email_addr || lead.referred_email}</p>
-                          <p className="text-xs text-zinc-500">{lead.referred_email_addr || lead.referred_email}</p>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div>
-                          <p className="font-medium text-foreground">{lead.referrer_name || "—"}</p>
-                          <p className="text-xs text-zinc-500">{lead.referrer_email}</p>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <Badge variant="outline" className="text-[10px] capitalize">{lead.referred_plan || "—"}</Badge>
-                      </td>
-                      <td className="px-5 py-3">
-                        {lead.converted ? (
-                          <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Converted</Badge>
-                        ) : lead.registered ? (
-                          <Badge className="text-[10px]" style={{ background: `${GOLD}20`, color: GOLD, borderColor: `${GOLD}40` }}>Signed up</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[10px]">Clicked</Badge>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-xs text-zinc-500">
-                        {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "—"}
-                      </td>
-                    </tr>
+                  leads.map((lead: any, i: number) => (
+                    <LeadRow key={lead.id} lead={lead} delay={i * 35} />
                   ))
                 )}
               </tbody>
@@ -179,5 +252,112 @@ export default function AdminReferrals() {
         </div>
       </div>
     </AdminLayout>
+  );
+}
+
+function ReferralRow({ row, i, rank, delay }: { row: any; i: number; rank: any; delay: number }) {
+  const [visible, setVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 120 + delay); return () => clearTimeout(t); }, [delay]);
+
+  return (
+    <tr
+      data-testid={`referral-row-${row.user_id}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        background: hovered ? "rgba(255,255,255,0.035)" : "transparent",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0)" : "translateX(-8px)",
+        transition: "opacity 0.35s ease, transform 0.35s ease, background 0.18s ease",
+      }}
+    >
+      <td style={{ padding: "14px 18px" }}>
+        {rank ? (
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 28, height: 28, borderRadius: 8,
+            background: rank.bg, fontSize: 14,
+          }}>{rank.label}</span>
+        ) : (
+          <span style={{ fontSize: 12, color: "#52525b", fontWeight: 600 }}>{i + 1}</span>
+        )}
+      </td>
+      <td style={{ padding: "14px 18px" }}>
+        <p style={{ fontWeight: 600, color: "#fafafa", margin: 0, fontSize: 13 }}>{row.name || "—"}</p>
+        <p style={{ fontSize: 11, color: "#71717a", margin: 0 }}>{row.email}</p>
+      </td>
+      <td style={{ padding: "14px 18px" }}>
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
+          border: "1px solid rgba(255,255,255,0.1)", color: "#a1a1aa",
+          textTransform: "capitalize",
+        }}>{row.plan || "free"}</span>
+      </td>
+      <td style={{ padding: "14px 18px" }}>
+        <span style={{
+          fontFamily: "monospace", fontSize: 11,
+          padding: "3px 8px", borderRadius: 6,
+          background: "rgba(255,255,255,0.06)", color: "#d4d4d4",
+        }}>{row.code}</span>
+      </td>
+      <td style={{ padding: "14px 18px", textAlign: "right", color: "#a1a1aa" }}>{row.clicks}</td>
+      <td style={{
+        padding: "14px 18px", textAlign: "right", fontWeight: 700,
+        color: Number(row.signups) > 0 ? GOLD : "#52525b",
+      }}>{row.signups}</td>
+      <td style={{ padding: "14px 18px", textAlign: "right", fontWeight: 700, color: "#34d399" }}>{row.conversions}</td>
+    </tr>
+  );
+}
+
+function LeadRow({ lead, delay }: { lead: any; delay: number }) {
+  const [visible, setVisible] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 180 + delay); return () => clearTimeout(t); }, [delay]);
+
+  const statusEl = lead.converted ? (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}>Converted</span>
+  ) : lead.registered ? (
+    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}35` }}>Signed up</span>
+  ) : (
+    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.06)", color: "#71717a" }}>Clicked</span>
+  );
+
+  return (
+    <tr
+      data-testid={`lead-row-${lead.id}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        background: hovered ? "rgba(255,255,255,0.035)" : "transparent",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0)" : "translateX(-8px)",
+        transition: "opacity 0.35s ease, transform 0.35s ease, background 0.18s ease",
+      }}
+    >
+      <td style={{ padding: "14px 18px" }}>
+        <p style={{ fontWeight: 600, color: "#fafafa", margin: 0, fontSize: 13 }}>
+          {lead.referred_name || lead.referred_email_addr || lead.referred_email}
+        </p>
+        <p style={{ fontSize: 11, color: "#71717a", margin: 0 }}>{lead.referred_email_addr || lead.referred_email}</p>
+      </td>
+      <td style={{ padding: "14px 18px" }}>
+        <p style={{ fontWeight: 600, color: "#fafafa", margin: 0, fontSize: 13 }}>{lead.referrer_name || "—"}</p>
+        <p style={{ fontSize: 11, color: "#71717a", margin: 0 }}>{lead.referrer_email}</p>
+      </td>
+      <td style={{ padding: "14px 18px" }}>
+        <span style={{
+          fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
+          border: "1px solid rgba(255,255,255,0.1)", color: "#a1a1aa", textTransform: "capitalize",
+        }}>{lead.referred_plan || "—"}</span>
+      </td>
+      <td style={{ padding: "14px 18px" }}>{statusEl}</td>
+      <td style={{ padding: "14px 18px", fontSize: 12, color: "#71717a" }}>
+        {lead.created_at ? new Date(lead.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+      </td>
+    </tr>
   );
 }
