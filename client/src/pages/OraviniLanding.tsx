@@ -791,6 +791,155 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── REFERRAL PROGRAM ─────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", position: "relative", overflow: "hidden" }}>
+        {/* Background */}
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 50% 50%, rgba(212,180,97,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent, ${GOLD}30, transparent)` }} />
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent, ${GOLD}20, transparent)` }} />
+
+        <div style={{ maxWidth: 900, margin: "0 auto", position: "relative", zIndex: 1 }}>
+          {/* Label */}
+          <Anim>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}12`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "6px 18px", marginBottom: 28 }}>
+              <span style={{ fontSize: 16 }}>🎁</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase" }}>Referral Program</span>
+            </div>
+          </Anim>
+
+          {/* Headline */}
+          <Anim delay={80}>
+            <h2 style={{ fontSize: "clamp(32px, 5.5vw, 64px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.03em", marginBottom: 16, textAlign: "center" }}>
+              Invite friends.<br />
+              <span style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                Earn credits instantly.
+              </span>
+            </h2>
+          </Anim>
+
+          <Anim delay={150}>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 520, margin: "0 auto 64px", lineHeight: 1.75 }}>
+              Every member gets a personal referral link. Share it — every person who signs up earns you <strong style={{ color: GOLD }}>50 bonus credits</strong>, automatically.
+            </p>
+          </Anim>
+
+          {/* Steps */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginBottom: 64 }}>
+            {[
+              {
+                step: "01",
+                icon: "🔗",
+                title: "Get your link",
+                desc: "Sign up and your personal referral link is generated instantly — no setup needed.",
+              },
+              {
+                step: "02",
+                icon: "📤",
+                title: "Share it anywhere",
+                desc: "Post it on Instagram, DM a fellow creator, or share it in your community.",
+              },
+              {
+                step: "03",
+                icon: "⚡",
+                title: "Earn 50 credits",
+                desc: "When they join, 50 bonus credits land in your account automatically. No waiting.",
+              },
+            ].map(({ step, icon, title, desc }, i) => (
+              <Anim key={step} delay={i * 80}>
+                <div
+                  className="feature-card"
+                  style={{
+                    background: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: 20,
+                    padding: "32px 28px",
+                    position: "relative",
+                    overflow: "hidden",
+                    transition: "border-color 0.3s, box-shadow 0.3s",
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}40`;
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 40px ${GOLD}0a`;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.07)";
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                  }}
+                >
+                  {/* Step number watermark */}
+                  <div style={{ position: "absolute", top: 16, right: 20, fontSize: 48, fontWeight: 900, color: "rgba(212,180,97,0.06)", lineHeight: 1, userSelect: "none" }}>{step}</div>
+                  <div style={{ fontSize: 32, marginBottom: 16 }}>{icon}</div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: "#fff", marginBottom: 10, lineHeight: 1.2 }}>{title}</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.42)", lineHeight: 1.7, margin: 0 }}>{desc}</p>
+                </div>
+              </Anim>
+            ))}
+          </div>
+
+          {/* Credit callout banner */}
+          <Anim delay={100}>
+            <div style={{
+              background: `linear-gradient(135deg, ${GOLD}0e 0%, rgba(255,255,255,0.02) 100%)`,
+              border: `1.5px solid ${GOLD}30`,
+              borderRadius: 20,
+              padding: "36px 48px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 32,
+              flexWrap: "wrap",
+              marginBottom: 48,
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD_BRIGHT}, ${GOLD}, transparent)` }} />
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: GOLD, marginBottom: 8 }}>No limit on referrals</p>
+                <p style={{ fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1.2 }}>
+                  Refer 10 friends →<br />
+                  <span style={{ color: GOLD }}>500 bonus credits</span>
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+                {[
+                  { n: "1", label: "referral", credits: "50" },
+                  { n: "5", label: "referrals", credits: "250" },
+                  { n: "10", label: "referrals", credits: "500" },
+                ].map(({ n, label, credits }) => (
+                  <div key={n} style={{ textAlign: "center", padding: "12px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
+                    <p style={{ fontSize: 22, fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>{credits}</p>
+                    <p style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", margin: "4px 0 0", letterSpacing: "0.08em" }}>CREDITS</p>
+                    <p style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", margin: "2px 0 0" }}>{n} {label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Anim>
+
+          {/* CTA */}
+          <Anim delay={150}>
+            <div style={{ textAlign: "center" }}>
+              <button
+                onClick={() => nav("/login?tab=register")}
+                style={{
+                  background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`,
+                  color: "#000", fontWeight: 800, fontSize: 15,
+                  border: "none", borderRadius: 12, padding: "16px 40px",
+                  cursor: "pointer",
+                  boxShadow: `0 0 40px ${GOLD}30`,
+                  transition: "opacity 0.2s, transform 0.2s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
+              >
+                Join &amp; Get Your Referral Link →
+              </button>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Free to join · No credit card required</p>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
       {/* ── FINAL CTA ─────────────────────────────────────────────────────────── */}
       <section style={{ padding: "120px 24px", textAlign: "center", background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(212,180,97,0.06) 0%, transparent 70%)" }}>
         <Anim>
