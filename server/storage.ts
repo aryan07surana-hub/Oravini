@@ -1606,16 +1606,29 @@ class DatabaseStorage implements IStorage {
   async processReferralSignup(code: string, newUserId: string, email: string): Promise<void> {
     const ref = await this.getReferralCode(code);
     if (!ref || ref.userId === newUserId) return;
+
+    // Prevent double-processing the same referred user
     const [existing] = await db.select().from(referralConversions)
       .where(eq(referralConversions.referredUserId, newUserId));
     if (existing) return;
+
+    // Record the conversion
     await db.insert(referralConversions).values({
       referrerId: ref.userId, referredUserId: newUserId, referredEmail: email,
       registered: true, converted: false, creditAwarded: false,
     });
+
+    // Award the REFERRER 50 credits for sharing their link
     await this.addBonusCredits(ref.userId, 50, `Referral bonus — ${email} joined`);
+
+    // Award the REFERRED PERSON 25 bonus welcome credits for joining via referral
+    await this.addBonusCredits(newUserId, 25, `Welcome bonus — joined via referral`);
+
+    // Mark credit as awarded
     await db.update(referralConversions).set({ creditAwarded: true })
       .where(and(eq(referralConversions.referrerId, ref.userId), eq(referralConversions.referredUserId, newUserId)));
+
+    console.log(`[referral] ✅ Referrer ${ref.userId} +50 credits | New user ${newUserId} +25 credits (code: ${code})`);
   }
 
   async getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }> {

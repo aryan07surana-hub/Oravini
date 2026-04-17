@@ -310,7 +310,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Google OAuth ────────────────────────────────────────────────────────────
-  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+  // Save referral code into session BEFORE redirecting to Google — the callback
+  // cannot read body/form data, so session is the only reliable carrier.
+  app.get("/api/auth/google", (req, res, next) => {
+    const refCode = (req.cookies as any)?.referral_code || (req.query.ref as string);
+    if (refCode) (req.session as any).pendingReferralCode = refCode;
+    passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+  });
 
   app.get("/api/auth/google/callback",
     (req, res, next) => {
@@ -329,14 +335,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             return res.redirect("/login?error=google_failed");
           }
           // Process referral for brand-new Google signups
+          // Try session first (most reliable), then cookie as fallback
           if ((user as any)._isNewGoogleUser) {
-            const refCode = (req as any).cookies?.referral_code;
+            const refCode =
+              (req.session as any)?.pendingReferralCode ||
+              (req.cookies as any)?.referral_code;
             if (refCode) {
               try {
                 await storage.processReferralSignup(refCode, user.id, user.email || "");
+                console.log("[referral] google new user credited — code:", refCode, "user:", user.id);
               } catch (refErr) {
                 console.error("[referral] google signup referral failed for", user.id, "code:", refCode, refErr);
               }
+              delete (req.session as any).pendingReferralCode;
             }
           }
           const dest = user.role === "admin"

@@ -818,9 +818,23 @@ export default function OraviniLanding() {
           </Anim>
 
           <Anim delay={150}>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 520, margin: "0 auto 64px", lineHeight: 1.75 }}>
-              Every member gets a personal referral link. Share it — every person who signs up earns you <strong style={{ color: GOLD }}>50 bonus credits</strong>, automatically.
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 560, margin: "0 auto 32px", lineHeight: 1.75 }}>
+              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you get 50 credits</strong> and <strong style={{ color: "#34d399" }}>they get 25 bonus credits</strong> as a welcome gift.
             </p>
+          </Anim>
+
+          {/* Win-win badges */}
+          <Anim delay={200}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}12`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "8px 20px" }}>
+                <span style={{ fontSize: 16 }}>🤝</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You earn 50 credits per referral</span>
+              </div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 99, padding: "8px 20px" }}>
+                <span style={{ fontSize: 16 }}>🎁</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Your friend gets 25 welcome credits</span>
+              </div>
+            </div>
           </Anim>
 
           {/* Steps */}
@@ -841,8 +855,8 @@ export default function OraviniLanding() {
               {
                 step: "03",
                 icon: "⚡",
-                title: "Earn 50 credits",
-                desc: "When they join, 50 bonus credits land in your account automatically. No waiting.",
+                title: "Both sides win",
+                desc: "You get 50 credits when they join. They get 25 welcome credits automatically.",
               },
             ].map(({ step, icon, title, desc }, i) => (
               <Anim key={step} delay={i * 80}>
@@ -899,6 +913,9 @@ export default function OraviniLanding() {
                   Refer 10 friends →<br />
                   <span style={{ color: GOLD }}>500 bonus credits</span>
                 </p>
+                <p style={{ fontSize: 12, color: "rgba(52,211,153,0.8)", marginTop: 10, fontWeight: 600 }}>
+                  + your friends each get 25 welcome credits
+                </p>
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
                 {[
@@ -932,9 +949,9 @@ export default function OraviniLanding() {
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
               >
-                Join &amp; Get Your Referral Link →
+                Join Free — Get 25 Bonus Credits →
               </button>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Free to join · No credit card required</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 14 }}>Join via a referral link and get 25 bonus credits instantly · No credit card required</p>
             </div>
           </Anim>
         </div>

@@ -152,9 +152,21 @@ export default function Login() {
 
   if (isLoading) return null;
 
+  // Build Google auth URL carrying ref code so it survives the OAuth redirect
+  const googleAuthUrl = (() => {
+    const urlRef = new URLSearchParams(window.location.search).get("ref");
+    const refCookie = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith("referral_code="));
+    const refCode = urlRef || (refCookie ? decodeURIComponent(refCookie.split("=").slice(1).join("=")) : null);
+    const params = new URLSearchParams();
+    if (redirectTo) params.set("redirect", redirectTo);
+    if (refCode) params.set("ref", refCode);
+    const qs = params.toString();
+    return `/api/auth/google${qs ? `?${qs}` : ""}`;
+  })();
+
   const googleBtn = (
     <div>
-      <a href={`/api/auth/google${redirectTo ? `?redirect=${redirectTo}` : ""}`} data-testid="button-google-login">
+      <a href={googleAuthUrl} data-testid="button-google-login">
         <Button type="button" className="w-full h-11 font-medium gap-2 transition-all duration-300"
           style={{ border: googleHint ? `1.5px solid ${GOLD}` : "1px solid rgba(255,255,255,0.1)", background: googleHint ? "rgba(212,180,97,0.12)" : "rgba(255,255,255,0.05)", color: googleHint ? GOLD : "rgba(255,255,255,0.85)", boxShadow: googleHint ? "0 0 18px rgba(212,180,97,0.25)" : "none" }}>
           <SiGoogle className="w-4 h-4" />

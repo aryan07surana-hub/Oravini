@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
@@ -31,6 +32,7 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+app.use(cookieParser());
 
 const PgSession = connectPgSimple(session);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
