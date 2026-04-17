@@ -65,6 +65,58 @@ const PLATFORM_OPTIONS = [
   "Threads",
 ];
 
+const DESCRIPTOR_OPTIONS = [
+  "Creator / Influencer",
+  "Coach / Consultant",
+  "Course Creator",
+  "Agency Owner",
+  "Service Provider / Freelancer",
+  "Personal Brand / Thought Leader",
+  "Business Owner",
+  "Other",
+];
+
+const CONTENT_TYPE_OPTIONS = [
+  "Short-form video (Reels/Shorts/TikToks)",
+  "Long-form video (YouTube)",
+  "Photos & carousels",
+  "Written posts / threads",
+  "Podcasts / audio",
+  "Live streams",
+  "Newsletters",
+  "Stories / daily updates",
+];
+
+const FOLLOWER_COUNT_OPTIONS = [
+  "Under 1,000",
+  "1K – 10K",
+  "10K – 50K",
+  "50K – 100K",
+  "100K – 500K",
+  "500K+",
+];
+
+const AWARENESS_OPTIONS = [
+  "Never heard of done-with-you growth programmes",
+  "Heard of them but not sure how they work",
+  "Actively researching / looking into one",
+  "Tried one before",
+  "Currently in one",
+];
+
+const HEARD_ABOUT_OPTIONS = [
+  "Instagram",
+  "YouTube",
+  "TikTok",
+  "X / Twitter",
+  "LinkedIn",
+  "Friend referral",
+  "Google search",
+  "Newsletter / email",
+  "Another creator",
+  "Other",
+];
+
 interface Props {
   onComplete: () => void;
   existingSurvey?: any;
@@ -168,31 +220,46 @@ const ELITE_OPTIONS = [
 
 const STEPS = [
   { key: "fields", title: "What field are you in?", sub: "Pick all that apply — helps us tailor your AI strategy." },
+  { key: "descriptor", title: "Which best describes you?", sub: "Pick the one closest to how you'd introduce yourself." },
   { key: "struggles", title: "What do you struggle with most?", sub: "Select all that apply — we'll prioritise help for these." },
   { key: "experience", title: "How long have you been creating content?" },
+  { key: "contentTypes", title: "What types of content do you create?", sub: "Select all formats you publish." },
+  { key: "followerCount", title: "What's your total following across all platforms?" },
   { key: "revenue", title: "What's your current monthly income from content?" },
   { key: "goal", title: "What's your primary goal right now?", sub: "Pick your main focus." },
   { key: "platforms", title: "Which platforms are you active on?", sub: "Select all you create content for." },
+  { key: "awareness", title: "How aware are you of done-with-you growth programmes?", sub: "No wrong answer — helps us know how to support you." },
+  { key: "heardAbout", title: "Where did you hear about us?", sub: "Select all that apply." },
   { key: "eliteInterest", title: "Do you need help scaling your info or coaching offer?", sub: "Tier 5 is our done-with-you programme — real strategy, real support, real results." },
 ];
 
+const ELITE_STEP = 11;
+
 export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
-  // If user already completed the original 6 steps but is missing eliteInterest,
-  // jump straight to step 6 with their previous answers preserved.
+  // If user already completed the original steps but is missing eliteInterest,
+  // jump straight to the elite step with their previous answers preserved.
   // DB returns snake_case (monthly_revenue, primary_goal, follower_count) — accept both forms
   const eliteOnly = !!existingSurvey && !existingSurvey?.answers?.eliteInterest;
-  const [step, setStep] = useState(eliteOnly ? 6 : 0);
+  const [step, setStep] = useState(eliteOnly ? ELITE_STEP : 0);
   const [fields, setFields] = useState<string[]>(
     Array.isArray(existingSurvey?.fields) ? existingSurvey.fields :
     existingSurvey?.field ? [existingSurvey.field] : []
   );
+  const [descriptor, setDescriptor] = useState(existingSurvey?.descriptor || "");
   const [struggles, setStruggles] = useState<string[]>(existingSurvey?.struggles || []);
   const [experience, setExperience] = useState(existingSurvey?.experience || "");
+  const [contentTypes, setContentTypes] = useState<string[]>(existingSurvey?.content_types || existingSurvey?.contentTypes || []);
+  const [followerCount, setFollowerCount] = useState(existingSurvey?.follower_count || existingSurvey?.followerCount || "");
   const [monthlyRevenue, setMonthlyRevenue] = useState(existingSurvey?.monthly_revenue || existingSurvey?.monthlyRevenue || "");
   const [primaryGoal, setPrimaryGoal] = useState(existingSurvey?.primary_goal || existingSurvey?.primaryGoal || "");
   const [platforms, setPlatforms] = useState<string[]>(
     Array.isArray(existingSurvey?.platforms) ? existingSurvey.platforms :
     existingSurvey?.platform ? [existingSurvey.platform] : []
+  );
+  const [awareness, setAwareness] = useState(existingSurvey?.awareness || "");
+  const [heardAbout, setHeardAbout] = useState<string[]>(
+    Array.isArray(existingSurvey?.heard_about) ? existingSurvey.heard_about :
+    Array.isArray(existingSurvey?.heardAbout) ? existingSurvey.heardAbout : []
   );
   const [eliteInterest, setEliteInterest] = useState("");
   const { toast } = useToast();
@@ -206,12 +273,17 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     mutationFn: () => apiRequest("POST", "/api/user/onboarding-survey", {
       field: fields.join(", "),
       fields,
+      descriptor,
       struggles,
       experience,
+      contentTypes,
+      followerCount,
       monthlyRevenue,
       primaryGoal,
       platform: platforms.join(", "),
       platforms,
+      awareness,
+      heardAbout,
       answers: { eliteInterest },
     }),
     onSuccess: () => {
@@ -225,17 +297,22 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
 
   const canAdvance = () => {
     if (step === 0) return fields.length > 0;
-    if (step === 1) return struggles.length > 0;
-    if (step === 2) return !!experience;
-    if (step === 3) return !!monthlyRevenue;
-    if (step === 4) return !!primaryGoal;
-    if (step === 5) return platforms.length > 0;
-    if (step === 6) return !!eliteInterest;
+    if (step === 1) return !!descriptor;
+    if (step === 2) return struggles.length > 0;
+    if (step === 3) return !!experience;
+    if (step === 4) return contentTypes.length > 0;
+    if (step === 5) return !!followerCount;
+    if (step === 6) return !!monthlyRevenue;
+    if (step === 7) return !!primaryGoal;
+    if (step === 8) return platforms.length > 0;
+    if (step === 9) return !!awareness;
+    if (step === 10) return heardAbout.length > 0;
+    if (step === 11) return !!eliteInterest;
     return false;
   };
 
   const handleNext = () => {
-    if (step < 6) setStep(s => s + 1);
+    if (step < ELITE_STEP) setStep(s => s + 1);
     else saveMutation.mutate();
   };
 
@@ -293,8 +370,17 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 1: Struggles — multi-select checkboxes */}
+          {/* Step 1: Descriptor — single radio */}
           {step === 1 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {DESCRIPTOR_OPTIONS.map(o => (
+                <RadioRow key={o} label={o} selected={descriptor === o} onClick={() => setDescriptor(o)} />
+              ))}
+            </div>
+          )}
+
+          {/* Step 2: Struggles — multi-select checkboxes */}
+          {step === 2 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {STRUGGLES.map(s => (
                 <CheckRow key={s} label={s} selected={struggles.includes(s)} onClick={() => toggleItem(struggles, setStruggles, s)} />
@@ -302,8 +388,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 2: Experience — single radio */}
-          {step === 2 && (
+          {/* Step 3: Experience — single radio */}
+          {step === 3 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {EXPERIENCE_OPTIONS.map(o => (
                 <RadioRow key={o} label={o} selected={experience === o} onClick={() => setExperience(o)} />
@@ -311,8 +397,26 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 3: Revenue — single radio */}
-          {step === 3 && (
+          {/* Step 4: Content types — multi-select checkboxes */}
+          {step === 4 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {CONTENT_TYPE_OPTIONS.map(c => (
+                <CheckRow key={c} label={c} selected={contentTypes.includes(c)} onClick={() => toggleItem(contentTypes, setContentTypes, c)} />
+              ))}
+            </div>
+          )}
+
+          {/* Step 5: Follower count — single radio */}
+          {step === 5 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {FOLLOWER_COUNT_OPTIONS.map(o => (
+                <RadioRow key={o} label={o} selected={followerCount === o} onClick={() => setFollowerCount(o)} />
+              ))}
+            </div>
+          )}
+
+          {/* Step 6: Revenue — single radio */}
+          {step === 6 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {REVENUE_OPTIONS.map(o => (
                 <RadioRow key={o} label={o} selected={monthlyRevenue === o} onClick={() => setMonthlyRevenue(o)} />
@@ -320,8 +424,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 4: Goal — single radio */}
-          {step === 4 && (
+          {/* Step 7: Goal — single radio */}
+          {step === 7 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {GOAL_OPTIONS.map(o => (
                 <RadioRow key={o} label={o} selected={primaryGoal === o} onClick={() => setPrimaryGoal(o)} />
@@ -329,8 +433,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 5: Platforms — multi-select chips */}
-          {step === 5 && (
+          {/* Step 8: Platforms — multi-select chips */}
+          {step === 8 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {PLATFORM_OPTIONS.map(p => (
                 <MultiChip key={p} label={p} selected={platforms.includes(p)} onClick={() => toggleItem(platforms, setPlatforms, p)} />
@@ -338,8 +442,26 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 6: Elite interest */}
-          {step === 6 && (
+          {/* Step 9: Awareness — single radio */}
+          {step === 9 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {AWARENESS_OPTIONS.map(o => (
+                <RadioRow key={o} label={o} selected={awareness === o} onClick={() => setAwareness(o)} />
+              ))}
+            </div>
+          )}
+
+          {/* Step 10: Heard about — multi-select chips */}
+          {step === 10 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {HEARD_ABOUT_OPTIONS.map(h => (
+                <MultiChip key={h} label={h} selected={heardAbout.includes(h)} onClick={() => toggleItem(heardAbout, setHeardAbout, h)} />
+              ))}
+            </div>
+          )}
+
+          {/* Step 11: Elite interest */}
+          {step === ELITE_STEP && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {ELITE_OPTIONS.map(opt => {
                 const isSelected = eliteInterest === opt.value;
@@ -546,7 +668,7 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
                 transition: "all 0.15s",
               }}
             >
-              {saveMutation.isPending ? "Saving…" : step === 6 ? "Complete Setup →" : "Next →"}
+              {saveMutation.isPending ? "Saving…" : step === ELITE_STEP ? "Complete Setup →" : "Next →"}
             </button>
           </div>
           <button
