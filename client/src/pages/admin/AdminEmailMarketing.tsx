@@ -51,8 +51,9 @@ export default function AdminEmailMarketing() {
   const { toast } = useToast();
 
   const { data: sequences = [], isLoading: seqLoading } = useQuery<any[]>({ queryKey: ["/api/admin/email/sequences"] });
+  const seqEmailsKey = `/api/admin/email/sequences/${selectedSeqId}/emails`;
   const { data: seqEmails = [], isLoading: emailsLoading } = useQuery<any[]>({
-    queryKey: ["/api/admin/email/sequences", selectedSeqId, "emails"],
+    queryKey: [seqEmailsKey],
     enabled: !!selectedSeqId,
   });
   const { data: statsData } = useQuery<{ stats: any; logs: any[] }>({ queryKey: ["/api/admin/email/stats"] });
@@ -94,7 +95,7 @@ export default function AdminEmailMarketing() {
   const createEmailMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", `/api/admin/email/sequences/${selectedSeqId}/emails`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/email/sequences", selectedSeqId, "emails"] });
+      queryClient.invalidateQueries({ queryKey: [seqEmailsKey] });
       setNewEmailOpen(false);
       toast({ title: "Email added" });
     },
@@ -103,7 +104,7 @@ export default function AdminEmailMarketing() {
   const updateEmailMut = useMutation({
     mutationFn: ({ id, ...data }: any) => apiRequest("PATCH", `/api/admin/email/sequence-emails/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/email/sequences", selectedSeqId, "emails"] });
+      queryClient.invalidateQueries({ queryKey: [seqEmailsKey] });
       setEditingEmail(null);
       toast({ title: "Email updated" });
     },
@@ -111,7 +112,7 @@ export default function AdminEmailMarketing() {
 
   const deleteEmailMut = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/email/sequence-emails/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/email/sequences", selectedSeqId, "emails"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [seqEmailsKey] }),
   });
 
   const broadcastMut = useMutation({
