@@ -378,6 +378,95 @@ export default function OnboardingModal({ onComplete }: Props) {
                 );
               })}
 
+              {/* Pricing panel — shown when Not now / Maybe is selected */}
+              {(eliteInterest === "not_now" || eliteInterest === "maybe") && (
+                <div style={{
+                  marginTop: 4,
+                  padding: "18px 18px 16px",
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
+                    No problem — here's what's available
+                  </div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginBottom: 14, fontWeight: 600 }}>
+                    Pick the plan that fits where you are right now. You can upgrade, downgrade or cancel anytime.
+                  </p>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { name: "Free", price: "$0", credits: "5/day credits", color: "#71717a", url: null },
+                      { name: "Starter", price: "$29", credits: "150 credits/mo", color: "#818cf8", url: "https://whop.com/checkout/plan_MyQ8imbxSSYqE" },
+                      { name: "Growth", price: "$59", credits: "350 credits/mo", color: GOLD, url: "https://whop.com/checkout/plan_czIrdl7ryaq6B", popular: true },
+                      { name: "Pro", price: "$79", credits: "700 credits/mo", color: "#34d399", url: "https://whop.com/checkout/plan_HjKg0jyCVzuG3" },
+                    ].map(tier => (
+                      <div
+                        key={tier.name}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          background: tier.popular ? `${tier.color}10` : "rgba(255,255,255,0.025)",
+                          border: `1px solid ${tier.popular ? `${tier.color}35` : "rgba(255,255,255,0.06)"}`,
+                          position: "relative",
+                        }}
+                      >
+                        <div style={{
+                          width: 8, height: 8, borderRadius: "50%",
+                          background: tier.color, flexShrink: 0,
+                          boxShadow: tier.popular ? `0 0 8px ${tier.color}` : "none",
+                        }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{tier.name}</span>
+                            {tier.popular && (
+                              <span style={{
+                                fontSize: 8, fontWeight: 800, color: "#000",
+                                background: tier.color, padding: "1px 6px", borderRadius: 4,
+                                letterSpacing: "0.08em", textTransform: "uppercase",
+                              }}>Popular</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 1 }}>{tier.credits}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: tier.color, lineHeight: 1 }}>{tier.price}</div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{tier.price === "$0" ? "forever" : "/month"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <a
+                    href="/settings/plan"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "block",
+                      marginTop: 12,
+                      padding: "10px",
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.8)",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      textAlign: "center",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    See full comparison & upgrade →
+                  </a>
+                  <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 8, textAlign: "center" }}>
+                    Opens in a new tab — finish your setup here first.
+                  </p>
+                </div>
+              )}
+
               {/* CTA panel — shown only when "Yes" is selected */}
               {eliteInterest === "yes" && (
                 <div style={{
