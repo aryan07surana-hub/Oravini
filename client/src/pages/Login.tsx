@@ -136,7 +136,9 @@ export default function Login() {
       if (!regEmail.trim()) throw new Error("Email is required");
       if (regPassword.length < 6) throw new Error("Password must be at least 6 characters");
       if (regPassword !== regConfirm) throw new Error("Passwords do not match");
-      return apiRequest("POST", "/api/auth/register", { name: regName.trim(), email: regEmail.trim(), password: regPassword });
+      const refCookie = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith("referral_code="));
+      const referralCode = refCookie ? refCookie.split("=")[1] : undefined;
+      return apiRequest("POST", "/api/auth/register", { name: regName.trim(), email: regEmail.trim(), password: regPassword, ...(referralCode ? { referralCode } : {}) });
     },
     onSuccess: redirectAfterAuth,
     onError: (err: any) => toast({ title: "Registration failed", description: err.message, variant: "destructive" }),

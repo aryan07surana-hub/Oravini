@@ -13,6 +13,7 @@ import {
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
   youtubeTokens, scheduledYoutubePosts,
+  referralCodes, referralClicks, referralConversions,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
   meetings,
   videoEdits,
@@ -99,6 +100,15 @@ export interface IStorage {
   saveOnboardingSurvey(data: any): Promise<any>;
   getOnboardingSurvey(userId: string): Promise<any | undefined>;
   getAllOnboardingSurveys(): Promise<any[]>;
+
+  // Referrals
+  getOrCreateReferralCode(userId: string): Promise<string>;
+  getReferralCode(code: string): Promise<any | undefined>;
+  trackReferralClick(code: string, ip: string, ua: string): Promise<void>;
+  processReferralSignup(code: string, newUserId: string, email: string): Promise<void>;
+  getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }>;
+  getAllReferralStats(): Promise<any[]>;
+  getReferralLeaderboard(): Promise<any[]>;
 
   // Sessions Hub
   getSessions(tierFilter?: string[]): Promise<Session[]>;
@@ -1570,6 +1580,77 @@ class DatabaseStorage implements IStorage {
   }
   async addEmailUnsubscribe(email: string) {
     await db.insert(emailUnsubscribes).values({ email }).onConflictDoNothing();
+  }
+
+  // ── Referral System ─────────────────────────────────────────────────────────
+  async getOrCreateReferralCode(userId: string): Promise<string> {
+    const [existing] = await db.select().from(referralCodes).where(eq(referralCodes.userId, userId));
+    if (existing) return existing.code;
+    const user = await this.getUser(userId);
+    const base = (user?.name || "user").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
+    const suffix = Math.random().toString(36).slice(2, 6);
+    const code = `${base}${suffix}`;
+    const [row] = await db.insert(referralCodes).values({ userId, code }).returning();
+    return row.code;
+  }
+
+  async getReferralCode(code: string): Promise<any | undefined> {
+    const [row] = await db.select().from(referralCodes).where(eq(referralCodes.code, code));
+    return row;
+  }
+
+  async trackReferralClick(code: string, ip: string, ua: string): Promise<void> {
+    await db.insert(referralClicks).values({ code, ipAddress: ip, userAgent: ua });
+  }
+
+  async processReferralSignup(code: string, newUserId: string, email: string): Promise<void> {
+    const ref = await this.getReferralCode(code);
+    if (!ref || ref.userId === newUserId) return;
+    const [existing] = await db.select().from(referralConversions)
+      .where(eq(referralConversions.referredUserId, newUserId));
+    if (existing) return;
+    await db.insert(referralConversions).values({
+      referrerId: ref.userId, referredUserId: newUserId, referredEmail: email,
+      registered: true, converted: false, creditAwarded: false,
+    });
+    await this.addBonusCredits(ref.userId, 50, `Referral bonus — ${email} joined`);
+    await db.update(referralConversions).set({ creditAwarded: true })
+      .where(and(eq(referralConversions.referrerId, ref.userId), eq(referralConversions.referredUserId, newUserId)));
+  }
+
+  async getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }> {
+    const code = await this.getOrCreateReferralCode(userId);
+    const clicks = await db.select().from(referralClicks).where(eq(referralClicks.code, code));
+    const conversions = await db.select().from(referralConversions).where(eq(referralConversions.referrerId, userId));
+    const converted = conversions.filter(c => c.converted);
+    return { code, clicks: clicks.length, signups: conversions.length, conversions: converted.length };
+  }
+
+  async getAllReferralStats(): Promise<any[]> {
+    const result = await db.execute(sqlExpr`
+      SELECT rc.code, rc.user_id, u.name, u.email, u.plan,
+        (SELECT COUNT(*) FROM referral_clicks rl WHERE rl.code = rc.code) AS clicks,
+        (SELECT COUNT(*) FROM referral_conversions rv WHERE rv.referrer_id = rc.user_id) AS signups,
+        (SELECT COUNT(*) FROM referral_conversions rv WHERE rv.referrer_id = rc.user_id AND rv.converted = true) AS conversions
+      FROM referral_codes rc
+      LEFT JOIN users u ON u.id = rc.user_id
+      ORDER BY signups DESC
+    `);
+    return result.rows as any[];
+  }
+
+  async getReferralLeaderboard(): Promise<any[]> {
+    const result = await db.execute(sqlExpr`
+      SELECT rc.code, rc.user_id, u.name, u.email, u.plan,
+        (SELECT COUNT(*) FROM referral_clicks rl WHERE rl.code = rc.code) AS clicks,
+        (SELECT COUNT(*) FROM referral_conversions rv WHERE rv.referrer_id = rc.user_id) AS signups,
+        (SELECT COUNT(*) FROM referral_conversions rv WHERE rv.referrer_id = rc.user_id AND rv.converted = true) AS conversions
+      FROM referral_codes rc
+      LEFT JOIN users u ON u.id = rc.user_id
+      ORDER BY signups DESC
+      LIMIT 20
+    `);
+    return result.rows as any[];
   }
 }
 

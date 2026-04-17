@@ -17,7 +17,7 @@ import {
   Trash2, Check, Sparkles, RefreshCw, ChevronRight, Zap, BarChart2,
   Lightbulb, Music2, Bot, Clapperboard, Map, Flame, Activity, Brain,
   Palette, ScanSearch, Layers, ImagePlay, Wand2, Mic2, Star, TrendingDown,
-  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay
+  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck
 } from "lucide-react";
 import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
@@ -1168,6 +1168,72 @@ function ActivityHeatmap({ weekHistory }: { weekHistory: { date: string; credits
   );
 }
 
+function ReferralWidget({ stats }: { stats: any }) {
+  const { toast } = useToast();
+  const link = stats?.link || "";
+  const code = stats?.code || "";
+
+  function copyLink() {
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() =>
+      toast({ title: "Link copied!", description: "Share it to earn 50 credits per signup." })
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: `${GOLD}30`, background: `linear-gradient(135deg, ${GOLD}08 0%, transparent 60%)` }}>
+      <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: `${GOLD}20` }}>
+        <Gift className="w-4 h-4" style={{ color: GOLD }} />
+        <p className="text-sm font-bold text-foreground">Refer & Earn</p>
+        <span className="ml-auto text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background: `${GOLD}20`, color: GOLD }}>
+          50 credits per signup
+        </span>
+      </div>
+      <div className="p-5 space-y-4">
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          Share your unique referral link. Every time someone signs up through your link, you instantly receive 50 bonus credits.
+        </p>
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { icon: MousePointerClick, label: "Clicks", value: stats?.clicks ?? "—" },
+            { icon: UserCheck, label: "Signups", value: stats?.signups ?? "—" },
+            { icon: Zap, label: "Credits Earned", value: stats?.signups ? stats.signups * 50 : "—" },
+          ].map(({ icon: Icon, label, value }) => (
+            <div key={label} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center">
+              <Icon className="w-4 h-4 mx-auto mb-1 text-zinc-500" />
+              <p className="text-lg font-bold text-foreground">{value}</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+        {/* Link copy row */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900/60 min-w-0">
+            <Link2 className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            <span className="text-xs text-zinc-300 truncate font-mono">{link || "Generating your link…"}</span>
+          </div>
+          <button
+            data-testid="button-copy-referral"
+            onClick={copyLink}
+            disabled={!link}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shrink-0 disabled:opacity-40"
+            style={{ background: GOLD, color: "#000" }}
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Copy
+          </button>
+        </div>
+        {code && (
+          <p className="text-[11px] text-zinc-600 text-center">
+            Your code: <span className="font-mono text-zinc-400">{code}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────
    MAIN DASHBOARD
 ───────────────────────────────────────────── */
@@ -1210,6 +1276,12 @@ export default function ClientDashboard() {
     queryKey: ["/api/activity/summary"],
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: referralStats } = useQuery<any>({
+    queryKey: ["/api/referral/my-stats"],
+    enabled: !!user?.id,
+    staleTime: 60 * 1000,
   });
 
   const markAllRead = useMutation({
@@ -1703,6 +1775,9 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
+
+          {/* ── REFERRAL WIDGET ── */}
+          <ReferralWidget stats={referralStats} />
 
           {/* ── COURSE MODULES ── */}
           <div className="rounded-2xl border border-zinc-800 p-5">

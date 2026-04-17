@@ -384,6 +384,14 @@ export default function OraviniLanding() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      fetch(`/api/referral/track?code=${encodeURIComponent(ref)}`).catch(() => {});
+    }
+  }, []);
+
   const handleAuditClick = useCallback(() => {
     if (user) {
       setShowSplash(true);

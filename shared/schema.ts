@@ -838,3 +838,34 @@ export const deletionSurveys = pgTable("deletion_surveys", {
 export const insertDeletionSurveySchema = createInsertSchema(deletionSurveys).omit({ id: true, createdAt: true });
 export type InsertDeletionSurvey = z.infer<typeof insertDeletionSurveySchema>;
 export type DeletionSurvey = typeof deletionSurveys.$inferSelect;
+
+// ── Referral System ──────────────────────────────────────────────────────────
+export const referralCodes = pgTable("referral_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  code: text("code").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ReferralCode = typeof referralCodes.$inferSelect;
+
+export const referralClicks = pgTable("referral_clicks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ReferralClick = typeof referralClicks.$inferSelect;
+
+export const referralConversions = pgTable("referral_conversions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  referrerId: varchar("referrer_id").notNull().references(() => users.id),
+  referredUserId: varchar("referred_user_id").references(() => users.id),
+  referredEmail: text("referred_email"),
+  registered: boolean("registered").notNull().default(true),
+  converted: boolean("converted").notNull().default(false),
+  creditAwarded: boolean("credit_awarded").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  convertedAt: timestamp("converted_at"),
+});
+export type ReferralConversion = typeof referralConversions.$inferSelect;

@@ -93,7 +93,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Public self-registration ─────────────────────────────────────────────
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { name, email, password } = req.body;
+      const { name, email, password, referralCode } = req.body;
       if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
       if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
       const existing = await storage.getUserByEmail(email);
@@ -105,6 +105,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getEmailSequences().then(seqs => {
         seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
       }).catch(() => {});
+      // Process referral — from body or cookie
+      const refCode = referralCode || (req as any).cookies?.referral_code;
+      if (refCode) {
+        storage.processReferralSignup(refCode, user.id, email).catch(() => {});
+      }
       req.logIn(user, (err) => {
         if (err) return res.status(500).json({ message: "Login after register failed" });
         const { password: _, ...safe } = user;
@@ -113,6 +118,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Registration failed" });
     }
+  });
+
+  // ── Referral System ─────────────────────────────────────────────────────────
+  // Public: track a click and set cookie
+  app.get("/api/referral/track", async (req: Request, res: Response) => {
+    const code = req.query.code as string;
+    if (!code) return res.status(400).json({ message: "Code required" });
+    const ip = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "";
+    const ua = req.headers["user-agent"] || "";
+    await storage.trackReferralClick(code, ip, ua).catch(() => {});
+    res.cookie("referral_code", code, { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: false, sameSite: "lax" });
+    res.json({ ok: true });
+  });
+
+  // Authenticated: get user's referral code + stats
+  app.get("/api/referral/my-stats", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const stats = await storage.getReferralStats(userId);
+    const host = req.headers.host || "oravini.com";
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const link = `${protocol}://${host}/?ref=${stats.code}`;
+    res.json({ ...stats, link });
+  });
+
+  // Admin: full referral stats list
+  app.get("/api/admin/referral-stats", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const stats = await storage.getAllReferralStats();
+    res.json(stats);
+  });
+
+  // Admin: leaderboard
+  app.get("/api/admin/referral-leaderboard", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const board = await storage.getReferralLeaderboard();
+    res.json(board);
+  });
+
+  // Admin: all conversions/leads
+  app.get("/api/admin/referral-leads", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const result = await (storage as any).pool?.query(`
+      SELECT rv.*, u.name as referrer_name, u.email as referrer_email,
+             ru.name as referred_name, ru.email as referred_email_addr, ru.plan as referred_plan
+      FROM referral_conversions rv
+      LEFT JOIN users u ON u.id = rv.referrer_id
+      LEFT JOIN users ru ON ru.id = rv.referred_user_id
+      ORDER BY rv.created_at DESC
+    `).catch(() => ({ rows: [] }));
+    res.json(result?.rows || []);
   });
 
   // ── Phone OTP — request ────────────────────────────────────────────────────
