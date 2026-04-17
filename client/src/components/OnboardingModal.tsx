@@ -159,6 +159,12 @@ function RadioRow({ label, selected, onClick }: { label: string; selected: boole
   );
 }
 
+const ELITE_OPTIONS = [
+  { value: "yes", label: "Yes, I want to know more", emoji: "🔥" },
+  { value: "not_now", label: "Not right now", emoji: "⏳" },
+  { value: "maybe", label: "Maybe in the future", emoji: "💭" },
+];
+
 const STEPS = [
   { key: "fields", title: "What field are you in?", sub: "Pick all that apply — helps us tailor your AI strategy." },
   { key: "struggles", title: "What do you struggle with most?", sub: "Select all that apply — we'll prioritise help for these." },
@@ -166,6 +172,7 @@ const STEPS = [
   { key: "revenue", title: "What's your current monthly income from content?" },
   { key: "goal", title: "What's your primary goal right now?", sub: "Pick your main focus." },
   { key: "platforms", title: "Which platforms are you active on?", sub: "Select all you create content for." },
+  { key: "eliteInterest", title: "Do you need help scaling your info or coaching offer?", sub: "Tier 5 is our done-with-you programme — real strategy, real support, real results." },
 ];
 
 export default function OnboardingModal({ onComplete }: Props) {
@@ -176,6 +183,7 @@ export default function OnboardingModal({ onComplete }: Props) {
   const [monthlyRevenue, setMonthlyRevenue] = useState("");
   const [primaryGoal, setPrimaryGoal] = useState("");
   const [platforms, setPlatforms] = useState<string[]>([]);
+  const [eliteInterest, setEliteInterest] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -193,6 +201,7 @@ export default function OnboardingModal({ onComplete }: Props) {
       primaryGoal,
       platform: platforms.join(", "),
       platforms,
+      answers: { eliteInterest },
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/user/onboarding-status"] });
@@ -210,11 +219,12 @@ export default function OnboardingModal({ onComplete }: Props) {
     if (step === 3) return !!monthlyRevenue;
     if (step === 4) return !!primaryGoal;
     if (step === 5) return platforms.length > 0;
+    if (step === 6) return !!eliteInterest;
     return false;
   };
 
   const handleNext = () => {
-    if (step < 5) setStep(s => s + 1);
+    if (step < 6) setStep(s => s + 1);
     else saveMutation.mutate();
   };
 
@@ -316,6 +326,102 @@ export default function OnboardingModal({ onComplete }: Props) {
               ))}
             </div>
           )}
+
+          {/* Step 6: Elite interest */}
+          {step === 6 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {ELITE_OPTIONS.map(opt => {
+                const isSelected = eliteInterest === opt.value;
+                const isYes = opt.value === "yes";
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => setEliteInterest(opt.value)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: isYes ? "16px 18px" : "12px 16px",
+                      borderRadius: isYes ? 14 : 10,
+                      border: `${isYes ? 2 : 1.5}px solid ${isSelected ? (isYes ? GOLD : "rgba(255,255,255,0.4)") : isYes ? `${GOLD}50` : "rgba(255,255,255,0.1)"}`,
+                      background: isSelected
+                        ? isYes ? `${GOLD}18` : "rgba(255,255,255,0.06)"
+                        : isYes ? `${GOLD}08` : "rgba(255,255,255,0.03)",
+                      color: isSelected ? (isYes ? GOLD : "rgba(255,255,255,0.9)") : isYes ? GOLD : "rgba(255,255,255,0.75)",
+                      fontSize: isYes ? 15 : 14,
+                      fontWeight: isSelected ? 700 : isYes ? 600 : 400,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      transition: "all 0.18s",
+                      boxShadow: isSelected && isYes ? `0 0 24px ${GOLD}30` : "none",
+                    }}
+                  >
+                    <span style={{ fontSize: isYes ? 20 : 16 }}>{opt.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div>{opt.label}</div>
+                      {isYes && (
+                        <div style={{ fontSize: 11, color: isSelected ? `${GOLD}cc` : "rgba(212,180,97,0.5)", marginTop: 2, fontWeight: 400 }}>
+                          Unlimited credits · Done-with-you strategy · 1-on-1 support
+                        </div>
+                      )}
+                    </div>
+                    {isYes && (
+                      <div style={{
+                        padding: "2px 8px", borderRadius: 20,
+                        background: `${GOLD}22`, border: `1px solid ${GOLD}40`,
+                        fontSize: 9, fontWeight: 800, color: GOLD,
+                        textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0,
+                      }}>Elite</div>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* CTA panel — shown only when "Yes" is selected */}
+              {eliteInterest === "yes" && (
+                <div style={{
+                  marginTop: 4,
+                  padding: "18px 20px",
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.04) 100%)",
+                  border: `1px solid ${GOLD}35`,
+                  boxShadow: `0 0 40px ${GOLD}12`,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+                    👑 Tier 5 · Elite Programme
+                  </div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.6, marginBottom: 14 }}>
+                    Our most powerful programme. Unlimited credits, a dedicated growth strategy built with you, direct team access, and 1-on-1 calls whenever you need them.
+                  </p>
+                  <a
+                    href="/apply"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "11px 20px",
+                      borderRadius: 10,
+                      background: `linear-gradient(135deg, ${GOLD}, #f0d080)`,
+                      color: "#000",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      textDecoration: "none",
+                      boxShadow: `0 4px 20px ${GOLD}45`,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    🚀 Take me there — Apply for Tier 5
+                  </a>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 10 }}>
+                    Opens in a new tab — come back here to finish your setup anytime.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sticky footer — always visible */}
@@ -340,7 +446,7 @@ export default function OnboardingModal({ onComplete }: Props) {
                 transition: "all 0.15s",
               }}
             >
-              {saveMutation.isPending ? "Saving…" : step === 5 ? "Complete Setup →" : "Next →"}
+              {saveMutation.isPending ? "Saving…" : step === 6 ? "Complete Setup →" : "Next →"}
             </button>
           </div>
           <button

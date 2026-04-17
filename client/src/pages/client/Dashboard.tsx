@@ -982,52 +982,125 @@ function NextTierBenefits({ plan }: { plan: string }) {
 
   useEffect(() => {
     if (!info) return;
-    const id = setInterval(() => setActiveIdx(i => (i + 1) % info.perks.length), 5000);
+    const id = setInterval(() => setActiveIdx(i => (i + 1) % info.perks.length), 4000);
     return () => clearInterval(id);
   }, [info]);
 
   if (!info) return null;
 
-  const perk = info.perks[activeIdx];
-  const PerkIcon = perk.icon;
-
   return (
     <div
-      className="rounded-2xl px-5 py-4 flex items-center gap-4"
-      style={{ background: info.bg, border: `1px solid ${info.border}` }}
+      className="relative overflow-hidden rounded-3xl"
+      style={{
+        background: `linear-gradient(135deg, rgba(0,0,0,0.7) 0%, ${info.bg} 100%)`,
+        border: `1px solid ${info.color}35`,
+        boxShadow: `0 0 70px ${info.color}14, inset 0 1px 0 ${info.color}20`,
+      }}
       data-testid="next-tier-benefits"
     >
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${info.color}18` }}>
-        <PerkIcon className="w-4 h-4" style={{ color: info.color }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: info.color }}>{info.nextName}</span>
-          <span className="text-[10px] text-zinc-600">· {info.nextPrice}</span>
-        </div>
-        <p className="text-sm font-semibold text-white">{perk.title}</p>
-        <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">{perk.desc}</p>
-      </div>
-      <div className="flex flex-col items-end gap-2.5 shrink-0">
-        <Link href="/settings/plan">
-          <button
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
-            style={{ background: `${info.color}15`, color: info.color, border: `1px solid ${info.color}25` }}
-            data-testid="button-next-tier-learn-more"
+      {/* Ambient glow orb */}
+      <div
+        className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none"
+        style={{ background: info.color, opacity: 0.08, transform: "translate(35%, -35%)" }}
+      />
+      <div
+        className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-3xl pointer-events-none"
+        style={{ background: info.color, opacity: 0.04, transform: "translate(-30%, 30%)" }}
+      />
+
+      {/* Header */}
+      <div className="relative px-6 pt-6 pb-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 mb-2.5">
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: info.color, boxShadow: `0 0 6px ${info.color}` }} />
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: info.color }}>
+                What's waiting in {info.nextName}
+              </span>
+            </div>
+            <h3 className="text-2xl font-black text-white leading-tight">
+              Unlock more. Create more.{" "}
+              <span style={{ color: info.color }}>Grow more.</span>
+            </h3>
+            <p className="text-sm text-zinc-400 mt-1.5">
+              {info.nextPrice} · Everything in your current plan, plus:
+            </p>
+          </div>
+          <div
+            className="shrink-0 px-4 py-2 rounded-2xl"
+            style={{ background: `${info.color}18`, border: `1px solid ${info.color}40` }}
           >
-            See all perks →
-          </button>
-        </Link>
-        <div className="flex gap-1">
+            <p className="text-[10px] text-zinc-500 leading-none mb-0.5">Next tier</p>
+            <p className="text-sm font-black" style={{ color: info.color }}>{info.nextPrice}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Perks grid — 2×2 */}
+      <div className="relative px-6 pb-5 grid grid-cols-2 gap-3">
+        {info.perks.map((perk, i) => {
+          const PIcon = perk.icon;
+          const isActive = i === activeIdx;
+          return (
+            <div
+              key={i}
+              onClick={() => setActiveIdx(i)}
+              className="rounded-2xl p-4 cursor-pointer transition-all duration-500"
+              style={{
+                background: isActive ? `${info.color}14` : "rgba(255,255,255,0.025)",
+                border: `1px solid ${isActive ? `${info.color}45` : "rgba(255,255,255,0.06)"}`,
+                transform: isActive ? "scale(1.02)" : "scale(1)",
+                boxShadow: isActive ? `0 4px 24px ${info.color}18` : "none",
+              }}
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
+                style={{ background: `${info.color}20`, border: `1px solid ${info.color}30` }}
+              >
+                <PIcon className="w-4 h-4" style={{ color: info.color }} />
+              </div>
+              <p className="text-sm font-bold text-white leading-snug">{perk.title}</p>
+              <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{perk.desc}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer CTA */}
+      <div
+        className="relative px-6 pb-6 flex items-center justify-between gap-4"
+        style={{ borderTop: `1px solid ${info.color}15` }}
+      >
+        {/* Dot indicators */}
+        <div className="flex items-center gap-1.5 pt-4">
           {info.perks.map((_, i) => (
             <button
               key={i}
               onClick={() => setActiveIdx(i)}
-              className="w-1.5 h-1.5 rounded-full transition-all"
-              style={{ background: i === activeIdx ? info.color : "rgba(255,255,255,0.12)" }}
+              className="rounded-full transition-all duration-300"
+              style={{
+                height: 5,
+                width: i === activeIdx ? 20 : 5,
+                background: i === activeIdx ? info.color : "rgba(255,255,255,0.12)",
+              }}
             />
           ))}
         </div>
+
+        <Link href="/settings/plan">
+          <button
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black transition-all hover:scale-105 active:scale-95 mt-4"
+            style={{
+              background: `linear-gradient(135deg, ${info.color}, ${info.color}cc)`,
+              color: plan === "growth" ? "#000" : "#000",
+              boxShadow: `0 4px 28px ${info.color}50`,
+              letterSpacing: "0.01em",
+            }}
+            data-testid="button-next-tier-learn-more"
+          >
+            Explore {info.nextName} <ArrowRight className="w-4 h-4" />
+          </button>
+        </Link>
       </div>
     </div>
   );
