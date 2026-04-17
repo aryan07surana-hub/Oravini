@@ -457,8 +457,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/user/onboarding-status", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const survey = await storage.getOnboardingSurvey(userId);
-    const hasEliteAnswer = !!(survey as any)?.answers?.eliteInterest;
-    res.json({ done: !!survey && hasEliteAnswer, survey: survey || null });
+    res.json({ done: !!survey, survey: survey || null });
   });
 
   app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {

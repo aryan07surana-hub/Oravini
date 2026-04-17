@@ -1,6 +1,5 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -213,12 +212,6 @@ function RadioRow({ label, selected, onClick }: { label: string; selected: boole
   );
 }
 
-const ELITE_OPTIONS = [
-  { value: "yes", label: "Yes, I want to know more", emoji: "🔥" },
-  { value: "not_now", label: "Not right now", emoji: "⏳" },
-  { value: "maybe", label: "Maybe in the future", emoji: "💭" },
-];
-
 const STEPS = [
   { key: "fields", title: "What field are you in?", sub: "Pick all that apply — helps us tailor your AI strategy." },
   { key: "descriptor", title: "Which best describes you?", sub: "Pick the one closest to how you'd introduce yourself." },
@@ -231,17 +224,12 @@ const STEPS = [
   { key: "platforms", title: "Which platforms are you active on?", sub: "Select all you create content for." },
   { key: "awareness", title: "How aware are you of done-with-you growth programmes?", sub: "No wrong answer — helps us know how to support you." },
   { key: "heardAbout", title: "Where did you hear about us?", sub: "Select all that apply." },
-  { key: "eliteInterest", title: "Do you need help scaling your info or coaching offer?", sub: "Tier 5 is our done-with-you programme — real strategy, real support, real results." },
 ];
 
-const ELITE_STEP = 11;
+const LAST_STEP = 10;
 
 export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
-  // If user already completed the original steps but is missing eliteInterest,
-  // jump straight to the elite step with their previous answers preserved.
-  // DB returns snake_case (monthly_revenue, primary_goal, follower_count) — accept both forms
-  const eliteOnly = !!existingSurvey && !existingSurvey?.answers?.eliteInterest;
-  const [step, setStep] = useState(eliteOnly ? ELITE_STEP : 0);
+  const [step, setStep] = useState(0);
   const [fields, setFields] = useState<string[]>(
     Array.isArray(existingSurvey?.fields) ? existingSurvey.fields :
     existingSurvey?.field ? [existingSurvey.field] : []
@@ -262,11 +250,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     Array.isArray(existingSurvey?.heard_about) ? existingSurvey.heard_about :
     Array.isArray(existingSurvey?.heardAbout) ? existingSurvey.heardAbout : []
   );
-  const [eliteInterest, setEliteInterest] = useState("");
-  const eliteInterestRef = useRef("");
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [, navigate] = useLocation();
 
   const toggleItem = (arr: string[], setArr: (v: string[]) => void, item: string) => {
     setArr(arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item]);
@@ -287,16 +272,10 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
       platforms,
       awareness,
       heardAbout,
-      answers: { eliteInterest },
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/user/onboarding-status"] });
       onComplete();
-      if (eliteInterestRef.current === "yes") {
-        navigate("/apply");
-      } else {
-        navigate("/settings/plan");
-      }
     },
     onError: () => {
       toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
@@ -315,12 +294,11 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     if (step === 8) return platforms.length > 0;
     if (step === 9) return !!awareness;
     if (step === 10) return heardAbout.length > 0;
-    if (step === 11) return !!eliteInterest;
     return false;
   };
 
   const handleNext = () => {
-    if (step < ELITE_STEP) setStep(s => s + 1);
+    if (step < LAST_STEP) setStep(s => s + 1);
     else saveMutation.mutate();
   };
 
@@ -351,7 +329,7 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ display: "inline-block", background: `${GOLD}14`, border: `1px solid ${GOLD}35`, borderRadius: 100, padding: "4px 14px", marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                {eliteOnly ? "One quick question" : `Quick Setup · ${total - step} question${total - step !== 1 ? "s" : ""} left`}
+                {`Quick Setup · ${total - step} question${total - step !== 1 ? "s" : ""} left`}
               </span>
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 4 }}>
@@ -468,75 +446,12 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 11: Elite interest */}
-          {step === ELITE_STEP && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {ELITE_OPTIONS.map(opt => {
-                const isSelected = eliteInterest === opt.value;
-                const isYes = opt.value === "yes";
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      setEliteInterest(opt.value);
-                      eliteInterestRef.current = opt.value;
-                    }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "14px 18px",
-                      borderRadius: 12,
-                      border: `2px solid ${isSelected ? GOLD : "rgba(255,255,255,0.1)"}`,
-                      background: isSelected ? `${GOLD}18` : "rgba(255,255,255,0.03)",
-                      color: isSelected ? GOLD : "rgba(255,255,255,0.75)",
-                      fontSize: 14,
-                      fontWeight: isSelected ? 700 : 400,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      transition: "all 0.18s",
-                      boxShadow: isSelected ? `0 0 20px ${GOLD}28` : "none",
-                    }}
-                  >
-                    <span style={{ fontSize: 18, pointerEvents: "none" }}>{opt.emoji}</span>
-                    <div style={{ flex: 1, pointerEvents: "none" }}>
-                      <div>{opt.label}</div>
-                      {isYes && (
-                        <div style={{ fontSize: 11, color: isSelected ? `${GOLD}cc` : "rgba(255,255,255,0.35)", marginTop: 2, fontWeight: 400 }}>
-                          Unlimited credits · Done-with-you strategy · 1-on-1 support
-                        </div>
-                      )}
-                    </div>
-                    {isSelected && (
-                      <div style={{
-                        width: 20, height: 20, borderRadius: "50%",
-                        background: GOLD, display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0, pointerEvents: "none",
-                      }}>
-                        <span style={{ color: "#000", fontSize: 11, fontWeight: 900 }}>✓</span>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-
-              {eliteInterest && (
-                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", textAlign: "center", marginTop: 4 }}>
-                  {eliteInterest === "yes"
-                    ? "We'll take you to the Tier 5 application after this →"
-                    : "We'll show you our pricing plans after this →"}
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Sticky footer — always visible */}
         <div style={{ padding: "16px 32px 24px", flexShrink: 0, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", gap: 10 }}>
-            {step > 0 && !eliteOnly && (
+            {step > 0 && (
               <button
                 onClick={() => setStep(s => s - 1)}
                 style={{ flex: 1, padding: "13px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "rgba(255,255,255,0.5)", fontSize: 14, cursor: "pointer" }}
@@ -555,7 +470,7 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
                 transition: "all 0.15s",
               }}
             >
-              {saveMutation.isPending ? "Saving…" : step === ELITE_STEP ? "Complete Setup →" : "Next →"}
+              {saveMutation.isPending ? "Saving…" : step === LAST_STEP ? "Complete Setup →" : "Next →"}
             </button>
           </div>
         </div>
