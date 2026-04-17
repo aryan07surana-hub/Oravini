@@ -938,30 +938,30 @@ const NEXT_TIER_INFO: Record<string, {
     nextName: "Tier 2 · Starter", nextPrice: "$29/mo",
     color: "#818cf8", bg: "rgba(99,102,241,0.07)", border: "rgba(99,102,241,0.2)",
     perks: [
-      { icon: Zap,       title: "30× more credits",        desc: "150 monthly credits vs 5 per day — more room to experiment and create." },
-      { icon: ScanSearch,title: "Full audit access",        desc: "See your complete growth score and a clear breakdown of what to improve." },
-      { icon: Layers,    title: "Carousel & Caption Studio",desc: "Create scroll-stopping carousels and polished captions — fully unlocked." },
-      { icon: Target,    title: "Lead Magnet Generator",    desc: "Build audience-growing lead magnets with AI guidance, start to finish." },
+      { icon: Zap,       title: "30× more usage",          desc: "Move from 5 daily credits to 150 monthly — finally enough room to actually build." },
+      { icon: ScanSearch,title: "Faster iteration",         desc: "Test more hooks, captions and ideas every week without hitting a daily wall." },
+      { icon: Layers,    title: "Real creative output",     desc: "Ship enough content consistently to see real growth — not just one or two posts." },
+      { icon: Target,    title: "Bigger experiments",       desc: "Run full content campaigns instead of small tests — bigger swings, bigger wins." },
     ],
   },
   starter: {
     nextName: "Tier 3 · Growth", nextPrice: "$59/mo",
     color: "#d4b461", bg: "rgba(212,180,97,0.07)", border: "rgba(212,180,97,0.2)",
     perks: [
-      { icon: Zap,       title: "350 monthly credits",      desc: "More than double your current credits — more experiments, more content." },
-      { icon: Users,     title: "Competitor Intelligence",  desc: "See exactly what's working in your niche before investing your effort." },
-      { icon: Brain,     title: "Audience Psychology Map",  desc: "Understand the deeper motivations driving your audience's decisions." },
-      { icon: Palette,   title: "Brand Kit Builder",        desc: "Build a consistent brand identity system in minutes, not weeks." },
+      { icon: Zap,       title: "More than 2× the volume", desc: "350 monthly credits — produce content at full capacity instead of rationing." },
+      { icon: Users,     title: "Sharper market edge",     desc: "Spend more time researching what's working before you commit creative effort." },
+      { icon: Brain,     title: "Deeper audience clarity", desc: "Run the analysis you need to make every post hit harder, not just more often." },
+      { icon: Palette,   title: "Stronger brand presence", desc: "Build a recognisable identity that compounds with every piece you publish." },
     ],
   },
   growth: {
     nextName: "Tier 4 · Pro", nextPrice: "$79/mo",
     color: "#34d399", bg: "rgba(52,211,153,0.07)", border: "rgba(52,211,153,0.2)",
     perks: [
-      { icon: Zap,       title: "700 monthly credits",      desc: "Double the creative capacity — almost unlimited room to build and grow." },
-      { icon: Clapperboard,title:"AI Video Editor",         desc: "Edit Reels and short-form video with AI assistance, inside the platform." },
-      { icon: Bot,       title: "Full AI Content Coach",    desc: "Get personalised strategy recommendations based on your real data." },
-      { icon: Map,       title: "SOP + Content Planner",    desc: "Build repeatable systems and map your content weeks in advance." },
+      { icon: Zap,       title: "Near-unlimited capacity", desc: "700 monthly credits — enough to run your entire content engine without slowing down." },
+      { icon: Clapperboard,title:"High-volume video",       desc: "Produce short-form video at the pace your audience actually demands." },
+      { icon: Bot,       title: "Personalised guidance",   desc: "Get strategy shaped around your real numbers — not generic, one-size-fits-all advice." },
+      { icon: Map,       title: "Plan weeks ahead",        desc: "Turn what's working into repeatable systems and map your content far in advance." },
     ],
   },
   pro: {
@@ -1378,10 +1378,20 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* ── NEXT TIER BENEFITS ── */}
-          {(user as any)?.plan !== "elite" && (user as any)?.plan && (
-            <NextTierBenefits plan={(user as any).plan} />
-          )}
+          {/* ── INCOME GOAL + DAILY QUOTE ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="min-h-[160px]" data-testid="income-goal-card">
+              {user?.id && <IncomeGoalCard userId={user.id} />}
+            </div>
+            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <Quote className="w-4 h-4" style={{ color: GOLD }} />
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
+              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
+              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
+            </div>
+          </div>
 
           {/* ── WORLD CLOCK ── */}
           <div className="rounded-2xl border border-zinc-800 p-4" style={{ background: "rgba(255,255,255,0.012)" }} data-testid="world-clock">
@@ -1496,20 +1506,10 @@ export default function ClientDashboard() {
           {/* ── CONNECTED PLATFORMS ── */}
           <ConnectedPlatforms />
 
-          {/* ── INCOME GOAL + DAILY QUOTE ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="min-h-[160px]" data-testid="income-goal-card">
-              {user?.id && <IncomeGoalCard userId={user.id} />}
-            </div>
-            <div className="rounded-2xl p-5 flex flex-col h-full min-h-[160px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="daily-quote-card">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
-                <Quote className="w-4 h-4" style={{ color: GOLD }} />
-              </div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">Daily Quote</p>
-              <p className="text-sm italic text-zinc-300 leading-relaxed flex-1">"{dailyQuote}"</p>
-              <p className="text-[10px] text-zinc-600 mt-3">{format(new Date(), "MMMM d, yyyy")}</p>
-            </div>
-          </div>
+          {/* ── NEXT TIER BENEFITS ── */}
+          {(user as any)?.plan !== "elite" && (user as any)?.plan && (
+            <NextTierBenefits plan={(user as any).plan} />
+          )}
 
           {/* ── CONTENT PERFORMANCE ── */}
           {(contentPosts || []).length > 0 && (
