@@ -464,13 +464,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req.user as any).id;
-      const {
-        awareness, field, fields, struggles, contentTypes,
-        descriptor, experience, followerCount, monthlyRevenue,
-        primaryGoal, platform, platforms, heardAbout,
-        answers: bodyAnswers,
-      } = req.body;
-      const eliteInterest = bodyAnswers?.eliteInterest;
+      const existing = await storage.getOnboardingSurvey(userId);
+      const body = req.body || {};
+      // Accept incoming values, fall back to existing row (snake_case from DB)
+      const awareness        = body.awareness       ?? existing?.awareness;
+      const field            = body.field           ?? existing?.field;
+      const fields           = body.fields          ?? existing?.fields;
+      const struggles        = body.struggles       ?? existing?.struggles;
+      const contentTypes     = body.contentTypes    ?? existing?.content_types;
+      const descriptor       = body.descriptor      ?? existing?.descriptor;
+      const experience       = body.experience      ?? existing?.experience;
+      const followerCount    = body.followerCount   ?? existing?.follower_count;
+      const monthlyRevenue   = body.monthlyRevenue  ?? existing?.monthly_revenue;
+      const primaryGoal      = body.primaryGoal     ?? existing?.primary_goal;
+      const platform         = body.platform        ?? existing?.platform;
+      const platforms        = body.platforms       ?? existing?.platforms;
+      const heardAbout       = body.heardAbout      ?? existing?.heard_about;
+      const eliteInterest    = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
+
       if (!experience || !monthlyRevenue || !primaryGoal) {
         return res.status(400).json({ message: "All survey questions must be answered." });
       }
@@ -480,6 +491,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         descriptor, experience, followerCount, monthlyRevenue,
         primaryGoal, platform, platforms, heardAbout,
         answers: {
+          ...(existing?.answers || {}),
           awareness, field, fields, struggles, contentTypes,
           descriptor, experience, followerCount, monthlyRevenue,
           primaryGoal, platform, platforms, heardAbout,

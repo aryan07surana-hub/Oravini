@@ -179,14 +179,21 @@ const STEPS = [
 export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
   // If user already completed the original 6 steps but is missing eliteInterest,
   // jump straight to step 6 with their previous answers preserved.
+  // DB returns snake_case (monthly_revenue, primary_goal, follower_count) — accept both forms
   const eliteOnly = !!existingSurvey && !existingSurvey?.answers?.eliteInterest;
   const [step, setStep] = useState(eliteOnly ? 6 : 0);
-  const [fields, setFields] = useState<string[]>(existingSurvey?.fields || []);
+  const [fields, setFields] = useState<string[]>(
+    Array.isArray(existingSurvey?.fields) ? existingSurvey.fields :
+    existingSurvey?.field ? [existingSurvey.field] : []
+  );
   const [struggles, setStruggles] = useState<string[]>(existingSurvey?.struggles || []);
   const [experience, setExperience] = useState(existingSurvey?.experience || "");
-  const [monthlyRevenue, setMonthlyRevenue] = useState(existingSurvey?.monthlyRevenue || "");
-  const [primaryGoal, setPrimaryGoal] = useState(existingSurvey?.primaryGoal || "");
-  const [platforms, setPlatforms] = useState<string[]>(existingSurvey?.platforms || []);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(existingSurvey?.monthly_revenue || existingSurvey?.monthlyRevenue || "");
+  const [primaryGoal, setPrimaryGoal] = useState(existingSurvey?.primary_goal || existingSurvey?.primaryGoal || "");
+  const [platforms, setPlatforms] = useState<string[]>(
+    Array.isArray(existingSurvey?.platforms) ? existingSurvey.platforms :
+    existingSurvey?.platform ? [existingSurvey.platform] : []
+  );
   const [eliteInterest, setEliteInterest] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
