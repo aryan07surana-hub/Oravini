@@ -105,10 +105,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getEmailSequences().then(seqs => {
         seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
       }).catch(() => {});
-      // Process referral — from body or cookie
+      // Process referral — from body or cookie (await so credits always land before response)
       const refCode = referralCode || (req as any).cookies?.referral_code;
       if (refCode) {
-        storage.processReferralSignup(refCode, user.id, email).catch(() => {});
+        try {
+          await storage.processReferralSignup(refCode, user.id, email);
+        } catch (refErr) {
+          console.error("[referral] processReferralSignup failed for new user", user.id, "code:", refCode, refErr);
+        }
       }
       req.logIn(user, (err) => {
         if (err) return res.status(500).json({ message: "Login after register failed" });
@@ -319,10 +323,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           console.error("[google-oauth] no user returned, info:", info);
           return res.redirect(`/login?error=google_failed&msg=${encodeURIComponent(info?.message || "auth_failed")}`);
         }
-        req.logIn(user, (loginErr) => {
+        req.logIn(user, async (loginErr) => {
           if (loginErr) {
             console.error("[google-oauth] login error:", loginErr);
             return res.redirect("/login?error=google_failed");
+          }
+          // Process referral for brand-new Google signups
+          if ((user as any)._isNewGoogleUser) {
+            const refCode = (req as any).cookies?.referral_code;
+            if (refCode) {
+              try {
+                await storage.processReferralSignup(refCode, user.id, user.email || "");
+              } catch (refErr) {
+                console.error("[referral] google signup referral failed for", user.id, "code:", refCode, refErr);
+              }
+            }
           }
           const dest = user.role === "admin"
             ? "/admin"

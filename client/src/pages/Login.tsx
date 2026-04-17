@@ -131,13 +131,19 @@ export default function Login() {
   });
 
   const register = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!regName.trim()) throw new Error("Full name is required");
       if (!regEmail.trim()) throw new Error("Email is required");
       if (regPassword.length < 6) throw new Error("Password must be at least 6 characters");
       if (regPassword !== regConfirm) throw new Error("Passwords do not match");
+      // Read referral code: prefer URL ?ref= param, fallback to cookie
+      const urlRef = new URLSearchParams(window.location.search).get("ref");
       const refCookie = document.cookie.split(";").map(c => c.trim()).find(c => c.startsWith("referral_code="));
-      const referralCode = refCookie ? refCookie.split("=")[1] : undefined;
+      const referralCode = urlRef || (refCookie ? decodeURIComponent(refCookie.split("=").slice(1).join("=")) : undefined);
+      // If we got the code from URL param only, fire the track API to also set the cookie for Google sign-in path
+      if (urlRef && !refCookie) {
+        fetch(`/api/referral/track?code=${encodeURIComponent(urlRef)}`).catch(() => {});
+      }
       return apiRequest("POST", "/api/auth/register", { name: regName.trim(), email: regEmail.trim(), password: regPassword, ...(referralCode ? { referralCode } : {}) });
     },
     onSuccess: redirectAfterAuth,

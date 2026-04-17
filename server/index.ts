@@ -120,6 +120,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             phoneVerified: true,
             surveyCompleted: false,
           } as any);
+          (user as any)._isNewGoogleUser = true;
         }
         return done(null, user!);
       } catch (err) {
