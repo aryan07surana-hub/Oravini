@@ -248,7 +248,13 @@ async function processScheduledYoutubePosts() {
           await storage.updateScheduledYoutubePost(post.id, { status: "failed", errorMessage: "YouTube not connected" });
           continue;
         }
-        const siteDomain = process.env.SITE_URL?.replace(/\/$/, "") ?? `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}`;
+        const siteDomain =
+          process.env.APP_URL?.replace(/\/$/, "") ||
+          process.env.SITE_URL?.replace(/\/$/, "") ||
+          process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+          (process.env.REPLIT_DOMAINS?.split(",")[0]
+            ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+            : `http://localhost:${process.env.PORT || "5000"}`);
         const YOUTUBE_CALLBACK = `${siteDomain}/api/auth/youtube/callback`;
         const oauth2Client = new google.auth.OAuth2(
           process.env.YOUTUBE_CLIENT_ID,

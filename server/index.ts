@@ -71,15 +71,17 @@ passport.use(
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 
+const explicitBaseUrl =
+  process.env.APP_URL ||
+  process.env.SITE_URL ||
+  process.env.PUBLIC_BASE_URL;
 const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-// APP_URL is only respected in production — in dev always use the actual Replit domain
-const isProduction = process.env.NODE_ENV === "production";
-const appUrl = isProduction ? process.env.APP_URL : null;
-const GOOGLE_CALLBACK_URL = appUrl
-  ? `${appUrl}/api/auth/google/callback`
+const baseUrl = explicitBaseUrl
+  ? explicitBaseUrl.replace(/\/$/, "")
   : replitDomain
-    ? `https://${replitDomain}/api/auth/google/callback`
-    : `http://localhost:5000/api/auth/google/callback`;
+    ? `https://${replitDomain}`
+    : `http://localhost:${process.env.PORT || "5000"}`;
+const GOOGLE_CALLBACK_URL = `${baseUrl}/api/auth/google/callback`;
 
 console.log("[google-oauth] callbackURL:", GOOGLE_CALLBACK_URL);
 
@@ -197,7 +199,7 @@ app.use((req, res, next) => {
   }
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  httpServer.listen({ port, host: "127.0.0.1" }, () => {
     log(`Brandverse portal serving on port ${port}`);
     startCronJobs();
   });

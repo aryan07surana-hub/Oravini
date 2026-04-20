@@ -89,6 +89,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   }
 
+  const getConfiguredAppBase = () => {
+    const explicitBase =
+      process.env.APP_URL ||
+      process.env.SITE_URL ||
+      process.env.PUBLIC_BASE_URL;
+    if (explicitBase) return explicitBase.replace(/\/$/, "");
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (domain) return `https://${domain}`;
+    return `http://localhost:${process.env.PORT || "5000"}`;
+  };
+
+  const getRequestAwareBase = (req: Request) => {
+    const explicitBase =
+      process.env.APP_URL ||
+      process.env.SITE_URL ||
+      process.env.PUBLIC_BASE_URL;
+    if (explicitBase) return explicitBase.replace(/\/$/, "");
+    const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+    const host = req.get("host") || `localhost:${process.env.PORT || "5000"}`;
+    return `${proto}://${host}`;
+  };
+
   // Auth
   // ── Public self-registration ─────────────────────────────────────────────
   app.post("/api/auth/register", async (req, res) => {
@@ -526,6 +548,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         `SELECT * FROM deletion_surveys ORDER BY created_at DESC`
       );
       return res.json(rows.rows);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/deletion-surveys/reset — admin: delete all churn data
+  app.post("/api/admin/deletion-surveys/reset", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      await pool.query(`DELETE FROM deletion_surveys`);
+      return res.json({ message: "All churn data cleared" });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -1642,6 +1674,59 @@ Return this exact JSON structure:
       });
 
       return res.json({ ...saved, newPostsImported: imported });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Admin: Tool Usage Heatmap
+  app.get("/api/admin/tool-heatmap", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          ct.type AS tool,
+          COUNT(*)::int AS total_uses,
+          COUNT(DISTINCT ct.user_id)::int AS unique_users,
+          SUM(ABS(ct.amount))::int AS total_credits
+        FROM credit_transactions ct
+        WHERE ct.amount < 0
+        GROUP BY ct.type
+        ORDER BY total_uses DESC
+      `);
+      const toolStats = result.rows.map((r: any) => ({
+        tool: r.tool,
+        totalUses: r.total_uses,
+        uniqueUsers: r.unique_users,
+        totalCredits: r.total_credits,
+      }));
+      const allTools = toolStats.map((t: any) => t.tool);
+
+      const matrixResult = await pool.query(`
+        SELECT
+          ct.user_id,
+          u.name AS user_name,
+          ct.type AS tool,
+          COUNT(*)::int AS uses
+        FROM credit_transactions ct
+        JOIN users u ON u.id = ct.user_id
+        WHERE ct.amount < 0
+        GROUP BY ct.user_id, u.name, ct.type
+        ORDER BY u.name
+      `);
+
+      const userMap: Record<string, { userName: string; userId: string; tools: Record<string, number> }> = {};
+      for (const row of matrixResult.rows) {
+        if (!userMap[row.user_id]) {
+          userMap[row.user_id] = { userId: row.user_id, userName: row.user_name, tools: {} };
+        }
+        userMap[row.user_id].tools[row.tool] = row.uses;
+      }
+
+      return res.json({
+        toolStats,
+        allTools,
+        userToolMatrix: Object.values(userMap),
+      });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -5595,9 +5680,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   });
 
   // ── LinkedIn Integration ─────────────────────────────────────────────────────
-  const LINKEDIN_CALLBACK = process.env.NODE_ENV === "production"
-    ? "https://admin-control-hub-aryan07surana.replit.app/api/linkedin/callback"
-    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/linkedin/callback`;
+  const LINKEDIN_CALLBACK = `${getConfiguredAppBase()}/api/linkedin/callback`;
 
   function encodeLinkedinState(userId: string): string {
     const nonce = Math.random().toString(36).slice(2, 10);
@@ -5694,9 +5777,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   });
 
   app.get("/api/linkedin/callback", async (req: Request, res: Response) => {
-    const base = process.env.NODE_ENV === "production"
-      ? "https://admin-control-hub-aryan07surana.replit.app"
-      : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}`;
+    const base = getConfiguredAppBase();
     try {
       const { code, state, error, error_description } = req.query as {
         code?: string; state?: string; error?: string; error_description?: string;
@@ -5811,9 +5892,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     return new TwitterApi(token.accessToken);
   }
 
-  const TWITTER_CALLBACK = process.env.NODE_ENV === "production"
-    ? "https://admin-control-hub-aryan07surana.replit.app/api/twitter/callback"
-    : `https://${process.env.REPLIT_DOMAINS?.split(",")[0] || "localhost:5000"}/api/twitter/callback`;
+  const TWITTER_CALLBACK = `${getConfiguredAppBase()}/api/twitter/callback`;
 
   const twitterCodeVerifiers = new Map<string, { codeVerifier: string; userId: string }>();
 
@@ -8208,7 +8287,6 @@ Rules:
   app.post("/api/video-studio/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     const userId = (req.user as any).id;
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] || req.headers.host || "localhost:5000";
     const fileUrl = `/uploads/${req.file.filename}`;
     const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
     const edit = await storage.createVideoEdit({ userId, title, originalFilename: req.file.originalname, filePath: req.file.path, fileUrl, status: "transcribing" });
@@ -8245,7 +8323,7 @@ Rules:
         const words = transcriptData.words || [];
         const duration = words.length > 0 ? words[words.length - 1].end : transcriptData.duration || 0;
         const silences = detectSilences(words);
-        const publicVideoUrl = `https://${domain}${fileUrl}`;
+        const publicVideoUrl = `${getRequestAwareBase(req)}${fileUrl}`;
         await storage.updateVideoEdit(edit.id, userId, { transcript: { text: transcriptData.text, words, duration: transcriptData.duration }, silences, duration, fileUrl: publicVideoUrl, status: "transcribed" });
       } catch (e: any) {
         console.log("[video-studio] transcription error:", e.message);
@@ -8893,9 +8971,10 @@ Rules:
   function getAppBase() {
     if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
     if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
     if (domain) return `https://${domain}`;
-    return "http://localhost:5000";
+    return `http://localhost:${process.env.PORT || "5000"}`;
   }
 
   function getCalendarCallbackUrl() {

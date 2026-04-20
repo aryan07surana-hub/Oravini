@@ -1,12 +1,25 @@
 import AdminLayout from "@/components/layout/AdminLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Trash2, TrendingDown, Users, Star, RefreshCw, BarChart2,
   Clock, Wrench, Heart, RotateCcw, AlertTriangle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const GOLD = "#d4b461";
 
@@ -65,8 +78,25 @@ function StatCard({ icon: Icon, label, value, sub, color }: { icon: any; label: 
 }
 
 export default function AdminChurnAnalysis() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: surveys, isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/deletion-surveys"],
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/deletion-surveys/reset", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to reset");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/deletion-surveys"] });
+      toast({ title: "All churn data cleared", description: "Deletion surveys have been reset." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to reset data", variant: "destructive" });
+    },
   });
 
   const rows = surveys || [];
@@ -105,9 +135,38 @@ export default function AdminChurnAnalysis() {
               </div>
             </div>
           </div>
-          <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">
-            {total} response{total !== 1 ? "s" : ""}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">
+              {total} response{total !== 1 ? "s" : ""}
+            </Badge>
+            {total > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="gap-2">
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Reset All Data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset All Churn Data?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {total} deletion survey responses. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => resetMutation.mutate()}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {resetMutation.isPending ? "Resetting..." : "Reset All Data"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
 
         {/* Summary Stats */}

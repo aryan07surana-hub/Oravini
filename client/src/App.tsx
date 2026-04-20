@@ -46,6 +46,7 @@ import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
 import AdminReferrals from "@/pages/admin/AdminReferrals";
 import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
+import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -389,6 +390,9 @@ function Router() {
       </Route>
       <Route path="/admin/community">
         {() => <ProtectedRoute component={AdminCommunity} adminOnly />}
+      </Route>
+      <Route path="/admin/tool-heatmap">
+        {() => <ProtectedRoute component={AdminToolHeatmap} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>
