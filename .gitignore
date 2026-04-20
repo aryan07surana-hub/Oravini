@@ -6,3 +6,7 @@ vite.config.ts.*
 *.tar.gz
 .env
 project.zip
+*.py
+pyproject.toml
+uv.lock
+[0-9]*-player-script.js
