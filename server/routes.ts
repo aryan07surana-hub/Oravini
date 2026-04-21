@@ -1775,7 +1775,7 @@ Return this exact JSON structure:
 
       const _u = req.user as any;
       if (_u.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u.id, 2, "ai_ideas", "AI Content Ideas generation", _u.plan || "free");
+        const creditResult = await storage.deductCredits(_u.id, 5, "ai_ideas", "AI Content Ideas generation", _u.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -1929,6 +1929,11 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
     try {
       const { niche } = req.body;
       if (!niche || niche.trim().length < 2) return res.json({ hashtags: [] });
+      const _uHt = req.user as any;
+      if (_uHt.role !== "admin") {
+        const htCredit = await storage.deductCredits(_uHt.id, 1, "hashtag_suggestions", "AI Hashtag Suggestions", _uHt.plan || "free");
+        if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
+      }
 
       const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let lastErr: any;
@@ -1975,7 +1980,7 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
 
       const _u2 = req.user as any;
       if (_u2.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u2.id, 2, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
+        const creditResult = await storage.deductCredits(_u2.id, 3, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -2184,7 +2189,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const count = Math.min(Math.max(Number(slideCount) || 6, 2), 10);
       const toneStr = tone || "engaging and educational";
 
-      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "AI Carousel text generation", u.plan || "free");
+      const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
 
       const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
@@ -2226,7 +2231,7 @@ Rules:
       if (!prompt) return res.status(400).json({ message: "Prompt required" });
       const _uImg = req.user as any;
       if (_uImg?.role !== "admin") {
-        const imgCredit = await storage.deductCredits(_uImg.id, 2, "carousel_image", "Carousel AI image generation", _uImg.plan || "free");
+        const imgCredit = await storage.deductCredits(_uImg.id, 3, "carousel_image", "Carousel AI image generation", _uImg.plan || "free");
         if (!imgCredit.success) return res.status(402).json({ message: imgCredit.message, insufficientCredits: true, balance: imgCredit.balance });
       }
 
@@ -2316,7 +2321,7 @@ Return JSON:
       const { topic, tone, addCount, existingRoles } = req.body;
       if (!topic) return res.status(400).json({ message: "Topic is required" });
       const count = Math.min(Math.max(Number(addCount) || 3, 1), 5);
-      const creditResult = await storage.deductCredits(u.id, 2, "carousel", "Carousel add-slides", u.plan || "free");
+      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "Carousel add-slides", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       const systemPrompt = `You are an expert Instagram carousel copywriter. Generate additional slides as valid JSON only. No markdown, no code fences.`;
       const userPrompt = `Generate ${count} NEW slides for an existing carousel about: "${topic}"
@@ -2346,7 +2351,7 @@ Return JSON:
       const u = req.user as any;
       const { topic, tone, slides, prompt } = req.body;
       if (!slides || !Array.isArray(slides)) return res.status(400).json({ message: "Slides array required" });
-      const creditResult = await storage.deductCredits(u.id, 2, "carousel", "Carousel AI refine", u.plan || "free");
+      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "Carousel AI refine", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       const systemPrompt = `You are an expert Instagram carousel copywriter. Refine carousel slides as valid JSON only. No markdown, no code fences.`;
       const userPrompt = `Refine the following ${slides.length} carousel slides about "${topic}".
@@ -2646,7 +2651,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
       const _u4 = req.user as any;
       if (_u4.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u4.id, 10, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
+        const creditResult = await storage.deductCredits(_u4.id, 12, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -2779,6 +2784,11 @@ Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. M
     try {
       const { myReelUrl, competitorReelUrl } = req.body;
       if (!myReelUrl || !competitorReelUrl) return res.status(400).json({ message: "myReelUrl and competitorReelUrl are required" });
+      const _uCr = req.user as any;
+      if (_uCr.role !== "admin") {
+        const crCredit = await storage.deductCredits(_uCr.id, 5, "competitor_reels", "Reel vs Reel Comparison", _uCr.plan || "free");
+        if (!crCredit.success) return res.status(402).json({ message: crCredit.message, insufficientCredits: true });
+      }
 
       // Scrape both reels in parallel using the shared instagram-scraper actor
       const [myItems, compItems] = await Promise.all([
@@ -2874,6 +2884,11 @@ Return this EXACT JSON:
     try {
       const { analysisId } = req.body;
       if (!analysisId) return res.status(400).json({ message: "analysisId required" });
+      const _uSs = req.user as any;
+      if (_uSs.role !== "admin") {
+        const ssCredit = await storage.deductCredits(_uSs.id, 8, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
+        if (!ssCredit.success) return res.status(402).json({ message: ssCredit.message, insufficientCredits: true });
+      }
 
       const analyses = await storage.getCompetitorAnalyses((req as any).user.id);
       const analysis = analyses.find((a: any) => a.id === analysisId);
@@ -2979,6 +2994,11 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
       const { niche, competitorUrls, clientId } = req.body;
       if (!niche || !competitorUrls || !Array.isArray(competitorUrls) || competitorUrls.length === 0) {
         return res.status(400).json({ message: "niche and at least one competitorUrl are required" });
+      }
+      const _uNa = req.user as any;
+      if (_uNa.role !== "admin") {
+        const naCredit = await storage.deductCredits(_uNa.id, 10, "niche_analysis", "Niche Intelligence Analysis", _uNa.plan || "free");
+        if (!naCredit.success) return res.status(402).json({ message: naCredit.message, insufficientCredits: true });
       }
       const urls = competitorUrls.slice(0, 5).filter(Boolean);
 
@@ -3131,6 +3151,11 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
     try {
       const { profileUrl } = req.body;
       if (!profileUrl) return res.status(400).json({ message: "profileUrl is required" });
+      const _uMa = req.user as any;
+      if (_uMa.role !== "admin") {
+        const maCredit = await storage.deductCredits(_uMa.id, 5, "methodology", "Content DNA Analysis", _uMa.plan || "free");
+        if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
+      }
 
       const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
       if (!items || items.length === 0) return res.status(404).json({ message: "Could not scrape this profile. Make sure it's a public Instagram account." });
@@ -3216,6 +3241,11 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
     try {
       const { content, dna, tool } = req.body;
       if (!content || !tool) return res.status(400).json({ message: "content and tool are required" });
+      const _uMi = req.user as any;
+      if (_uMi.role !== "admin") {
+        const miCredit = await storage.deductCredits(_uMi.id, 2, "methodology", "Content Methodology Tool", _uMi.plan || "free");
+        if (!miCredit.success) return res.status(402).json({ message: miCredit.message, insufficientCredits: true });
+      }
 
       const dnaContext = dna?.fingerprint
         ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
@@ -3337,7 +3367,7 @@ Return ONLY this exact JSON:
       const { mode, script, reelUrl, platform, audience } = req.body;
       const _uVir = req.user as any;
       if (_uVir?.role !== "admin") {
-        const virCredit = await storage.deductCredits(_uVir.id, 3, "virality", "Virality analysis", _uVir.plan || "free");
+        const virCredit = await storage.deductCredits(_uVir.id, 4, "virality", "Virality analysis", _uVir.plan || "free");
         if (!virCredit.success) return res.status(402).json({ message: virCredit.message, insufficientCredits: true, balance: virCredit.balance });
       }
       let contentToAnalyze = script;
@@ -3457,7 +3487,7 @@ Scoring rules:
       const { script, platform } = req.body;
       const _uHooks = req.user as any;
       if (_uHooks?.role !== "admin") {
-        const hooksCredit = await storage.deductCredits(_uHooks.id, 1, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
+        const hooksCredit = await storage.deductCredits(_uHooks.id, 2, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
         if (!hooksCredit.success) return res.status(402).json({ message: hooksCredit.message, insufficientCredits: true, balance: hooksCredit.balance });
       }
       const apiKey = process.env.GROQ_API_KEY;
@@ -3506,7 +3536,7 @@ Return ONLY a JSON array of 5 strings:
       const { script, platform, audience, score, fixes } = req.body;
       const _uRew = req.user as any;
       if (_uRew?.role !== "admin") {
-        const rewCredit = await storage.deductCredits(_uRew.id, 1, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
+        const rewCredit = await storage.deductCredits(_uRew.id, 2, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
         if (!rewCredit.success) return res.status(402).json({ message: rewCredit.message, insufficientCredits: true, balance: rewCredit.balance });
       }
       const apiKey = process.env.GROQ_API_KEY;
@@ -3561,7 +3591,7 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
       const { viralUrl, platform, whyViral, audience } = req.body;
       const _uAng = req.user as any;
       if (_uAng?.role !== "admin") {
-        const angCredit = await storage.deductCredits(_uAng.id, 2, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
+        const angCredit = await storage.deductCredits(_uAng.id, 3, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
         if (!angCredit.success) return res.status(402).json({ message: angCredit.message, insufficientCredits: true, balance: angCredit.balance });
       }
       const apiKey = process.env.GROQ_API_KEY;
@@ -3662,7 +3692,7 @@ Scoring rules: hook is 25% of score, pacing 20%, emotion 15%, retention 15%, cla
       const { message, script, mode, goal, history = [] } = req.body;
       const _uc = req.user as any;
       if (_uc.role !== "admin") {
-        const creditResult = await storage.deductCredits(_uc.id, 1, "ai_coach", "AI Content Coach chat", _uc.plan || "free");
+        const creditResult = await storage.deductCredits(_uc.id, 2, "ai_coach", "AI Content Coach chat", _uc.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
       const content = script || message;
@@ -4338,6 +4368,11 @@ Return ONLY valid JSON:
     try {
       const { userMessage, context } = req.body;
       if (!userMessage?.trim()) return res.status(400).json({ message: "Message required" });
+      const _uVe = req.user as any;
+      if (_uVe.role !== "admin") {
+        const veCredit = await storage.deductCredits(_uVe.id, 1, "video_editor", "AI Video Editor chat", _uVe.plan || "free");
+        if (!veCredit.success) return res.status(402).json({ message: veCredit.message, insufficientCredits: true });
+      }
       const prompt = `You are a world-class AI video editor and creative director. You are sitting in the edit bay with this creator, making frame-level decisions. Be extremely specific, action-oriented, and fill in ALL gaps you see.
 
 CURRENT VIDEO CONTEXT:
@@ -4519,7 +4554,11 @@ Return ONLY valid JSON:
     try {
       const { url } = req.body;
       if (!url) return res.status(400).json({ message: "YouTube URL is required" });
-
+      const _uCf = req.user as any;
+      if (_uCf.role !== "admin") {
+        const cfCredit = await storage.deductCredits(_uCf.id, 3, "clip_finder", "Clip Finder YouTube analysis", _uCf.plan || "free");
+        if (!cfCredit.success) return res.status(402).json({ message: cfCredit.message, insufficientCredits: true });
+      }
       const videoId = extractYouTubeVideoId(url);
       if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
 
@@ -4621,6 +4660,14 @@ Return JSON:
   app.post("/api/clip-finder/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     try {
+      const _uCfu = req.user as any;
+      if (_uCfu.role !== "admin") {
+        const cfuCredit = await storage.deductCredits(_uCfu.id, 5, "clip_finder", "Clip Finder video upload analysis", _uCfu.plan || "free");
+        if (!cfuCredit.success) {
+          try { fs.unlinkSync(req.file.path); } catch {}
+          return res.status(402).json({ message: cfuCredit.message, insufficientCredits: true });
+        }
+      }
       const fileStat = fs.statSync(req.file.path);
       const MAX_WHISPER = 25 * 1024 * 1024;
       if (fileStat.size > MAX_WHISPER) {
@@ -6298,7 +6345,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       if (!topic?.trim()) return res.status(400).json({ message: "Topic is required" });
       const _uLm = req.user as any;
       if (_uLm?.role !== "admin") {
-        const lmCredit = await storage.deductCredits(_uLm.id, 4, "lead_magnet", "Lead Magnet generation", _uLm.plan || "free");
+        const lmCredit = await storage.deductCredits(_uLm.id, 6, "lead_magnet", "Lead Magnet generation", _uLm.plan || "free");
         if (!lmCredit.success) return res.status(402).json({ message: lmCredit.message, insufficientCredits: true, balance: lmCredit.balance });
       }
 
@@ -6524,7 +6571,7 @@ Rules:
       if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
       const _uBk = req.user as any;
       if (_uBk?.role !== "admin") {
-        const bkCredit = await storage.deductCredits(_uBk.id, 4, "brand_kit", "Brand Kit generation", _uBk.plan || "free");
+        const bkCredit = await storage.deductCredits(_uBk.id, 6, "brand_kit", "Brand Kit generation", _uBk.plan || "free");
         if (!bkCredit.success) return res.status(402).json({ message: bkCredit.message, insufficientCredits: true, balance: bkCredit.balance });
       }
 
@@ -6817,7 +6864,7 @@ CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: 
       const { businessType, niche, platform, contentType, experienceLevel, teamSetup, goal, postingFrequency, biggestStruggle } = req.body;
       const _uSop = req.user as any;
       if (_uSop?.role !== "admin") {
-        const sopCredit = await storage.deductCredits(_uSop.id, 3, "sop", "Content System SOP generation", _uSop.plan || "free");
+        const sopCredit = await storage.deductCredits(_uSop.id, 7, "sop", "Content System SOP generation", _uSop.plan || "free");
         if (!sopCredit.success) return res.status(402).json({ message: sopCredit.message, insufficientCredits: true, balance: sopCredit.balance });
       }
       const systemPrompt = `You are an elite operations architect and systems designer who builds premium, agency-level SOPs for creators, personal brands, and online businesses. Your SOPs are extremely structured, step-by-step actionable, and immediately implementable. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
@@ -6952,7 +6999,7 @@ CRITICAL: Make every step hyper-specific to their niche (${niche}), platform (${
       const { businessName, whatYouSell, targetAudience, coreTransformation, priceRange } = req.body;
       const _uIcp = req.user as any;
       if (_uIcp?.role !== "admin") {
-        const icpCredit = await storage.deductCredits(_uIcp.id, 4, "icp", "Ideal Customer Profile generation", _uIcp.plan || "free");
+        const icpCredit = await storage.deductCredits(_uIcp.id, 6, "icp", "Ideal Customer Profile generation", _uIcp.plan || "free");
         if (!icpCredit.success) return res.status(402).json({ message: icpCredit.message, insufficientCredits: true, balance: icpCredit.balance });
       }
       const systemPrompt = `You are a world-class customer research strategist, behavioral psychologist, and direct response marketer. Build deeply researched Ideal Customer Profiles with extreme precision and real-world applicability. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
@@ -7063,7 +7110,7 @@ CRITICAL: Return exactly 5 pain points with real severity/urgency/frequency scor
       const { businessDescription, targetAudienceDescription, icpSummary } = req.body;
       const _uApm = req.user as any;
       if (_uApm?.role !== "admin") {
-        const apmCredit = await storage.deductCredits(_uApm.id, 4, "audience_psychology", "Audience Psychology Map generation", _uApm.plan || "free");
+        const apmCredit = await storage.deductCredits(_uApm.id, 6, "audience_psychology", "Audience Psychology Map generation", _uApm.plan || "free");
         if (!apmCredit.success) return res.status(402).json({ message: apmCredit.message, insufficientCredits: true, balance: apmCredit.balance });
       }
       const systemPrompt = `You are a world-class behavioral psychologist, direct response marketer, and audience strategist. Map audience psychology with extreme depth — buying behaviour, identity, emotions, beliefs, messaging, and content strategy. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
@@ -7160,7 +7207,7 @@ CRITICAL: Be hyper-specific and deeply human. Avoid generic advice entirely. Wri
       if (!niche?.trim()) return res.status(400).json({ message: "niche required" });
       const _uCp = req.user as any;
       if (_uCp?.role !== "admin") {
-        const cpCredit = await storage.deductCredits(_uCp.id, 5, "content_planner", "AI Content Planner weekly plan", _uCp.plan || "free");
+        const cpCredit = await storage.deductCredits(_uCp.id, 7, "content_planner", "AI Content Planner weekly plan", _uCp.plan || "free");
         if (!cpCredit.success) return res.status(402).json({ message: cpCredit.message, insufficientCredits: true, balance: cpCredit.balance });
       }
 
@@ -7252,7 +7299,7 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
       if (!dayName || !niche) return res.status(400).json({ message: "dayName and niche required" });
       const _uRd = req.user as any;
       if (_uRd?.role !== "admin") {
-        const rdCredit = await storage.deductCredits(_uRd.id, 2, "content_planner", "Content Planner day regeneration", _uRd.plan || "free");
+        const rdCredit = await storage.deductCredits(_uRd.id, 3, "content_planner", "Content Planner day regeneration", _uRd.plan || "free");
         if (!rdCredit.success) return res.status(402).json({ message: rdCredit.message, insufficientCredits: true, balance: rdCredit.balance });
       }
 
@@ -7290,7 +7337,7 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
       if (!dayName || !currentIdea) return res.status(400).json({ message: "dayName and currentIdea required" });
       const _uMv = req.user as any;
       if (_uMv?.role !== "admin") {
-        const mvCredit = await storage.deductCredits(_uMv.id, 2, "content_planner", "Content Planner make-viral", _uMv.plan || "free");
+        const mvCredit = await storage.deductCredits(_uMv.id, 3, "content_planner", "Content Planner make-viral", _uMv.plan || "free");
         if (!mvCredit.success) return res.status(402).json({ message: mvCredit.message, insufficientCredits: true, balance: mvCredit.balance });
       }
 
@@ -7672,7 +7719,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
     if (!url?.trim()) return res.status(400).json({ message: "YouTube URL required" });
     const u = req.user as any;
     if (u.role !== "admin") {
-      const cr = await storage.deductCredits(u.id, 2, "analyse", "YouTube Content Analysis", u.plan || "free");
+      const cr = await storage.deductCredits(u.id, 3, "analyse", "YouTube Content Analysis", u.plan || "free");
       if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
     }
     try {
@@ -7793,7 +7840,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
     if (!urls?.length) return res.status(400).json({ message: "At least one Instagram URL required" });
     const u = req.user as any;
     if (u.role !== "admin") {
-      const cr = await storage.deductCredits(u.id, 3, "analyse", "Instagram Content Analysis", u.plan || "free");
+      const cr = await storage.deductCredits(u.id, 4, "analyse", "Instagram Content Analysis", u.plan || "free");
       if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
     }
     try {
@@ -8556,6 +8603,10 @@ Rules:
   app.post("/api/ig-tracker/:id/scan", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
+      if (user.role !== "admin") {
+        const igCredit = await storage.deductCredits(user.id, 1, "ig_tracker", "IG Growth Tracker scan", user.plan || "free");
+        if (!igCredit.success) return res.status(402).json({ message: igCredit.message, insufficientCredits: true });
+      }
       const userId = (user.role === "admin" && req.body.clientId) ? String(req.body.clientId) : user.id;
       const profiles = await storage.getIgTrackedProfiles(userId);
       const profile = profiles.find(p => p.id === Number(req.params.id));

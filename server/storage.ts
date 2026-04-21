@@ -862,9 +862,9 @@ class DatabaseStorage implements IStorage {
   }
 
   // ── Credit system ──────────────────────────────────────────────────────────
-  // Tier 1 (free)=5/day, Tier 2 (starter)=150/month, Tier 3 (growth)=350/month
-  // Tier 4 (pro)=700/month, Tier 5 (elite)=unlimited (bypass all checks)
-  private readonly PLAN_CREDITS: Record<string, number> = { free: 5, starter: 150, growth: 350, pro: 700, elite: 99999 };
+  // Tier 1 (free)=20/month, Tier 2 (starter)=100/month, Tier 3 (growth)=250/month
+  // Tier 4 (pro)=500/month, Tier 5 (elite)=unlimited (bypass all checks)
+  private readonly PLAN_CREDITS: Record<string, number> = { free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 };
 
   private currentPeriodKey(plan: string): string {
     const d = new Date();

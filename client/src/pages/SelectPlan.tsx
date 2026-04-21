@@ -23,13 +23,21 @@ const PLANS = [
     name: "Free",
     price: "Free",
     period: "",
-    credits: "5 credits / day",
+    credits: "20 credits / month",
     accent: "rgba(255,255,255,0.7)",
     bg: "rgba(255,255,255,0.03)",
     border: "rgba(255,255,255,0.1)",
     highlight: false,
     cta: "Start for Free",
-    features: ["5 AI credits per day", "Access to all 9 AI tools", "Group community access", "Basic content ideas", "Partial audit preview"],
+    features: [
+      "20 AI credits per month",
+      "Access to all AI tools",
+      "Group community access",
+      "AI Content Ideas (3 credits each)",
+      "Virality Tester (4 credits each)",
+      "Basic carousel generation",
+      "Partial audit preview",
+    ],
   },
   {
     slug: "starter",
@@ -37,13 +45,25 @@ const PLANS = [
     name: "Starter",
     price: "$29",
     period: "/mo",
-    credits: "150 credits / month",
+    credits: "100 credits / month",
     accent: "#818cf8",
     bg: "rgba(99,102,241,0.06)",
     border: "rgba(99,102,241,0.28)",
     highlight: false,
     cta: "Get Starter",
-    features: ["150 AI credits / month", "Full audit access", "Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
+    features: [
+      "100 AI credits / month",
+      "Everything in Free",
+      "Full audit access",
+      "AI Content Ideas — 5 credits",
+      "Carousel Studio — 5 credits",
+      "Story Generator — 2 credits",
+      "Lead Magnet Generator — 6 credits",
+      "Brand Kit Builder — 6 credits",
+      "Virality Tester — 4 credits",
+      "Full Script Generator — 3 credits",
+      "IG Growth Tracker — 1 credit/scan",
+    ],
   },
   {
     slug: "growth",
@@ -51,13 +71,25 @@ const PLANS = [
     name: "Growth",
     price: "$59",
     period: "/mo",
-    credits: "350 credits / month",
+    credits: "250 credits / month",
     accent: GOLD,
     bg: "rgba(212,180,97,0.07)",
     border: "rgba(212,180,97,0.35)",
     highlight: true,
     cta: "Start Growing",
-    features: ["350 AI credits / month", "No watermarks", "Competitor Intelligence", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
+    features: [
+      "250 AI credits / month",
+      "Everything in Starter",
+      "No watermarks",
+      "Competitor Analysis — 12 credits",
+      "Reel vs Reel Compare — 5 credits",
+      "Steal Strategy Plan — 10 credits",
+      "Niche Intelligence — 12 credits",
+      "ICP Builder — 6 credits",
+      "Audience Psychology Map — 6 credits",
+      "Content DNA Analysis — 7 credits",
+      "Priority processing",
+    ],
   },
   {
     slug: "pro",
@@ -65,13 +97,25 @@ const PLANS = [
     name: "Pro",
     price: "$79",
     period: "/mo",
-    credits: "700 credits / month",
+    credits: "500 credits / month",
     accent: "#34d399",
     bg: "rgba(52,211,153,0.05)",
     border: "rgba(52,211,153,0.22)",
     highlight: false,
     cta: "Go Pro",
-    features: ["700 AI credits / month", "Video Editor", "Content Coach", "SOP Generator", "Content Planner", "Direct team messaging", "Priority support"],
+    features: [
+      "500 AI credits / month",
+      "Everything in Growth",
+      "AI Video Editor — 2 credits/msg",
+      "Clip Finder YouTube — 5 credits",
+      "Clip Finder Upload — 7 credits",
+      "AI Content Coach — 2 credits/msg",
+      "SOP Generator — 7 credits",
+      "AI Content Planner — 7 credits",
+      "Content Planner Regen — 3 credits",
+      "Direct team messaging",
+      "Priority support",
+    ],
   },
 ];
 
@@ -90,7 +134,7 @@ export default function SelectPlan() {
       apiRequest("POST", "/api/auth/confirm-plan", { plan: "starter" })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Starter! 🎉", description: "Your $29/mo plan is now active. Enjoy 150 credits per month." });
+          toast({ title: "Welcome to Starter! 🎉", description: "Your $29/mo plan is now active. Enjoy 100 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
@@ -99,7 +143,7 @@ export default function SelectPlan() {
       apiRequest("POST", "/api/auth/confirm-plan", { plan: "growth" })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Growth! 🚀", description: "Your $59/mo plan is now active. Enjoy 350 credits per month." });
+          toast({ title: "Welcome to Growth! 🚀", description: "Your $59/mo plan is now active. Enjoy 250 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
