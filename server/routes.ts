@@ -507,7 +507,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const parsed = insertUserSchema.safeParse({ ...req.body, role: "client" });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const hashed = await hashPassword(parsed.data.password);
-    const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client", planConfirmed: true });
+    const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client", planConfirmed: true, surveyCompleted: false } as any);
     await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
     // Auto-enroll admin-created clients in "join" sequences
     storage.getEmailSequences().then(seqs => {
