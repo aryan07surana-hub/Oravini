@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useSurvey } from "@/hooks/use-survey";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -353,6 +354,8 @@ export default function AIContentPlanner() {
   const [copied, setCopied] = useState(false);
   const [selectedInspo, setSelectedInspo] = useState<string | null>(null);
 
+  const survey = useSurvey();
+
   const [form, setForm] = useState<PlannerForm>({
     niche: "",
     targetAudience: "",
@@ -365,6 +368,20 @@ export default function AIContentPlanner() {
     biggestChallenge: "",
     weeklyFocus: "",
   });
+
+  // Pre-fill from onboarding survey once data is available
+  useEffect(() => {
+    if (!survey.hasData) return;
+    setForm(f => ({
+      ...f,
+      niche: f.niche || survey.niche,
+      goal: f.goal === "grow" ? survey.goalLabel : f.goal,
+      platforms: f.platforms[0] === "instagram" && survey.platforms.length > 0
+        ? survey.platforms.map(p => p.toLowerCase().replace(" / ", "").replace(" ", "")).slice(0, 3)
+        : f.platforms,
+      biggestChallenge: f.biggestChallenge || survey.topStruggle,
+    }));
+  }, [survey.hasData]);
 
   const setF = (k: keyof PlannerForm, v: any) => setForm(f => ({ ...f, [k]: v }));
   const togglePlatform = (id: string) =>

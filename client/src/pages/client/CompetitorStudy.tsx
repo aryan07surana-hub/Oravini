@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -8,6 +8,7 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
+import { useSurvey } from "@/hooks/use-survey";
 import CreditErrorBanner from "@/components/CreditErrorBanner";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2837,6 +2838,7 @@ function NicheGrowthPlaybook({ report, niche }: { report: any; niche: string }) 
 
 function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin: boolean; activeClientId: string; user: any }) {
   const { toast } = useToast();
+  const survey = useSurvey();
   const [niche, setNiche] = useState("");
   const [competitorUrls, setCompetitorUrls] = useState(["", "", ""]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -2845,6 +2847,11 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
   const [activeView, setActiveView] = useState<"new" | "history">("new");
+
+  // Pre-fill niche from survey
+  useEffect(() => {
+    if (survey.niche && !niche) setNiche(survey.niche);
+  }, [survey.niche]);
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/niche/analyses", activeClientId],

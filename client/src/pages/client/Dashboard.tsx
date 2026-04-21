@@ -1,6 +1,7 @@
 import ClientLayout from "@/components/layout/ClientLayout";
 import OnboardingModal from "@/components/OnboardingModal";
 import { useAuth } from "@/hooks/use-auth";
+import { useSurvey } from "@/hooks/use-survey";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,14 +80,21 @@ const TOOL_LABELS: Record<string, string> = {
 /* ─────────────────────────────────────────────
    QUICK TOOLS CONFIG
 ───────────────────────────────────────────── */
-const QUICK_TOOLS = [
-  { href: "/ai-ideas",        label: "Content Ideas",     desc: "AI-generated hooks & scripts",     icon: Sparkles,   gradient: "from-[#d4b461]/20 to-[#d4b461]/5",   iconBg: "bg-[#d4b461]/15",      iconColor: "#d4b461"   },
-  { href: "/ai-coach",        label: "AI Coach",          desc: "Personalised content coaching",    icon: Bot,        gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15",    iconColor: "#34d399"   },
-  { href: "/video-editor",    label: "Video Editor",      desc: "Edit & enhance your videos",       icon: Clapperboard, gradient: "from-violet-500/20 to-violet-500/5", iconBg: "bg-violet-500/15",   iconColor: "#a78bfa"   },
-  { href: "/competitor-study",label: "Competitor Study",  desc: "Deep-dive competitor analysis",    icon: ScanSearch, gradient: "from-blue-500/20 to-blue-500/5",     iconBg: "bg-blue-500/15",       iconColor: "#60a5fa"   },
-  { href: "/carousel-studio", label: "Carousel Studio",   desc: "Design scroll-stopping carousels", icon: ImagePlay,  gradient: "from-pink-500/20 to-pink-500/5",      iconBg: "bg-pink-500/15",       iconColor: "#f472b6"   },
-  { href: "/ai-ideas",        label: "AI Scriptwriter",   desc: "Auto-generate video scripts",      icon: Wand2,      gradient: "from-orange-500/20 to-orange-500/5",  iconBg: "bg-orange-500/15",     iconColor: "#fb923c"   },
+const ALL_QUICK_TOOLS = [
+  { href: "/ai-ideas",         label: "Content Ideas",    desc: "AI-generated hooks & scripts",     icon: Sparkles,    gradient: "from-[#d4b461]/20 to-[#d4b461]/5",   iconBg: "bg-[#d4b461]/15",    iconColor: "#d4b461",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
+  { href: "/ai-coach",         label: "AI Coach",         desc: "Personalised content coaching",    icon: Bot,         gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15",  iconColor: "#34d399",  struggles: ["Building confidence on camera", "Staying consistent"] },
+  { href: "/video-editor",     label: "Video Editor",     desc: "Edit & enhance your videos",       icon: Clapperboard, gradient: "from-violet-500/20 to-violet-500/5", iconBg: "bg-violet-500/15",  iconColor: "#a78bfa",  struggles: ["Editing and production quality"] },
+  { href: "/competitor-study", label: "Competitor Study", desc: "Deep-dive competitor analysis",    icon: ScanSearch,  gradient: "from-blue-500/20 to-blue-500/5",     iconBg: "bg-blue-500/15",     iconColor: "#60a5fa",  struggles: ["Growing my followers", "Standing out in a crowded niche"] },
+  { href: "/carousel-studio",  label: "Carousel Studio",  desc: "Design scroll-stopping carousels", icon: ImagePlay,   gradient: "from-pink-500/20 to-pink-500/5",      iconBg: "bg-pink-500/15",     iconColor: "#f472b6",  struggles: ["Low engagement on posts"] },
+  { href: "/virality-tester",  label: "Virality Tester",  desc: "Score your content before posting", icon: Wand2,       gradient: "from-orange-500/20 to-orange-500/5",  iconBg: "bg-orange-500/15",   iconColor: "#fb923c",  struggles: ["Getting views / reach", "Low engagement on posts"] },
 ];
+
+function getQuickTools(struggles: string[]) {
+  if (!struggles.length) return ALL_QUICK_TOOLS;
+  const prioritised = ALL_QUICK_TOOLS.filter(t => t.struggles.some(s => struggles.includes(s)));
+  const rest = ALL_QUICK_TOOLS.filter(t => !prioritised.includes(t));
+  return [...prioritised, ...rest].slice(0, 6);
+}
 
 /* ─────────────────────────────────────────────
    CONTENT MASTERY MODULE (kept as-is)
@@ -1562,6 +1570,8 @@ function ReferralWidget({ stats }: { stats: any }) {
 export default function ClientDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const survey = useSurvey();
+  const QUICK_TOOLS = getQuickTools(survey.struggles);
 
   const { data: onboardingStatus } = useQuery<{ done: boolean; survey: any }>({
     queryKey: ["/api/user/onboarding-status"],
@@ -1866,7 +1876,7 @@ export default function ClientDashboard() {
           {/* ── GROWTH MILESTONES + CREATOR TIP ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <GrowthMilestones streak={streak} monthActions={monthActions} />
-            <CreatorTipCard />
+            <CreatorTipCard struggles={userStruggles} />
           </div>
 
           {/* ── BIG 3 TODAY ── */}

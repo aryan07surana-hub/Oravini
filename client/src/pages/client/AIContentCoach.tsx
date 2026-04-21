@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSurvey } from "@/hooks/use-survey";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -530,13 +531,32 @@ export default function AIContentCoach() {
     setCreditError(null);
   };
 
-  // Brand builder state
+  const survey = useSurvey();
+
+  // Brand builder state — pre-filled from survey
   const [brandForm, setBrandForm] = useState({ niche: "", target: "", goal: "", currentBio: "", handle: "" });
   const [buildingBrand, setBuildingBrand] = useState(false);
 
-  // Roadmap state
+  // Roadmap state — pre-filled from survey
   const [roadmapForm, setRoadmapForm] = useState({ niche: "", goal: "", currentFollowers: "", mainProblem: "" });
   const [buildingRoadmap, setBuildingRoadmap] = useState(false);
+
+  // Pre-fill brand + roadmap forms from survey
+  useEffect(() => {
+    if (!survey.hasData) return;
+    setBrandForm(f => ({
+      ...f,
+      niche: f.niche || survey.niche,
+      goal: f.goal || survey.primaryGoal,
+    }));
+    setRoadmapForm(f => ({
+      ...f,
+      niche: f.niche || survey.niche,
+      goal: f.goal || survey.primaryGoal,
+      currentFollowers: f.currentFollowers || survey.followerCount,
+      mainProblem: f.mainProblem || survey.topStruggle,
+    }));
+  }, [survey.hasData]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
