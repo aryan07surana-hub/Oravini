@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Scissors, Play, Copy, Check, ExternalLink,
   Sparkles, Youtube, TrendingUp, Clock, Zap,
-  Film, Upload, ChevronRight, Mic,
+  Film, Upload, ChevronRight, Mic, Download, Loader2,
 } from "lucide-react";
 
 type Clip = {
@@ -107,10 +107,45 @@ export default function ClipFinder() {
   const [msgIdx, setMsgIdx] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [noTranscript, setNoTranscript] = useState(false);
+  const [cuttingClipId, setCuttingClipId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const msgs = mode === "upload" ? UPLOAD_MSGS : YT_MSGS;
+
+  const downloadClip = async (clip: Clip, videoId: string) => {
+    setCuttingClipId(clip.id);
+    toast({ title: "Cutting your clip…", description: "Downloading & trimming — this takes 30–60 seconds." });
+    try {
+      const res = await fetch("/api/clip-finder/cut", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          videoId,
+          startSeconds: clip.startSeconds,
+          endSeconds: clip.endSeconds,
+          title: clip.title,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to cut clip");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${clip.title.replace(/[^a-z0-9]/gi, "_")}.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Clip downloaded! 🎬" });
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setCuttingClipId(null);
+    }
+  };
 
   const startMsgTimer = () => {
     setMsgIdx(0);
@@ -526,12 +561,25 @@ export default function ClipFinder() {
                         {/* Actions */}
                         <div className="flex items-center gap-2 pt-1 flex-wrap">
                           {result.videoId ? (
-                            <a href={ytUrl(result.videoId, clip.startSeconds)} target="_blank" rel="noopener noreferrer"
-                              data-testid={`btn-watch-clip-${clip.id}`}>
-                              <Button size="sm" className="bg-primary text-black hover:bg-primary/90 gap-1.5 font-bold text-xs h-8">
-                                <Play className="w-3 h-3 fill-black" /> Watch Clip
+                            <>
+                              <a href={ytUrl(result.videoId, clip.startSeconds)} target="_blank" rel="noopener noreferrer"
+                                data-testid={`btn-watch-clip-${clip.id}`}>
+                                <Button size="sm" className="bg-primary text-black hover:bg-primary/90 gap-1.5 font-bold text-xs h-8">
+                                  <Play className="w-3 h-3 fill-black" /> Watch Clip
+                                </Button>
+                              </a>
+                              <Button
+                                size="sm"
+                                onClick={() => downloadClip(clip, result.videoId!)}
+                                disabled={cuttingClipId === clip.id}
+                                className="gap-1.5 font-bold text-xs h-8 bg-green-600 hover:bg-green-700 text-white"
+                                data-testid={`btn-download-clip-${clip.id}`}
+                              >
+                                {cuttingClipId === clip.id
+                                  ? <><Loader2 className="w-3 h-3 animate-spin" /> Cutting…</>
+                                  : <><Download className="w-3 h-3" /> Cut & Download</>}
                               </Button>
-                            </a>
+                            </>
                           ) : (
                             <span className="flex items-center gap-1.5 text-xs font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg">
                               <Clock className="w-3 h-3" /> {clip.startLabel} – {clip.endLabel}

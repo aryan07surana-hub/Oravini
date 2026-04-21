@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import ClientLayout from "@/components/layout/ClientLayout";
 import CarouselStudio from "./CarouselStudio";
@@ -232,6 +233,25 @@ export default function AIDesign() {
   const [active, setActive] = useState<string | null>(null);
   const [, navigate] = useLocation();
 
+  const { data: meData } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const surveyFields: string[] = (meData as any)?.fields || [];
+  const surveyStruggles: string[] = (meData as any)?.struggles || [];
+  const primaryGoal: string = (meData as any)?.primaryGoal || "";
+
+  // Pick the most relevant tool to highlight based on struggles
+  const STRUGGLE_TOOL_MAP: Record<string, string> = {
+    "Coming up with content ideas": "carousel",
+    "Low engagement on posts": "carousel",
+    "Building a personal brand identity": "brand-kit",
+    "Building brand partnerships": "brand-kit",
+    "Converting followers to customers": "lead-magnet",
+    "Monetising my audience": "lead-magnet",
+    "Standing out in a crowded niche": "audience-psychology",
+    "Knowing what content to create": "sop-generator",
+    "Staying consistent": "sop-generator",
+  };
+  const highlightedTool = surveyStruggles.map(s => STRUGGLE_TOOL_MAP[s]).find(Boolean) || null;
+
   const handleSelect = (tool: (typeof MAIN_TOOLS)[0]) => {
     if (tool.route) navigate(tool.route);
     else setActive(tool.id);
@@ -272,6 +292,16 @@ export default function AIDesign() {
             <p className="text-zinc-400 text-base max-w-lg mx-auto">
               Choose a design tool below to create branded content in minutes — no design experience needed.
             </p>
+            {surveyFields.length > 0 && (
+              <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                {surveyFields.slice(0, 3).map(f => (
+                  <span key={f} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: "rgba(212,180,97,0.12)", color: "#d4b461", border: "1px solid rgba(212,180,97,0.25)" }}>{f}</span>
+                ))}
+                {primaryGoal && (
+                  <span className="text-xs px-3 py-1 rounded-full" style={{ background: "rgba(52,211,153,0.08)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}>🎯 {primaryGoal}</span>
+                )}
+              </div>
+            )}
             <div className="flex justify-center mt-4">
               <PageTourButton pageKey="ai-design" />
             </div>
@@ -280,16 +310,22 @@ export default function AIDesign() {
           {/* 3-column grid — 6 tools (2×3 perfect) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 mb-10" data-tour="design-studio-tools">
             {MAIN_TOOLS.map((tool) => (
-              <SquareTile
-                key={tool.id}
-                icon={tool.icon}
-                label={tool.label}
-                description={tool.description}
-                badge={tool.badge}
-                accent={tool.accent}
-                onClick={() => handleSelect(tool)}
-                testId={`design-tool-${tool.id}`}
-              />
+              <div key={tool.id} className="relative">
+                {highlightedTool === tool.id && (
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#34d399", color: "#000" }}>
+                    ⭐ Recommended for you
+                  </div>
+                )}
+                <SquareTile
+                  icon={tool.icon}
+                  label={tool.label}
+                  description={tool.description}
+                  badge={tool.badge}
+                  accent={highlightedTool === tool.id ? "#34d399" : tool.accent}
+                  onClick={() => handleSelect(tool)}
+                  testId={`design-tool-${tool.id}`}
+                />
+              </div>
             ))}
           </div>
 

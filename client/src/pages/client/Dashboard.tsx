@@ -925,7 +925,7 @@ function CreatorBriefing() {
   const experience: string = u?.experience || "";
   const descriptor: string = u?.descriptor || "";
 
-  if (!niche.length && !struggles.length && !primaryGoal) return null;
+  if (!niche.length && !struggles.length && !primaryGoal && !platforms.length) return null;
 
   return (
     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(212,180,97,0.2)", background: "rgba(212,180,97,0.025)" }} data-testid="creator-briefing">
@@ -1783,6 +1783,9 @@ export default function ClientDashboard() {
               <TourButton className="shrink-0" />
             </div>
           </div>
+
+          {/* ── CREATOR BRIEFING (survey-personalised) ── */}
+          <CreatorBriefing />
 
           {/* ── INCOME GOAL + DAILY QUOTE ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

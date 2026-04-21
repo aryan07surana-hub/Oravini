@@ -310,8 +310,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     req.logout(() => res.json({ message: "Logged out" }));
   });
 
-  app.get("/api/auth/me", requireAuth, (req, res) => {
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
     const { password, ...safeUser } = req.user as any;
+    // Merge survey fields if not already on the session user
+    if (!safeUser.fields && !safeUser.struggles) {
+      try {
+        const survey = await storage.getOnboardingSurvey(safeUser.id);
+        if (survey) {
+          Object.assign(safeUser, {
+            awareness: survey.awareness,
+            fields: survey.fields,
+            struggles: survey.struggles,
+            contentTypes: survey.content_types,
+            descriptor: survey.descriptor,
+            experience: survey.experience,
+            followerCount: survey.follower_count,
+            monthlyRevenue: survey.monthly_revenue,
+            primaryGoal: survey.primary_goal,
+            platforms: survey.platforms,
+            heardAbout: survey.heard_about,
+          });
+          // Cache on session user for subsequent requests
+          Object.assign(req.user as any, safeUser);
+        }
+      } catch (_) { /* non-critical */ }
+    }
     res.json(safeUser);
   });
 
@@ -627,7 +650,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
       await storage.updateUser(userId, { surveyCompleted: true } as any);
       const updated = await storage.getUser(userId);
-      if (req.user) Object.assign(req.user as any, { surveyCompleted: true });
+      // Merge survey fields onto the session user so /api/auth/me returns them immediately
+      if (req.user) Object.assign(req.user as any, {
+        surveyCompleted: true,
+        awareness, fields, struggles, contentTypes,
+        descriptor, experience, followerCount, monthlyRevenue,
+        primaryGoal, platforms, heardAbout,
+      });
       res.json({ success: true, survey: saved, user: updated });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -4451,53 +4480,39 @@ Return ONLY valid JSON:
 
   // ── YouTube transcript via Apify actor (reliable, no bot detection) ─────────
   async function fetchYouTubeTranscript(videoId: string): Promise<{ title: string; segments: { start: number; duration: number; text: string }[] }> {
-    const APIFY_TOKEN = process.env.APIFY_TOKEN;
-    if (!APIFY_TOKEN) throw new Error("APIFY_TOKEN not configured");
-
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-    // Run actor synchronously and get dataset items in one call (blocks until done)
-    const apifyRes = await fetch(
-      `https://api.apify.com/v2/acts/Uwpce1RSXlrzF6WBA/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtube_url: videoUrl, include_transcript_text: true }),
+    try {
+      const { YoutubeTranscript } = await import("youtube-transcript");
+      const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+      if (!transcriptItems || transcriptItems.length === 0) {
+        const err: any = new Error("NO_TRANSCRIPT");
+        err.noTranscript = true;
+        throw err;
       }
-    );
-
-    if (!apifyRes.ok) {
-      const errText = await apifyRes.text();
-      throw new Error(`Apify actor error ${apifyRes.status}: ${errText.slice(0, 200)}`);
-    }
-
-    const items: any[] = await apifyRes.json();
-    const item = items?.[0];
-
-    if (!item || item.status !== "success") {
-      const err: any = new Error("NO_TRANSCRIPT");
-      err.noTranscript = true;
-      throw err;
-    }
-
-    const title: string = item.title || "YouTube Video";
-    const rawSegments: any[] = item.transcript || [];
-
-    if (!rawSegments.length) {
-      const err: any = new Error("NO_TRANSCRIPT");
-      err.noTranscript = true;
-      throw err;
-    }
-
-    const segments = rawSegments
-      .map((s: any) => ({
-        start: parseFloat(s.start) || 0,
-        duration: parseFloat(s.duration) || 3,
+      const segments = transcriptItems.map((s: any) => ({
+        start: parseFloat(s.offset) / 1000 || 0,
+        duration: parseFloat(s.duration) / 1000 || 3,
         text: (s.text || "").replace(/\n/g, " ").trim(),
-      }))
-      .filter((s) => s.text.length > 1);
-
-    return { title, segments };
+      })).filter((s: any) => s.text.length > 1);
+      return { title: "YouTube Video", segments };
+    } catch (e: any) {
+      if (e.noTranscript) throw e;
+      // fallback to Apify
+      const APIFY_TOKEN = process.env.APIFY_TOKEN;
+      if (!APIFY_TOKEN) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const apifyRes = await fetch(
+        `https://api.apify.com/v2/acts/Uwpce1RSXlrzF6WBA/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ youtube_url: videoUrl, include_transcript_text: true }) }
+      );
+      if (!apifyRes.ok) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const items: any[] = await apifyRes.json();
+      const item = items?.[0];
+      if (!item || item.status !== "success") { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const rawSegments: any[] = item.transcript || [];
+      if (!rawSegments.length) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const segments = rawSegments.map((s: any) => ({ start: parseFloat(s.start) || 0, duration: parseFloat(s.duration) || 3, text: (s.text || "").replace(/\n/g, " ").trim() })).filter((s) => s.text.length > 1);
+      return { title: item.title || "YouTube Video", segments };
+    }
   }
 
   app.post("/api/clip-finder", requireAuth, async (req: Request, res: Response) => {
@@ -4541,13 +4556,13 @@ Return ONLY valid JSON:
         .slice(0, 8000);
 
       // AI analysis
-      const systemPrompt = `You are a viral short-form content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be self-contained, engaging from the first second, and 15–90 seconds long. Return ONLY valid JSON.`;
+      const systemPrompt = `You are an elite viral content strategist who has studied thousands of viral videos. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Clips can range from 15 seconds to 3 minutes depending on the content — prioritize complete, self-contained moments. Return ONLY valid JSON.`;
       const userPrompt = `Video: "${title}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
 
 Transcript:
 ${transcriptText}
 
-Identify the 5–7 best moments to clip. Pick moments with strong hooks, emotion, humour, quotability, surprising facts, or storytelling peaks.
+Identify 8–12 of the best viral clip moments. Include a mix of short punchy clips (15-45s) AND longer powerful moments (1-3 mins). Pick moments with strong hooks, emotion, humour, quotability, surprising facts, storytelling peaks, or high-value insights.
 
 Return JSON:
 {
@@ -4556,15 +4571,19 @@ Return JSON:
       "startSeconds": number,
       "endSeconds": number,
       "title": "short punchy clip title",
-      "hook": "1-sentence opening hook for the caption",
-      "whyViral": "1-2 sentences on why this moment works as a standalone clip",
+      "hook": "scroll-stopping opening hook for the caption (make it compelling)",
+      "whyViral": "2-3 sentences explaining exactly why this moment will go viral — mention the emotional trigger, what makes it shareable, and why people will watch till the end",
       "viralityScore": number (0-100),
-      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling"
+      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling|controversial",
+      "platform": "reels|tiktok|shorts|all",
+      "emotionalTrigger": "curiosity|shock|inspiration|humour|relatability|anger|joy|fear",
+      "retentionPrediction": "high|medium|low",
+      "suggestedCaption": "full ready-to-post caption with hook + value + CTA"
     }
   ]
 }`;
 
-      const rawJson = await callGroqJson(systemPrompt, userPrompt, 3500);
+      const rawJson = await callGroqJson(systemPrompt, userPrompt, 5000);
       let parsed: any;
       try { parsed = JSON.parse(rawJson); } catch { throw new Error("AI response parse error"); }
       const rawClips: any[] = parsed?.clips || [];
@@ -4584,6 +4603,10 @@ Return JSON:
           whyViral: String(clip.whyViral || ""),
           viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
           category: String(clip.category || "engaging"),
+          platform: String(clip.platform || "all"),
+          emotionalTrigger: String(clip.emotionalTrigger || ""),
+          retentionPrediction: String(clip.retentionPrediction || "medium"),
+          suggestedCaption: String(clip.suggestedCaption || ""),
         };
       });
 
@@ -4645,8 +4668,8 @@ Return JSON:
       if (!transcriptText) throw new Error("Could not extract transcript — ensure the video has clear speech");
 
       // 3. AI clip analysis
-      const sysPrompt = `You are a viral content strategist. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Each clip should be 15–90 seconds, self-contained, and immediately engaging. Return ONLY valid JSON.`;
-      const userPrompt = `Video: "${videoTitle}" (${Math.floor(duration / 60)}m ${Math.floor(duration % 60)}s)\n\nTranscript:\n${transcriptText}\n\nFind 5–7 best clips. Pick moments with strong hooks, emotion, humour, quotability, or storytelling peaks.\n\nReturn JSON:\n{\n  "clips": [\n    {\n      "startSeconds": number,\n      "endSeconds": number,\n      "title": "punchy clip title",\n      "hook": "one-sentence caption hook",\n      "whyViral": "why this works as a standalone clip (1-2 sentences)",\n      "viralityScore": number (0-100),\n      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling"\n    }\n  ]\n}`;
+      const sysPrompt = `You are an elite viral content strategist who has studied thousands of viral videos. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Clips can range from 15 seconds to 3 minutes — prioritize complete self-contained moments. Return ONLY valid JSON.`;
+      const userPrompt = `Video: "${videoTitle}" (${Math.floor(duration / 60)}m ${Math.floor(duration % 60)}s)\n\nTranscript:\n${transcriptText}\n\nIdentify 8-12 of the best viral clip moments. Include a mix of short punchy clips (15-45s) AND longer powerful moments (1-3 mins). Pick moments with strong hooks, emotion, humour, quotability, surprising facts, storytelling peaks, or high-value insights.\n\nReturn JSON:\n{\n  "clips": [\n    {\n      "startSeconds": number,\n      "endSeconds": number,\n      "title": "punchy clip title",\n      "hook": "scroll-stopping opening hook for the caption",\n      "whyViral": "2-3 sentences on exactly why this will go viral — emotional trigger, shareability, retention",\n      "viralityScore": number (0-100),\n      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling|controversial",\n      "platform": "reels|tiktok|shorts|all",\n      "emotionalTrigger": "curiosity|shock|inspiration|humour|relatability|anger|joy|fear",\n      "retentionPrediction": "high|medium|low",\n      "suggestedCaption": "full ready-to-post caption with hook + value + CTA"\n    }\n  ]\n}`;
 
       const rawJson = await callGroqJson(sysPrompt, userPrompt, 3500);
       let parsed: any;
@@ -4668,6 +4691,10 @@ Return JSON:
           whyViral: String(clip.whyViral || ""),
           viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
           category: String(clip.category || "engaging"),
+          platform: String(clip.platform || "all"),
+          emotionalTrigger: String(clip.emotionalTrigger || ""),
+          retentionPrediction: String(clip.retentionPrediction || "medium"),
+          suggestedCaption: String(clip.suggestedCaption || ""),
         };
       });
 
@@ -4677,6 +4704,74 @@ Return JSON:
       return res.status(500).json({ message: err.message || "Processing failed" });
     } finally {
       try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
+    }
+  });
+
+  // ── Clip Finder — cut & download a clip using yt-dlp + ffmpeg ──────────────
+  app.post("/api/clip-finder/cut", requireAuth, async (req: Request, res: Response) => {
+    const { videoId, startSeconds, endSeconds, title } = req.body;
+    if (!videoId || startSeconds == null || endSeconds == null) {
+      return res.status(400).json({ message: "videoId, startSeconds and endSeconds are required" });
+    }
+    const duration = Math.round(endSeconds - startSeconds);
+    if (duration <= 0 || duration > 180) {
+      return res.status(400).json({ message: "Clip duration must be between 1 and 180 seconds" });
+    }
+    const tmpDir = path.join(process.cwd(), "uploads");
+    const rawFile = path.join(tmpDir, `raw_${Date.now()}.mp4`);
+    const outFile = path.join(tmpDir, `clip_${Date.now()}.mp4`);
+    const { spawn } = await import("child_process");
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    try {
+      // 1. Download full video with yt-dlp
+      await new Promise<void>((resolve, reject) => {
+        const dl = spawn("yt-dlp", [
+          "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          "--merge-output-format", "mp4",
+          "-o", rawFile,
+          "--no-playlist",
+          videoUrl,
+        ]);
+        let stderr = "";
+        dl.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+        dl.on("close", (code) => code === 0 ? resolve() : reject(new Error(`yt-dlp failed: ${stderr.slice(-300)}`)));
+        dl.on("error", reject);
+      });
+
+      // 2. Cut the clip with ffmpeg
+      await new Promise<void>((resolve, reject) => {
+        const ff = spawn("ffmpeg", [
+          "-ss", String(startSeconds),
+          "-i", rawFile,
+          "-t", String(duration),
+          "-c:v", "libx264",
+          "-c:a", "aac",
+          "-movflags", "faststart",
+          "-y",
+          outFile,
+        ]);
+        let stderr = "";
+        ff.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+        ff.on("close", (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg failed: ${stderr.slice(-300)}`)));
+        ff.on("error", reject);
+      });
+
+      // 3. Stream clip back to client
+      const safeTitle = (title || "clip").replace(/[^a-z0-9]/gi, "_").slice(0, 40);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.mp4"`);
+      res.setHeader("Content-Type", "video/mp4");
+      const readStream = fs.createReadStream(outFile);
+      readStream.pipe(res);
+      readStream.on("end", () => {
+        try { fs.unlinkSync(rawFile); } catch {}
+        try { fs.unlinkSync(outFile); } catch {}
+      });
+    } catch (err: any) {
+      try { fs.unlinkSync(rawFile); } catch {}
+      try { fs.unlinkSync(outFile); } catch {}
+      console.log("[clip-finder/cut] error:", err.message);
+      return res.status(500).json({ message: err.message || "Failed to cut clip" });
     }
   });
 

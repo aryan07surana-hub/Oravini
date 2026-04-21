@@ -129,6 +129,12 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  // Pull survey niche for smarter placeholder
+  const { data: meData } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const surveyNiche: string = (meData as any)?.fields?.[0] || "";
+  const surveyStruggles: string[] = (meData as any)?.struggles || [];
+  const topStruggle = surveyStruggles[0] || "";
+
   // Setup state
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState(TONES[0]);
@@ -631,11 +637,32 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
                 <Input
                   value={topic}
                   onChange={e => setTopic(e.target.value)}
-                  placeholder="e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"
+                  placeholder={surveyNiche
+                    ? `e.g. ${topStruggle ? `How to fix: ${topStruggle.toLowerCase()}` : `5 mistakes in ${surveyNiche.toLowerCase()} that hold you back`}, morning routine for ${surveyNiche.toLowerCase()}…`
+                    : "e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"}
                   className="bg-white/5 border-white/10 text-sm h-12"
                   data-testid="input-topic"
                   onKeyDown={e => e.key === "Enter" && generateText()}
                 />
+                {surveyNiche && !topic && (
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[10px] text-zinc-500">Quick start:</span>
+                    {[
+                      topStruggle ? `How to overcome: ${topStruggle.toLowerCase()}` : null,
+                      `5 mistakes in ${surveyNiche.toLowerCase()}`,
+                      `${surveyNiche} tips for beginners`,
+                    ].filter(Boolean).map(suggestion => (
+                      <button
+                        key={suggestion!}
+                        onClick={() => setTopic(suggestion!)}
+                        className="text-[10px] px-2.5 py-1 rounded-full border transition-all hover:border-primary/40 hover:text-primary"
+                        style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)", color: "#d4b461" }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

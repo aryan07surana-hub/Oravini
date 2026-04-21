@@ -763,13 +763,53 @@ function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" 
   );
 }
 
+// ─── Survey-to-goal mapping ────────────────────────────────────────────────────
+const SURVEY_GOAL_MAP: Record<string, string> = {
+  "Grow my audience fast": "grow followers/subscribers fast",
+  "Land brand deals & sponsorships": "build brand authority and trust",
+  "Sell digital products or courses": "drive sales and conversions",
+  "Replace my 9–5 income": "drive sales and conversions",
+  "Build a loyal community": "boost engagement and comments",
+  "Become a full-time content creator": "grow followers/subscribers fast",
+  "All of the above": "grow followers/subscribers fast",
+};
+
+const SURVEY_PLATFORM_MAP: Record<string, "instagram" | "youtube" | "linkedin" | "twitter"> = {
+  "Instagram": "instagram",
+  "YouTube": "youtube",
+  "LinkedIn": "linkedin",
+  "Twitter / X": "twitter",
+  "TikTok": "instagram", // closest
+  "Threads": "twitter",
+};
+
 export default function AIIdeas() {
   const { toast } = useToast();
-  const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">("twitter");
+
+  // Pull survey data for pre-filling
+  const { data: onboardingStatus } = useQuery<{ done: boolean; survey: any }>({
+    queryKey: ["/api/user/onboarding-status"],
+    staleTime: Infinity,
+  });
+  const { data: meData } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const surveyUser = meData as any;
+  const surveyFields: string[] = surveyUser?.fields || onboardingStatus?.survey?.fields || [];
+  const surveyPlatforms: string[] = surveyUser?.platforms || onboardingStatus?.survey?.platforms || [];
+  const surveyGoal: string = surveyUser?.primaryGoal || onboardingStatus?.survey?.primary_goal || "";
+
+  // Derive defaults from survey
+  const defaultNiche = surveyFields.length > 0 ? surveyFields[0] : "";
+  const defaultPlatform: "instagram" | "youtube" | "linkedin" | "twitter" =
+    surveyPlatforms.length > 0
+      ? (SURVEY_PLATFORM_MAP[surveyPlatforms[0]] || "instagram")
+      : "instagram";
+  const defaultGoal = SURVEY_GOAL_MAP[surveyGoal] || "";
+
+  const [platform, setPlatform] = useState<"instagram" | "youtube" | "linkedin" | "twitter">(defaultPlatform);
   const [profileUrl, setProfileUrl] = useState("");
-  const [niche, setNiche] = useState("");
+  const [niche, setNiche] = useState(defaultNiche);
   const [contentType, setContentType] = useState("");
-  const [goal, setGoal] = useState("");
+  const [goal, setGoal] = useState(defaultGoal);
   const [audience, setAudience] = useState("");
   const [additionalContext, setAdditionalContext] = useState("");
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
@@ -889,10 +929,9 @@ export default function AIIdeas() {
 
   const detectedHandle = useMemo(() => extractHandle(profileUrl, platform as "youtube" | "instagram"), [profileUrl, platform]);
 
-  const { data: me } = useQuery<any>({ queryKey: ["/api/auth/me"] });
   const { data: allPosts } = useQuery<any[]>({
-    queryKey: [`/api/content/${me?.id}`],
-    enabled: !!me?.id,
+    queryKey: [`/api/content/${meData?.id}`],
+    enabled: !!meData?.id,
   });
 
   const platformPosts = useMemo(() => {
