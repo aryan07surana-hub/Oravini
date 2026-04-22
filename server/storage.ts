@@ -8,7 +8,8 @@ import {
   igBotCookies, igBotCampaigns,
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
-  dmLeads, dmQuickReplies, instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
+  dmLeads, dmQuickReplies, dmTriggers, dmSequences, dmSequenceSteps, dmSequenceEnrollments,
+  instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
@@ -33,6 +34,10 @@ import {
   type ContentPost, type InsertContentPost, type IncomeGoal, type InsertIncomeGoal,
   type CallBooking, type InsertCallBooking,
   type DmLead, type InsertDmLead, type DmQuickReply, type InsertDmQuickReply,
+  type DmTrigger, type InsertDmTrigger,
+  type DmSequence, type InsertDmSequence,
+  type DmSequenceStep, type InsertDmSequenceStep,
+  type DmSequenceEnrollment,
   type InstagramProfileReport, type InsertInstagramProfileReport,
   type CanvaToken, type InsertCanvaToken,
   type VideoResource, type InsertVideoResource,
@@ -208,6 +213,20 @@ export interface IStorage {
   getDmQuickReplies(clientId: string): Promise<DmQuickReply[]>;
   createDmQuickReply(data: InsertDmQuickReply): Promise<DmQuickReply>;
   deleteDmQuickReply(id: string): Promise<void>;
+  // DM Automation
+  getDmTriggers(userId: string): Promise<DmTrigger[]>;
+  createDmTrigger(data: InsertDmTrigger): Promise<DmTrigger>;
+  updateDmTrigger(id: string, data: Partial<InsertDmTrigger>): Promise<DmTrigger>;
+  deleteDmTrigger(id: string): Promise<void>;
+  getDmSequences(userId: string): Promise<DmSequence[]>;
+  createDmSequence(data: InsertDmSequence): Promise<DmSequence>;
+  updateDmSequence(id: string, data: Partial<InsertDmSequence>): Promise<DmSequence>;
+  deleteDmSequence(id: string): Promise<void>;
+  getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]>;
+  upsertDmSequenceSteps(sequenceId: string, steps: Omit<InsertDmSequenceStep, "sequenceId">[]): Promise<DmSequenceStep[]>;
+  getDmSequenceEnrollments(sequenceId: string): Promise<DmSequenceEnrollment[]>;
+  enrollLeadInDmSequence(sequenceId: string, leadId: string, recipientIgId: string): Promise<DmSequenceEnrollment>;
+  getPendingDmEnrollments(): Promise<(DmSequenceEnrollment & { sequenceId: string })[]>;
   getInstagramProfileReport(clientId: string): Promise<InstagramProfileReport | null>;
   upsertInstagramProfileReport(data: InsertInstagramProfileReport): Promise<InstagramProfileReport>;
 
@@ -1581,6 +1600,66 @@ class DatabaseStorage implements IStorage {
   }
   async addEmailUnsubscribe(email: string) {
     await db.insert(emailUnsubscribes).values({ email }).onConflictDoNothing();
+  }
+
+  // ── DM Automation (ManyChat-style) ─────────────────────────────────────────
+  async getDmTriggers(userId: string): Promise<DmTrigger[]> {
+    return db.select().from(dmTriggers).where(eq(dmTriggers.userId, userId)).orderBy(desc(dmTriggers.createdAt));
+  }
+  async createDmTrigger(data: InsertDmTrigger): Promise<DmTrigger> {
+    const [row] = await db.insert(dmTriggers).values(data).returning();
+    return row;
+  }
+  async updateDmTrigger(id: string, data: Partial<InsertDmTrigger>): Promise<DmTrigger> {
+    const [row] = await db.update(dmTriggers).set(data).where(eq(dmTriggers.id, id)).returning();
+    return row;
+  }
+  async deleteDmTrigger(id: string): Promise<void> {
+    await db.delete(dmTriggers).where(eq(dmTriggers.id, id));
+  }
+
+  async getDmSequences(userId: string): Promise<DmSequence[]> {
+    return db.select().from(dmSequences).where(eq(dmSequences.userId, userId)).orderBy(desc(dmSequences.createdAt));
+  }
+  async createDmSequence(data: InsertDmSequence): Promise<DmSequence> {
+    const [row] = await db.insert(dmSequences).values(data).returning();
+    return row;
+  }
+  async updateDmSequence(id: string, data: Partial<InsertDmSequence>): Promise<DmSequence> {
+    const [row] = await db.update(dmSequences).set(data).where(eq(dmSequences.id, id)).returning();
+    return row;
+  }
+  async deleteDmSequence(id: string): Promise<void> {
+    await db.delete(dmSequences).where(eq(dmSequences.id, id));
+  }
+
+  async getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]> {
+    return db.select().from(dmSequenceSteps).where(eq(dmSequenceSteps.sequenceId, sequenceId)).orderBy(dmSequenceSteps.stepOrder);
+  }
+  async upsertDmSequenceSteps(sequenceId: string, steps: Omit<InsertDmSequenceStep, "sequenceId">[]): Promise<DmSequenceStep[]> {
+    await db.delete(dmSequenceSteps).where(eq(dmSequenceSteps.sequenceId, sequenceId));
+    if (!steps.length) return [];
+    const rows = await db.insert(dmSequenceSteps).values(steps.map((s, i) => ({ ...s, sequenceId, stepOrder: i }))).returning();
+    return rows;
+  }
+
+  async getDmSequenceEnrollments(sequenceId: string): Promise<DmSequenceEnrollment[]> {
+    return db.select().from(dmSequenceEnrollments).where(eq(dmSequenceEnrollments.sequenceId, sequenceId)).orderBy(desc(dmSequenceEnrollments.enrolledAt));
+  }
+  async enrollLeadInDmSequence(sequenceId: string, leadId: string, recipientIgId: string): Promise<DmSequenceEnrollment> {
+    const [row] = await db.insert(dmSequenceEnrollments).values({
+      sequenceId, leadId, recipientIgId, currentStep: 0, completed: false, nextSendAt: new Date(),
+    }).returning();
+    return row;
+  }
+  async getPendingDmEnrollments(): Promise<(DmSequenceEnrollment & { sequenceId: string })[]> {
+    const now = new Date();
+    return db.select().from(dmSequenceEnrollments).where(
+      and(
+        eq(dmSequenceEnrollments.completed, false),
+        lte(dmSequenceEnrollments.nextSendAt, now)
+      )
+    ) as any;
   }
 
   // ── Referral System ─────────────────────────────────────────────────────────

@@ -857,6 +857,58 @@ export const referralClicks = pgTable("referral_clicks", {
 });
 export type ReferralClick = typeof referralClicks.$inferSelect;
 
+// ── DM Automation (ManyChat-style) ─────────────────────────────────────────
+export const dmTriggers = pgTable("dm_triggers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyword: text("keyword").notNull(),
+  matchType: text("match_type").notNull().default("contains"), // exact | contains | starts_with
+  replyMessage: text("reply_message").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDmTriggerSchema = createInsertSchema(dmTriggers).omit({ id: true, createdAt: true, triggerCount: true });
+export type InsertDmTrigger = z.infer<typeof insertDmTriggerSchema>;
+export type DmTrigger = typeof dmTriggers.$inferSelect;
+
+export const dmSequences = pgTable("dm_sequences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDmSequenceSchema = createInsertSchema(dmSequences).omit({ id: true, createdAt: true });
+export type InsertDmSequence = z.infer<typeof insertDmSequenceSchema>;
+export type DmSequence = typeof dmSequences.$inferSelect;
+
+export const dmSequenceSteps = pgTable("dm_sequence_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => dmSequences.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull().default(0),
+  delayDays: integer("delay_days").notNull().default(0),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDmSequenceStepSchema = createInsertSchema(dmSequenceSteps).omit({ id: true, createdAt: true });
+export type InsertDmSequenceStep = z.infer<typeof insertDmSequenceStepSchema>;
+export type DmSequenceStep = typeof dmSequenceSteps.$inferSelect;
+
+export const dmSequenceEnrollments = pgTable("dm_sequence_enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => dmSequences.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").notNull().references(() => dmLeads.id, { onDelete: "cascade" }),
+  recipientIgId: text("recipient_ig_id").notNull(),
+  currentStep: integer("current_step").notNull().default(0),
+  completed: boolean("completed").notNull().default(false),
+  nextSendAt: timestamp("next_send_at"),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+});
+export type DmSequenceEnrollment = typeof dmSequenceEnrollments.$inferSelect;
+
 export const referralConversions = pgTable("referral_conversions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   referrerId: varchar("referrer_id").notNull().references(() => users.id),

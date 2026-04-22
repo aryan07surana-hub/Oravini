@@ -381,7 +381,7 @@ function JarvisBubbleInner({ user }: { user: any }) {
       const data = await apiRequest("POST", "/api/jarvis/chat", {
         message: text,
         // Send last 6 exchanges (user + assistant) so Jarvis has full conversation context
-        history: history.slice(-6).flatMap(h => [
+        history: (history as unknown as any[]).slice(-6).flatMap((h: any) => [
           { role: "user", content: h.command },
           { role: "assistant", content: h.response },
         ]),

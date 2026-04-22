@@ -110,7 +110,7 @@ function MiniCalendar({
               {isTodayDay && !isSelected && (
                 <span
                   className="absolute inset-0 rounded-xl ring-1 pointer-events-none"
-                  style={{ ringColor: GOLD, boxShadow: `inset 0 0 0 1px ${GOLD}60` }}
+                  style={{ boxShadow: `inset 0 0 0 1px ${GOLD}60` }}
                 />
               )}
             </button>

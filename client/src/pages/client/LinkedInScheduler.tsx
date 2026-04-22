@@ -13,7 +13,7 @@ import {
   Send, Clock, CheckCircle2, Trash2, RefreshCw,
   ExternalLink, AlertCircle, CalendarDays, Link2
 } from "lucide-react";
-import { SiLinkedin } from "react-icons/si";
+import { Linkedin as SiLinkedin } from "lucide-react";
 
 function CharCount({ text }: { text: string }) {
   const len = text.length;

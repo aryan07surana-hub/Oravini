@@ -391,7 +391,7 @@ async function sendBookingReminders() {
   }
 }
 
-async function processEmailSequences() {
+export async function processEmailSequences() {
   try {
     const pending = await storage.getPendingEnrollments();
     for (const enrollment of pending) {

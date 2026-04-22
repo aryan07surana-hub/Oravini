@@ -370,9 +370,9 @@ export default function AdminCRM() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-semibold text-white truncate">{client.name}</p>
                                     {client.planConfirmed ? (
-                                      <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" title="Plan confirmed" />
+                                      <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" aria-label="Plan confirmed" />
                                     ) : (
-                                      <ShieldOff className="w-3 h-3 text-zinc-600 shrink-0" title="Plan not confirmed" />
+                                      <ShieldOff className="w-3 h-3 text-zinc-600 shrink-0" aria-label="Plan not confirmed" />
                                     )}
                                     {client.surveyCompleted && (
                                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(212,180,97,0.1)", color: GOLD, border: "1px solid rgba(212,180,97,0.2)" }} title="Survey completed">✓</span>

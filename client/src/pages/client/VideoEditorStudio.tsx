@@ -225,7 +225,8 @@ export default function VideoEditorStudio() {
     queryKey: ["/api/video-studio", activeJobId],
     queryFn: () => fetch(`/api/video-studio/${activeJobId}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!activeJobId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data;
       if (!data) return 3000;
       return ["transcribing", "uploaded", "rendering"].includes((data as VideoEdit).status) ? 3000 : false;
     },

@@ -1510,7 +1510,7 @@ function ReferralWidget({ stats }: { stats: any }) {
               border: "none", cursor: link ? "pointer" : "not-allowed",
               opacity: link ? 1 : 0.4,
               transition: "background 0.3s ease, transform 0.15s ease",
-              whiteSpace: "nowrap", shrink: 0,
+              whiteSpace: "nowrap", flexShrink: 0,
             }}
             onMouseEnter={e => { if (link) (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.03)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)"; }}

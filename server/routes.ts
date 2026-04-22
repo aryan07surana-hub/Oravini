@@ -2619,6 +2619,133 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
+  // ── DM Automation: Triggers ───────────────────────────────────────────────
+  app.get("/api/dm/triggers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
+      return res.json(await storage.getDmTriggers(userId));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/triggers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
+      const { name, keyword, matchType, replyMessage, isActive } = req.body;
+      if (!name?.trim() || !keyword?.trim() || !replyMessage?.trim()) return res.status(400).json({ message: "name, keyword and replyMessage are required" });
+      const trigger = await storage.createDmTrigger({ userId, name: name.trim(), keyword: keyword.trim(), matchType: matchType || "contains", replyMessage: replyMessage.trim(), isActive: isActive !== false });
+      return res.json(trigger);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/triggers/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const trigger = await storage.updateDmTrigger(p(req.params.id), req.body);
+      return res.json(trigger);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/triggers/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmTrigger(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── DM Automation: Sequences ──────────────────────────────────────────────
+  app.get("/api/dm/sequences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
+      const seqs = await storage.getDmSequences(userId);
+      // Attach steps + enrollment count to each sequence
+      const result = await Promise.all(seqs.map(async (s) => {
+        const steps = await storage.getDmSequenceSteps(s.id);
+        const enrollments = await storage.getDmSequenceEnrollments(s.id);
+        return { ...s, steps, enrollmentCount: enrollments.length };
+      }));
+      return res.json(result);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/sequences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
+      const { name, description, steps } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "name is required" });
+      const seq = await storage.createDmSequence({ userId, name: name.trim(), description: description?.trim() || null, isActive: true });
+      if (Array.isArray(steps) && steps.length > 0) {
+        await storage.upsertDmSequenceSteps(seq.id, steps);
+      }
+      const savedSteps = await storage.getDmSequenceSteps(seq.id);
+      return res.json({ ...seq, steps: savedSteps });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { steps, ...data } = req.body;
+      const seq = await storage.updateDmSequence(p(req.params.id), data);
+      if (Array.isArray(steps)) {
+        await storage.upsertDmSequenceSteps(p(req.params.id), steps);
+      }
+      const savedSteps = await storage.getDmSequenceSteps(p(req.params.id));
+      return res.json({ ...seq, steps: savedSteps });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmSequence(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Enroll a lead into a DM sequence
+  app.post("/api/dm/sequences/:id/enroll", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { leadId, recipientIgId } = req.body;
+      if (!leadId || !recipientIgId) return res.status(400).json({ message: "leadId and recipientIgId are required" });
+      const enrollment = await storage.enrollLeadInDmSequence(p(req.params.id), leadId, recipientIgId);
+      return res.json(enrollment);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Get enrollments for a sequence
+  app.get("/api/dm/sequences/:id/enrollments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const enrollments = await storage.getDmSequenceEnrollments(p(req.params.id));
+      return res.json(enrollments);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── DM Broadcast ──────────────────────────────────────────────────────────
+  app.post("/api/dm/broadcast", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { recipientIgIds, message } = req.body;
+      if (!Array.isArray(recipientIgIds) || recipientIgIds.length === 0) return res.status(400).json({ message: "recipientIgIds array is required" });
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      if (recipientIgIds.length > 50) return res.status(400).json({ message: "Max 50 recipients per broadcast" });
+
+      const results: { recipientId: string; success: boolean; error?: string }[] = [];
+      for (const recipientId of recipientIgIds) {
+        try {
+          await sendInstagramDM(recipientId, message.trim());
+          results.push({ recipientId, success: true });
+          // Small delay to avoid rate limiting
+          await new Promise(r => setTimeout(r, 300));
+        } catch (e: any) {
+          results.push({ recipientId, success: false, error: e.message });
+        }
+      }
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      return res.json({ sent, failed, results });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
   // ── Competitor Analysis ────────────────────────────────────────────────────
   function extractHandle(url: string): string {
     const m = url.match(/instagram\.com\/([^/?#]+)/);
@@ -8095,7 +8222,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
   // Get single form (must be owner)
   app.get("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    const form = await storage.getForm(req.params.id);
+    const form = await storage.getForm(p(req.params.id));
     if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
     res.json(form);
   });
@@ -8103,7 +8230,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
   // Update form
   app.patch("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    const updated = await storage.updateForm(req.params.id, userId, req.body);
+    const updated = await storage.updateForm(p(req.params.id), userId, req.body);
     if (!updated) return res.status(404).json({ message: "Not found" });
     res.json(updated);
   });
@@ -8111,27 +8238,27 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
   // Delete form
   app.delete("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    await storage.deleteForm(req.params.id, userId);
+    await storage.deleteForm(p(req.params.id), userId);
     res.json({ success: true });
   });
 
   // Get form questions
   app.get("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    const form = await storage.getForm(req.params.id);
+    const form = await storage.getForm(p(req.params.id));
     if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
-    const questions = await storage.getFormQuestions(req.params.id);
+    const questions = await storage.getFormQuestions(p(req.params.id));
     res.json(questions);
   });
 
   // Save (replace) all questions
   app.put("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    const form = await storage.getForm(req.params.id);
+    const form = await storage.getForm(p(req.params.id));
     if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
     const { questions } = req.body;
     if (!Array.isArray(questions)) return res.status(400).json({ message: "questions must be an array" });
-    const saved = await storage.saveFormQuestions(req.params.id, questions);
+    const saved = await storage.saveFormQuestions(p(req.params.id), questions);
     res.json(saved);
   });
 
@@ -8174,33 +8301,33 @@ Rules:
   // Get responses + analytics (owner only)
   app.get("/api/forms/:id/responses", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
-    const form = await storage.getForm(req.params.id);
+    const form = await storage.getForm(p(req.params.id));
     if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
     const [submissions, questions, analytics] = await Promise.all([
-      storage.getFormSubmissions(req.params.id),
-      storage.getFormQuestions(req.params.id),
-      storage.getFormAnalytics(req.params.id),
+      storage.getFormSubmissions(p(req.params.id)),
+      storage.getFormQuestions(p(req.params.id)),
+      storage.getFormAnalytics(p(req.params.id)),
     ]);
     res.json({ submissions, questions, analytics });
   });
 
   // ── Public form routes (no auth required) ─────────────────────────────────
   app.get("/api/public/forms/:slug", async (req: Request, res: Response) => {
-    const form = await storage.getFormBySlug(req.params.slug);
+    const form = await storage.getFormBySlug(p(req.params.slug));
     if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
     const questions = await storage.getFormQuestions(form.id);
     res.json({ form, questions });
   });
 
   app.post("/api/public/forms/:slug/view", async (req: Request, res: Response) => {
-    const form = await storage.getFormBySlug(req.params.slug);
+    const form = await storage.getFormBySlug(p(req.params.slug));
     if (!form || form.status !== "published") return res.status(404).json({ message: "Not found" });
     await storage.trackFormView(form.id, { userAgent: req.headers["user-agent"], ip: req.ip });
     res.json({ success: true });
   });
 
   app.post("/api/public/forms/:slug/submit", async (req: Request, res: Response) => {
-    const form = await storage.getFormBySlug(req.params.slug);
+    const form = await storage.getFormBySlug(p(req.params.slug));
     if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
     const { respondentName, respondentEmail, answers } = req.body;
     if (!Array.isArray(answers)) return res.status(400).json({ message: "answers is required" });
@@ -8800,7 +8927,7 @@ Rules:
          WHERE cp.channel = $1 AND cp.parent_id IS NULL
          ORDER BY cp.is_pinned DESC, cp.created_at DESC
          LIMIT 100`,
-        [channel, req.user!.id]
+        [channel, (req.user as any).id]
       );
       res.json(result.rows);
     } catch (e: any) {
@@ -8811,7 +8938,7 @@ Rules:
   // GET /api/community/posts/:id/replies — fetch replies for a post
   app.get("/api/community/posts/:id/replies", requireAuth, async (req: Request, res: Response) => {
     try {
-      const postId = parseInt(req.params.id);
+      const postId = parseInt(p(req.params.id));
       const result = await pool.query(
         `SELECT cp.*, u.name as author_name, u.email as author_email, u.plan as author_plan,
                 (SELECT COUNT(*) FROM community_likes cl WHERE cl.post_id = cp.id) as like_count,
@@ -8820,7 +8947,7 @@ Rules:
          LEFT JOIN users u ON cp.user_id = u.id
          WHERE cp.parent_id = $1
          ORDER BY cp.created_at ASC`,
-        [postId, req.user!.id]
+        [postId, (req.user as any).id]
       );
       res.json(result.rows);
     } catch (e: any) {
@@ -8836,7 +8963,7 @@ Rules:
       const result = await pool.query(
         `INSERT INTO community_posts (user_id, channel, content, parent_id)
          VALUES ($1, $2, $3, $4) RETURNING *`,
-        [req.user!.id, channel, content.trim(), parent_id ?? null]
+        [(req.user as any).id, channel, content.trim(), parent_id ?? null]
       );
       res.json(result.rows[0]);
     } catch (e: any) {
@@ -8847,8 +8974,8 @@ Rules:
   // POST /api/community/posts/:id/like — toggle like on a post
   app.post("/api/community/posts/:id/like", requireAuth, async (req: Request, res: Response) => {
     try {
-      const postId = parseInt(req.params.id);
-      const userId = req.user!.id;
+      const postId = parseInt(p(req.params.id));
+      const userId = (req.user as any).id;
       const existing = await pool.query(
         "SELECT 1 FROM community_likes WHERE post_id = $1 AND user_id = $2",
         [postId, userId]
@@ -8868,8 +8995,8 @@ Rules:
   // DELETE /api/community/posts/:id — delete own post (or admin any)
   app.delete("/api/community/posts/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const postId = parseInt(req.params.id);
-      const userId = req.user!.id;
+      const postId = parseInt(p(req.params.id));
+      const userId = (req.user as any).id;
       const isAdmin = (req.user as any)?.role === "admin";
       const check = await pool.query("SELECT user_id FROM community_posts WHERE id = $1", [postId]);
       if (!check.rows.length) return res.status(404).json({ message: "Post not found" });
@@ -8885,7 +9012,7 @@ Rules:
   app.patch("/api/community/posts/:id/pin", requireAuth, async (req: Request, res: Response) => {
     try {
       if ((req.user as any)?.role !== "admin") return res.status(403).json({ message: "Admin only" });
-      const postId = parseInt(req.params.id);
+      const postId = parseInt(p(req.params.id));
       const result = await pool.query(
         "UPDATE community_posts SET is_pinned = NOT is_pinned WHERE id = $1 RETURNING is_pinned",
         [postId]
@@ -9262,7 +9389,7 @@ Rules:
       });
 
       // Auto-refresh token if expired
-      oauth2Client.on("tokens", async (newTokens) => {
+      oauth2Client.on("tokens", async (newTokens: any) => {
         if (newTokens.access_token && admin) {
           await storage.upsertGoogleCalendarToken(admin.id, {
             accessToken: newTokens.access_token,
@@ -9482,19 +9609,19 @@ Rules:
 
   // Sequences — update
   app.patch("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
-    const seq = await storage.updateEmailSequence(req.params.id, req.body);
+    const seq = await storage.updateEmailSequence(p(req.params.id), req.body);
     res.json(seq);
   });
 
   // Sequences — delete
   app.delete("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
-    await storage.deleteEmailSequence(req.params.id);
+    await storage.deleteEmailSequence(p(req.params.id));
     res.json({ ok: true });
   });
 
   // Sequence emails — list
   app.get("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
-    const emails = await storage.getSequenceEmails(req.params.id);
+    const emails = await storage.getSequenceEmails(p(req.params.id));
     res.json(emails);
   });
 
@@ -9502,19 +9629,19 @@ Rules:
   app.post("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
     const { subject, bodyHtml, delayDays, sortOrder } = req.body;
     if (!subject || !bodyHtml) return res.status(400).json({ message: "subject and bodyHtml required" });
-    const email = await storage.createSequenceEmail({ sequenceId: req.params.id, subject, bodyHtml, delayDays: delayDays ?? 0, sortOrder: sortOrder ?? 0 });
+    const email = await storage.createSequenceEmail({ sequenceId: p(req.params.id), subject, bodyHtml, delayDays: delayDays ?? 0, sortOrder: sortOrder ?? 0 });
     res.json(email);
   });
 
   // Sequence emails — update
   app.patch("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
-    const email = await storage.updateSequenceEmail(req.params.id, req.body);
+    const email = await storage.updateSequenceEmail(p(req.params.id), req.body);
     res.json(email);
   });
 
   // Sequence emails — delete
   app.delete("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
-    await storage.deleteSequenceEmail(req.params.id);
+    await storage.deleteSequenceEmail(p(req.params.id));
     res.json({ ok: true });
   });
 
@@ -9583,16 +9710,17 @@ Rules:
   // Enrollments breakdown per sequence
   app.get("/api/admin/email/enrollments", requireAdmin, async (_req, res) => {
     const seqs = await storage.getEmailSequences();
-    const enrollments = await db.select().from(emailEnrollments);
+    const enrollmentsRes = await pool.query("SELECT * FROM email_enrollments");
+    const enrollments = enrollmentsRes.rows;
     const result = seqs.map(s => ({
       sequenceId: s.id,
       sequenceName: s.name,
       trigger: s.trigger,
       active: s.active,
-      totalEnrolled: enrollments.filter(e => e.sequenceId === s.id).length,
-      pending: enrollments.filter(e => e.sequenceId === s.id && !e.completed && !e.unsubscribed).length,
-      completed: enrollments.filter(e => e.sequenceId === s.id && e.completed).length,
-      unsubscribed: enrollments.filter(e => e.sequenceId === s.id && e.unsubscribed).length,
+      totalEnrolled: enrollments.filter((e: any) => e.sequence_id === s.id).length,
+      pending: enrollments.filter((e: any) => e.sequence_id === s.id && !e.completed && !e.unsubscribed).length,
+      completed: enrollments.filter((e: any) => e.sequence_id === s.id && e.completed).length,
+      unsubscribed: enrollments.filter((e: any) => e.sequence_id === s.id && e.unsubscribed).length,
     }));
     res.json(result);
   });

@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 
 const GOLD = "#d4b461";
-const STORAGE_KEY = "admin_daily_tracker_v1";
+const STORAGE_KEY = import.meta.env.VITE_DAILY_TRACKER_STORAGE_KEY ?? "admin_daily_tracker_v1";
 
 type Task = { id: string; text: string; done: boolean; category: "work" | "health" | "personal" };
 type Habit = { id: string; name: string; emoji: string };
