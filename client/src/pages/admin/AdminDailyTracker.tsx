@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { format, addDays, subDays, startOfWeek, isSameDay, isToday } from "date-fns";
 import {
@@ -73,10 +73,12 @@ export default function AdminDailyTracker() {
   const key = dateKey(selectedDate);
   const day: DayData = data[key] || emptyDay();
 
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function updateDay(patch: Partial<DayData>) {
     const updated = { ...data, [key]: { ...day, ...patch } };
     setData(updated);
-    saveData(updated);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveData(updated), 400);
   }
 
   useEffect(() => {
@@ -95,20 +97,19 @@ export default function AdminDailyTracker() {
   const habitPct = habits.length ? Math.round((doneHabits / habits.length) * 100) : 0;
   const overallPct = Math.round((taskPct + habitPct) / 2);
 
-  // Streak: count consecutive days with >50% overall
-  function calcStreak() {
-    let streak = 0;
-    let d = subDays(new Date(), 0);
+  const streak = useMemo(() => {
+    let count = 0;
+    let d = new Date();
     for (let i = 0; i < 365; i++) {
       const k = dateKey(d);
       const dd = data[k];
       if (!dd) break;
       const tt = dd.tasks.length ? Math.round((dd.tasks.filter(t => t.done).length / dd.tasks.length) * 100) : 0;
       const hh = habits.length ? Math.round((habits.filter(h => dd.habits[h.id]).length / habits.length) * 100) : 0;
-      if (Math.round((tt + hh) / 2) >= 50) { streak++; d = subDays(d, 1); } else break;
+      if (Math.round((tt + hh) / 2) >= 50) { count++; d = subDays(d, 1); } else break;
     }
-    return streak;
-  }
+    return count;
+  }, [data, habits]);
 
   function addTask() {
     if (!newTask.trim()) return;
@@ -150,8 +151,7 @@ export default function AdminDailyTracker() {
     setAiPrompt("");
   }
 
-  // Last 7 days progress for chart
-  const last7 = Array.from({ length: 7 }, (_, i) => {
+  const last7 = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = subDays(new Date(), 6 - i);
     const k = dateKey(d);
     const dd = data[k];
@@ -159,7 +159,7 @@ export default function AdminDailyTracker() {
     const tt = dd.tasks.length ? Math.round((dd.tasks.filter(t => t.done).length / dd.tasks.length) * 100) : 0;
     const hh = habits.length ? Math.round((habits.filter(h => dd.habits[h.id]).length / habits.length) * 100) : 0;
     return { label: format(d, "EEE"), pct: Math.round((tt + hh) / 2), isToday: isToday(d) };
-  });
+  }), [data, habits]);
 
   return (
     <AdminLayout>
@@ -173,7 +173,7 @@ export default function AdminDailyTracker() {
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
             <Flame className="w-3.5 h-3.5" />
-            {calcStreak()} day streak
+            {streak} day streak
           </div>
         </div>
 
