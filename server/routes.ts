@@ -127,7 +127,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const refCode = referralCode || (req as any).cookies?.referral_code;
       if (refCode) {
         try {
-          await storage.processReferralSignup(refCode, user.id, email);
+          const ip = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "";
+          await storage.processReferralSignup(refCode, user.id, email, ip);
         } catch (refErr) {
           console.error("[referral] processReferralSignup failed for new user", user.id, "code:", refCode, refErr);
         }
@@ -278,6 +279,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getEmailSequences().then(seqs => {
         seqs.filter(s => s.trigger === "upgrade" && s.active).forEach(s => storage.enrollUserInSequence(userId, s.id).catch(() => {}));
       }).catch(() => {});
+      // Award referrer 50 credits now that this user has upgraded to a paid plan
+      storage.processReferralConversion(userId).catch(() => {});
     }
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;

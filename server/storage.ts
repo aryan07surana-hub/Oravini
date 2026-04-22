@@ -105,7 +105,8 @@ export interface IStorage {
   getOrCreateReferralCode(userId: string): Promise<string>;
   getReferralCode(code: string): Promise<any | undefined>;
   trackReferralClick(code: string, ip: string, ua: string): Promise<void>;
-  processReferralSignup(code: string, newUserId: string, email: string): Promise<void>;
+  processReferralSignup(code: string, newUserId: string, email: string, ipAddress?: string): Promise<void>;
+  processReferralConversion(referredUserId: string): Promise<void>;
   getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }>;
   getAllReferralStats(): Promise<any[]>;
   getReferralLeaderboard(): Promise<any[]>;
@@ -1603,7 +1604,7 @@ class DatabaseStorage implements IStorage {
     await db.insert(referralClicks).values({ code, ipAddress: ip, userAgent: ua });
   }
 
-  async processReferralSignup(code: string, newUserId: string, email: string): Promise<void> {
+  async processReferralSignup(code: string, newUserId: string, email: string, ipAddress?: string): Promise<void> {
     const ref = await this.getReferralCode(code);
     if (!ref || ref.userId === newUserId) return;
 
@@ -1612,23 +1613,49 @@ class DatabaseStorage implements IStorage {
       .where(eq(referralConversions.referredUserId, newUserId));
     if (existing) return;
 
-    // Record the conversion
+    // IP abuse check — if referrer signed up from same IP, block it
+    if (ipAddress) {
+      const referrerUser = await this.getUser(ref.userId);
+      // Check if any recent signups from same IP already exist for this referrer
+      const recentClicks = await db.select().from(referralClicks)
+        .where(and(eq(referralClicks.code, code), eq(referralClicks.ipAddress, ipAddress)));
+      if (recentClicks.length > 1) {
+        // Same IP clicked the referral link multiple times — likely self-referral
+        console.log(`[referral] ⚠️ Blocked suspected self-referral from IP ${ipAddress} for code ${code}`);
+        return;
+      }
+    }
+
+    // Record the conversion — award credits on free signup too
     await db.insert(referralConversions).values({
       referrerId: ref.userId, referredUserId: newUserId, referredEmail: email,
       registered: true, converted: false, creditAwarded: false,
     });
 
-    // Award the REFERRER 50 credits for sharing their link
-    await this.addBonusCredits(ref.userId, 50, `Referral bonus — ${email} joined`);
-
-    // Award the REFERRED PERSON 25 bonus welcome credits for joining via referral
+    // Award referrer 25 credits when friend signs up free
+    await this.addBonusCredits(ref.userId, 25, `Referral bonus — ${email} joined`);
+    // Award referred person 25 welcome credits
     await this.addBonusCredits(newUserId, 25, `Welcome bonus — joined via referral`);
 
-    // Mark credit as awarded
-    await db.update(referralConversions).set({ creditAwarded: true })
-      .where(and(eq(referralConversions.referrerId, ref.userId), eq(referralConversions.referredUserId, newUserId)));
+    console.log(`[referral] ✅ Referrer ${ref.userId} +25 credits | New user ${newUserId} +25 credits (code: ${code})`);
+  }
 
-    console.log(`[referral] ✅ Referrer ${ref.userId} +50 credits | New user ${newUserId} +25 credits (code: ${code})`);
+  async processReferralConversion(referredUserId: string): Promise<void> {
+    // Called when a referred user upgrades to a paid plan
+    const [conversion] = await db.select().from(referralConversions)
+      .where(and(eq(referralConversions.referredUserId, referredUserId), eq(referralConversions.creditAwarded, false)));
+    if (!conversion) return;
+
+    // Award both referrer AND referred user 100 bonus credits for upgrading
+    await this.addBonusCredits(conversion.referrerId, 100, `Referral upgrade bonus — referred user upgraded to paid plan`);
+    await this.addBonusCredits(referredUserId, 100, `Upgrade bonus — you upgraded via referral link`);
+
+    // Mark as converted and credited
+    await db.update(referralConversions)
+      .set({ converted: true, creditAwarded: true, convertedAt: new Date() })
+      .where(eq(referralConversions.id, conversion.id));
+
+    console.log(`[referral] 💰 Referrer ${conversion.referrerId} +100 credits & referred user ${referredUserId} +100 credits — upgraded`);
   }
 
   async getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }> {

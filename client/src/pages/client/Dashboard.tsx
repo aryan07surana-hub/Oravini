@@ -1371,7 +1371,7 @@ function ReferralWidget({ stats }: { stats: any }) {
     if (!link) return;
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true);
-      toast({ title: "Link copied!", description: "Share it to earn 50 credits per signup." });
+      toast({ title: "Link copied!", description: "Share it — you both get 100 bonus credits when they upgrade." });
       setTimeout(() => setCopied(false), 2200);
     });
   }
@@ -1390,7 +1390,7 @@ function ReferralWidget({ stats }: { stats: any }) {
   const statItems = [
     { icon: MousePointerClick, label: "Clicks",        value: stats?.clicks  ?? "—", color: "#a78bfa" },
     { icon: UserCheck,         label: "Signups",       value: stats?.signups ?? "—", color: GOLD },
-    { icon: Zap,               label: "Credits Earned",value: stats?.signups ? stats.signups * 50 : "—", color: "#34d399" },
+    { icon: Zap,               label: "Credits Earned",value: stats?.signups ? (stats.signups * 25) + (stats?.conversions ? stats.conversions * 100 : 0) : "—", color: "#34d399" },
   ];
 
   return (
@@ -1428,7 +1428,7 @@ function ReferralWidget({ stats }: { stats: any }) {
             animation: "subtlePulse 3s ease-in-out infinite",
           }}
         >
-          +50 credits per signup
+          +25 credits on signup · +100 when they upgrade
         </div>
       </div>
 
@@ -1464,6 +1464,19 @@ function ReferralWidget({ stats }: { stats: any }) {
               <p className="text-[10px] text-zinc-500">{label}</p>
             </div>
           ))}
+        </div>
+
+        {/* Warning notice */}
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 8,
+          padding: "10px 14px", borderRadius: 10,
+          background: "rgba(251,146,60,0.08)",
+          border: "1px solid rgba(251,146,60,0.2)",
+        }}>
+          <span style={{ fontSize: 13, flexShrink: 0 }}>⚠️</span>
+          <p style={{ fontSize: 11, color: "rgba(251,146,60,0.9)", lineHeight: 1.5, margin: 0 }}>
+            You get <strong>25 credits</strong> when your friend signs up free. You both get <strong>100 bonus credits</strong> when they upgrade to any paid plan. Self-referrals are automatically detected and blocked.
+          </p>
         </div>
 
         {/* Link bar */}

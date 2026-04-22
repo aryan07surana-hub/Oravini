@@ -321,10 +321,10 @@ const STATS = [
 
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
 const PRICING_TIERS = [
-  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
-  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
-  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor — 2 credits/msg", "Clip Finder — 5 credits", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas", "Virality Tester", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
+  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas", "Carousel Studio", "Story Generator", "Lead Magnet Generator", "Brand Kit Builder", "Virality Tester", "IG Growth Tracker", "Full Script Generator"], cta: "Get Started" },
+  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis", "Reel vs Reel Comparison", "Steal Strategy 30-Day Plan", "Niche Intelligence Engine", "ICP Builder", "Audience Psychology Map", "Content DNA Analysis", "Priority processing"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor", "Clip Finder & Download", "AI Content Coach", "SOP Generator", "AI Content Planner", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -929,7 +929,7 @@ export default function OraviniLanding() {
 
           <Anim delay={150}>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 560, margin: "0 auto 32px", lineHeight: 1.75 }}>
-              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you get 50 credits</strong> and <strong style={{ color: "#34d399" }}>they get 25 bonus credits</strong> as a welcome gift.
+              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you both get 25 credits</strong> instantly. When they upgrade to a paid plan — <strong style={{ color: "#34d399" }}>you both get 100 bonus credits</strong>.
             </p>
           </Anim>
 
@@ -938,11 +938,11 @@ export default function OraviniLanding() {
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}12`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "8px 20px" }}>
                 <span style={{ fontSize: 16 }}>🤝</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You earn 50 credits per referral</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You both get 25 credits on signup</span>
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 99, padding: "8px 20px" }}>
-                <span style={{ fontSize: 16 }}>🎁</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Your friend gets 25 welcome credits</span>
+                <span style={{ fontSize: 16 }}>🚀</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>You both get 100 bonus credits when they upgrade</span>
               </div>
             </div>
           </Anim>
@@ -966,7 +966,7 @@ export default function OraviniLanding() {
                 step: "03",
                 icon: "⚡",
                 title: "Both sides win",
-                desc: "You get 50 credits when they join. They get 25 welcome credits automatically.",
+                desc: "You both get 25 credits when they join free. You both get 100 bonus credits when they upgrade to a paid plan.",
               },
             ].map(({ step, icon, title, desc }, i) => (
               <Anim key={step} delay={i * 80}>
@@ -1029,9 +1029,9 @@ export default function OraviniLanding() {
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
                 {[
-                  { n: "1", label: "referral", credits: "50" },
-                  { n: "5", label: "referrals", credits: "250" },
-                  { n: "10", label: "referrals", credits: "500" },
+                  { n: "1", label: "referral", credits: "25" },
+                  { n: "5", label: "referrals", credits: "125" },
+                  { n: "10", label: "referrals", credits: "250" },
                 ].map(({ n, label, credits }) => (
                   <div key={n} style={{ textAlign: "center", padding: "12px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
                     <p style={{ fontSize: 22, fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>{credits}</p>
