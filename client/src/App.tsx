@@ -47,6 +47,7 @@ import AdminReferrals from "@/pages/admin/AdminReferrals";
 import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
+import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -393,6 +394,9 @@ function Router() {
       </Route>
       <Route path="/admin/tool-heatmap">
         {() => <ProtectedRoute component={AdminToolHeatmap} adminOnly />}
+      </Route>
+      <Route path="/admin/daily-tracker">
+        {() => <ProtectedRoute component={AdminDailyTracker} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>
