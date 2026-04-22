@@ -28,7 +28,7 @@ export default function CookieBanner() {
         <p className="text-sm text-zinc-300 leading-relaxed">
           🍪 We use essential cookies to keep you logged in. We{" "}
           <strong className="text-white">never</strong> track you or sell your data.{" "}
-          <a href="/privacy#cookies" className="text-[#d4b461] hover:underline">Learn more</a>
+          <a href="/privacy#section-15" className="text-[#d4b461] hover:underline">Learn more</a>
         </p>
         <button onClick={decline} className="text-zinc-600 hover:text-zinc-400 flex-shrink-0 mt-0.5">
           <X className="w-4 h-4" />
