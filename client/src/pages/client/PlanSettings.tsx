@@ -642,6 +642,29 @@ export default function PlanSettings() {
           </div>
         )}
 
+        {/* ── CREDITS SECTION ── */}
+        <div className="mt-4">
+          <div
+            className="rounded-2xl p-6 cursor-pointer group transition-all hover:scale-[1.01]"
+            style={{ background: "rgba(212,180,97,0.04)", border: "1px solid rgba(212,180,97,0.15)" }}
+            onClick={() => window.location.href = "/credits"}
+            data-testid="credits-settings-card"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all group-hover:scale-105" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)" }}>
+                <Zap className="w-5 h-5" style={{ color: GOLD }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Credits & Usage</p>
+                <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                  View your credit balance, full tool cost breakdown, and complete transaction history.
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors flex-shrink-0" />
+            </div>
+          </div>
+        </div>
+
         {/* ── DELETE ACCOUNT ── */}
         <div className="mt-6">
           <div
