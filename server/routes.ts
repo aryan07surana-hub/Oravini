@@ -5151,12 +5151,12 @@ Return JSON:
     try {
       const user = req.user as any;
       const balance = await storage.upsertCreditBalance(user.id, user.plan || "free");
-      const transactions = await storage.getCreditTransactions(user.id, 15);
+      const transactions = await storage.getCreditTransactions(user.id, 100);
       return res.json({
         balance,
         transactions,
         featureCosts: FEATURE_COSTS,
-        planAllowance: ({ free: 5, starter: 150, growth: 350, pro: 700, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 5,
+        planAllowance: ({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 20,
         total: balance.monthlyCredits + balance.bonusCredits,
       });
     } catch (err: any) {
