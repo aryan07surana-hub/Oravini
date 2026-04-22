@@ -121,8 +121,9 @@ export default function Credits() {
 
   const total = data ? data.balance.monthlyCredits + data.balance.bonusCredits : 0;
   const planAllowance = PLAN_MONTHLY[plan] ?? 20;
-  const monthlyUsed = planAllowance - (data?.balance.monthlyCredits ?? planAllowance);
+  const monthlyUsed = Math.max(0, planAllowance - (data?.balance.monthlyCredits ?? planAllowance));
   const usedPercent = planAllowance > 0 ? Math.min(100, Math.round((monthlyUsed / planAllowance) * 100)) : 0;
+  const periodLabel = plan === "free" ? "today" : "this month";
 
   const formatTxType = (type: string) => {
     const map: Record<string, string> = {
@@ -184,7 +185,7 @@ export default function Credits() {
         <div className="rounded-2xl p-5 border bg-zinc-900/60" style={{ borderColor: "rgba(212,180,97,0.3)" }}>
           <p className="text-zinc-400 text-xs uppercase tracking-wider mb-1">Monthly Credits</p>
           <p className="text-4xl font-bold" style={{ color: GOLD }}>{data?.balance.monthlyCredits ?? 0}</p>
-          <p className="text-zinc-500 text-sm mt-1">of {planAllowance === 99999 ? "∞" : planAllowance} this month</p>
+          <p className="text-zinc-500 text-sm mt-1">of {planAllowance === 99999 ? "∞" : planAllowance} {periodLabel}</p>
           {planAllowance !== 99999 && (
             <div className="mt-2">
               <Progress value={100 - usedPercent} className="h-1.5 bg-zinc-700" />
@@ -207,7 +208,7 @@ export default function Credits() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { icon: "🔄", title: "Monthly Reset", desc: "Your plan credits reset every month automatically. Unused credits don't roll over." },
+            { icon: "🔄", title: plan === "free" ? "Daily Reset" : "Monthly Reset", desc: plan === "free" ? "Free plan credits reset every day. Unused credits don't roll over." : "Your plan credits reset every month automatically. Unused credits don't roll over." },
             { icon: "⚡", title: "Per Tool Use", desc: "Each time you use an AI tool, credits are deducted based on how heavy the task is." },
             { icon: "🎁", title: "Bonus Credits", desc: "Earn bonus credits through referrals. These stack on top of your monthly allowance." },
             { icon: "👑", title: "Elite = Unlimited", desc: "Elite tier users have unlimited credits — no cap, no restrictions on any tool." },

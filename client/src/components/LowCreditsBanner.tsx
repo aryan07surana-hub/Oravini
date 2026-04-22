@@ -51,7 +51,7 @@ export default function LowCreditsBanner() {
 
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold" style={{ color: isEmpty ? "#ef4444" : GOLD }}>
-          {isEmpty ? "No credits remaining" : `Only ${total} credits left (${pct}% of your ${planMax}/mo plan)`}
+          {isEmpty ? "No credits remaining" : `Only ${total} credits left (${pct}% of your ${planMax}${plan === "free" ? "/day" : "/mo"} plan)`}
         </p>
         <p className="text-[10px] text-zinc-500 mt-0.5">
           {isEmpty

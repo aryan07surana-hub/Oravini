@@ -1983,7 +1983,7 @@ Return ONLY valid JSON in this exact format (no markdown, no extra text):
 
       const _u2 = req.user as any;
       if (_u2.role !== "admin") {
-        const creditResult = await storage.deductCredits(_u2.id, 3, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
+        const creditResult = await storage.deductCredits(_u2.id, 2, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
         if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
       }
 
@@ -2889,7 +2889,7 @@ Return this EXACT JSON:
       if (!analysisId) return res.status(400).json({ message: "analysisId required" });
       const _uSs = req.user as any;
       if (_uSs.role !== "admin") {
-        const ssCredit = await storage.deductCredits(_uSs.id, 8, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
+        const ssCredit = await storage.deductCredits(_uSs.id, 10, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
         if (!ssCredit.success) return res.status(402).json({ message: ssCredit.message, insufficientCredits: true });
       }
 
@@ -3156,7 +3156,7 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
       if (!profileUrl) return res.status(400).json({ message: "profileUrl is required" });
       const _uMa = req.user as any;
       if (_uMa.role !== "admin") {
-        const maCredit = await storage.deductCredits(_uMa.id, 5, "methodology", "Content DNA Analysis", _uMa.plan || "free");
+        const maCredit = await storage.deductCredits(_uMa.id, 7, "methodology", "Content DNA Analysis", _uMa.plan || "free");
         if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
       }
 
@@ -4373,7 +4373,7 @@ Return ONLY valid JSON:
       if (!userMessage?.trim()) return res.status(400).json({ message: "Message required" });
       const _uVe = req.user as any;
       if (_uVe.role !== "admin") {
-        const veCredit = await storage.deductCredits(_uVe.id, 1, "video_editor", "AI Video Editor chat", _uVe.plan || "free");
+        const veCredit = await storage.deductCredits(_uVe.id, 2, "video_editor", "AI Video Editor chat", _uVe.plan || "free");
         if (!veCredit.success) return res.status(402).json({ message: veCredit.message, insufficientCredits: true });
       }
       const prompt = `You are a world-class AI video editor and creative director. You are sitting in the edit bay with this creator, making frame-level decisions. Be extremely specific, action-oriented, and fill in ALL gaps you see.
@@ -4559,7 +4559,7 @@ Return ONLY valid JSON:
       if (!url) return res.status(400).json({ message: "YouTube URL is required" });
       const _uCf = req.user as any;
       if (_uCf.role !== "admin") {
-        const cfCredit = await storage.deductCredits(_uCf.id, 3, "clip_finder", "Clip Finder YouTube analysis", _uCf.plan || "free");
+        const cfCredit = await storage.deductCredits(_uCf.id, 5, "clip_finder", "Clip Finder YouTube analysis", _uCf.plan || "free");
         if (!cfCredit.success) return res.status(402).json({ message: cfCredit.message, insufficientCredits: true });
       }
       const videoId = extractYouTubeVideoId(url);
