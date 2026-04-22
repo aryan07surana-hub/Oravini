@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Phone, Shield, ArrowRight, RefreshCw, CheckCircle2 } from "lucide-react";
-import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+const oraviniLogoPath = "/oravini-logo.png";
 
 const GOLD = "#d4b461";
 

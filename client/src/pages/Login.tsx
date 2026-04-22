@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Lock, Mail, ArrowLeft, User } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
-import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+const oraviniLogoPath = "/oravini-logo.png";
 
 const GOLD = "#d4b461";
 

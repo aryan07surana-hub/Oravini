@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+const oraviniLogoPath = "/oravini-logo.png";
 import {
   LayoutDashboard, FileText, MessageSquare, BarChart2, Sparkles,
   Users, Bot, Clapperboard, Zap, Layers, Settings, ChevronRight,

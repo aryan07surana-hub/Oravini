@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+const oraviniLogoPath = "/oravini-logo.png";
 import { Gift } from "lucide-react";
 
 const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";

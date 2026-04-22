@@ -15,7 +15,7 @@ import {
   LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
+const oraviniLogoPath = "/oravini-logo.png";
 import LowCreditsBanner from "@/components/LowCreditsBanner";
 import UpgradeModal from "@/components/UpgradeModal";
 
