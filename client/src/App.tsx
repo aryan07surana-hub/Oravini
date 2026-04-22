@@ -48,6 +48,7 @@ import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
+import CookieBanner from "@/components/CookieBanner";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Landing from "@/pages/Landing";
@@ -412,6 +413,7 @@ function App() {
             <Toaster />
             <GlobalBackground />
             <CustomCursor />
+            <CookieBanner />
             <Router />
           </TourProvider>
         </JarvisProvider>

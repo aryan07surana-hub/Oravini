@@ -4,7 +4,7 @@ export default function Privacy() {
       <div className="max-w-3xl mx-auto px-6 py-16">
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-[#d4b461] mb-2">Privacy Policy</h1>
-          <p className="text-zinc-400 text-sm">Last updated: March 20, 2026</p>
+          <p className="text-zinc-400 text-sm">Last updated: June 1, 2026</p>
         </div>
 
         <div className="space-y-8 text-zinc-300 leading-relaxed">
@@ -186,10 +186,44 @@ export default function Privacy() {
           </section>
 
           <section>
+            <h2 className="text-xl font-semibold text-white mb-3">6a. We Will Never Sell or Share Your Information</h2>
+            <p className="mb-2">
+              Your personal information, account data, content, and usage activity will <strong className="text-white">never</strong> be sold, rented, traded, or shared with any third party for commercial purposes — ever. This is a core commitment of Brandverse.
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>We do not sell your data to advertisers, data brokers, or any external companies.</li>
+              <li>We do not share your personal information with partners, affiliates, or sponsors.</li>
+              <li>We do not use your data to build advertising profiles or target you with ads outside our platform.</li>
+              <li>Your content, messages, and analytics data are yours — we only use them to power the features you use inside Brandverse.</li>
+              <li>The only time we may disclose information is if required by law (e.g. a valid court order), and even then we will notify you where legally permitted.</li>
+            </ul>
+            <p className="mt-3">
+              If you ever have concerns about how your data is being used, email us directly at{" "}
+              <a href="mailto:support.oravini@gmail.com" className="text-[#d4b461] hover:underline">support.oravini@gmail.com</a> and we will respond within 48 hours.
+            </p>
+          </section>
+
+          <section>
             <h2 className="text-xl font-semibold text-white mb-3">9. Cookies</h2>
-            <p>
-              We use session cookies strictly necessary to keep you logged in. We do not use tracking
-              cookies or advertising cookies.
+            <p className="mb-2">
+              We use cookies to make Brandverse work properly. Here's exactly what we use and why:
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong className="text-white">Essential session cookies</strong> — Required to keep you logged in while you use the platform. Without these, the platform cannot function.
+              </li>
+              <li>
+                <strong className="text-white">Referral cookies</strong> — If you arrive via a referral link, we store a short-lived cookie to credit the referrer. This cookie expires after 30 days.
+              </li>
+              <li>
+                <strong className="text-white">No tracking cookies</strong> — We do not use Google Analytics, Facebook Pixel, or any third-party tracking or advertising cookies.
+              </li>
+              <li>
+                <strong className="text-white">No profiling</strong> — We do not build behavioural profiles or share cookie data with any external party.
+              </li>
+            </ul>
+            <p className="mt-3">
+              By continuing to use Brandverse, you consent to our use of essential cookies as described above. You can clear cookies at any time through your browser settings — note that clearing session cookies will log you out.
             </p>
           </section>
 
