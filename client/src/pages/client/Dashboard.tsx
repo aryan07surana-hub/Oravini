@@ -1594,7 +1594,7 @@ export default function ClientDashboard() {
     enabled: !!user?.id,
     staleTime: Infinity,
   });
-  const showOnboarding = onboardingStatus !== undefined && !onboardingStatus.done;
+  const showOnboarding = false; // survey is handled by /onboarding page — never show modal again
 
   const { data: prog, isLoading: progLoading } = useQuery<any>({
     queryKey: [`/api/progress/${user?.id}`],
