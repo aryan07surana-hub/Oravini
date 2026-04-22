@@ -5,8 +5,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import {
   Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings,
-  Rocket, AlertTriangle, X, ExternalLink, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon
+  Rocket, AlertTriangle, X, ExternalLink, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Globe, Languages
 } from "lucide-react";
+import { useTimezone, TIMEZONES, LANGUAGES } from "@/hooks/use-timezone";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 
@@ -376,6 +378,7 @@ export default function PlanSettings() {
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { timezone, setTimezone, language, setLanguage } = useTimezone();
 
   const currentPlan = (user as any)?.plan || "free";
   const currentIdx = PLAN_ORDER.indexOf(currentPlan);
@@ -661,6 +664,49 @@ export default function PlanSettings() {
                 </p>
               </div>
               <ChevronRight className="w-5 h-5 text-zinc-500 group-hover:text-white transition-colors flex-shrink-0" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── TIMEZONE & LANGUAGE ── */}
+        <div className="mt-4">
+          <div className="rounded-2xl p-6" style={{ background: "rgba(96,165,250,0.04)", border: "1px solid rgba(96,165,250,0.12)" }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.2)" }}>
+                <Globe className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Timezone & Language</p>
+                <p className="text-xs text-zinc-500">Controls how dates and times appear across the platform</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2 block">Timezone</label>
+                <select
+                  value={timezone}
+                  onChange={e => setTimezone(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+                >
+                  {TIMEZONES.map(tz => (
+                    <option key={tz.value} value={tz.value}>{tz.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-600 mt-1.5">Currently: {new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(new Date())}</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-1.5"><Languages className="w-3 h-3" /> Language</label>
+                <select
+                  value={language}
+                  onChange={e => setLanguage(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+                >
+                  {LANGUAGES.map(l => (
+                    <option key={l.value} value={l.value}>{l.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-600 mt-1.5">More languages coming soon</p>
+              </div>
             </div>
           </div>
         </div>

@@ -25,6 +25,7 @@ import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTimezone } from "@/hooks/use-timezone";
 
 const GOLD = "#d4b461";
 
@@ -1586,6 +1587,8 @@ export default function ClientDashboard() {
   const survey = useSurvey();
   const QUICK_TOOLS = getQuickTools(survey.struggles);
 
+  const { timezone, formatInTz } = useTimezone();
+
   const { data: onboardingStatus } = useQuery<{ done: boolean; survey: any }>({
     queryKey: ["/api/user/onboarding-status"],
     enabled: !!user?.id,
@@ -1715,7 +1718,7 @@ export default function ClientDashboard() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1">
-                {format(new Date(), "EEEE, MMMM d")}
+                {formatInTz(new Date(), { weekday: "long", month: "long", day: "numeric" })}
               </p>
               <h1 data-testid="text-welcome" className="text-2xl lg:text-3xl font-bold text-foreground">
                 {greeting}, {user?.name?.split(" ")[0]} 👋
@@ -1822,7 +1825,8 @@ export default function ClientDashboard() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
             </div>
             <div className="flex gap-3">
-              {WORLD_CITIES.map(c => (
+              <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
+              {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
                 <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
               ))}
             </div>
