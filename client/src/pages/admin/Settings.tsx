@@ -817,6 +817,57 @@ export default function AdminSettings() {
             </CardContent>
           </Card>
 
+          {/* Legal */}
+          <Card className="border border-card-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                Legal & Policies
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-zinc-400">
+                Read our full legal documents below. By using Brandverse you agree to both.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition-colors group"
+                >
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#d4b46118", border: "1px solid #d4b46140" }}>
+                    <ShieldCheck className="w-4 h-4" style={{ color: "#d4b461" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white">Privacy Policy</p>
+                    <p className="text-xs text-zinc-500">24 sections — GDPR, CCPA, data rights</p>
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                </a>
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition-colors group"
+                >
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#d4b46118", border: "1px solid #d4b46140" }}>
+                    <Lock className="w-4 h-4" style={{ color: "#d4b461" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white">Terms of Service</p>
+                    <p className="text-xs text-zinc-500">18 sections — usage, billing, liability</p>
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                </a>
+              </div>
+              <p className="text-xs text-zinc-600 pt-1">
+                Last updated: June 1, 2026 · Questions?{" "}
+                <a href="mailto:support.oravini@gmail.com" className="hover:underline" style={{ color: "#d4b461" }}>support.oravini@gmail.com</a>
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Password */}
           <Card className="border border-card-border">
             <CardHeader className="pb-4">

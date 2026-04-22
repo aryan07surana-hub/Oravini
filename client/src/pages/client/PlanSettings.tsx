@@ -665,6 +665,47 @@ export default function PlanSettings() {
           </div>
         </div>
 
+        {/* ── LEGAL ── */}
+        <div className="mt-4">
+          <div className="rounded-2xl p-6" style={{ background: "rgba(212,180,97,0.04)", border: "1px solid rgba(212,180,97,0.12)" }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <Lock className="w-4 h-4" style={{ color: GOLD }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Legal & Policies</p>
+                <p className="text-xs text-zinc-500">By using Brandverse you agree to both documents below</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition-colors group"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">Privacy Policy</p>
+                  <p className="text-xs text-zinc-500">How we collect, use & protect your data</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" />
+              </a>
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition-colors group"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">Terms of Service</p>
+                  <p className="text-xs text-zinc-500">Usage rules, billing & your rights</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" />
+              </a>
+            </div>
+          </div>
+        </div>
+
         {/* ── DELETE ACCOUNT ── */}
         <div className="mt-6">
           <div
