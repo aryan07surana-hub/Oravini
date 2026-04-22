@@ -143,12 +143,21 @@ export default function AdminDailyTracker() {
   async function generateAIPlan() {
     if (!aiPrompt.trim()) return;
     setAiLoading(true);
-    // Simulate AI plan generation (replace with real API call if available)
-    await new Promise(r => setTimeout(r, 1800));
-    const plan = `📋 AI Plan for ${format(selectedDate, "MMMM d")}:\n\nBased on your goal: "${aiPrompt}"\n\n🌅 Morning (6–9am)\n• Wake up, hydrate, 10-min stretch\n• Review today's top 3 priorities\n• Deep work block #1\n\n⚡ Midday (12–2pm)\n• Lunch + short walk\n• Respond to messages & emails\n• Deep work block #2\n\n🌆 Evening (6–9pm)\n• Review what you accomplished\n• Plan tomorrow's tasks\n• Wind down — no screens after 9pm\n\n✅ Top 3 Must-Do Tasks:\n1. ${aiPrompt.split(" ").slice(0, 4).join(" ")}...\n2. Review & respond to client updates\n3. 30-min focused content creation`;
-    updateDay({ aiPlan: plan });
-    setAiLoading(false);
-    setAiPrompt("");
+    try {
+      const res = await fetch("/api/ai/day-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goal: aiPrompt.trim(), date: format(selectedDate, "MMMM d, yyyy") }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed");
+      updateDay({ aiPlan: data.plan });
+    } catch (err: any) {
+      updateDay({ aiPlan: `Failed to generate plan: ${err.message}` });
+    } finally {
+      setAiLoading(false);
+      setAiPrompt("");
+    }
   }
 
   const last7 = useMemo(() => Array.from({ length: 7 }, (_, i) => {

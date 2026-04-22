@@ -1770,6 +1770,45 @@ Return this exact JSON structure:
     }
   });
 
+  // ── AI Day Planner ──────────────────────────────────────────────────────
+  app.post("/api/ai/day-plan", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { goal, date } = req.body;
+      if (!goal?.trim()) return res.status(400).json({ message: "goal is required" });
+      const plan = await callGroq(
+        "You are a world-class productivity coach. Generate a structured, actionable daily plan. Be specific and practical.",
+        `Create a detailed day plan for: "${goal}" on ${date || "today"}.
+
+Format it clearly with these sections:
+📋 Day Plan — [date]
+Goal: "[goal]"
+
+🌅 Morning (6–9am)
+• [specific task]
+• [specific task]
+
+⚡ Midday (12–2pm)
+• [specific task]
+• [specific task]
+
+🌆 Evening (6–9pm)
+• [specific task]
+• [specific task]
+
+✅ Top 3 Must-Do Tasks:
+1. [most important task]
+2. [second task]
+3. [third task]
+
+Keep it concise, actionable, and directly tied to the goal.`,
+        800
+      );
+      return res.json({ plan });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "AI plan generation failed" });
+    }
+  });
+
   // ── AI Content Ideas (Groq — fast) ───────────────────────────────────────
   app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
     try {
