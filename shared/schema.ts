@@ -1104,14 +1104,22 @@ export const webinarLandingPages = pgTable("webinar_landing_pages", {
   slug: text("slug").notNull().unique(),
   headline: text("headline").notNull(),
   subheadline: text("subheadline"),
+  description: text("description"),
   bodyContent: text("body_content"),
   heroImageUrl: text("hero_image_url"),
   presenterName: text("presenter_name"),
   presenterTitle: text("presenter_title"),
   presenterAvatarUrl: text("presenter_avatar_url"),
-  ctaText: text("cta_text").default("Register Now"),
+  bulletPoints: text("bullet_points").array().default(sql`'{}'::text[]`),
+  ctaText: text("cta_text").default("Register Now — It's Free"),
   accentColor: text("accent_color").default("#d4b461"),
   isActive: boolean("is_active").notNull().default(true),
+  published: boolean("published").notNull().default(false),
+  chatEnabled: boolean("chat_enabled").notNull().default(false),
+  chatSystemPrompt: text("chat_system_prompt"),
+  sections: text("sections"), // JSON string of section array
+  design: text("design"), // JSON string of theme config
+  chatConfig: text("chat_config"), // JSON string of chat widget config
   views: integer("views").notNull().default(0),
   registrations: integer("registrations").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1120,3 +1128,37 @@ export const webinarLandingPages = pgTable("webinar_landing_pages", {
 export const insertWebinarLandingPageSchema = createInsertSchema(webinarLandingPages).omit({ id: true, createdAt: true, updatedAt: true, views: true, registrations: true });
 export type InsertWebinarLandingPage = z.infer<typeof insertWebinarLandingPageSchema>;
 export type WebinarLandingPage = typeof webinarLandingPages.$inferSelect;
+
+// ── Video Marketing: Contacts / CRM ─────────────────────────────────────────
+export const webinarContacts = pgTable("webinar_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name"),
+  email: text("email"),
+  phone: text("phone"),
+  company: text("company"),
+  source: text("source"),
+  segment: text("segment").notNull().default("general"),
+  stage: text("stage").notNull().default("lead"),
+  webinarCode: text("webinar_code"),
+  notes: text("notes"),
+  conversionValue: real("conversion_value"),
+  conversionNote: text("conversion_note"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWebinarContactSchema = createInsertSchema(webinarContacts).omit({ id: true, createdAt: true });
+export type InsertWebinarContact = z.infer<typeof insertWebinarContactSchema>;
+export type WebinarContact = typeof webinarContacts.$inferSelect;
+
+// ── Video Marketing: Video Analytics Events ─────────────────────────────────
+export const videoAnalyticsEvents = pgTable("video_analytics_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  videoId: varchar("video_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  eventType: text("event_type").notNull(), // play, pause, seek, complete, progress
+  position: real("position").notNull().default(0),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type VideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferSelect;
+export type InsertVideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferInsert;

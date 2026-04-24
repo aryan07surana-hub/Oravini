@@ -68,6 +68,9 @@ import {
   type VideoEvent, type InsertVideoEvent,
   type WebinarRecording, type InsertWebinarRecording,
   type WebinarLandingPage, type InsertWebinarLandingPage,
+  type WebinarContact, type InsertWebinarContact,
+  type VideoAnalyticsEvent, type InsertVideoAnalyticsEvent,
+  webinarContacts, videoAnalyticsEvents,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -339,6 +342,7 @@ export interface IStorage {
   // Video Marketing
   getWebinars(userId: string, status?: "upcoming" | "live" | "completed" | "cancelled"): Promise<Webinar[]>;
   getWebinar(id: string): Promise<Webinar | undefined>;
+  getWebinarByMeetingCode(meetingCode: string): Promise<Webinar | undefined>;
   createWebinar(data: InsertWebinar): Promise<Webinar>;
   updateWebinar(id: string, data: Partial<InsertWebinar>): Promise<Webinar | undefined>;
   deleteWebinar(id: string): Promise<void>;
@@ -357,9 +361,22 @@ export interface IStorage {
   deleteWebinarRecording(id: string): Promise<void>;
   getWebinarLandingPage(webinarId: string): Promise<WebinarLandingPage | undefined>;
   getWebinarLandingPageBySlug(slug: string): Promise<WebinarLandingPage | undefined>;
+  getWebinarLandingPageWithWebinar(slug: string): Promise<{ landingPage: WebinarLandingPage; webinar: Webinar } | undefined>;
   createWebinarLandingPage(data: InsertWebinarLandingPage): Promise<WebinarLandingPage>;
   updateWebinarLandingPage(id: string, data: Partial<InsertWebinarLandingPage>): Promise<WebinarLandingPage | undefined>;
   deleteWebinarLandingPage(id: string): Promise<void>;
+  trackLandingPageView(id: string): Promise<void>;
+  incrementLandingPageRegistration(id: string): Promise<void>;
+  // Video Marketing: Contacts / CRM
+  getWebinarContacts(userId: string): Promise<WebinarContact[]>;
+  getWebinarContact(id: string): Promise<WebinarContact | undefined>;
+  createWebinarContact(data: InsertWebinarContact): Promise<WebinarContact>;
+  updateWebinarContact(id: string, data: Partial<InsertWebinarContact>): Promise<WebinarContact | undefined>;
+  deleteWebinarContact(id: string): Promise<void>;
+  // Video Marketing: Analytics
+  createVideoAnalyticsEvent(data: InsertVideoAnalyticsEvent): Promise<VideoAnalyticsEvent>;
+  getVideoAnalyticsEvents(videoId: string): Promise<VideoAnalyticsEvent[]>;
+  getVideoAnalyticsSummary(videoId: string): Promise<{ totalViews: number; totalCompletions: number; avgWatchTime: number }>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1982,6 +1999,58 @@ class DatabaseStorage implements IStorage {
   }
   async deleteWebinarLandingPage(id: string): Promise<void> {
     await db.delete(webinarLandingPages).where(eq(webinarLandingPages.id, id));
+  }
+  async getWebinarByMeetingCode(meetingCode: string): Promise<Webinar | undefined> {
+    const [row] = await db.select().from(webinars).where(eq(webinars.meetingCode, meetingCode));
+    return row;
+  }
+  async getWebinarLandingPageWithWebinar(slug: string): Promise<{ landingPage: WebinarLandingPage; webinar: Webinar } | undefined> {
+    const [lp] = await db.select().from(webinarLandingPages).where(eq(webinarLandingPages.slug, slug));
+    if (!lp) return undefined;
+    const [webinar] = await db.select().from(webinars).where(eq(webinars.id, lp.webinarId));
+    if (!webinar) return undefined;
+    return { landingPage: lp, webinar };
+  }
+  async trackLandingPageView(id: string): Promise<void> {
+    await db.update(webinarLandingPages).set({ views: sqlExpr`${webinarLandingPages.views} + 1` }).where(eq(webinarLandingPages.id, id));
+  }
+  async incrementLandingPageRegistration(id: string): Promise<void> {
+    await db.update(webinarLandingPages).set({ registrations: sqlExpr`${webinarLandingPages.registrations} + 1` }).where(eq(webinarLandingPages.id, id));
+  }
+  // ── Video Marketing: Contacts / CRM ───────────────────────────────────────
+  async getWebinarContacts(userId: string): Promise<WebinarContact[]> {
+    return db.select().from(webinarContacts).where(eq(webinarContacts.userId, userId)).orderBy(desc(webinarContacts.createdAt));
+  }
+  async getWebinarContact(id: string): Promise<WebinarContact | undefined> {
+    const [row] = await db.select().from(webinarContacts).where(eq(webinarContacts.id, id));
+    return row;
+  }
+  async createWebinarContact(data: InsertWebinarContact): Promise<WebinarContact> {
+    const [row] = await db.insert(webinarContacts).values(data).returning();
+    return row;
+  }
+  async updateWebinarContact(id: string, data: Partial<InsertWebinarContact>): Promise<WebinarContact | undefined> {
+    const [row] = await db.update(webinarContacts).set(data).where(eq(webinarContacts.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarContact(id: string): Promise<void> {
+    await db.delete(webinarContacts).where(eq(webinarContacts.id, id));
+  }
+  // ── Video Marketing: Analytics ────────────────────────────────────────────
+  async createVideoAnalyticsEvent(data: InsertVideoAnalyticsEvent): Promise<VideoAnalyticsEvent> {
+    const [row] = await db.insert(videoAnalyticsEvents).values(data).returning();
+    return row;
+  }
+  async getVideoAnalyticsEvents(videoId: string): Promise<VideoAnalyticsEvent[]> {
+    return db.select().from(videoAnalyticsEvents).where(eq(videoAnalyticsEvents.videoId, videoId)).orderBy(desc(videoAnalyticsEvents.createdAt));
+  }
+  async getVideoAnalyticsSummary(videoId: string): Promise<{ totalViews: number; totalCompletions: number; avgWatchTime: number }> {
+    const events = await db.select().from(videoAnalyticsEvents).where(eq(videoAnalyticsEvents.videoId, videoId));
+    const uniqueSessions = new Set(events.filter(e => e.eventType === "play").map(e => e.sessionId));
+    const completions = events.filter(e => e.eventType === "complete").length;
+    const watchTimes = events.filter(e => e.eventType === "progress").map(e => e.position);
+    const avgWatchTime = watchTimes.length > 0 ? watchTimes.reduce((a, b) => a + b, 0) / watchTimes.length : 0;
+    return { totalViews: uniqueSessions.size, totalCompletions: completions, avgWatchTime };
   }
 }
 

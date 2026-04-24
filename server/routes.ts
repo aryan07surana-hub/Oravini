@@ -10849,5 +10849,194 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+
+  // ── Video Marketing: Public Routes ────────────────────────────────────────
+  // Public: Get landing page by slug (no auth required)
+  app.get("/api/lp/:slug", async (req: Request, res: Response) => {
+    try {
+      const result = await storage.getWebinarLandingPageWithWebinar(p(req.params.slug));
+      if (!result) return res.status(404).json({ message: "Landing page not found" });
+      if (!result.landingPage.published) return res.status(404).json({ message: "Landing page not published" });
+      await storage.trackLandingPageView(result.landingPage.id);
+      res.json({
+        landingPage: result.landingPage,
+        webinar: {
+          id: result.webinar.id,
+          title: result.webinar.title,
+          description: result.webinar.description,
+          scheduledAt: result.webinar.scheduledAt,
+          durationMinutes: result.webinar.durationMinutes,
+          status: result.webinar.status,
+          meetingCode: result.webinar.meetingCode,
+          thumbnailUrl: result.webinar.thumbnailUrl,
+          presenterName: result.landingPage.presenterName,
+          presenterTitle: result.landingPage.presenterTitle,
+          presenterAvatarUrl: result.landingPage.presenterAvatarUrl,
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Public: Register for webinar by meeting code (no auth required)
+  app.post("/api/register/:code", async (req: Request, res: Response) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(p(req.params.code));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      const { name, email, phone } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const reg = await storage.createWebinarRegistration({
+        webinarId: webinar.id,
+        name,
+        email,
+        phone: phone || null,
+      });
+      try {
+        await storage.createWebinarContact({
+          userId: webinar.userId,
+          name,
+          email,
+          phone: phone || null,
+          source: "webinar_registration",
+          segment: "webinar",
+          stage: "lead",
+          webinarCode: webinar.meetingCode,
+        });
+      } catch (_) { }
+      const lp = await storage.getWebinarLandingPage(webinar.id);
+      if (lp) {
+        await storage.incrementLandingPageRegistration(lp.id);
+      }
+      res.status(201).json({ success: true, registration: reg });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Public: Track video analytics event (no auth required)
+  app.post("/api/video-analytics", async (req: Request, res: Response) => {
+    try {
+      const { videoId, sessionId, eventType, position, metadata } = req.body;
+      if (!videoId || !sessionId || !eventType) return res.status(400).json({ message: "videoId, sessionId, and eventType required" });
+      const event = await storage.createVideoAnalyticsEvent({
+        videoId,
+        sessionId,
+        eventType,
+        position: position || 0,
+        metadata: metadata || {},
+      });
+      res.status(201).json(event);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Video Marketing: Contacts / CRM
+  app.get("/api/webinar-contacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const contacts = await storage.getWebinarContacts(user.id);
+      res.json(contacts);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/webinar-contacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const contact = await storage.createWebinarContact({ ...req.body, userId: user.id });
+      res.status(201).json(contact);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/webinar-contacts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const contact = await storage.updateWebinarContact(p(req.params.id), req.body);
+      res.json(contact);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/webinar-contacts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarContact(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Video Marketing: Analytics (auth)
+  app.get("/api/video-analytics/:videoId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const events = await storage.getVideoAnalyticsEvents(p(req.params.videoId));
+      const summary = await storage.getVideoAnalyticsSummary(p(req.params.videoId));
+      res.json({ events, summary });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Webinar Recordings
+  app.get("/api/webinar-recordings", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const recordings = await storage.getWebinarRecordings(user.id);
+    res.json(recordings);
+  });
+
+  app.post("/api/webinar-recordings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { webinarId, title, recordingUrl, thumbnailUrl, duration, fileSize, isPublic } = req.body;
+      if (!title || !recordingUrl) return res.status(400).json({ message: "Title and recordingUrl required" });
+      const rec = await storage.createWebinarRecording({
+        webinarId: webinarId || null,
+        userId: user.id,
+        title,
+        recordingUrl,
+        thumbnailUrl: thumbnailUrl || null,
+        duration: duration || null,
+        fileSize: fileSize || null,
+        shareToken: Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10),
+        isPublic: isPublic || false,
+      });
+      res.status(201).json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const rec = await storage.getWebinarRecording(p(req.params.id));
+      if (!rec) return res.status(404).json({ message: "Recording not found" });
+      res.json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const rec = await storage.updateWebinarRecording(p(req.params.id), req.body);
+      res.json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinarRecording(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
   return httpServer;
 }
