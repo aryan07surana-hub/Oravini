@@ -1094,10 +1094,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           actions.every((action) => action.status === "completed")
             ? "completed"
             : actions.some((action) => action.status === "blocked")
-            ? "blocked"
-            : actions.some((action) => action.status === "in_progress" || action.status === "review")
-            ? "in_progress"
-            : "pending";
+              ? "blocked"
+              : actions.some((action) => action.status === "in_progress" || action.status === "review")
+                ? "in_progress"
+                : "pending";
 
         return {
           ...step,
@@ -1110,10 +1110,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         steps.every((step) => step.status === "completed")
           ? "completed"
           : steps.some((step) => step.status === "blocked")
-          ? "review"
-          : steps.some((step) => step.status === "in_progress")
-          ? "in_progress"
-          : phase.status;
+            ? "review"
+            : steps.some((step) => step.status === "in_progress")
+              ? "in_progress"
+              : phase.status;
 
       return {
         ...phase,
@@ -2142,17 +2142,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let normalisedPosts: NormalisedPost[] = [];
       let dataSource = "apify";
 
-        try {
-          const igAccountId = await getIgAccountIdCached();
-          if (igAccountId) {
-            const connAcct = await getConnectedIGAccount();
-            // Check if the profile handle matches connected account
-            const reqHandle = normalized.username;
-            const connHandle = (connAcct?.igUsername || "").toLowerCase();
-            if (reqHandle && connHandle && reqHandle === connHandle) {
-              const media = await getIGMedia(igAccountId, 50);
-              if (media.length > 0) {
-                for (const m of media) {
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const connAcct = await getConnectedIGAccount();
+          // Check if the profile handle matches connected account
+          const reqHandle = normalized.username;
+          const connHandle = (connAcct?.igUsername || "").toLowerCase();
+          if (reqHandle && connHandle && reqHandle === connHandle) {
+            const media = await getIGMedia(igAccountId, 50);
+            if (media.length > 0) {
+              for (const m of media) {
                 const insights = await getMediaInsights(m.id, m.media_type);
                 normalisedPosts.push({
                   postUrl: m.permalink,
@@ -2538,10 +2538,10 @@ Requirements:
       parsed.ideaBuckets = Array.isArray(parsed.ideaBuckets) && parsed.ideaBuckets.length > 0
         ? parsed.ideaBuckets
         : [
-            { key: "growth", title: "Growth", description: "Discovery-focused content designed to reach new people." },
-            { key: "trust", title: "Trust", description: "Authority and credibility content that makes the creator memorable." },
-            { key: "conversion", title: "Conversion", description: "Ideas built to turn attention into DMs, leads, or sales." },
-          ];
+          { key: "growth", title: "Growth", description: "Discovery-focused content designed to reach new people." },
+          { key: "trust", title: "Trust", description: "Authority and credibility content that makes the creator memorable." },
+          { key: "conversion", title: "Conversion", description: "Ideas built to turn attention into DMs, leads, or sales." },
+        ];
 
       parsed.ideas = parsed.ideas.slice(0, 8).map((idea: any, index: number) => ({
         title: idea.title || `Idea ${index + 1}`,
@@ -2563,29 +2563,29 @@ Requirements:
 
       parsed.contentMix = parsed.contentMix && typeof parsed.contentMix === "object"
         ? {
-            growth: Number(parsed.contentMix.growth) || 40,
-            value: Number(parsed.contentMix.value) || 40,
-            conversion: Number(parsed.contentMix.conversion) || 20,
-            suggestion: parsed.contentMix.suggestion || `Balance discovery, trust-building, and conversion content around ${goalLabel}.`,
-          }
+          growth: Number(parsed.contentMix.growth) || 40,
+          value: Number(parsed.contentMix.value) || 40,
+          conversion: Number(parsed.contentMix.conversion) || 20,
+          suggestion: parsed.contentMix.suggestion || `Balance discovery, trust-building, and conversion content around ${goalLabel}.`,
+        }
         : {
-            growth: goalLabel.includes("viral") || goalLabel.includes("followers") ? 50 : 35,
-            value: goalLabel.includes("authority") || goalLabel.includes("educate") ? 45 : 40,
-            conversion: goalLabel.includes("sale") || goalLabel.includes("conversion") ? 30 : 20,
-            suggestion: `Use your strongest format to win attention, then rotate into trust and conversion posts with the same core themes.`,
-          };
+          growth: goalLabel.includes("viral") || goalLabel.includes("followers") ? 50 : 35,
+          value: goalLabel.includes("authority") || goalLabel.includes("educate") ? 45 : 40,
+          conversion: goalLabel.includes("sale") || goalLabel.includes("conversion") ? 30 : 20,
+          suggestion: `Use your strongest format to win attention, then rotate into trust and conversion posts with the same core themes.`,
+        };
 
       parsed.workflow = parsed.workflow && typeof parsed.workflow === "object"
         ? {
-            nextBestAction: parsed.workflow.nextBestAction || "Choose one Growth idea and one Trust idea to produce this week.",
-            productionSequence: Array.isArray(parsed.workflow.productionSequence) ? parsed.workflow.productionSequence.slice(0, 4) : strategyBrief.workflowSteps,
-            repurposingNotes: Array.isArray(parsed.workflow.repurposingNotes) ? parsed.workflow.repurposingNotes.slice(0, 4) : ["Turn the winning idea into a second platform-native variation."],
-          }
+          nextBestAction: parsed.workflow.nextBestAction || "Choose one Growth idea and one Trust idea to produce this week.",
+          productionSequence: Array.isArray(parsed.workflow.productionSequence) ? parsed.workflow.productionSequence.slice(0, 4) : strategyBrief.workflowSteps,
+          repurposingNotes: Array.isArray(parsed.workflow.repurposingNotes) ? parsed.workflow.repurposingNotes.slice(0, 4) : ["Turn the winning idea into a second platform-native variation."],
+        }
         : {
-            nextBestAction: "Choose one Growth idea and turn it into a production-ready draft first.",
-            productionSequence: strategyBrief.workflowSteps,
-            repurposingNotes: ["Turn the best-performing concept into a second platform-native version within 24 hours."],
-          };
+          nextBestAction: "Choose one Growth idea and turn it into a production-ready draft first.",
+          productionSequence: strategyBrief.workflowSteps,
+          repurposingNotes: ["Turn the best-performing concept into a second platform-native version within 24 hours."],
+        };
 
       // Log this generation for admin visibility
       try {
@@ -10547,6 +10547,306 @@ Rules:
     await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "This is why your top competitors are pulling ahead", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">The gap is widening, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The creators in your niche who are growing the fastest right now are using better tools, faster feedback loops, and systems you probably don't have yet.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The good news: you're already on Oravini. The gap between what you have access to on your current plan and what's waiting on the next tier is significant.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">More AI credits. Full content coach. Advanced analytics. Video editing at scale. The creators using these tools are building moats that are hard to catch up to.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">You're doing the work. Make sure your tools match your ambition.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Upgrade Your Plan →</a>`, delayDays: 7, sortOrder: 3 });
 
     res.json({ seeded: true, sequences: 3 });
+  });
+
+  // ── Everyday Read (Admin) ─────────────────────────────────────────────────
+  app.get("/api/admin/reading-materials", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT rm.*, u.name as user_name, u.email as user_email
+         FROM reading_materials rm
+         LEFT JOIN users u ON u.id = rm.user_id
+         ORDER BY rm.created_at DESC`
+      );
+      res.json(result.rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/reading-materials", requireAdmin, async (req, res) => {
+    try {
+      const { title, author, source, category, summary, keyTakeaways, actionableLessons, tags, difficulty, readTimeMinutes, priority, status, fileUrl, fileType } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+      const admin = req.user as any;
+      const material = await storage.createReadingMaterial({
+        userId: admin.id,
+        title, author, source, category: category || "Books",
+        summary, keyTakeaways: keyTakeaways || [], actionableLessons: actionableLessons || [],
+        tags: tags || [], difficulty: difficulty || "intermediate", readTimeMinutes: readTimeMinutes || 10,
+        priority: priority || "medium", status: status || "unread", fileUrl, fileType,
+      });
+      res.json(material);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/admin/reading-materials/:id", requireAdmin, async (req, res) => {
+    try {
+      const material = await storage.updateReadingMaterial(p(req.params.id), req.body);
+      res.json(material);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/reading-materials/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteReadingMaterial(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/admin/daily-readings", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT dr.*, u.name as user_name, u.email as user_email
+         FROM daily_readings dr
+         LEFT JOIN users u ON u.id = dr.user_id
+         ORDER BY dr.date DESC`
+      );
+      res.json(result.rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/daily-readings", requireAdmin, async (req, res) => {
+    try {
+      const { userId, date, mode, quickReadTitle, quickReadContent, quickReadSource, focusReadTitle, focusReadContent, focusReadSource, deepReadTitle, deepReadContent, deepReadSource, mentalModel, mentalModelExplanation, framework, frameworkExplanation, quote, quoteAuthor, executionTask, reflectionQuestion, challenge, implementation, whyToday, sources, knowledgeScore } = req.body;
+      const reading = await storage.createDailyReading({
+        userId, date: date ? new Date(date) : new Date(), mode: mode || "15min",
+        quickReadTitle, quickReadContent, quickReadSource,
+        focusReadTitle, focusReadContent, focusReadSource,
+        deepReadTitle, deepReadContent, deepReadSource,
+        mentalModel, mentalModelExplanation, framework, frameworkExplanation,
+        quote, quoteAuthor, executionTask, reflectionQuestion, challenge, implementation, whyToday,
+        sources: sources || [], knowledgeScore: knowledgeScore || 0,
+      });
+      res.json(reading);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/admin/daily-readings/:id", requireAdmin, async (req, res) => {
+    try {
+      const reading = await storage.updateDailyReading(p(req.params.id), req.body);
+      res.json(reading);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/daily-readings/:id", requireAdmin, async (req, res) => {
+    try {
+      await pool.query("DELETE FROM daily_readings WHERE id = $1", [p(req.params.id)]);
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Marketing / Webinars ───────────────────────────────────────────
+  function generateMeetingCode(): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+  }
+
+  // Webinars
+  app.get("/api/webinars", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const status = req.query.status as string | undefined;
+    const webinars = await storage.getWebinars(user.id, status);
+    res.json(webinars);
+  });
+
+  app.post("/api/webinars", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic } = req.body;
+      if (!title || !scheduledAt) return res.status(400).json({ message: "Title and scheduledAt required" });
+
+      let meetingCode = generateMeetingCode();
+      let attempts = 0;
+      while (attempts < 5) {
+        const existing = await storage.getWebinars(user.id);
+        if (!existing.find((w: any) => w.meetingCode === meetingCode)) break;
+        meetingCode = generateMeetingCode();
+        attempts++;
+      }
+
+      const webinar = await storage.createWebinar({
+        userId: user.id, title, description: description || null,
+        scheduledAt: new Date(scheduledAt), durationMinutes: durationMinutes || 60,
+        maxAttendees: maxAttendees || null, meetingCode,
+        chatChannels: chatChannels || ["General"], offerUrl: offerUrl || null,
+        offerTitle: offerTitle || null, thumbnailUrl: thumbnailUrl || null,
+        isPublic: isPublic ?? false,
+      });
+      res.status(201).json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.getWebinar(p(req.params.id));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.updateWebinar(p(req.params.id), req.body);
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinar(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/start", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.updateWebinar(p(req.params.id), { status: "live" });
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar Registrations
+  app.get("/api/webinars/:id/registrations", requireAuth, async (req, res) => {
+    try {
+      const regs = await storage.getWebinarRegistrations(p(req.params.id));
+      res.json(regs);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/registrations", async (req, res) => {
+    try {
+      const { name, email, phone } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const reg = await storage.createWebinarRegistration({
+        webinarId: p(req.params.id), name, email, phone: phone || null,
+      });
+      res.status(201).json(reg);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Video Events
+  app.get("/api/video-events", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const videos = await storage.getVideoEvents(user.id);
+    res.json(videos);
+  });
+
+  app.post("/api/video-events", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { title, description, videoUrl, thumbnailUrl, duration, category, tags, isPublic, allowDownload } = req.body;
+      if (!title || !videoUrl) return res.status(400).json({ message: "Title and videoUrl required" });
+      const video = await storage.createVideoEvent({
+        userId: user.id, title, description: description || null, videoUrl,
+        thumbnailUrl: thumbnailUrl || null, duration: duration || null,
+        category: category || "General", tags: tags || [], isPublic: isPublic ?? false,
+        allowDownload: allowDownload ?? false,
+      });
+      res.status(201).json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteVideoEvent(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar Recordings
+  app.get("/api/recordings", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const recordings = await storage.getWebinarRecordings(user.id);
+    res.json(recordings);
+  });
+
+  app.post("/api/recordings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { webinarId, title, recordingUrl, thumbnailUrl, duration, fileSize, isPublic } = req.body;
+      if (!title || !recordingUrl) return res.status(400).json({ message: "Title and recordingUrl required" });
+      const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const rec = await storage.createWebinarRecording({
+        webinarId: webinarId || null, userId: user.id, title, recordingUrl,
+        thumbnailUrl: thumbnailUrl || null, duration: duration || null,
+        fileSize: fileSize || null, shareToken, isPublic: isPublic ?? false,
+      });
+      res.status(201).json(rec);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/recordings/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinarRecording(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar Landing Pages
+  app.get("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const lp = await storage.getWebinarLandingPage(p(req.params.id));
+      res.json(lp || null);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { slug, headline, subheadline, bodyContent, heroImageUrl, presenterName, presenterTitle, presenterAvatarUrl, ctaText, accentColor } = req.body;
+      if (!slug || !headline) return res.status(400).json({ message: "Slug and headline required" });
+      const lp = await storage.createWebinarLandingPage({
+        webinarId: p(req.params.id), userId: user.id, slug, headline,
+        subheadline: subheadline || null, bodyContent: bodyContent || null,
+        heroImageUrl: heroImageUrl || null, presenterName: presenterName || null,
+        presenterTitle: presenterTitle || null, presenterAvatarUrl: presenterAvatarUrl || null,
+        ctaText: ctaText || "Register Now", accentColor: accentColor || "#d4b461",
+      });
+      res.status(201).json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const existing = await storage.getWebinarLandingPage(p(req.params.id));
+      if (!existing) return res.status(404).json({ message: "Landing page not found" });
+      const lp = await storage.updateWebinarLandingPage(existing.id, req.body);
+      res.json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: view landing page
+  app.get("/api/public/landing-page/:slug", async (req, res) => {
+    try {
+      const lp = await storage.getWebinarLandingPageBySlug(req.params.slug);
+      if (!lp) return res.status(404).json({ message: "Landing page not found" });
+      res.json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   return httpServer;

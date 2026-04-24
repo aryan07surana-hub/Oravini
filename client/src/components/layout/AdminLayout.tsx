@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown, Gift, BarChart2, CheckSquare, FolderKanban
+  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown, Gift, BarChart2, CheckSquare, FolderKanban, MonitorPlay
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ const mainNavItems = [
   { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/churn", label: "Churn Analysis", icon: TrendingDown },
+  { href: "/admin/video-marketing", label: "Video Marketing", icon: MonitorPlay },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/scheduling", label: "Scheduling", icon: CalendarDays },
   { href: "/admin/credits", label: "Credits", icon: Zap },
@@ -76,11 +77,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 href={href}
                 data-testid={`admin-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">{label}</span>

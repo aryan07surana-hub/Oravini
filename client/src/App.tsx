@@ -49,6 +49,7 @@ import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
+import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
 import CookieBanner from "@/components/CookieBanner";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
@@ -97,9 +98,9 @@ function JarvisComingSoon() {
       <div style={{ textAlign: "center", maxWidth: 480 }}>
         <div style={{ width: 88, height: 88, borderRadius: "50%", background: `radial-gradient(circle at 40% 35%, #fff7 0%, transparent 60%), radial-gradient(circle at 60% 70%, ${GOLD}55 0%, transparent 70%), linear-gradient(135deg, ${GOLD}cc, #a8892d)`, margin: "0 auto 28px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 32px ${GOLD}55, 0 0 64px ${GOLD}22` }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke={GOLD} strokeWidth="1.5" opacity="0.4"/>
-            <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z" fill={GOLD}/>
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke={GOLD} strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
+            <circle cx="12" cy="12" r="10" stroke={GOLD} strokeWidth="1.5" opacity="0.4" />
+            <path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0z" fill={GOLD} />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke={GOLD} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
           </svg>
         </div>
         <div style={{ display: "inline-block", background: `${GOLD}18`, border: `1px solid ${GOLD}44`, borderRadius: 20, padding: "4px 14px", marginBottom: 18 }}>
@@ -402,6 +403,9 @@ function Router() {
       </Route>
       <Route path="/admin/daily-tracker">
         {() => <ProtectedRoute component={AdminDailyTracker} adminOnly />}
+      </Route>
+      <Route path="/admin/video-marketing">
+        {() => <ProtectedRoute component={AdminVideoMarketing} adminOnly />}
       </Route>
       <Route component={NotFound} />
     </Switch>

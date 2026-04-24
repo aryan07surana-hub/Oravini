@@ -21,6 +21,7 @@ import {
   brollClips,
   meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens,
   readingMaterials, readingHighlights, readingStreaks, dailyReadings,
+  webinars, webinarRegistrations, videoEvents, webinarRecordings, webinarLandingPages,
   type GoogleCalendarToken,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
@@ -62,6 +63,11 @@ import {
   type ReadingMaterial, type InsertReadingMaterial,
   type ReadingHighlight, type InsertReadingHighlight,
   type ReadingStreak, type DailyReading,
+  type Webinar, type InsertWebinar,
+  type WebinarRegistration, type InsertWebinarRegistration,
+  type VideoEvent, type InsertVideoEvent,
+  type WebinarRecording, type InsertWebinarRecording,
+  type WebinarLandingPage, type InsertWebinarLandingPage,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -329,6 +335,31 @@ export interface IStorage {
   getDailyReading(userId: string, date: Date): Promise<DailyReading | undefined>;
   createDailyReading(data: any): Promise<DailyReading>;
   updateDailyReading(id: string, data: Partial<DailyReading>): Promise<DailyReading | undefined>;
+
+  // Video Marketing
+  getWebinars(userId: string, status?: "upcoming" | "live" | "completed" | "cancelled"): Promise<Webinar[]>;
+  getWebinar(id: string): Promise<Webinar | undefined>;
+  createWebinar(data: InsertWebinar): Promise<Webinar>;
+  updateWebinar(id: string, data: Partial<InsertWebinar>): Promise<Webinar | undefined>;
+  deleteWebinar(id: string): Promise<void>;
+  getWebinarRegistrations(webinarId: string): Promise<WebinarRegistration[]>;
+  createWebinarRegistration(data: InsertWebinarRegistration): Promise<WebinarRegistration>;
+  updateWebinarRegistration(id: string, data: Partial<InsertWebinarRegistration>): Promise<WebinarRegistration | undefined>;
+  getVideoEvents(userId: string): Promise<VideoEvent[]>;
+  getVideoEvent(id: string): Promise<VideoEvent | undefined>;
+  createVideoEvent(data: InsertVideoEvent): Promise<VideoEvent>;
+  updateVideoEvent(id: string, data: Partial<InsertVideoEvent>): Promise<VideoEvent | undefined>;
+  deleteVideoEvent(id: string): Promise<void>;
+  getWebinarRecordings(userId: string): Promise<WebinarRecording[]>;
+  getWebinarRecording(id: string): Promise<WebinarRecording | undefined>;
+  createWebinarRecording(data: InsertWebinarRecording): Promise<WebinarRecording>;
+  updateWebinarRecording(id: string, data: Partial<InsertWebinarRecording>): Promise<WebinarRecording | undefined>;
+  deleteWebinarRecording(id: string): Promise<void>;
+  getWebinarLandingPage(webinarId: string): Promise<WebinarLandingPage | undefined>;
+  getWebinarLandingPageBySlug(slug: string): Promise<WebinarLandingPage | undefined>;
+  createWebinarLandingPage(data: InsertWebinarLandingPage): Promise<WebinarLandingPage>;
+  updateWebinarLandingPage(id: string, data: Partial<InsertWebinarLandingPage>): Promise<WebinarLandingPage | undefined>;
+  deleteWebinarLandingPage(id: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1862,6 +1893,95 @@ class DatabaseStorage implements IStorage {
       LIMIT 20
     `);
     return result.rows as any[];
+  }
+
+  // ── Video Marketing / Webinars ───────────────────────────────────────────
+  async getWebinars(userId: string, status?: "upcoming" | "live" | "completed" | "cancelled"): Promise<Webinar[]> {
+    if (status) {
+      return db.select().from(webinars).where(and(eq(webinars.userId, userId), eq(webinars.status, status))).orderBy(desc(webinars.scheduledAt));
+    }
+    return db.select().from(webinars).where(eq(webinars.userId, userId)).orderBy(desc(webinars.scheduledAt));
+  }
+  async getWebinar(id: string): Promise<Webinar | undefined> {
+    const [row] = await db.select().from(webinars).where(eq(webinars.id, id));
+    return row;
+  }
+  async createWebinar(data: InsertWebinar): Promise<Webinar> {
+    const [row] = await db.insert(webinars).values(data).returning();
+    return row;
+  }
+  async updateWebinar(id: string, data: Partial<InsertWebinar>): Promise<Webinar | undefined> {
+    const [row] = await db.update(webinars).set({ ...data, updatedAt: new Date() }).where(eq(webinars.id, id)).returning();
+    return row;
+  }
+  async deleteWebinar(id: string): Promise<void> {
+    await db.delete(webinars).where(eq(webinars.id, id));
+  }
+  async getWebinarRegistrations(webinarId: string): Promise<WebinarRegistration[]> {
+    return db.select().from(webinarRegistrations).where(eq(webinarRegistrations.webinarId, webinarId)).orderBy(desc(webinarRegistrations.registeredAt));
+  }
+  async createWebinarRegistration(data: InsertWebinarRegistration): Promise<WebinarRegistration> {
+    const [row] = await db.insert(webinarRegistrations).values(data).returning();
+    return row;
+  }
+  async updateWebinarRegistration(id: string, data: Partial<InsertWebinarRegistration>): Promise<WebinarRegistration | undefined> {
+    const [row] = await db.update(webinarRegistrations).set(data).where(eq(webinarRegistrations.id, id)).returning();
+    return row;
+  }
+  async getVideoEvents(userId: string): Promise<VideoEvent[]> {
+    return db.select().from(videoEvents).where(eq(videoEvents.userId, userId)).orderBy(desc(videoEvents.createdAt));
+  }
+  async getVideoEvent(id: string): Promise<VideoEvent | undefined> {
+    const [row] = await db.select().from(videoEvents).where(eq(videoEvents.id, id));
+    return row;
+  }
+  async createVideoEvent(data: InsertVideoEvent): Promise<VideoEvent> {
+    const [row] = await db.insert(videoEvents).values(data).returning();
+    return row;
+  }
+  async updateVideoEvent(id: string, data: Partial<InsertVideoEvent>): Promise<VideoEvent | undefined> {
+    const [row] = await db.update(videoEvents).set(data).where(eq(videoEvents.id, id)).returning();
+    return row;
+  }
+  async deleteVideoEvent(id: string): Promise<void> {
+    await db.delete(videoEvents).where(eq(videoEvents.id, id));
+  }
+  async getWebinarRecordings(userId: string): Promise<WebinarRecording[]> {
+    return db.select().from(webinarRecordings).where(eq(webinarRecordings.userId, userId)).orderBy(desc(webinarRecordings.createdAt));
+  }
+  async getWebinarRecording(id: string): Promise<WebinarRecording | undefined> {
+    const [row] = await db.select().from(webinarRecordings).where(eq(webinarRecordings.id, id));
+    return row;
+  }
+  async createWebinarRecording(data: InsertWebinarRecording): Promise<WebinarRecording> {
+    const [row] = await db.insert(webinarRecordings).values(data).returning();
+    return row;
+  }
+  async updateWebinarRecording(id: string, data: Partial<InsertWebinarRecording>): Promise<WebinarRecording | undefined> {
+    const [row] = await db.update(webinarRecordings).set(data).where(eq(webinarRecordings.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarRecording(id: string): Promise<void> {
+    await db.delete(webinarRecordings).where(eq(webinarRecordings.id, id));
+  }
+  async getWebinarLandingPage(webinarId: string): Promise<WebinarLandingPage | undefined> {
+    const [row] = await db.select().from(webinarLandingPages).where(eq(webinarLandingPages.webinarId, webinarId));
+    return row;
+  }
+  async getWebinarLandingPageBySlug(slug: string): Promise<WebinarLandingPage | undefined> {
+    const [row] = await db.select().from(webinarLandingPages).where(eq(webinarLandingPages.slug, slug));
+    return row;
+  }
+  async createWebinarLandingPage(data: InsertWebinarLandingPage): Promise<WebinarLandingPage> {
+    const [row] = await db.insert(webinarLandingPages).values(data).returning();
+    return row;
+  }
+  async updateWebinarLandingPage(id: string, data: Partial<InsertWebinarLandingPage>): Promise<WebinarLandingPage | undefined> {
+    const [row] = await db.update(webinarLandingPages).set({ ...data, updatedAt: new Date() }).where(eq(webinarLandingPages.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarLandingPage(id: string): Promise<void> {
+    await db.delete(webinarLandingPages).where(eq(webinarLandingPages.id, id));
   }
 }
 
