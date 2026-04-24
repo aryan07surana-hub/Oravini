@@ -61,11 +61,24 @@ const RETENTION_COLORS: Record<string, string> = {
   Low: "text-red-400",
 };
 
+function normalizeInstagramUrl(input: string): string {
+  const raw = input.trim();
+  if (!raw) return "";
+  // Already a full URL
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.replace(/\/$/, "") + "/";
+  }
+  // @handle or handle
+  const handle = raw.replace(/^@/, "").trim();
+  if (!handle) return "";
+  return `https://www.instagram.com/${handle}/`;
+}
+
 async function apiRequestWithTimeout(
   method: string,
   url: string,
   data: unknown,
-  timeoutMs = 95000,
+  timeoutMs = 35000,
 ) {
   const timeoutPromise = new Promise<never>((_, reject) => {
     const id = setTimeout(() => {
@@ -154,8 +167,8 @@ function OverviewSection({ report, analysis }: { report: any; analysis: any }) {
   const assessStyle = assessment === "winning"
     ? "text-green-400 bg-green-500/10 border-green-500/30"
     : assessment === "losing"
-    ? "text-red-400 bg-red-500/10 border-red-500/30"
-    : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
+      ? "text-red-400 bg-red-500/10 border-red-500/30"
+      : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
 
   const barData = [
     { metric: "Avg Views", you: cm.avgViews ?? 0, them: comp.avgViews ?? 0 },
@@ -351,8 +364,8 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 5000);
     try {
       const data = await apiRequestWithTimeout("POST", "/api/competitor/compare-reels", {
-        myReelUrl: myReelUrl.trim(),
-        competitorReelUrl: competitorReelUrl.trim(),
+        myReelUrl: normalizeInstagramUrl(myReelUrl),
+        competitorReelUrl: normalizeInstagramUrl(competitorReelUrl),
       });
       setResult(data);
     } catch (err: any) {
@@ -2056,11 +2069,10 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
                 setShowSteal(false);
               }}
               data-testid={`section-${sec.id}`}
-              className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${
-                isActive
-                  ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
-                  : "bg-card border-border hover:border-border/80 hover:bg-muted/20"
-              }`}
+              className={`relative flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${isActive
+                ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
+                : "bg-card border-border hover:border-border/80 hover:bg-muted/20"
+                }`}
             >
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isActive ? "bg-white/10" : "bg-muted/40"}`}>
                 <Icon className={`w-4 h-4 ${isActive ? sec.text : "text-muted-foreground"}`} />
@@ -2081,11 +2093,10 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
       <button
         onClick={() => { setShowSteal(!showSteal); setActiveSection(null); }}
         data-testid="section-steal"
-        className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all group ${
-          showSteal
-            ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
-            : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70 hover:from-primary/15"
-        }`}
+        className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all group ${showSteal
+          ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
+          : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70 hover:from-primary/15"
+          }`}
       >
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/2 left-0 -translate-y-1/2 w-32 h-32 bg-primary/10 rounded-full blur-2xl" />
@@ -2140,7 +2151,8 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
 
   const analyze = useMutation({
     mutationFn: () => apiRequestWithTimeout("POST", "/api/competitor/analyze", {
-      clientUrl, competitorUrl,
+      clientUrl: normalizeInstagramUrl(clientUrl),
+      competitorUrl: normalizeInstagramUrl(competitorUrl),
       clientId: activeClientId || user?.id,
     }),
     onSuccess: (data: any) => {
@@ -2228,11 +2240,13 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
-                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
+                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle or @yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
+                <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
               </div>
               <div>
                 <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
-                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle" className="h-9 text-sm" data-testid="input-competitor-url" />
+                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle or @handle" className="h-9 text-sm" data-testid="input-competitor-url" />
+                <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
               </div>
             </div>
             <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
@@ -2361,7 +2375,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={chartData}>
                   <XAxis dataKey="theme" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="views" name="Avg Views" fill={GOLD} radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -2885,7 +2899,8 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
 
   const analyze = useMutation({
     mutationFn: () => apiRequestWithTimeout("POST", "/api/niche/analyze", {
-      niche, competitorUrls: competitorUrls.filter(u => u.trim()),
+      niche,
+      competitorUrls: competitorUrls.map(normalizeInstagramUrl).filter(Boolean),
       clientId: activeClientId || user?.id,
     }),
     onSuccess: (data: any) => {
@@ -2995,7 +3010,7 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
                     <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
                       <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
                     </div>
-                    <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`instagram.com/competitor${i + 1}`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
+                    <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`@competitor${i + 1} or instagram.com/handle`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
                     {competitorUrls.length > 1 && (
                       <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
                         <XCircle className="w-4 h-4" />
@@ -3028,99 +3043,97 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">{(analyses as any[]).length} saved {(analyses as any[]).length === 1 ? "analysis" : "analyses"} — click to expand the full report</p>
             {(analyses as any[]).map((a: any) => {
-            const isActive = selectedId === a.id;
-            return (
-              <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
-                <button
-                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
-                  onClick={() => { setSelectedId(isActive ? null : a.id); setActiveNicheSection(null); setShowGrowthPlaybook(false); }}
-                  data-testid={`niche-analysis-${a.id}`}
-                >
-                  <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Search className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-foreground capitalize">{a.niche}</p>
-                    <p className="text-xs text-muted-foreground">{(a.competitorHandles || []).map((h: string) => `@${h}`).join(", ")} · {format(new Date(a.createdAt), "MMM d, yyyy")}</p>
-                  </div>
-                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
-                </button>
+              const isActive = selectedId === a.id;
+              return (
+                <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
+                  <button
+                    className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
+                    onClick={() => { setSelectedId(isActive ? null : a.id); setActiveNicheSection(null); setShowGrowthPlaybook(false); }}
+                    data-testid={`niche-analysis-${a.id}`}
+                  >
+                    <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Search className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground capitalize">{a.niche}</p>
+                      <p className="text-xs text-muted-foreground">{(a.competitorHandles || []).map((h: string) => `@${h}`).join(", ")} · {format(new Date(a.createdAt), "MMM d, yyyy")}</p>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
+                  </button>
 
-                {isActive && a.report && (
-                  <div className="p-4 border-t border-border space-y-5">
-                    {/* Section grid */}
-                    <div className="grid grid-cols-3 gap-3">
-                      {NICHE_SECTIONS.map((sec) => {
-                        const Icon = sec.icon;
-                        const isSecActive = activeNicheSection === sec.id;
-                        return (
-                          <button
-                            key={sec.id}
-                            onClick={() => { setActiveNicheSection(isSecActive ? null : sec.id); setShowGrowthPlaybook(false); }}
-                            data-testid={`niche-section-${sec.id}`}
-                            className={`flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${
-                              isSecActive
+                  {isActive && a.report && (
+                    <div className="p-4 border-t border-border space-y-5">
+                      {/* Section grid */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {NICHE_SECTIONS.map((sec) => {
+                          const Icon = sec.icon;
+                          const isSecActive = activeNicheSection === sec.id;
+                          return (
+                            <button
+                              key={sec.id}
+                              onClick={() => { setActiveNicheSection(isSecActive ? null : sec.id); setShowGrowthPlaybook(false); }}
+                              data-testid={`niche-section-${sec.id}`}
+                              className={`flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${isSecActive
                                 ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
                                 : "bg-card border-border hover:bg-muted/20"
-                            }`}
-                          >
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSecActive ? "bg-white/10" : "bg-muted/40"}`}>
-                              <Icon className={`w-4 h-4 ${isSecActive ? sec.text : "text-muted-foreground"}`} />
-                            </div>
-                            <div>
-                              <p className={`text-xs font-bold ${isSecActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
-                              <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                                }`}
+                            >
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSecActive ? "bg-white/10" : "bg-muted/40"}`}>
+                                <Icon className={`w-4 h-4 ${isSecActive ? sec.text : "text-muted-foreground"}`} />
+                              </div>
+                              <div>
+                                <p className={`text-xs font-bold ${isSecActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                    {/* Growth Playbook special button */}
-                    <button
-                      onClick={() => { setShowGrowthPlaybook(!showGrowthPlaybook); setActiveNicheSection(null); }}
-                      className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all ${
-                        showGrowthPlaybook
+                      {/* Growth Playbook special button */}
+                      <button
+                        onClick={() => { setShowGrowthPlaybook(!showGrowthPlaybook); setActiveNicheSection(null); }}
+                        className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all ${showGrowthPlaybook
                           ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
                           : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                          <Sparkles className="w-6 h-6 text-primary" />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-black text-primary">🧠 AI Niche Brain + Growth Playbook</p>
-                            <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase">Most Valuable</span>
+                          }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-6 h-6 text-primary" />
                           </div>
-                          <p className="text-xs text-muted-foreground">What to post · 30-day playbook · Content lifecycle · Virality scores</p>
+                          <div className="flex-1 text-left">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-black text-primary">🧠 AI Niche Brain + Growth Playbook</p>
+                              <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase">Most Valuable</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">What to post · 30-day playbook · Content lifecycle · Virality scores</p>
+                          </div>
+                          <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showGrowthPlaybook ? "rotate-180" : ""}`} />
                         </div>
-                        <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showGrowthPlaybook ? "rotate-180" : ""}`} />
-                      </div>
-                    </button>
-
-                    {/* Section content */}
-                    {(activeNicheSection || showGrowthPlaybook) && (
-                      <div className="bg-card border border-card-border rounded-2xl p-5">
-                        {showGrowthPlaybook
-                          ? <NicheGrowthPlaybook report={a.report} niche={a.niche} />
-                          : <NicheReportSection sectionId={activeNicheSection!} report={a.report} niche={a.niche} />
-                        }
-                      </div>
-                    )}
-
-                    <div className="flex justify-end">
-                      <button onClick={() => deleteAnalysis.mutate(a.id)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors p-2">
-                        <Trash2 className="w-3.5 h-3.5" />Delete Analysis
                       </button>
+
+                      {/* Section content */}
+                      {(activeNicheSection || showGrowthPlaybook) && (
+                        <div className="bg-card border border-card-border rounded-2xl p-5">
+                          {showGrowthPlaybook
+                            ? <NicheGrowthPlaybook report={a.report} niche={a.niche} />
+                            : <NicheReportSection sectionId={activeNicheSection!} report={a.report} niche={a.niche} />
+                          }
+                        </div>
+                      )}
+
+                      <div className="flex justify-end">
+                        <button onClick={() => deleteAnalysis.mutate(a.id)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors p-2">
+                          <Trash2 className="w-3.5 h-3.5" />Delete Analysis
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )
       )}
     </div>
@@ -3542,7 +3555,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
     setActiveTool(null);
     setToolResult(null);
     try {
-      const data = await apiRequest("POST", "/api/methodology/analyze", { profileUrl: profileUrl.trim() });
+      const data = await apiRequest("POST", "/api/methodology/analyze", { profileUrl: normalizeInstagramUrl(profileUrl) });
       setProfile(data);
       toast({ title: "Content DNA Profile Ready!", description: `Analysed ${data?.handle}'s methodology from their recent posts.` });
       if (!useAdmin && data?.handle) {
@@ -3551,7 +3564,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
           title: `@${data.handle} — Content DNA`,
           inputs: { profileUrl: profileUrl.trim(), handle: data.handle },
           output: { contentDNA: data.contentDNA, handle: data.handle, postCount: data.postCount },
-        }).then(() => qcM.invalidateQueries({ queryKey: ["/api/ai/history?tool=methodology"] })).catch(() => {});
+        }).then(() => qcM.invalidateQueries({ queryKey: ["/api/ai/history?tool=methodology"] })).catch(() => { });
       }
     } catch (err: any) {
       toast({ title: "Analysis failed", description: err.message, variant: "destructive" });
@@ -3640,166 +3653,166 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
           </div>
         )
       ) : (
-      <>
-      {/* Profile URL input */}
-      <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center">
-            <Dna className="w-4 h-4 text-violet-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-foreground">Build Your Content DNA Profile</p>
-            <p className="text-xs text-muted-foreground">Enter your Instagram URL — AI scrapes your posts and reverse-engineers your exact methodology</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            value={profileUrl}
-            onChange={e => setProfileUrl(e.target.value)}
-            placeholder="https://instagram.com/yourusername"
-            className="flex-1 h-9 text-sm"
-            data-testid="input-methodology-url"
-            onKeyDown={e => e.key === "Enter" && handleAnalyze()}
-          />
-          <Button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="h-9 px-4 gap-2"
-            data-testid="button-analyze-methodology"
-          >
-            {analyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse My Content</>}
-          </Button>
-        </div>
-        {analyzing && (
-          <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-3 text-center">
-            <p className="text-xs text-violet-300">Scraping your last 30 posts and reverse-engineering your content methodology…</p>
-            <p className="text-[10px] text-muted-foreground mt-1">This usually takes 15–30 seconds</p>
-          </div>
-        )}
-      </div>
-
-      {/* DNA Profile */}
-      {profile && <DNAProfile profile={profile} />}
-
-      {/* AI Tools */}
-      {profile && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Wand2 className="w-4 h-4 text-primary" />
-            <p className="text-sm font-bold text-foreground">AI Content Tools</p>
-            <p className="text-xs text-muted-foreground">— use your Content DNA to improve your content</p>
+        <>
+          {/* Profile URL input */}
+          <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center">
+                <Dna className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Build Your Content DNA Profile</p>
+                <p className="text-xs text-muted-foreground">Enter your Instagram URL — AI scrapes your posts and reverse-engineers your exact methodology</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={profileUrl}
+                onChange={e => setProfileUrl(e.target.value)}
+                placeholder="https://instagram.com/yourusername"
+                className="flex-1 h-9 text-sm"
+                data-testid="input-methodology-url"
+                onKeyDown={e => e.key === "Enter" && handleAnalyze()}
+              />
+              <Button
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                className="h-9 px-4 gap-2"
+                data-testid="button-analyze-methodology"
+              >
+                {analyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analysing…</> : <><Sparkles className="w-3.5 h-3.5" />Analyse My Content</>}
+              </Button>
+            </div>
+            {analyzing && (
+              <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-3 text-center">
+                <p className="text-xs text-violet-300">Scraping your last 30 posts and reverse-engineering your content methodology…</p>
+                <p className="text-[10px] text-muted-foreground mt-1">This usually takes 15–30 seconds</p>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {METHODOLOGY_TOOLS.map(tool => {
-              const Icon = tool.icon;
-              const isActive = activeTool === tool.id;
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => { setActiveTool(isActive ? null : tool.id); setToolResult(null); setToolContent(""); setToolInputMode("paste"); setReelUrl(""); }}
-                  data-testid={`tool-${tool.id}`}
-                  className={`group relative overflow-hidden rounded-2xl border text-left p-4 flex flex-col gap-3 transition-all ${isActive ? `${tool.border} bg-gradient-to-br ${tool.color}` : "border-border bg-card hover:border-primary/30 hover:bg-primary/5"}`}
-                >
-                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${tool.color} border ${tool.border} flex items-center justify-center transition-all`}>
-                    <Icon className={`w-4 h-4 ${tool.text}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground mb-0.5">{tool.label}</p>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">{tool.desc}</p>
-                  </div>
-                  {isActive && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary opacity-80" />}
-                </button>
-              );
-            })}
-          </div>
+          {/* DNA Profile */}
+          {profile && <DNAProfile profile={profile} />}
 
-          {/* Active tool interface */}
-          {activeTool && currentTool && (
-            <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <currentTool.icon className={`w-4 h-4 ${currentTool.text}`} />
-                  <p className="text-sm font-bold text-foreground">{currentTool.label}</p>
-                </div>
-                {/* Toggle: Paste or URL */}
-                <div className="flex items-center gap-1 bg-muted/30 border border-card-border rounded-xl p-1">
-                  <button
-                    onClick={() => setToolInputMode("paste")}
-                    data-testid="toggle-paste-mode"
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${toolInputMode === "paste" ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    Paste Content
-                  </button>
-                  <button
-                    onClick={() => setToolInputMode("url")}
-                    data-testid="toggle-url-mode"
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${toolInputMode === "url" ? "bg-pink-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    <Instagram className="w-3 h-3" />
-                    Reel URL
-                  </button>
-                </div>
+          {/* AI Tools */}
+          {profile && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-4 h-4 text-primary" />
+                <p className="text-sm font-bold text-foreground">AI Content Tools</p>
+                <p className="text-xs text-muted-foreground">— use your Content DNA to improve your content</p>
               </div>
 
-              {toolInputMode === "paste" ? (
-                <>
-                  <textarea
-                    value={toolContent}
-                    onChange={e => setToolContent(e.target.value)}
-                    placeholder={currentTool.placeholder}
-                    className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
-                    data-testid="textarea-tool-content"
-                  />
-                  <AiRefineButton text={toolContent} onAccept={setToolContent} context="social media content for competitor analysis" />
-                </>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-[11px] text-muted-foreground">Enter an Instagram Reel URL — AI will fetch the caption and load it for analysis</p>
-                  <div className="flex gap-2">
-                    <Input
-                      value={reelUrl}
-                      onChange={e => setReelUrl(e.target.value)}
-                      placeholder="https://www.instagram.com/reel/..."
-                      className="flex-1 h-9 text-sm"
-                      data-testid="input-reel-url"
-                      onKeyDown={e => e.key === "Enter" && handleFetchReel()}
-                    />
-                    <Button
-                      onClick={handleFetchReel}
-                      disabled={reelFetching || !reelUrl.trim()}
-                      size="sm"
-                      variant="outline"
-                      className="h-9 px-3 gap-1.5 border-pink-500/40 text-pink-400 hover:bg-pink-500/10"
-                      data-testid="button-fetch-reel"
+              <div className="grid grid-cols-2 gap-3">
+                {METHODOLOGY_TOOLS.map(tool => {
+                  const Icon = tool.icon;
+                  const isActive = activeTool === tool.id;
+                  return (
+                    <button
+                      key={tool.id}
+                      onClick={() => { setActiveTool(isActive ? null : tool.id); setToolResult(null); setToolContent(""); setToolInputMode("paste"); setReelUrl(""); }}
+                      data-testid={`tool-${tool.id}`}
+                      className={`group relative overflow-hidden rounded-2xl border text-left p-4 flex flex-col gap-3 transition-all ${isActive ? `${tool.border} bg-gradient-to-br ${tool.color}` : "border-border bg-card hover:border-primary/30 hover:bg-primary/5"}`}
                     >
-                      {reelFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Instagram className="w-3.5 h-3.5" />}
-                      {reelFetching ? "Fetching…" : "Fetch Caption"}
-                    </Button>
+                      <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${tool.color} border ${tool.border} flex items-center justify-center transition-all`}>
+                        <Icon className={`w-4 h-4 ${tool.text}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground mb-0.5">{tool.label}</p>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">{tool.desc}</p>
+                      </div>
+                      {isActive && <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-primary opacity-80" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active tool interface */}
+              {activeTool && currentTool && (
+                <div className="bg-card border border-card-border rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <currentTool.icon className={`w-4 h-4 ${currentTool.text}`} />
+                      <p className="text-sm font-bold text-foreground">{currentTool.label}</p>
+                    </div>
+                    {/* Toggle: Paste or URL */}
+                    <div className="flex items-center gap-1 bg-muted/30 border border-card-border rounded-xl p-1">
+                      <button
+                        onClick={() => setToolInputMode("paste")}
+                        data-testid="toggle-paste-mode"
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${toolInputMode === "paste" ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        Paste Content
+                      </button>
+                      <button
+                        onClick={() => setToolInputMode("url")}
+                        data-testid="toggle-url-mode"
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${toolInputMode === "url" ? "bg-pink-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        <Instagram className="w-3 h-3" />
+                        Reel URL
+                      </button>
+                    </div>
                   </div>
-                  {toolContent && (
-                    <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3">
-                      <p className="text-[10px] text-green-400 font-semibold mb-1">Caption loaded — ready to run</p>
-                      <p className="text-xs text-muted-foreground line-clamp-3">{toolContent}</p>
+
+                  {toolInputMode === "paste" ? (
+                    <>
+                      <textarea
+                        value={toolContent}
+                        onChange={e => setToolContent(e.target.value)}
+                        placeholder={currentTool.placeholder}
+                        className="w-full bg-muted/20 border border-card-border rounded-xl p-3 text-sm text-foreground resize-none h-32 outline-none focus:border-primary/50 transition-colors placeholder:text-muted-foreground/50"
+                        data-testid="textarea-tool-content"
+                      />
+                      <AiRefineButton text={toolContent} onAccept={setToolContent} context="social media content for competitor analysis" />
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-muted-foreground">Enter an Instagram Reel URL — AI will fetch the caption and load it for analysis</p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={reelUrl}
+                          onChange={e => setReelUrl(e.target.value)}
+                          placeholder="https://www.instagram.com/reel/..."
+                          className="flex-1 h-9 text-sm"
+                          data-testid="input-reel-url"
+                          onKeyDown={e => e.key === "Enter" && handleFetchReel()}
+                        />
+                        <Button
+                          onClick={handleFetchReel}
+                          disabled={reelFetching || !reelUrl.trim()}
+                          size="sm"
+                          variant="outline"
+                          className="h-9 px-3 gap-1.5 border-pink-500/40 text-pink-400 hover:bg-pink-500/10"
+                          data-testid="button-fetch-reel"
+                        >
+                          {reelFetching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Instagram className="w-3.5 h-3.5" />}
+                          {reelFetching ? "Fetching…" : "Fetch Caption"}
+                        </Button>
+                      </div>
+                      {toolContent && (
+                        <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3">
+                          <p className="text-[10px] text-green-400 font-semibold mb-1">Caption loaded — ready to run</p>
+                          <p className="text-xs text-muted-foreground line-clamp-3">{toolContent}</p>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  <Button
+                    onClick={handleRunTool}
+                    disabled={toolLoading || !toolContent.trim()}
+                    className="gap-2"
+                    data-testid="button-run-tool"
+                  >
+                    {toolLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Running…</> : <><Sparkles className="w-3.5 h-3.5" />Run {currentTool.label}</>}
+                  </Button>
+                  {toolResult && <ToolResult tool={activeTool} result={toolResult} />}
                 </div>
               )}
-
-              <Button
-                onClick={handleRunTool}
-                disabled={toolLoading || !toolContent.trim()}
-                className="gap-2"
-                data-testid="button-run-tool"
-              >
-                {toolLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Running…</> : <><Sparkles className="w-3.5 h-3.5" />Run {currentTool.label}</>}
-              </Button>
-              {toolResult && <ToolResult tool={activeTool} result={toolResult} />}
             </div>
           )}
-        </div>
-      )}
-      </>
+        </>
       )}
     </div>
   );
@@ -3837,24 +3850,24 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 {activeSection === "competitor"
                   ? "Competitor Analysis"
                   : activeSection === "niche"
-                  ? "What's Working in My Niche"
-                  : activeSection === "methodology"
-                  ? "Use My Own Methodology"
-                  : activeSection === "virality"
-                  ? "Virality Tester"
-                  : "Competitor Study"}
+                    ? "What's Working in My Niche"
+                    : activeSection === "methodology"
+                      ? "Use My Own Methodology"
+                      : activeSection === "virality"
+                        ? "Virality Tester"
+                        : "Competitor Study"}
               </h1>
             </div>
             <p className="text-xs text-muted-foreground">
               {activeSection === "competitor"
                 ? "Your account vs one competitor · 9-section deep-dive · Steal their strategy"
                 : activeSection === "niche"
-                ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
-                : activeSection === "methodology"
-                ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
-                : activeSection === "virality"
-                ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
-                : "Choose a study mode below"}
+                  ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
+                  : activeSection === "methodology"
+                    ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
+                    : activeSection === "virality"
+                      ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
+                      : "Choose a study mode below"}
             </p>
           </div>
           <PageTourButton pageKey="competitor" className="ml-auto flex-shrink-0" />
