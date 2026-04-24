@@ -2806,50 +2806,166 @@ Return JSON:
       }
 
       const isYt = platform === "youtube";
-      const totalViews = posts.reduce((s: number, p: any) => s + (p.views || 0), 0);
-      const avgViews = Math.round(totalViews / posts.length);
-      const erValues = posts.map((p: any) => p.views > 0 ? ((p.likes + p.comments + p.saves) / p.views * 100) : 0).filter((v: number) => v > 0);
+      const orderedPosts = [...posts].sort((a: any, b: any) => new Date(a.postDate).getTime() - new Date(b.postDate).getTime());
+      const totalViews = orderedPosts.reduce((s: number, p: any) => s + (p.views || 0), 0);
+      const totalLikes = orderedPosts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
+      const totalComments = orderedPosts.reduce((s: number, p: any) => s + (p.comments || 0), 0);
+      const totalSaves = orderedPosts.reduce((s: number, p: any) => s + (p.saves || 0), 0);
+      const totalFollowers = orderedPosts.reduce((s: number, p: any) => s + ((isYt ? p.subscribersGained : p.followersGained) || 0), 0);
+      const avgViews = Math.round(totalViews / orderedPosts.length);
+      const erValues = orderedPosts.map((p: any) => p.views > 0 ? ((p.likes + p.comments + p.saves) / p.views * 100) : 0).filter((v: number) => v > 0);
       const avgEr = erValues.length > 0 ? (erValues.reduce((s: number, v: number) => s + v, 0) / erValues.length).toFixed(2) : "0.00";
-      const bestPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
-      const worstPost = [...posts].sort((a: any, b: any) => (a.views || 0) - (b.views || 0))[0];
+      const bestPost = [...orderedPosts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
+      const worstPost = [...orderedPosts].sort((a: any, b: any) => (a.views || 0) - (b.views || 0))[0];
       const typeCounts: Record<string, number> = {};
-      posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
+      orderedPosts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
       const allTypes = Object.entries(typeCounts).map(([type, count]) => `${type}: ${count}`).join(", ");
+
+      const byDay = new Map<string, { day: string; views: number; likes: number; comments: number; saves: number; posts: number }>();
+      for (const post of orderedPosts) {
+        const day = new Date(post.postDate).toISOString().slice(0, 10);
+        const existing = byDay.get(day) || { day, views: 0, likes: 0, comments: 0, saves: 0, posts: 0 };
+        existing.views += post.views || 0;
+        existing.likes += post.likes || 0;
+        existing.comments += post.comments || 0;
+        existing.saves += post.saves || 0;
+        existing.posts += 1;
+        byDay.set(day, existing);
+      }
+      const trendSeries = [...byDay.values()].map((row) => ({
+        day: row.day,
+        views: row.views,
+        posts: row.posts,
+        engagement: row.views > 0 ? +(((row.likes + row.comments + row.saves) / row.views) * 100).toFixed(2) : 0,
+      }));
+
+      const formatBreakdown = Object.entries(typeCounts).map(([name, count]) => ({
+        name,
+        label: name,
+        posts: count,
+        totalViews: orderedPosts.filter((p: any) => p.contentType === name).reduce((s: number, p: any) => s + (p.views || 0), 0),
+      }));
+
+      const performanceByType = Object.keys(typeCounts).map((name) => {
+        const typePosts = orderedPosts.filter((p: any) => p.contentType === name);
+        const views = typePosts.reduce((s: number, p: any) => s + (p.views || 0), 0);
+        const likes = typePosts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
+        const comments = typePosts.reduce((s: number, p: any) => s + (p.comments || 0), 0);
+        const saves = typePosts.reduce((s: number, p: any) => s + (p.saves || 0), 0);
+        return {
+          type: name,
+          avgViews: Math.round(views / Math.max(typePosts.length, 1)),
+          avgEngagement: views > 0 ? +(((likes + comments + saves) / views) * 100).toFixed(2) : 0,
+          posts: typePosts.length,
+        };
+      });
+
+      const topPosts = [...orderedPosts]
+        .sort((a: any, b: any) => (b.views || 0) - (a.views || 0))
+        .slice(0, 5)
+        .map((p: any) => ({
+          title: p.title || "Untitled",
+          views: p.views || 0,
+          likes: p.likes || 0,
+          comments: p.comments || 0,
+          saves: p.saves || 0,
+          contentType: p.contentType || "unknown",
+        }));
+
+      const weakPosts = [...orderedPosts]
+        .sort((a: any, b: any) => (a.views || 0) - (b.views || 0))
+        .slice(0, 3)
+        .map((p: any) => ({
+          title: p.title || "Untitled",
+          views: p.views || 0,
+          contentType: p.contentType || "unknown",
+          issueHint: p.views < avgViews * 0.5 ? "well below average reach" : "under average performance",
+        }));
+
+      const firstHalf = orderedPosts.slice(0, Math.max(1, Math.floor(orderedPosts.length / 2)));
+      const secondHalf = orderedPosts.slice(Math.max(1, Math.floor(orderedPosts.length / 2)));
+      const firstHalfAvg = Math.round(firstHalf.reduce((s: number, p: any) => s + (p.views || 0), 0) / Math.max(firstHalf.length, 1));
+      const secondHalfAvg = Math.round(secondHalf.reduce((s: number, p: any) => s + (p.views || 0), 0) / Math.max(secondHalf.length, 1));
+      const viewDeltaPct = firstHalfAvg > 0 ? ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100 : 0;
+      const growthTrend = viewDeltaPct > 12 ? "↑ Growing" : viewDeltaPct < -12 ? "↓ Declining" : "→ Stable";
+
+      const score = Math.max(35, Math.min(96,
+        Math.round(
+          45 +
+          Math.min(25, erValues.length > 0 ? Number(avgEr) * 4 : 0) +
+          Math.min(15, orderedPosts.length * 1.5) +
+          (growthTrend.startsWith("↑") ? 8 : growthTrend.startsWith("↓") ? -8 : 0)
+        ),
+      ));
 
       const systemPrompt = `You are a world-class social media analyst and growth strategist. You provide deep, actionable insights based on real data. Your analysis is specific, not generic. You understand platform algorithms, content strategy, and audience psychology deeply.`;
 
       const userPrompt = `Analyze this ${isYt ? "YouTube" : "Instagram"} content performance data and generate a comprehensive strategic report.
 
 PERFORMANCE DATA:
-- Total posts analyzed: ${posts.length}
+- Total posts analyzed: ${orderedPosts.length}
 - Total views: ${totalViews.toLocaleString()}
+- Total likes: ${totalLikes.toLocaleString()}
+- Total comments: ${totalComments.toLocaleString()}
+${!isYt ? `- Total saves: ${totalSaves.toLocaleString()}` : ""}
 - Average views per post: ${avgViews.toLocaleString()}
 ${!isYt ? `- Average engagement rate: ${avgEr}%` : ""}
+- ${isYt ? "Subscribers" : "Followers"} gained: ${totalFollowers.toLocaleString()}
 - Best post: "${bestPost?.title || "Untitled"}" — ${(bestPost?.views || 0).toLocaleString()} views
 - Worst post: "${worstPost?.title || "Untitled"}" — ${(worstPost?.views || 0).toLocaleString()} views
 - Content type breakdown: ${allTypes}
-- Date range: ${posts.length > 0 ? `${new Date(posts[posts.length - 1].postDate).toLocaleDateString()} to ${new Date(posts[0].postDate).toLocaleDateString()}` : "N/A"}
+- Date range: ${orderedPosts.length > 0 ? `${new Date(orderedPosts[0].postDate).toLocaleDateString()} to ${new Date(orderedPosts[orderedPosts.length - 1].postDate).toLocaleDateString()}` : "N/A"}
+- Trend signal from first half to second half: ${growthTrend} (${viewDeltaPct.toFixed(1)}%)
 
 Individual post data:
-${posts.slice(0, 15).map((p: any) => `- "${p.title || 'Untitled'}" | ${p.contentType} | ${(p.views || 0).toLocaleString()} views${!isYt ? ` | ${(p.likes || 0)} likes | ${(p.comments || 0)} comments | ${(p.saves || 0)} saves` : ""}`).join("\n")}
+${orderedPosts.slice(0, 15).map((p: any) => `- "${p.title || 'Untitled'}" | ${p.contentType} | ${(p.views || 0).toLocaleString()} views${!isYt ? ` | ${(p.likes || 0)} likes | ${(p.comments || 0)} comments | ${(p.saves || 0)} saves` : ""}`).join("\n")}
 
 Return ONLY a JSON object (no markdown, no text outside JSON):
 {
   "summary": "2-3 sentence executive summary with specific numbers and honest assessment",
   "insights": ["specific data-driven insight 1", "insight 2", "insight 3", "insight 4"],
+  "wins": ["what is clearly working 1", "what is clearly working 2", "what is clearly working 3"],
+  "weakSpots": ["what is underperforming 1", "what is underperforming 2", "what is underperforming 3"],
   "topPost": { "title": "exact post title", "reason": "specific reason why it outperformed" },
+  "lowPerformer": { "title": "exact post title", "reason": "specific reason why it lagged" },
   "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"],
+  "nextActions": ["clear action for the next 7 days", "second action", "third action"],
+  "contentIdeas": ["next post idea 1", "next post idea 2", "next post idea 3"],
   "avgEngagement": "${avgEr}",
   "avgViews": ${avgViews},
   "growthTrend": "↑ Growing | → Stable | ↓ Declining",
-  "contentMixAnalysis": "One sentence on their current content mix and whether it's balanced"
+  "contentMixAnalysis": "One sentence on their current content mix and whether it's balanced",
+  "scoreLabel": "string label like Momentum Building / Strong Foundation / Needs Reset"
 }`;
 
       const text = await callOpenRouter(systemPrompt, userPrompt, 2500);
 
       const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
       if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
-      res.json(JSON.parse(jsonMatch[0]));
+      const parsed = JSON.parse(jsonMatch[0]);
+      res.json({
+        ...parsed,
+        score,
+        kpis: {
+          posts: orderedPosts.length,
+          totalViews,
+          totalLikes,
+          totalComments,
+          totalSaves,
+          totalFollowers,
+          avgViews,
+          avgEngagement: Number(avgEr),
+        },
+        trendSeries,
+        formatBreakdown,
+        performanceByType,
+        topPosts,
+        weakPosts,
+        dateRange: {
+          start: orderedPosts.length > 0 ? new Date(orderedPosts[0].postDate).toISOString() : null,
+          end: orderedPosts.length > 0 ? new Date(orderedPosts[orderedPosts.length - 1].postDate).toISOString() : null,
+        },
+      });
     } catch (err: any) {
       console.error("AI report error:", err);
       res.status(500).json({ message: err.message || "AI report failed" });

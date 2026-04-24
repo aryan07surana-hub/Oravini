@@ -59,6 +59,13 @@ function toNum(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function compactNum(value: unknown): string {
+  const n = toNum(value);
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${Math.round(n)}`;
+}
+
 function formatDateSafe(value: unknown, pattern: string, fallback = "Unknown date"): string {
   const d = new Date(value as any);
   if (Number.isNaN(d.getTime())) return fallback;
@@ -527,13 +534,14 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const { toast } = useToast();
+  const isYt = platform === "youtube";
 
   const loadingSteps = [
-    "Initializing AI analysis...",
-    "Scanning content performance data...",
-    "Calculating engagement patterns...",
-    "Identifying top performers...",
-    "Generating growth insights...",
+    "Booting tactical scanner...",
+    "Scanning content performance signals...",
+    "Mapping engagement patterns...",
+    "Locating top and weak zones...",
+    "Generating strategic playbook...",
   ];
 
   const applyQuickRange = (days: number) => {
@@ -595,115 +603,183 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   };
 
   const filteredForReport = getPostsForPeriod();
+  const trendData = Array.isArray(report?.trendSeries)
+    ? report.trendSeries.map((item: any) => ({
+        ...item,
+        label: formatDateSafe(item.day, "MMM d", item.day),
+      }))
+    : [];
+  const formatData = Array.isArray(report?.formatBreakdown)
+    ? report.formatBreakdown.map((item: any) => ({
+        name: CONTENT_TYPE_LABELS[item.name] || item.label || item.name,
+        value: item.posts || 0,
+        totalViews: item.totalViews || 0,
+      }))
+    : [];
+  const performanceTypeData = Array.isArray(report?.performanceByType)
+    ? report.performanceByType.map((item: any) => ({
+        type: CONTENT_TYPE_LABELS[item.type] || item.type,
+        avgViews: item.avgViews || 0,
+      }))
+    : [];
+  const score = toNum(report?.score);
+  const scoreTone = score >= 80
+    ? { label: report?.scoreLabel || "High Momentum", color: "text-emerald-400", glow: "shadow-[0_0_30px_rgba(16,185,129,0.18)]" }
+    : score >= 65
+      ? { label: report?.scoreLabel || "Momentum Building", color: "text-sky-400", glow: "shadow-[0_0_30px_rgba(56,189,248,0.18)]" }
+      : { label: report?.scoreLabel || "Needs Rebalance", color: "text-amber-400", glow: "shadow-[0_0_30px_rgba(251,191,36,0.18)]" };
 
   if (stage === "idle") {
     return (
-      <div className="border border-primary/20 rounded-2xl p-6 bg-primary/5 flex flex-col items-center gap-4 text-center">
-        {errorMsg && (
-          <div className="w-full bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-left flex gap-2">
-            <span className="text-destructive mt-0.5 flex-shrink-0">⚠️</span>
-            <div>
-              <p className="text-xs font-semibold text-destructive">AI Quota Exceeded</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{errorMsg}</p>
-            </div>
-          </div>
-        )}
-        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
-          <Sparkles className="w-7 h-7 text-primary" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-foreground">AI Report Generator</h3>
-          <p className="text-xs text-muted-foreground mt-1">Select a date range and generate AI-powered insights and growth recommendations</p>
-        </div>
-
-        <div className="w-full max-w-sm space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Quick Range</p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "1 Week", days: 7 },
-                { label: "2 Weeks", days: 14 },
-                { label: "4 Weeks", days: 28 },
-              ].map(({ label, days }) => (
-                <button
-                  key={days}
-                  onClick={() => applyQuickRange(days)}
-                  disabled={posts.length === 0}
-                  className="p-2 rounded-xl border border-border text-center text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  data-testid={`quick-range-${days}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Custom Range</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-left">
-                <Label className="text-xs text-muted-foreground">From</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  disabled={posts.length === 0}
-                  className="mt-1 h-8 text-xs"
-                  data-testid="input-report-start"
-                />
-              </div>
-              <div className="text-left">
-                <Label className="text-xs text-muted-foreground">To</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  disabled={posts.length === 0}
-                  className="mt-1 h-8 text-xs"
-                  data-testid="input-report-end"
-                />
+      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(212,180,97,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(99,102,241,0.18),transparent_28%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-6 sm:p-7">
+        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+        <div className="relative flex flex-col items-center gap-5 text-center">
+          {errorMsg && (
+            <div className="w-full bg-destructive/10 border border-destructive/30 rounded-xl p-3 text-left flex gap-2">
+              <span className="text-destructive mt-0.5 flex-shrink-0">⚠️</span>
+              <div>
+                <p className="text-xs font-semibold text-destructive">AI Quota Exceeded</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{errorMsg}</p>
               </div>
             </div>
-          </div>
-
-          {(startDate || endDate) && (
-            <p className="text-xs text-muted-foreground text-left">
-              {filteredForReport.length} post{filteredForReport.length !== 1 ? "s" : ""} in selected range
-            </p>
           )}
-        </div>
 
-        <Button
-          onClick={generate}
-          disabled={posts.length === 0 || filteredForReport.length === 0}
-          data-testid="button-generate-ai-report"
-          className="gap-2"
-        >
-          <Sparkles className="w-4 h-4" /> Generate AI Report
-        </Button>
-        {posts.length === 0
-          ? <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>
-          : filteredForReport.length === 0 && (startDate || endDate)
-          ? <p className="text-xs text-muted-foreground">No posts found in this date range.</p>
-          : null
-        }
+          <div className="w-16 h-16 rounded-[22px] border border-primary/30 bg-primary/10 backdrop-blur flex items-center justify-center shadow-[0_0_30px_rgba(212,180,97,0.18)]">
+            <Sparkles className="w-8 h-8 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground text-lg">AI Report Generator</h3>
+            <p className="text-xs text-muted-foreground mt-1 max-w-md">Launch a tactical report with charts, strategic takeaways, strongest and weakest zones, and an AI growth playbook.</p>
+          </div>
+
+          <div className="w-full max-w-3xl grid lg:grid-cols-[1.05fr_0.95fr] gap-4 items-start">
+            <div className="rounded-3xl border border-primary/20 bg-black/20 backdrop-blur-sm p-4 text-left">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em]">Mission Setup</p>
+                <Badge variant="outline" className={`text-[10px] ${isYt ? "border-red-500/30 text-red-400" : "border-pink-500/30 text-pink-400"}`}>
+                  {isYt ? <Youtube className="w-3 h-3 mr-1" /> : <Instagram className="w-3 h-3 mr-1" />}
+                  {isYt ? "YouTube" : "Instagram"}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {[
+                  { label: "Posts Available", value: posts.length, color: "text-primary" },
+                  { label: "Filtered Posts", value: filteredForReport.length, color: "text-sky-400" },
+                  { label: "Scan Mode", value: "AI", color: "text-emerald-400" },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Quick Range</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "1 Week", days: 7 },
+                      { label: "2 Weeks", days: 14 },
+                      { label: "4 Weeks", days: 28 },
+                    ].map(({ label, days }) => (
+                      <button
+                        key={days}
+                        onClick={() => applyQuickRange(days)}
+                        disabled={posts.length === 0}
+                        className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        data-testid={`quick-range-${days}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Custom Range</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="text-left">
+                      <Label className="text-xs text-muted-foreground">From</Label>
+                      <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} disabled={posts.length === 0} className="mt-1 h-9 text-xs bg-white/[0.03] border-white/10" data-testid="input-report-start" />
+                    </div>
+                    <div className="text-left">
+                      <Label className="text-xs text-muted-foreground">To</Label>
+                      <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} disabled={posts.length === 0} className="mt-1 h-9 text-xs bg-white/[0.03] border-white/10" data-testid="input-report-end" />
+                    </div>
+                  </div>
+                </div>
+
+                {(startDate || endDate) && (
+                  <p className="text-xs text-muted-foreground text-left">
+                    {filteredForReport.length} post{filteredForReport.length !== 1 ? "s" : ""} in selected range
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-primary/20 bg-black/25 backdrop-blur-sm p-4 text-left space-y-4">
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em]">Unlocked Modules</p>
+              <div className="space-y-3">
+                {[
+                  { icon: TrendingUp, title: "Trend Scanner", text: "See momentum shifts and reach spikes over time." },
+                  { icon: PieChart, title: "Format Split", text: "Visualize which post types are carrying the account." },
+                  { icon: Lightbulb, title: "Strategy Engine", text: "Get action steps, weak spots, and next-post ideas." },
+                ].map(({ icon: Icon, title, text }) => (
+                  <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 flex gap-3">
+                    <div className="w-10 h-10 rounded-2xl border border-primary/20 bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Button onClick={generate} disabled={posts.length === 0 || filteredForReport.length === 0} data-testid="button-generate-ai-report" className="gap-2 h-11 px-6 rounded-2xl bg-primary text-black hover:bg-primary/90 shadow-[0_0_24px_rgba(212,180,97,0.25)]">
+            <Sparkles className="w-4 h-4" /> Generate AI Report
+          </Button>
+          {posts.length === 0
+            ? <p className="text-xs text-muted-foreground">Log some posts first to generate a report.</p>
+            : filteredForReport.length === 0 && (startDate || endDate)
+            ? <p className="text-xs text-muted-foreground">No posts found in this date range.</p>
+            : null
+          }
+        </div>
       </div>
     );
   }
 
   if (stage === "loading") {
     return (
-      <div className="border border-primary/20 rounded-2xl p-8 bg-primary/5 flex flex-col items-center gap-5 text-center">
-        <div className="relative">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-            <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+      <div className="relative overflow-hidden rounded-[28px] border border-primary/30 bg-[radial-gradient(circle_at_top,rgba(212,180,97,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.14),transparent_25%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,18,28,0.92))] p-8">
+        <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
+        <div className="relative flex flex-col items-center gap-5 text-center">
+          <div className="relative">
+            <div className="w-20 h-20 border border-primary/25 bg-primary/10 rounded-[26px] flex items-center justify-center shadow-[0_0_30px_rgba(212,180,97,0.18)]">
+              <Sparkles className="w-9 h-9 text-primary animate-pulse" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full animate-ping" />
           </div>
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full animate-ping" />
-        </div>
-        <div className="space-y-2 w-full max-w-xs">
-          <p className="text-sm font-medium text-foreground animate-pulse">{loadingText}</p>
-          <Progress value={progress} className="h-1.5" />
-          <p className="text-xs text-muted-foreground">{progress}% complete</p>
+          <div className="space-y-3 w-full max-w-md">
+            <p className="text-sm font-semibold text-foreground animate-pulse">{loadingText}</p>
+            <Progress value={progress} className="h-2 bg-white/10" />
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Crunching performance data</span>
+              <span>{progress}% complete</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 pt-2">
+              {["Stats", "Patterns", "Strategy"].map((label, idx) => (
+                <div key={label} className={`rounded-2xl border px-3 py-2 text-[11px] uppercase tracking-[0.18em] ${progress >= (idx + 1) * 30 ? "border-primary/30 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground"}`}>
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -712,71 +788,326 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
   if (!report) return null;
 
   return (
-    <div className="border border-primary/30 rounded-2xl overflow-hidden">
-      <div className="bg-primary/10 border-b border-primary/20 px-5 py-4 flex items-center justify-between">
+    <div className="relative overflow-hidden rounded-[30px] border border-primary/30 bg-[radial-gradient(circle_at_top_left,rgba(212,180,97,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.16),transparent_26%),linear-gradient(145deg,rgba(11,11,17,0.98),rgba(18,18,28,0.95))]">
+      <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+      <div className="relative bg-black/10 border-b border-primary/20 px-5 py-4 flex items-center justify-between backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <Sparkles className="w-5 h-5 text-primary" />
           <div>
             <p className="font-semibold text-sm text-foreground">AI Content Report</p>
-            <p className="text-xs text-muted-foreground">{platform === "instagram" ? "Instagram" : "YouTube"} · {filteredForReport.length} posts{startDate || endDate ? ` · ${startDate || "…"} → ${endDate || "…"}` : ""}</p>
+            <p className="text-xs text-muted-foreground">{isYt ? "YouTube" : "Instagram"} · {filteredForReport.length} posts{startDate || endDate ? ` · ${startDate || "…"} → ${endDate || "…"}` : ""}</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setStage("idle")} className="text-xs h-7">
+        <Button variant="ghost" size="sm" onClick={() => setStage("idle")} className="text-xs h-8 rounded-xl hover:bg-white/10">
           <RefreshCw className="w-3 h-3 mr-1" /> New Report
         </Button>
       </div>
-      <div className="p-5 space-y-4">
+
+      <div className="relative p-5 sm:p-6 space-y-5">
+        <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-primary font-semibold">System Score</p>
+                <p className={`text-xs mt-1 ${scoreTone.color}`}>{scoreTone.label}</p>
+              </div>
+              <Badge variant="outline" className={`text-[10px] ${isYt ? "border-red-500/30 text-red-400" : "border-pink-500/30 text-pink-400"}`}>
+                {isYt ? <Youtube className="w-3 h-3 mr-1" /> : <Instagram className="w-3 h-3 mr-1" />}
+                {isYt ? "YouTube" : "Instagram"}
+              </Badge>
+            </div>
+            <div className={`rounded-[30px] border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-5 ${scoreTone.glow}`}>
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-5xl font-black text-foreground leading-none">{score || "--"}</p>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mt-2">Mission Rating</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Trend Signal</p>
+                  <p className={`${String(report?.growthTrend || "").startsWith("↑") ? "text-emerald-400" : String(report?.growthTrend || "").startsWith("↓") ? "text-red-400" : "text-sky-400"} text-sm font-semibold`}>{report?.growthTrend || "—"}</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {[
+                { label: "Posts", value: report?.kpis?.posts, color: "text-primary", icon: FileText },
+                { label: "Total Views", value: compactNum(report?.kpis?.totalViews), color: "text-sky-400", icon: Eye },
+                { label: isYt ? "Subs Gained" : "Followers Gained", value: compactNum(report?.kpis?.totalFollowers), color: "text-emerald-400", icon: Users },
+                { label: "Avg Views", value: compactNum(report?.kpis?.avgViews), color: "text-violet-400", icon: BarChart2 },
+              ].map(({ label, value, color, icon: Icon }) => (
+                <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <Icon className={`w-4 h-4 ${color} mb-2`} />
+                  <p className={`text-xl font-bold ${color}`}>{value ?? "—"}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-4 sm:col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-primary font-semibold">Performance Pulse</p>
+                <Badge variant="outline" className="border-primary/20 text-primary">{report?.avgEngagement || "0.00"}% Avg ER</Badge>
+              </div>
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={trendData} margin={{ top: 5, right: 0, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
+                    <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(212,180,97,0.25)", borderRadius: 14, fontSize: 12 }} />
+                    <Legend />
+                    <Line yAxisId="left" type="monotone" dataKey="views" stroke="#d4b461" strokeWidth={3} dot={{ r: 3, fill: "#d4b461" }} name="Views" />
+                    {!isYt && <Line yAxisId="right" type="monotone" dataKey="engagement" stroke="#38bdf8" strokeWidth={2.2} dot={false} name="Engagement %" />}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-xs text-muted-foreground py-10 text-center">Not enough trend data to visualize yet.</p>
+              )}
+            </div>
+
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-primary font-semibold mb-3">Format Split</p>
+              {formatData.length > 0 ? (
+                <div className="flex items-center gap-3">
+                  <ResponsiveContainer width="52%" height={180}>
+                    <PieChart>
+                      <Pie data={formatData} cx="50%" cy="50%" innerRadius={42} outerRadius={72} dataKey="value" paddingAngle={4}>
+                        {formatData.map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">
+                    {formatData.map((d: any, i: number) => (
+                      <div key={d.name} className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                          <p className="text-xs font-medium text-foreground flex-1">{d.name}</p>
+                          <p className="text-xs text-muted-foreground">{d.value}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">{compactNum(d.totalViews)} views total</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="text-xs text-muted-foreground py-10 text-center">No format data yet.</p>}
+            </div>
+
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-4">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-primary font-semibold mb-3">Type Performance</p>
+              {performanceTypeData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={performanceTypeData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="type" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(212,180,97,0.25)", borderRadius: 14, fontSize: 12 }} />
+                    <Bar dataKey="avgViews" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <p className="text-xs text-muted-foreground py-10 text-center">No type performance data yet.</p>}
+            </div>
+          </div>
+        </div>
+
         {report.summary && (
-          <div className="p-4 bg-card border border-card-border rounded-xl">
-            <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Executive Summary</p>
-            <p className="text-sm text-foreground leading-relaxed">{report.summary}</p>
-          </div>
-        )}
-        {report.insights && report.insights.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Key Insights</p>
-            {report.insights.map((insight: string, i: number) => (
-              <div key={i} className="flex items-start gap-2.5 p-3 bg-card border border-card-border rounded-lg">
-                <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-foreground">{insight}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {report.topPost && (
-          <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Star className="w-4 h-4 text-yellow-400" />
-              <p className="text-xs font-semibold text-green-400">Top Performing Post</p>
+          <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em] mb-2">Executive Summary</p>
+              <p className="text-sm text-foreground leading-relaxed">{report.summary}</p>
+              {report.contentMixAnalysis && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-1">Content Mix Analysis</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{report.contentMixAnalysis}</p>
+                </div>
+              )}
             </div>
-            <p className="text-sm font-medium text-foreground">{report.topPost.title}</p>
-            <p className="text-xs text-muted-foreground mt-1">{report.topPost.reason}</p>
+
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em] mb-3">Mission Intel</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xl font-bold text-primary">{report?.kpis?.posts ?? filteredForReport.length}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Posts Analyzed</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xl font-bold text-sky-400">{compactNum(report?.kpis?.totalLikes)}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Likes Captured</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xl font-bold text-violet-400">{compactNum(report?.kpis?.totalComments)}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Comments</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xl font-bold text-emerald-400">{isYt ? compactNum(report?.kpis?.totalFollowers) : compactNum(report?.kpis?.totalSaves)}</p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">{isYt ? "Subs Gained" : "Saves"}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {report.insights && report.insights.length > 0 && (
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em] mb-3">Key Insights</p>
+              <div className="space-y-2">
+                {report.insights.map((insight: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground">{insight}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.wins && report.wins.length > 0 && (
+            <div className="rounded-[28px] border border-emerald-500/20 bg-emerald-500/5 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-emerald-400 uppercase tracking-[0.22em] mb-3">What’s Working</p>
+              <div className="space-y-2">
+                {report.wins.map((item: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 rounded-2xl border border-emerald-500/15 bg-black/15 p-3">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.weakSpots && report.weakSpots.length > 0 && (
+            <div className="rounded-[28px] border border-amber-500/20 bg-amber-500/5 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-amber-400 uppercase tracking-[0.22em] mb-3">Needs Attention</p>
+              <div className="space-y-2">
+                {report.weakSpots.map((item: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 rounded-2xl border border-amber-500/15 bg-black/15 p-3">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {report.topPost && (
+            <div className="rounded-[28px] border border-emerald-500/20 bg-emerald-500/5 backdrop-blur-sm p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Star className="w-4 h-4 text-yellow-400" />
+                <p className="text-[11px] font-semibold text-emerald-400 uppercase tracking-[0.22em]">Top Performing Post</p>
+              </div>
+              <p className="text-base font-semibold text-foreground">{report.topPost.title}</p>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{report.topPost.reason}</p>
+              {Array.isArray(report.topPosts) && report.topPosts.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {report.topPosts.slice(0, 3).map((post: any, i: number) => (
+                    <div key={i} className="rounded-2xl border border-white/10 bg-black/15 p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs font-bold text-emerald-400">{i + 1}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{post.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">{compactNum(post.views)} views · {CONTENT_TYPE_LABELS[post.contentType] || post.contentType}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(report.lowPerformer || (Array.isArray(report.weakPosts) && report.weakPosts.length > 0)) && (
+            <div className="rounded-[28px] border border-red-500/20 bg-red-500/5 backdrop-blur-sm p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingDown className="w-4 h-4 text-red-400" />
+                <p className="text-[11px] font-semibold text-red-400 uppercase tracking-[0.22em]">Weakest Zone</p>
+              </div>
+              {report.lowPerformer && (
+                <>
+                  <p className="text-base font-semibold text-foreground">{report.lowPerformer.title}</p>
+                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{report.lowPerformer.reason}</p>
+                </>
+              )}
+              {Array.isArray(report.weakPosts) && report.weakPosts.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {report.weakPosts.slice(0, 3).map((post: any, i: number) => (
+                    <div key={i} className="rounded-2xl border border-white/10 bg-black/15 p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-xs font-bold text-red-400">{i + 1}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{post.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">{compactNum(post.views)} views · {post.issueHint}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {report.recommendations && report.recommendations.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recommendations</p>
-            {report.recommendations.map((rec: string, i: number) => (
-              <div key={i} className="flex items-start gap-2.5 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-foreground">{rec}</p>
-              </div>
-            ))}
+          <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+            <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em] mb-3">Recommendations</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {report.recommendations.map((rec: string, i: number) => (
+                <div key={i} className="flex items-start gap-2.5 rounded-2xl border border-blue-500/15 bg-blue-500/5 p-3">
+                  <TrendingUp className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-foreground">{rec}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {report.nextActions && report.nextActions.length > 0 && (
+            <div className="rounded-[28px] border border-primary/20 bg-black/25 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-primary uppercase tracking-[0.22em] mb-3">Next 7 Days</p>
+              <div className="space-y-2">
+                {report.nextActions.map((action: string, i: number) => (
+                  <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 flex gap-3">
+                    <div className="w-7 h-7 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">{i + 1}</div>
+                    <p className="text-sm text-foreground">{action}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.contentIdeas && report.contentIdeas.length > 0 && (
+            <div className="rounded-[28px] border border-violet-500/20 bg-violet-500/5 backdrop-blur-sm p-5">
+              <p className="text-[11px] font-semibold text-violet-400 uppercase tracking-[0.22em] mb-3">Next Post Ideas</p>
+              <div className="space-y-2">
+                {report.contentIdeas.map((idea: string, i: number) => (
+                  <div key={i} className="rounded-2xl border border-white/10 bg-black/15 p-3 flex gap-3">
+                    <Lightbulb className="w-4 h-4 text-violet-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-foreground">{idea}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {report.avgEngagement !== undefined && (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-primary">{report.avgEngagement}%</p>
-              <p className="text-xs text-muted-foreground">Avg Engagement</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
+              <p className="text-2xl font-black text-primary">{report.avgEngagement}%</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Avg Engagement</p>
             </div>
-            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-blue-400">{report.avgViews?.toLocaleString() || "—"}</p>
-              <p className="text-xs text-muted-foreground">Avg Views</p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
+              <p className="text-2xl font-black text-sky-400">{compactNum(report.avgViews)}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Avg Views</p>
             </div>
-            <div className="bg-card border border-card-border rounded-xl p-3 text-center">
-              <p className="text-lg font-bold text-green-400">{report.growthTrend || "—"}</p>
-              <p className="text-xs text-muted-foreground">Growth Trend</p>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
+              <p className={`text-2xl font-black ${String(report.growthTrend || "").startsWith("↑") ? "text-emerald-400" : String(report.growthTrend || "").startsWith("↓") ? "text-red-400" : "text-sky-400"}`}>{report.growthTrend || "—"}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Trend</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center">
+              <p className="text-2xl font-black text-violet-400">{formatData.length}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Formats Used</p>
             </div>
           </div>
         )}
