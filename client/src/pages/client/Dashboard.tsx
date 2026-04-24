@@ -1601,6 +1601,11 @@ export default function ClientDashboard() {
     enabled: !!user?.id,
   });
 
+  const { data: projectTracker } = useQuery<any>({
+    queryKey: [`/api/project-tracker/${user?.id}`],
+    enabled: !!user?.id && (user as any)?.plan === "elite",
+  });
+
   const { data: tasks, isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: [`/api/tasks/${user?.id}`],
     enabled: !!user?.id,
@@ -2055,12 +2060,12 @@ export default function ClientDashboard() {
             </a>
           )}
 
-          {/* ── ELITE: Program Progress + Notifications ── */}
+          {/* ── ELITE: Project Tracker + Notifications ── */}
           {isElite && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2 rounded-2xl border border-zinc-800 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
-                  <p className="text-sm font-bold text-foreground">Program Progress</p>
+                  <p className="text-sm font-bold text-foreground">Project Tracker</p>
                   <Link href="/progress" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
                     View details <ArrowRight className="w-3 h-3" />
                   </Link>
@@ -2068,25 +2073,56 @@ export default function ClientDashboard() {
                 <div className="p-5 space-y-5">
                   {progLoading ? (
                     Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)
-                  ) : prog ? (
-                    [
-                      { label: "Offer Creation",   value: prog.offerCreation,         color: GOLD },
-                      { label: "Funnel Progress",   value: prog.funnelProgress,        color: "#60a5fa" },
-                      { label: "Content Progress",  value: prog.contentProgress,       color: "#34d399" },
-                      { label: "Monetization",      value: prog.monetizationProgress,  color: "#a78bfa" },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} data-testid={`progress-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-zinc-400">{label}</span>
-                          <span className="text-xs font-bold" style={{ color }}>{value}%</span>
+                  ) : projectTracker?.tracker ? (
+                    <>
+                      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">You Are Here</p>
+                            <p className="text-lg font-bold text-foreground mt-1">{projectTracker.currentPhase?.title || projectTracker.summary?.currentPhaseTitle}</p>
+                            <p className="text-xs text-zinc-500 mt-1">{projectTracker.tracker.currentFocus}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-black text-white">{projectTracker.completion}%</p>
+                            <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">mission complete</p>
+                          </div>
                         </div>
-                        <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, background: color }} />
+                        <div className="h-2 rounded-full bg-zinc-800 overflow-hidden mt-4">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${projectTracker.completion}%`, background: `linear-gradient(90deg, ${GOLD}, #34d399)` }} />
                         </div>
                       </div>
-                    ))
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Next Client Action</p>
+                          <p className="text-sm font-semibold text-foreground mt-2">{projectTracker.tracker.nextClientAction}</p>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Approvals</p>
+                          <p className="text-2xl font-bold text-foreground mt-2">{projectTracker.summary?.approvalCount ?? 0}</p>
+                          <p className="text-xs text-zinc-500 mt-1">items waiting on review</p>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">Blockers</p>
+                          <p className="text-2xl font-bold text-foreground mt-2">{projectTracker.summary?.blockerCount ?? 0}</p>
+                          <p className="text-xs text-zinc-500 mt-1">issues flagged by the team</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {(projectTracker.summary?.nextActions || []).slice(0, 3).map((action: any) => (
+                          <div key={action.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 px-3 py-2.5">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{action.title}</p>
+                              <p className="text-[10px] text-zinc-500 mt-0.5">{action.phaseTitle} · {action.owner}</p>
+                            </div>
+                            <span className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">{action.status.replace("_", " ")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   ) : (
-                    <p className="text-sm text-zinc-600 text-center py-4">Progress not set yet</p>
+                    <p className="text-sm text-zinc-600 text-center py-4">Project tracker is loading your mission data</p>
                   )}
                 </div>
               </div>

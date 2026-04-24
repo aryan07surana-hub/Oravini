@@ -11,6 +11,7 @@ import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
+import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 
@@ -57,6 +58,7 @@ function requireAdmin(req: Request, res: Response, next: Function) {
 }
 
 const clients = new Map<string, WebSocket>();
+const projectTrackerKey = (clientId: string) => `project_tracker:${clientId}`;
 
 // Express 5 types req.params values as string | string[]; this helper always returns a string
 const p = (param: string | string[]): string => Array.isArray(param) ? param[0] : param;
@@ -83,6 +85,72 @@ function normalizeInstagramProfileInput(input: string): { profileUrl: string; us
     username: firstSegment,
     profileUrl: `https://www.instagram.com/${firstSegment}/`,
   };
+}
+
+async function getProjectTrackerForClient(clientId: string, fallbackName = "Client", programName?: string) {
+  const raw = await storage.getAppSetting(projectTrackerKey(clientId));
+  if (!raw) {
+    const tracker = createDefaultProjectTracker(clientId, fallbackName, programName);
+    await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+    return tracker;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as ProjectTracker;
+    return parsed;
+  } catch {
+    const tracker = createDefaultProjectTracker(clientId, fallbackName, programName);
+    await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+    return tracker;
+  }
+}
+
+async function saveProjectTrackerForClient(clientId: string, tracker: ProjectTracker) {
+  await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+}
+
+function buildProjectHealth(tracker: ProjectTracker): ProjectHealth {
+  const summary = getProjectTrackerSummary(tracker);
+  if (tracker.projectStatus === "completed" || summary.completion >= 100) return "completed";
+  if (summary.blockerCount > 0 || tracker.projectStatus === "blocked") return "blocked";
+  if (summary.approvalCount >= 3 || summary.clientQueueCount >= 4) return "watch";
+  return "on_track";
+}
+
+function syncProjectTracker(tracker: ProjectTracker, clientName?: string, programName?: string): ProjectTracker {
+  const completion = getProjectCompletion(tracker);
+  const currentPhase = getCurrentPhase(tracker);
+  const summary = getProjectTrackerSummary(tracker);
+  const projectStatus: ProjectStatus = completion >= 100 ? "completed" : tracker.projectStatus === "paused" ? "paused" : summary.blockerCount > 0 ? "blocked" : "active";
+
+  return {
+    ...tracker,
+    projectName: tracker.projectName || `${clientName || "Client"}'s Growth Engine`,
+    programName: tracker.programName || programName || "Tier 5 Elite Buildout",
+    currentFocus: tracker.currentFocus || currentPhase?.objective || "Execution is moving through the current milestone.",
+    nextClientAction: tracker.nextClientAction || summary.nextActions.find((action) => action.owner === "client")?.title || "Stay ready for the next approval or action request.",
+    projectStatus,
+    health: buildProjectHealth({ ...tracker, projectStatus }),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function appendProjectUpdate(tracker: ProjectTracker, title: string, message: string, type: "system" | "milestone" | "alert" | "client" = "system") {
+  const next = {
+    ...tracker,
+    updates: [
+      {
+        id: `update-${Date.now()}`,
+        title,
+        message,
+        type,
+        createdAt: new Date().toISOString(),
+      },
+      ...(tracker.updates || []),
+    ].slice(0, 12),
+  };
+
+  return syncProjectTracker(next);
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -939,6 +1007,205 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.delete("/api/tasks/:id", requireAdmin, async (req, res) => {
     await storage.deleteTask(p(req.params.id));
     res.json({ message: "Deleted" });
+  });
+
+  // Project Tracker
+  app.get("/api/project-tracker/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = p(req.params.clientId);
+    if (user.role === "client" && user.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const tracker = syncProjectTracker(
+      await getProjectTrackerForClient(clientId, client.name, client.program || undefined),
+      client.name,
+      client.program || undefined,
+    );
+    await saveProjectTrackerForClient(clientId, tracker);
+
+    res.json({
+      tracker,
+      summary: getProjectTrackerSummary(tracker),
+      completion: getProjectCompletion(tracker),
+      currentPhase: getCurrentPhase(tracker),
+    });
+  });
+
+  app.put("/api/project-tracker/:clientId", requireAdmin, async (req, res) => {
+    const clientId = p(req.params.clientId);
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    if (!req.body || typeof req.body !== "object") return res.status(400).json({ message: "Invalid tracker payload" });
+
+    const tracker = appendProjectUpdate(
+      syncProjectTracker(req.body as ProjectTracker, client.name, client.program || undefined),
+      "Mission board updated",
+      "The project tracker was updated in the admin command center.",
+      "system",
+    );
+
+    await saveProjectTrackerForClient(clientId, tracker);
+    sendToUser(clientId, { type: "project_tracker_update" });
+
+    res.json({
+      tracker,
+      summary: getProjectTrackerSummary(tracker),
+      completion: getProjectCompletion(tracker),
+      currentPhase: getCurrentPhase(tracker),
+    });
+  });
+
+  app.patch("/api/project-tracker/:clientId/actions/:actionId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = p(req.params.clientId);
+    const actionId = p(req.params.actionId);
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    if (user.role === "client" && user.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+
+    const existing = await getProjectTrackerForClient(clientId, client.name, client.program || undefined);
+    const nextStatus = req.body?.status as ActionStatus | undefined;
+    const nextNotes = typeof req.body?.notes === "string" ? req.body.notes : undefined;
+    const allowedStatuses: ActionStatus[] = ["pending", "in_progress", "review", "blocked", "completed"];
+
+    let found = false;
+    let forbidden = false;
+    const phases = existing.phases.map((phase) => {
+      const steps = phase.steps.map((step) => {
+        const actions = step.actions.map((action) => {
+          if (action.id !== actionId) return action;
+          found = true;
+          if (user.role === "client" && (!action.clientVisible || action.owner !== "client")) {
+            forbidden = true;
+            return action;
+          }
+
+          return {
+            ...action,
+            status: nextStatus && allowedStatuses.includes(nextStatus) ? nextStatus : action.status,
+            notes: nextNotes ?? action.notes,
+          };
+        });
+
+        const stepStatus: ActionStatus =
+          actions.every((action) => action.status === "completed")
+            ? "completed"
+            : actions.some((action) => action.status === "blocked")
+            ? "blocked"
+            : actions.some((action) => action.status === "in_progress" || action.status === "review")
+            ? "in_progress"
+            : "pending";
+
+        return {
+          ...step,
+          actions,
+          status: stepStatus,
+        };
+      });
+
+      const phaseStatus: PhaseStatus =
+        steps.every((step) => step.status === "completed")
+          ? "completed"
+          : steps.some((step) => step.status === "blocked")
+          ? "review"
+          : steps.some((step) => step.status === "in_progress")
+          ? "in_progress"
+          : phase.status;
+
+      return {
+        ...phase,
+        steps,
+        status: phaseStatus,
+      };
+    });
+
+    if (!found) return res.status(404).json({ message: "Action not found" });
+    if (forbidden) return res.status(403).json({ message: "Forbidden" });
+
+    const nextTracker = syncProjectTracker({
+      ...existing,
+      phases,
+    }, client.name, client.program || undefined);
+
+    const saved = appendProjectUpdate(
+      nextTracker,
+      user.role === "admin" ? "Admin updated an action" : "Client updated an action",
+      user.role === "admin" ? "The mission board was updated by the admin team." : "A client-owned action moved forward in the tracker.",
+      user.role === "admin" ? "system" : "client",
+    );
+
+    await saveProjectTrackerForClient(clientId, saved);
+
+    sendToUser(clientId, { type: "project_tracker_update" });
+    res.json({
+      tracker: saved,
+      summary: getProjectTrackerSummary(saved),
+      completion: getProjectCompletion(saved),
+      currentPhase: getCurrentPhase(saved),
+    });
+  });
+
+  app.get("/api/admin/project-trackers", requireAdmin, async (_req, res) => {
+    const allClients = await storage.getAllClients();
+    const eliteClients = allClients.filter((client: any) => client.plan === "elite");
+
+    const projects = await Promise.all(
+      eliteClients.map(async (client: any) => {
+        const tracker = syncProjectTracker(
+          await getProjectTrackerForClient(client.id, client.name, client.program || undefined),
+          client.name,
+          client.program || undefined,
+        );
+        await saveProjectTrackerForClient(client.id, tracker);
+        return {
+          client: {
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            program: client.program,
+            nextCallDate: client.nextCallDate,
+          },
+          tracker,
+          summary: getProjectTrackerSummary(tracker),
+          completion: getProjectCompletion(tracker),
+          currentPhase: getCurrentPhase(tracker),
+        };
+      }),
+    );
+
+    const alerts = projects.flatMap((project) => {
+      const items: Array<{ clientId: string; clientName: string; type: string; message: string }> = [];
+      if (project.summary.blockerCount > 0) {
+        items.push({
+          clientId: project.client.id,
+          clientName: project.client.name,
+          type: "blocked",
+          message: `${project.summary.blockerCount} blocked item${project.summary.blockerCount !== 1 ? "s" : ""} need attention`,
+        });
+      }
+      if (project.summary.approvalCount > 0) {
+        items.push({
+          clientId: project.client.id,
+          clientName: project.client.name,
+          type: "approval",
+          message: `${project.summary.approvalCount} approval${project.summary.approvalCount !== 1 ? "s" : ""} pending`,
+        });
+      }
+      return items;
+    }).slice(0, 10);
+
+    res.json({
+      projects,
+      metrics: {
+        totalClients: eliteClients.length,
+        activeProjects: projects.filter((project) => project.tracker.projectStatus === "active").length,
+        blockedProjects: projects.filter((project) => project.tracker.health === "blocked").length,
+        approvalsPending: projects.reduce((sum, project) => sum + project.summary.approvalCount, 0),
+      },
+      alerts,
+    });
   });
 
   // Notifications

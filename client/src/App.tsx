@@ -29,6 +29,7 @@ import AdminTracking from "@/pages/admin/Tracking";
 import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCourseModules from "@/pages/admin/CourseModules";
+import AdminProjectTracker from "@/pages/admin/ProjectTracker";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
@@ -335,6 +336,9 @@ function Router() {
       </Route>
       <Route path="/admin/clients/:id">
         {(params) => <ProtectedRoute component={AdminClientDetail} adminOnly id={params.id} />}
+      </Route>
+      <Route path="/admin/projects">
+        {() => <ProtectedRoute component={AdminProjectTracker} adminOnly />}
       </Route>
       <Route path="/admin/chat">
         {() => <ProtectedRoute component={AdminChat} adminOnly />}

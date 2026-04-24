@@ -279,7 +279,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 if (item.href === "/documents") return (user as any)?.plan === "elite";
                 return true;
               }),
-              ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Progress", icon: TrendingUp }] : []),
+              ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
             ].map(({ href, label, icon: Icon }) => {
               const active = href === "/tracking"
                 ? (location === "/tracking" || location.startsWith("/tracking/content"))
