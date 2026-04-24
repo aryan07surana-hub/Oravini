@@ -5,6 +5,66 @@ export type ActionStatus = "pending" | "in_progress" | "review" | "blocked" | "c
 export type ActionPriority = "critical" | "high" | "medium" | "low";
 export type ActionOwner = "admin" | "manager" | "team" | "client";
 export type DeliverableStatus = "queued" | "in_progress" | "review" | "approved";
+export type TeamRole = "admin" | "manager" | "executor";
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: TeamRole;
+  focus: string;
+}
+
+export interface SopTemplateItem {
+  id: string;
+  title: string;
+  description: string;
+  owner: ActionOwner;
+}
+
+export interface SopTemplate {
+  id: string;
+  title: string;
+  purpose: string;
+  steps: SopTemplateItem[];
+}
+
+export interface FunnelStage {
+  id: string;
+  title: string;
+  metricLabel: string;
+  metricValue: string;
+  status: "stable" | "watch" | "critical";
+}
+
+export interface AutomationRule {
+  id: string;
+  title: string;
+  trigger: string;
+  action: string;
+  enabled: boolean;
+}
+
+export interface CrmStage {
+  id: string;
+  title: string;
+  count: number;
+}
+
+export interface ContentFlowItem {
+  id: string;
+  stage: "youtube" | "clips" | "reels" | "posts";
+  title: string;
+  status: ActionStatus;
+}
+
+export interface CommunicationThread {
+  id: string;
+  topic: string;
+  type: "client" | "internal";
+  linkedTo: string;
+  lastMessage: string;
+  unread: number;
+}
 
 export interface ProjectDeliverable {
   id: string;
@@ -13,6 +73,8 @@ export interface ProjectDeliverable {
   status: DeliverableStatus;
   linkedPhaseId: string;
   url?: string;
+  version?: number;
+  approvalRequired?: boolean;
 }
 
 export interface ProjectAction {
@@ -66,6 +128,13 @@ export interface ProjectTracker {
   phases: ProjectPhase[];
   deliverables: ProjectDeliverable[];
   updates: ProjectUpdate[];
+  teamMembers: TeamMember[];
+  sopTemplates: SopTemplate[];
+  funnelStages: FunnelStage[];
+  automationRules: AutomationRule[];
+  crmPipeline: CrmStage[];
+  contentPipeline: ContentFlowItem[];
+  communicationThreads: CommunicationThread[];
   updatedAt: string;
 }
 
@@ -315,10 +384,10 @@ export function createDefaultProjectTracker(clientId: string, clientName: string
       },
     ],
     deliverables: [
-      { id: "deliverable-1", title: "Strategy Brief", type: "strategy", status: "in_progress", linkedPhaseId: "phase-1" },
-      { id: "deliverable-2", title: "Funnel Blueprint", type: "funnel", status: "queued", linkedPhaseId: "phase-2" },
-      { id: "deliverable-3", title: "Email Sequence", type: "email", status: "queued", linkedPhaseId: "phase-3" },
-      { id: "deliverable-4", title: "Content Pipeline", type: "content", status: "queued", linkedPhaseId: "phase-4" },
+      { id: "deliverable-1", title: "Strategy Brief", type: "strategy", status: "in_progress", linkedPhaseId: "phase-1", version: 2, approvalRequired: true },
+      { id: "deliverable-2", title: "Funnel Blueprint", type: "funnel", status: "queued", linkedPhaseId: "phase-2", version: 1, approvalRequired: true },
+      { id: "deliverable-3", title: "Email Sequence", type: "email", status: "queued", linkedPhaseId: "phase-3", version: 1, approvalRequired: false },
+      { id: "deliverable-4", title: "Content Pipeline", type: "content", status: "queued", linkedPhaseId: "phase-4", version: 1, approvalRequired: false },
     ],
     updates: [
       {
@@ -336,7 +405,116 @@ export function createDefaultProjectTracker(clientId: string, clientName: string
         createdAt: today,
       },
     ],
+    teamMembers: [
+      { id: "team-admin", name: "Agency Owner", role: "admin", focus: "Strategy and escalation control" },
+      { id: "team-manager", name: "Success Manager", role: "manager", focus: "Client delivery and weekly reviews" },
+      { id: "team-executor-1", name: "Content Executor", role: "executor", focus: "Content, assets, and publishing flow" },
+      { id: "team-executor-2", name: "Video Editor", role: "executor", focus: "VSL, clips, and repurposing outputs" },
+    ],
+    sopTemplates: [
+      {
+        id: "sop-onboarding",
+        title: "Client Onboarding SOP",
+        purpose: "Start every client with clarity, trust, and execution readiness.",
+        steps: [
+          { id: "sop-onb-1", title: "Send welcome email", description: "Confirm onboarding timeline and communication format.", owner: "manager" },
+          { id: "sop-onb-2", title: "Collect requirements", description: "Capture offer, audience, assets, and current systems.", owner: "client" },
+          { id: "sop-onb-3", title: "Lock kickoff call", description: "Define targets, milestones, and first sprint actions.", owner: "manager" },
+        ],
+      },
+      {
+        id: "sop-weekly-review",
+        title: "Weekly Review SOP",
+        purpose: "Keep execution predictable and unblock delivery every week.",
+        steps: [
+          { id: "sop-review-1", title: "Audit completions", description: "Review what shipped and what slipped in the last 7 days.", owner: "manager" },
+          { id: "sop-review-2", title: "Resolve blockers", description: "Escalate blocked actions and assign direct owners.", owner: "admin" },
+          { id: "sop-review-3", title: "Set next priorities", description: "Publish next week priorities to team and client.", owner: "manager" },
+        ],
+      },
+    ],
+    funnelStages: [
+      { id: "funnel-ads", title: "Ads", metricLabel: "CTR", metricValue: "2.8%", status: "stable" },
+      { id: "funnel-landing", title: "Landing Page", metricLabel: "Opt-in", metricValue: "34%", status: "stable" },
+      { id: "funnel-email", title: "Email", metricLabel: "Open rate", metricValue: "41%", status: "watch" },
+      { id: "funnel-vsl", title: "VSL", metricLabel: "Watch %", metricValue: "52%", status: "watch" },
+      { id: "funnel-call", title: "Call", metricLabel: "Booked", metricValue: "18%", status: "stable" },
+      { id: "funnel-sale", title: "Sale", metricLabel: "Close", metricValue: "22%", status: "stable" },
+    ],
+    automationRules: [
+      {
+        id: "auto-1",
+        title: "Advance step on completion",
+        trigger: "If action status = completed",
+        action: "Set next dependent action to in_progress and notify owner",
+        enabled: true,
+      },
+      {
+        id: "auto-2",
+        title: "Deadline breach alert",
+        trigger: "If due date passed and action not completed",
+        action: "Mark as blocked and notify admin + manager",
+        enabled: true,
+      },
+      {
+        id: "auto-3",
+        title: "New lead handoff",
+        trigger: "If lead form submitted",
+        action: "Notify sales manager and create follow-up action",
+        enabled: true,
+      },
+    ],
+    crmPipeline: [
+      { id: "crm-lead", title: "Lead", count: 34 },
+      { id: "crm-booked", title: "Booked", count: 16 },
+      { id: "crm-showed", title: "Showed", count: 12 },
+      { id: "crm-closed", title: "Closed", count: 7 },
+    ],
+    contentPipeline: [
+      { id: "content-1", stage: "youtube", title: "Authority Episode #12", status: "completed" },
+      { id: "content-2", stage: "clips", title: "5 short clips extracted", status: "in_progress" },
+      { id: "content-3", stage: "reels", title: "Reel variations for hooks", status: "pending" },
+      { id: "content-4", stage: "posts", title: "Carousel + static post set", status: "pending" },
+    ],
+    communicationThreads: [
+      {
+        id: "thread-client-1",
+        topic: "VSL Script Approval",
+        type: "client",
+        linkedTo: "deliverable-2",
+        lastMessage: "Client requested headline revision before final record.",
+        unread: 1,
+      },
+      {
+        id: "thread-internal-1",
+        topic: "Traffic QA Handoff",
+        type: "internal",
+        linkedTo: "step-4-2",
+        lastMessage: "Executor flagged landing form mismatch on mobile.",
+        unread: 0,
+      },
+    ],
     updatedAt: today,
+  };
+}
+
+export function normalizeProjectTracker(tracker: ProjectTracker): ProjectTracker {
+  const baseline = createDefaultProjectTracker(
+    tracker.clientId || "unknown-client",
+    tracker.projectName?.replace(/'s Growth Engine$/, "") || "Client",
+    tracker.programName,
+  );
+
+  return {
+    ...baseline,
+    ...tracker,
+    teamMembers: tracker.teamMembers?.length ? tracker.teamMembers : baseline.teamMembers,
+    sopTemplates: tracker.sopTemplates?.length ? tracker.sopTemplates : baseline.sopTemplates,
+    funnelStages: tracker.funnelStages?.length ? tracker.funnelStages : baseline.funnelStages,
+    automationRules: tracker.automationRules?.length ? tracker.automationRules : baseline.automationRules,
+    crmPipeline: tracker.crmPipeline?.length ? tracker.crmPipeline : baseline.crmPipeline,
+    contentPipeline: tracker.contentPipeline?.length ? tracker.contentPipeline : baseline.contentPipeline,
+    communicationThreads: tracker.communicationThreads?.length ? tracker.communicationThreads : baseline.communicationThreads,
   };
 }
 

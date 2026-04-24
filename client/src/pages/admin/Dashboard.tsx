@@ -141,33 +141,33 @@ export default function AdminDashboard() {
           <StatCard label="Upcoming Calls" value={(clients || []).filter((c: any) => c.nextCallDate && new Date(c.nextCallDate) > new Date()).length} sub="This week" icon={Phone} color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
         </div>
 
-        <Card className="mb-8 border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_55%,#eef2ff_100%)] shadow-sm">
+        <Card className="mb-8 border border-card-border bg-[radial-gradient(circle_at_top_left,_rgba(212,180,97,0.14),_transparent_30%),linear-gradient(135deg,#0f0f10_0%,#131314_58%,#171718_100%)] shadow-sm">
           <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-slate-950 text-white flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-[#d4b461]/20 text-[#d4b461] flex items-center justify-center">
                 <FolderKanban className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-base font-semibold text-slate-950">Project Tracker command center is live</p>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-base font-semibold text-foreground">Project Tracker command center is live</p>
+                <p className="text-sm text-muted-foreground mt-1">
                   Track all Tier 5 client missions, approvals, blockers, and delivery phases in one workspace.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center">
-                <p className="text-lg font-semibold text-slate-950">{projectTracker?.metrics?.activeProjects ?? 0}</p>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Active</p>
+              <div className="rounded-2xl border border-card-border bg-black/25 px-4 py-3 text-center">
+                <p className="text-lg font-semibold text-foreground">{projectTracker?.metrics?.activeProjects ?? 0}</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#d4b461]">Active</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center">
-                <p className="text-lg font-semibold text-slate-950">{projectTracker?.metrics?.blockedProjects ?? 0}</p>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Blocked</p>
+              <div className="rounded-2xl border border-card-border bg-black/25 px-4 py-3 text-center">
+                <p className="text-lg font-semibold text-foreground">{projectTracker?.metrics?.blockedProjects ?? 0}</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#d4b461]">Blocked</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center">
-                <p className="text-lg font-semibold text-slate-950">{projectTracker?.metrics?.approvalsPending ?? 0}</p>
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Approvals</p>
+              <div className="rounded-2xl border border-card-border bg-black/25 px-4 py-3 text-center">
+                <p className="text-lg font-semibold text-foreground">{projectTracker?.metrics?.approvalsPending ?? 0}</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-[#d4b461]">Approvals</p>
               </div>
-              <Link href="/admin/projects" className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 transition-colors">
+              <Link href="/admin/projects" className="inline-flex items-center gap-2 rounded-2xl bg-[#d4b461] px-4 py-3 text-sm font-semibold text-black hover:bg-[#c9a64f] transition-colors">
                 Open Project Tracker
                 <ArrowRight className="w-4 h-4" />
               </Link>

@@ -11,7 +11,7 @@ import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
-import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
+import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 
@@ -118,19 +118,20 @@ function buildProjectHealth(tracker: ProjectTracker): ProjectHealth {
 }
 
 function syncProjectTracker(tracker: ProjectTracker, clientName?: string, programName?: string): ProjectTracker {
-  const completion = getProjectCompletion(tracker);
-  const currentPhase = getCurrentPhase(tracker);
-  const summary = getProjectTrackerSummary(tracker);
-  const projectStatus: ProjectStatus = completion >= 100 ? "completed" : tracker.projectStatus === "paused" ? "paused" : summary.blockerCount > 0 ? "blocked" : "active";
+  const normalized = normalizeProjectTracker(tracker);
+  const completion = getProjectCompletion(normalized);
+  const currentPhase = getCurrentPhase(normalized);
+  const summary = getProjectTrackerSummary(normalized);
+  const projectStatus: ProjectStatus = completion >= 100 ? "completed" : normalized.projectStatus === "paused" ? "paused" : summary.blockerCount > 0 ? "blocked" : "active";
 
   return {
-    ...tracker,
-    projectName: tracker.projectName || `${clientName || "Client"}'s Growth Engine`,
-    programName: tracker.programName || programName || "Tier 5 Elite Buildout",
-    currentFocus: tracker.currentFocus || currentPhase?.objective || "Execution is moving through the current milestone.",
-    nextClientAction: tracker.nextClientAction || summary.nextActions.find((action) => action.owner === "client")?.title || "Stay ready for the next approval or action request.",
+    ...normalized,
+    projectName: normalized.projectName || `${clientName || "Client"}'s Growth Engine`,
+    programName: normalized.programName || programName || "Tier 5 Elite Buildout",
+    currentFocus: normalized.currentFocus || currentPhase?.objective || "Execution is moving through the current milestone.",
+    nextClientAction: normalized.nextClientAction || summary.nextActions.find((action) => action.owner === "client")?.title || "Stay ready for the next approval or action request.",
     projectStatus,
-    health: buildProjectHealth({ ...tracker, projectStatus }),
+    health: buildProjectHealth({ ...normalized, projectStatus }),
     updatedAt: new Date().toISOString(),
   };
 }

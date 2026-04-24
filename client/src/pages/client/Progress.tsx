@@ -208,6 +208,93 @@ export default function ClientProgress() {
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
               <div className="space-y-4">
                 <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Command View</p>
+                      <p className="text-lg font-semibold text-white mt-1">What to focus on right now</p>
+                    </div>
+                    <Badge variant="outline" className="border-zinc-700 text-zinc-300">Tier 5 Coordination</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d4b461]">Now</p>
+                      <p className="text-sm text-zinc-100 mt-2">{data.tracker.currentFocus}</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d4b461]">Your Next Step</p>
+                      <p className="text-sm text-zinc-100 mt-2">{data.tracker.nextClientAction}</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#d4b461]">Coordination</p>
+                      <p className="text-sm text-zinc-100 mt-2">
+                        {data.summary.approvalCount > 0
+                          ? `${data.summary.approvalCount} approval item(s) waiting`
+                          : "No pending approvals from your side"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Fulfillment Pipeline</p>
+                      <p className="text-lg font-semibold text-white mt-1">Systematic execution path</p>
+                    </div>
+                    <Badge variant="outline" className="border-zinc-700 text-zinc-300">7-phase SOP</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+                    {[
+                      "Onboarding",
+                      "Strategy",
+                      "Asset Creation",
+                      "Traffic & Content",
+                      "Sales System",
+                      "Automation Ops",
+                      "Optimization",
+                    ].map((stage) => {
+                      const isActive =
+                        data.summary.currentPhaseTitle.toLowerCase().includes(stage.toLowerCase()) ||
+                        (stage === "Automation Ops" && data.summary.currentPhaseTitle.toLowerCase().includes("automation"));
+                      return (
+                        <div
+                          key={stage}
+                          className={`rounded-2xl border px-3 py-2 ${
+                            isActive
+                              ? "border-[#d4b461]/40 bg-[#d4b461]/10"
+                              : "border-zinc-800 bg-black/20"
+                          }`}
+                        >
+                          <p className={`text-xs font-medium ${isActive ? "text-[#f3deb0]" : "text-zinc-300"}`}>{stage}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-3">
+                    Next step priority: <span className="text-zinc-200">{data.tracker.nextClientAction}</span>
+                  </p>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Funnel Health</p>
+                      <p className="text-lg font-semibold text-white mt-1">Growth system checkpoints</p>
+                    </div>
+                    <Badge variant="outline" className="border-zinc-700 text-zinc-300">{data.tracker.funnelStages?.length || 0} stages</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-4">
+                    {(data.tracker.funnelStages || []).map((stage) => (
+                      <div key={stage.id} className="rounded-2xl border border-zinc-800 bg-black/20 p-3">
+                        <p className="text-sm font-semibold text-zinc-100">{stage.title}</p>
+                        <p className="text-xs text-zinc-500 mt-1">{stage.metricLabel}</p>
+                        <p className="text-sm text-[#d4b461] mt-1">{stage.metricValue}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
                   <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Mission Map</p>
@@ -320,6 +407,42 @@ export default function ClientProgress() {
 
                 <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
                   <div className="flex items-center gap-2 mb-4">
+                    <Target className="w-4 h-4 text-[#d4b461]" />
+                    <p className="text-sm font-semibold text-white">Action Columns</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Client Actions</p>
+                      <p className="text-lg font-semibold text-white mt-1">{data.summary.clientQueueCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Approvals</p>
+                      <p className="text-lg font-semibold text-white mt-1">{data.summary.approvalCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Blockers</p>
+                      <p className="text-lg font-semibold text-white mt-1">{data.summary.blockerCount}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <ShieldCheck className="w-4 h-4 text-[#d4b461]" />
+                    <p className="text-sm font-semibold text-white">Execution Team</p>
+                  </div>
+                  <div className="space-y-2">
+                    {(data.tracker.teamMembers || []).map((member) => (
+                      <div key={member.id} className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+                        <p className="text-sm font-medium text-white">{member.name}</p>
+                        <p className="text-xs text-zinc-500 mt-1">{member.role} · {member.focus}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center gap-2 mb-4">
                     <AlertTriangle className="w-4 h-4 text-amber-400" />
                     <p className="text-sm font-semibold text-white">Approvals & Deliverables</p>
                   </div>
@@ -329,10 +452,26 @@ export default function ClientProgress() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-white">{deliverable.title}</p>
-                            <p className="text-xs text-zinc-500 mt-1">{deliverable.type} deliverable</p>
+                            <p className="text-xs text-zinc-500 mt-1">{deliverable.type} deliverable · v{deliverable.version || 1}</p>
                           </div>
                           <Badge variant="outline" className="border-zinc-700 text-zinc-300">{deliverable.status.replace("_", " ")}</Badge>
                         </div>
+                        {deliverable.approvalRequired ? <p className="text-[11px] text-amber-400 mt-2">Approval required</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CircleDashed className="w-4 h-4 text-zinc-300" />
+                    <p className="text-sm font-semibold text-white">Pipeline Snapshot</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(data.tracker.crmPipeline || []).map((stage) => (
+                      <div key={stage.id} className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+                        <p className="text-xs text-zinc-500">{stage.title}</p>
+                        <p className="text-lg font-semibold text-white mt-1">{stage.count}</p>
                       </div>
                     ))}
                   </div>
