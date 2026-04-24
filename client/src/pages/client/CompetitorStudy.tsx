@@ -61,6 +61,23 @@ const RETENTION_COLORS: Record<string, string> = {
   Low: "text-red-400",
 };
 
+async function apiRequestWithTimeout(
+  method: string,
+  url: string,
+  data: unknown,
+  timeoutMs = 95000,
+) {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const id = setTimeout(() => {
+      clearTimeout(id);
+      reject(
+        new Error("Request timed out. Apify may be slow right now - please retry."),
+      );
+    }, timeoutMs);
+  });
+  return Promise.race([apiRequest(method, url, data), timeoutPromise]);
+}
+
 // ─── Section definitions ──────────────────────────────────────────────────────
 
 const SECTIONS = [
@@ -333,7 +350,7 @@ function DirectReelComparison({ clientHandle, competitorHandle }: { clientHandle
     setStep(0);
     const interval = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 5000);
     try {
-      const data = await apiRequest("POST", "/api/competitor/compare-reels", {
+      const data = await apiRequestWithTimeout("POST", "/api/competitor/compare-reels", {
         myReelUrl: myReelUrl.trim(),
         competitorReelUrl: competitorReelUrl.trim(),
       });
@@ -2117,12 +2134,12 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
-    queryFn: () => fetch(`/api/competitor/analyses${useAdmin && activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/competitor/analyses${useAdmin && activeClientId ? `?clientId=${activeClientId}` : ""}`),
     enabled: !useAdmin || !!activeClientId,
   });
 
   const analyze = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/competitor/analyze", {
+    mutationFn: () => apiRequestWithTimeout("POST", "/api/competitor/analyze", {
       clientUrl, competitorUrl,
       clientId: activeClientId || user?.id,
     }),
@@ -2139,7 +2156,14 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
       } else {
-        toast({ title: "Error", description: e.message, variant: "destructive" });
+        const message = String(e?.message || "Analysis failed");
+        toast({
+          title: "Error",
+          description: message.includes("timed out")
+            ? "Competitor analysis timed out while scraping Instagram. Please retry in a minute."
+            : message,
+          variant: "destructive",
+        });
       }
     },
   });
@@ -2855,12 +2879,12 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/niche/analyses", activeClientId],
-    queryFn: () => fetch(`/api/niche/analyses${useAdmin && activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/niche/analyses${useAdmin && activeClientId ? `?clientId=${activeClientId}` : ""}`),
     enabled: !useAdmin || !!activeClientId,
   });
 
   const analyze = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/niche/analyze", {
+    mutationFn: () => apiRequestWithTimeout("POST", "/api/niche/analyze", {
       niche, competitorUrls: competitorUrls.filter(u => u.trim()),
       clientId: activeClientId || user?.id,
     }),
@@ -2872,7 +2896,17 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
       setCompetitorUrls(["", "", ""]);
       toast({ title: "Niche Analysis Ready!", description: "Your complete niche intelligence report is ready." });
     },
-    onError: (e: any) => { setApiDone(true); toast({ title: "Error", description: e.message, variant: "destructive" }); },
+    onError: (e: any) => {
+      setApiDone(true);
+      const message = String(e?.message || "Niche analysis failed");
+      toast({
+        title: "Error",
+        description: message.includes("timed out")
+          ? "Niche analysis timed out while scraping competitor profiles. Please retry."
+          : message,
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteAnalysis = useMutation({

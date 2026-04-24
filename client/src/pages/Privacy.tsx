@@ -1,8 +1,18 @@
 const GOLD = "#d4b461";
 
-function Section({ num, title, children }: { num: string; title: string; children: React.ReactNode }) {
+function Section({
+  num,
+  title,
+  children,
+  id,
+}: {
+  num: string;
+  title: string;
+  children: React.ReactNode;
+  id?: string;
+}) {
   return (
-    <section id={`section-${num}`}>
+    <section id={id ?? `section-${num}`}>
       <h2 className="text-xl font-semibold text-white mb-3">{num}. {title}</h2>
       <div className="space-y-3">{children}</div>
     </section>

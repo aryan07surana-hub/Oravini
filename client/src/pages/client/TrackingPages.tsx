@@ -49,8 +49,20 @@ const TYPE_COLORS: Record<string, string> = {
 const CHART_COLORS = ["#d4b461", "#6366f1", "#ec4899", "#22c55e", "#f97316", "#14b8a6"];
 
 function engRate(views: number, likes: number, comments: number, saves: number): number | null {
-  if (!views || views === 0) return null;
-  return (likes + comments + saves) / views * 100;
+  const safeViews = Number(views);
+  if (!Number.isFinite(safeViews) || safeViews <= 0) return null;
+  return (toNum(likes) + toNum(comments) + toNum(saves)) / safeViews * 100;
+}
+
+function toNum(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDateSafe(value: unknown, pattern: string, fallback = "Unknown date"): string {
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return fallback;
+  return format(d, pattern);
 }
 
 function EngagementBadge({ rate }: { rate: number | null }) {
@@ -939,7 +951,7 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
                 {post.funnelStage && <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${FUNNEL_COLORS[post.funnelStage] || ""}`}>{FUNNEL_LABELS[post.funnelStage]}</Badge>}
                 {!isYt && <EngagementBadge rate={er0} />}
               </div>
-              <p className="text-xs text-muted-foreground mb-2">{format(new Date(post.postDate), "MMMM d, yyyy")}</p>
+              <p className="text-xs text-muted-foreground mb-2">{formatDateSafe(post.postDate, "MMMM d, yyyy")}</p>
               {post.postUrl && (
                 <a href={post.postUrl} target="_blank" rel="noreferrer" data-testid={`link-view-post-${post.id}`}
                   className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-lg px-2.5 py-1 mb-2 transition-colors font-medium">
@@ -949,13 +961,13 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
               )}
 
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{post.views.toLocaleString()}</span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="w-3 h-3" />{toNum(post.views).toLocaleString()}</span>
                 {!isYt && <>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{post.likes.toLocaleString()}</span>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{post.comments.toLocaleString()}</span>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Bookmark className="w-3 h-3" />{post.saves.toLocaleString()}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{toNum(post.likes).toLocaleString()}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{toNum(post.comments).toLocaleString()}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground"><Bookmark className="w-3 h-3" />{toNum(post.saves).toLocaleString()}</span>
                 </>}
-                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{isYt ? post.subscribersGained : post.followersGained}</span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{toNum(isYt ? post.subscribersGained : post.followersGained)}</span>
               </div>
 
               {(has2w || has4w) && (
@@ -963,14 +975,14 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
                   {has2w && (
                     <div className="flex items-center gap-1.5 bg-blue-500/5 border border-blue-500/20 rounded-lg px-2 py-1">
                       <RefreshCw className="w-3 h-3 text-blue-400" />
-                      <span className="text-[10px] text-blue-400">2W: {post.views2w?.toLocaleString()} views</span>
+                      <span className="text-[10px] text-blue-400">2W: {toNum(post.views2w).toLocaleString()} views</span>
                       {!isYt && er2 !== null && <span className="text-[10px] text-blue-400">· {er2.toFixed(1)}% ER</span>}
                     </div>
                   )}
                   {has4w && (
                     <div className="flex items-center gap-1.5 bg-purple-500/5 border border-purple-500/20 rounded-lg px-2 py-1">
                       <RefreshCw className="w-3 h-3 text-purple-400" />
-                      <span className="text-[10px] text-purple-400">4W: {post.views4w?.toLocaleString()} views</span>
+                      <span className="text-[10px] text-purple-400">4W: {toNum(post.views4w).toLocaleString()} views</span>
                       {!isYt && er4 !== null && <span className="text-[10px] text-purple-400">· {er4.toFixed(1)}% ER</span>}
                     </div>
                   )}
@@ -1010,12 +1022,12 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs font-semibold ${cp.color}`}>{cp.label}</p>
                     {cp.hasData && (
-                      <p className="text-[10px] text-muted-foreground">{cp.views?.toLocaleString()} views</p>
+                      <p className="text-[10px] text-muted-foreground">{toNum(cp.views).toLocaleString()} views</p>
                     )}
                     {cp.syncedAt && (
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <Clock className="w-2.5 h-2.5" />
-                        Last synced {format(new Date(cp.syncedAt), "MMM d, h:mm a")}
+                        Last synced {formatDateSafe(cp.syncedAt, "MMM d, h:mm a", "Unknown")}
                       </p>
                     )}
                     {!cp.syncedAt && !cp.hasData && (
@@ -1064,16 +1076,17 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/content/${clientId}`] }); toast({ title: "Post deleted" }); },
   });
 
-  const totalViews = fullMonthPosts.reduce((s, p) => s + p.views, 0);
-  const totalFollowers = fullMonthPosts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
+  const totalViews = fullMonthPosts.reduce((s, p) => s + toNum(p.views), 0);
+  const totalFollowers = fullMonthPosts.reduce((s, p) => s + toNum(isYt ? p.subscribersGained : p.followersGained), 0);
   const avgEr = fullMonthPosts.length > 0
     ? fullMonthPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / fullMonthPosts.length
     : 0;
-  const bestPost = fullMonthPosts.length > 0 ? [...fullMonthPosts].sort((a, b) => b.views - a.views)[0] : null;
+  const bestPost = fullMonthPosts.length > 0 ? [...fullMonthPosts].sort((a, b) => toNum(b.views) - toNum(a.views))[0] : null;
 
   const byDay: Record<string, any[]> = {};
   fullMonthPosts.forEach(p => {
-    const day = format(new Date(p.postDate), "yyyy-MM-dd");
+    const day = formatDateSafe(p.postDate, "yyyy-MM-dd", "");
+    if (!day) return;
     if (!byDay[day]) byDay[day] = [];
     byDay[day].push(p);
   });
@@ -1119,7 +1132,7 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
           <div>
             <p className="text-xs font-semibold text-yellow-400">Best Post This Month</p>
             <p className="text-sm font-medium text-foreground mt-0.5">{bestPost.title || "Untitled"}</p>
-            <p className="text-xs text-muted-foreground">{bestPost.views.toLocaleString()} views · {format(new Date(bestPost.postDate), "MMM d")}</p>
+            <p className="text-xs text-muted-foreground">{toNum(bestPost.views).toLocaleString()} views · {formatDateSafe(bestPost.postDate, "MMM d")}</p>
           </div>
         </div>
       )}
@@ -1141,7 +1154,7 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
             <div key={day}>
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                <p className="text-xs font-semibold text-muted-foreground">{format(new Date(day), "EEEE, MMMM d")}</p>
+                <p className="text-xs font-semibold text-muted-foreground">{formatDateSafe(day, "EEEE, MMMM d")}</p>
                 <Badge variant="outline" className="text-[10px] h-4 px-1.5">{byDay[day].length}</Badge>
               </div>
               <div className="space-y-2 ml-5">
@@ -1772,7 +1785,8 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
 
   const monthMap: Record<string, any[]> = {};
   posts.forEach(p => {
-    const key = format(new Date(p.postDate), "yyyy-MM");
+    const key = formatDateSafe(p.postDate, "yyyy-MM", "");
+    if (!key) return;
     if (!monthMap[key]) monthMap[key] = [];
     monthMap[key].push(p);
   });
@@ -1783,7 +1797,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
 
   const sortedMonths = Object.keys(monthMap).sort().reverse();
 
-  const totalViews = posts.reduce((s, p) => s + p.views, 0);
+  const totalViews = posts.reduce((s, p) => s + toNum(p.views), 0);
   const totalPosts = posts.length;
 
   // Live follower data from tracker (Instagram only)
@@ -1947,7 +1961,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
               {sortedMonths.map(key => {
                 const [yr, mo] = key.split("-").map(Number);
                 const mPosts = monthMap[key];
-                const mViews = mPosts.reduce((s, p) => s + p.views, 0);
+                const mViews = mPosts.reduce((s, p) => s + toNum(p.views), 0);
                 const mAvgEr = mPosts.length > 0
                   ? mPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / mPosts.length
                   : 0;

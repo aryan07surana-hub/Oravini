@@ -1002,20 +1002,67 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Instagram / Apify Sync ────────────────────────────────────────────────
-  async function apifyInstagram(payload: object): Promise<any[]> {
-    const token = process.env.APIFY_TOKEN;
-    if (!token) throw new Error("APIFY_TOKEN not configured");
-    const url = `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Apify error ${resp.status}: ${text.slice(0, 200)}`);
+  async function apifyInstagram(
+    payload: object,
+    options?: { timeoutMs?: number; endpoint?: "post-scraper" | "profile-scraper" },
+  ): Promise<any[]> {
+    const token =
+      process.env.APIFY_INSTAGRAM_TOKEN ||
+      process.env.APIFY_COMMENT_TOKEN ||
+      process.env.APIFY_TOKEN;
+    if (!token) {
+      throw new Error("Apify is not configured (set APIFY_TOKEN or APIFY_INSTAGRAM_TOKEN).");
     }
-    return resp.json() as Promise<any[]>;
+
+    const endpoint =
+      options?.endpoint === "profile-scraper"
+        ? "apify~instagram-profile-scraper"
+        : "apify~instagram-scraper";
+    const timeoutMs = options?.timeoutMs ?? 90000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const url = `https://api.apify.com/v2/acts/${endpoint}/run-sync-get-dataset-items?token=${token}&timeout=${Math.ceil(timeoutMs / 1000)}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!resp.ok) {
+        const raw = await resp.text();
+        let detail = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          detail =
+            parsed?.error?.message ||
+            parsed?.message ||
+            parsed?.error?.type ||
+            raw;
+        } catch {
+          // Keep raw text fallback.
+        }
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error("Apify authentication failed. Check your APIFY token.");
+        }
+        if (resp.status === 429) {
+          throw new Error("Apify rate limit hit. Please retry in a minute.");
+        }
+        throw new Error(`Apify request failed (${resp.status}): ${String(detail).slice(0, 220)}`);
+      }
+
+      const json = (await resp.json()) as any[];
+      return Array.isArray(json) ? json : [];
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw new Error("Apify request timed out while fetching Instagram data. Please retry.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // ── Meta API account status ──────────────────────────────────────────────
@@ -1476,7 +1523,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── OpenRouter / Anthropic / Groq cascade (deep analysis) ──────────────────
   async function callOpenRouter(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
     // 1. Try Anthropic first (if key present) — catch auth/model errors and fall through
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY) {
       try {
         const result = await callAnthropic(systemPrompt, userPrompt, maxTokens);
         if (result) return result;
@@ -2277,7 +2324,8 @@ Rules:
         if (!imgCredit.success) return res.status(402).json({ message: imgCredit.message, insufficientCredits: true, balance: imgCredit.balance });
       }
 
-      const gKey = process.env.GOOGLE__API_KEYIMAGE;
+      // Keep legacy misspelled env var as fallback for backwards compatibility.
+      const gKey = process.env.GOOGLE_API_KEY_IMAGE || process.env.GOOGLE__API_KEYIMAGE;
       let imageBase64: string | null = null;
 
       if (gKey) {
