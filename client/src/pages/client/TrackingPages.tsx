@@ -1745,6 +1745,21 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const { toast } = useToast();
   const isYt = platform === "youtube";
 
+  const normalizeInstagramInput = (value: string) => {
+    const cleaned = value
+      .trim()
+      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+      .replace(/^instagram\.com\//i, "")
+      .replace(/^@/, "")
+      .split("?")[0]
+      .split("#")[0]
+      .replace(/^\/+|\/+$/g, "");
+
+    const username = cleaned.split("/")[0]?.trim().toLowerCase();
+    if (!username || ["p", "reel", "reels", "tv", "stories", "explore"].includes(username)) return null;
+    return `https://www.instagram.com/${username}/`;
+  };
+
   const handleImportProfile = async () => {
     if (!importUrl.trim()) return;
     setImporting(true);
@@ -1759,8 +1774,10 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         const channelName = data.channel?.title ? ` from ${data.channel.title}` : "";
         toast({ title: `${data.imported} videos imported!`, description: `Real stats pulled directly from YouTube${channelName}.` });
       } else {
+        const normalizedInstagramUrl = normalizeInstagramInput(importUrl);
+        if (!normalizedInstagramUrl) throw new Error("Enter a valid Instagram profile URL or @handle");
         data = await apiRequest("POST", "/api/instagram/sync-profile", {
-          profileUrl: importUrl.trim(),
+          profileUrl: normalizedInstagramUrl,
           clientId: user?.id,
           platform,
         });

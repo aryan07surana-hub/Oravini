@@ -61,6 +61,30 @@ const clients = new Map<string, WebSocket>();
 // Express 5 types req.params values as string | string[]; this helper always returns a string
 const p = (param: string | string[]): string => Array.isArray(param) ? param[0] : param;
 
+function normalizeInstagramProfileInput(input: string): { profileUrl: string; username: string } | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  const cleaned = raw
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^instagram\.com\//i, "")
+    .replace(/^@/, "")
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/^\/+|\/+$/g, "");
+
+  if (!cleaned) return null;
+
+  const firstSegment = cleaned.split("/")[0]?.trim().toLowerCase();
+  if (!firstSegment) return null;
+  if (["p", "reel", "reels", "tv", "stories", "explore"].includes(firstSegment)) return null;
+
+  return {
+    username: firstSegment,
+    profileUrl: `https://www.instagram.com/${firstSegment}/`,
+  };
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
 
@@ -1225,6 +1249,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { profileUrl, clientId, platform } = req.body;
       if (!profileUrl || !clientId) return res.status(400).json({ message: "profileUrl and clientId required" });
+      const normalizedInstagram = normalizeInstagramProfileInput(String(profileUrl));
+      const resolvedProfileUrl =
+        platform === "youtube"
+          ? String(profileUrl).trim()
+          : normalizedInstagram?.profileUrl;
+      if (platform !== "youtube" && !resolvedProfileUrl) {
+        return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      }
 
       type SyncItem = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; };
       let syncItems: SyncItem[] = [];
@@ -1235,7 +1267,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const igAccountId = await getIgAccountIdCached();
           if (igAccountId) {
             const connAcct = await getConnectedIGAccount();
-            const reqHandle = (profileUrl.match(/instagram\.com\/([^/?#]+)/)?.[1] || "").toLowerCase().replace(/^@/, "");
+            const reqHandle = normalizedInstagram?.username || "";
             const connHandle = (connAcct?.igUsername || "").toLowerCase();
             if (reqHandle && connHandle && reqHandle === connHandle) {
               const media = await getIGMedia(igAccountId, 30);
@@ -1256,7 +1288,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Apify fallback
       if (!syncItems.length) {
-        const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 20 });
+        const items = await apifyInstagram({ directUrls: [resolvedProfileUrl], resultsType: "posts", resultsLimit: 20 });
         if (!items?.length) return res.status(404).json({ message: "No posts found for this profile" });
         syncItems = items.map((item: any) => ({
           postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
@@ -1580,7 +1612,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { profileUrl } = req.body;
       if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
-      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 20 });
+      const normalized = normalizeInstagramProfileInput(String(profileUrl));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      const items = await apifyInstagram({ directUrls: [normalized.profileUrl], resultsType: "posts", resultsLimit: 20 });
       if (!items?.length) return res.json({ posts: [] });
       const posts = items.map((item: any) => ({
         title: item.caption ? item.caption.slice(0, 120) : "Untitled",
@@ -1614,28 +1648,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const clientId = (req as any).user.id;
       const { profileUrl } = req.body;
       if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
+      const normalized = normalizeInstagramProfileInput(String(profileUrl));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      const resolvedProfileUrl = normalized.profileUrl;
 
       // extract handle from URL
-      const handleMatch = profileUrl.match(/instagram\.com\/([^/?#]+)/);
-      const handle = handleMatch ? handleMatch[1].replace(/^@/, "") : null;
+      const handle = normalized.username;
 
       // 1. Try Meta API first, fall back to Apify
       type NormalisedPost = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; type: string; };
       let normalisedPosts: NormalisedPost[] = [];
       let dataSource = "apify";
 
-      try {
-        const igAccountId = await getIgAccountIdCached();
-        if (igAccountId) {
-          const connAcct = await getConnectedIGAccount();
-          // Check if the profile handle matches connected account
-          const handleMatch = profileUrl.match(/instagram\.com\/([^/?#]+)/);
-          const reqHandle = (handleMatch?.[1] || "").toLowerCase().replace(/^@/, "");
-          const connHandle = (connAcct?.igUsername || "").toLowerCase();
-          if (reqHandle && connHandle && (reqHandle === connHandle || profileUrl.includes(connHandle))) {
-            const media = await getIGMedia(igAccountId, 50);
-            if (media.length > 0) {
-              for (const m of media) {
+        try {
+          const igAccountId = await getIgAccountIdCached();
+          if (igAccountId) {
+            const connAcct = await getConnectedIGAccount();
+            // Check if the profile handle matches connected account
+            const reqHandle = normalized.username;
+            const connHandle = (connAcct?.igUsername || "").toLowerCase();
+            if (reqHandle && connHandle && reqHandle === connHandle) {
+              const media = await getIGMedia(igAccountId, 50);
+              if (media.length > 0) {
+                for (const m of media) {
                 const insights = await getMediaInsights(m.id, m.media_type);
                 normalisedPosts.push({
                   postUrl: m.permalink,
@@ -1658,7 +1693,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Apify fallback
       if (!normalisedPosts.length) {
-        const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
+        const items = await apifyInstagram({ directUrls: [resolvedProfileUrl], resultsType: "posts", resultsLimit: 30 });
         if (!items?.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
         normalisedPosts = items.map((item: any) => ({
           postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
@@ -1742,7 +1777,7 @@ Return this exact JSON structure:
       // 4. Save to DB
       const saved = await storage.upsertInstagramProfileReport({
         clientId,
-        instagramUrl: profileUrl,
+        instagramUrl: resolvedProfileUrl,
         handle,
         postCount: items.length,
         report,
@@ -5769,7 +5804,9 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     try {
       const { username } = req.body;
       if (!username?.trim()) return res.status(400).json({ message: "Username required" });
-      const clean = username.trim().replace(/^@/, "").replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("?")[0];
+      const normalized = normalizeInstagramProfileInput(String(username));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram username or profile URL" });
+      const clean = normalized.username;
       const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
       if (!token) return res.json({ found: false, username: clean });
       try {
@@ -8752,21 +8789,19 @@ Rules:
 
   // ── Instagram Growth Tracker ───────────────────────────────────────────────
   async function scanIgProfile(username: string): Promise<{ followersCount: number; followsCount: number; fullName: string; profilePic: string; igUserId: string } | null> {
-    const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
-    if (!token) throw new Error("No Apify token configured (APIFY_COMMENT_TOKEN / APIFY_INSTAGRAM_TOKEN)");
-    const res = await fetch(
-      `https://api.apify.com/v2/acts/7RQ4RlfRihUhflQtJ/run-sync-get-dataset-items?token=${token}&timeout=90`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [username] }) }
+    const normalized = normalizeInstagramProfileInput(username);
+    if (!normalized) throw new Error("Enter a valid Instagram username or profile URL");
+    const items = await apifyInstagram(
+      { usernames: [normalized.username] },
+      { endpoint: "profile-scraper", timeoutMs: 90000 },
     );
-    if (!res.ok) throw new Error(`Apify error ${res.status}`);
-    const items: any[] = await res.json();
     const item = items?.[0];
     if (!item) return null;
     return {
       followersCount: item.followersCount ?? 0,
       followsCount: item.followsCount ?? 0,
-      fullName: item.userFullName ?? username,
-      profilePic: item.profilePic ?? "",
+      fullName: item.fullName ?? item.userFullName ?? normalized.username,
+      profilePic: item.profilePicUrl ?? item.profilePic ?? "",
       igUserId: item.userId ?? "",
     };
   }
