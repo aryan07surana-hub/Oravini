@@ -63,15 +63,39 @@ function saveLikedStorage(platform: string, ideas: ContentIdea[]) {
 
 interface ContentIdea {
   title: string;
+  bucket?: "growth" | "trust" | "conversion";
+  angle?: string;
   concept: string;
   captionStarter: string;
   tip?: string;
   formatType?: string;
   whyItWorks?: string;
   cta?: string;
+  sourceInsight?: string;
+  confidenceScore?: number;
+  productionNotes?: string[];
+  repurposeHook?: string;
   keyPoints?: string[];
   threadOutline?: string[];
   linkedinStructure?: string[];
+}
+
+interface StrategyBrief {
+  positioning?: string;
+  audienceSummary?: string;
+  performanceSnapshot?: string;
+  winningPatterns?: string[];
+  contentGaps?: string[];
+  opportunityLanes?: string[];
+  recommendedPillars?: string[];
+  workflowSteps?: string[];
+  sources?: string[];
+}
+
+interface IdeaBucket {
+  key: "growth" | "trust" | "conversion";
+  title: string;
+  description: string;
 }
 
 interface ContentMix {
@@ -79,6 +103,12 @@ interface ContentMix {
   value: number;
   conversion: number;
   suggestion: string;
+}
+
+interface WorkflowPlan {
+  nextBestAction?: string;
+  productionSequence?: string[];
+  repurposingNotes?: string[];
 }
 
 const IG_CONTENT_TYPES = [
@@ -271,6 +301,11 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
   const isLinkedIn = platform === "linkedin";
   const isTwitter = platform === "twitter";
   const captionLabel = isLinkedIn ? "Post Opener" : isTwitter ? "Tweet Hook" : "Caption / Script Opener";
+  const bucketStyles: Record<string, string> = {
+    growth: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+    trust: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    conversion: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -288,11 +323,23 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
-                {idea.formatType && (
-                  <Badge variant="outline" className="mt-1.5 text-[10px] border-primary/30 text-primary h-5">
-                    {idea.formatType}
-                  </Badge>
-                )}
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {idea.bucket && (
+                    <Badge variant="outline" className={`text-[10px] h-5 capitalize ${bucketStyles[idea.bucket] || "border-primary/30 text-primary"}`}>
+                      {idea.bucket}
+                    </Badge>
+                  )}
+                  {idea.formatType && (
+                    <Badge variant="outline" className="text-[10px] border-primary/30 text-primary h-5">
+                      {idea.formatType}
+                    </Badge>
+                  )}
+                  {typeof idea.confidenceScore === "number" && (
+                    <Badge variant="outline" className="text-[10px] h-5 border-zinc-500/30 text-zinc-300">
+                      Score {idea.confidenceScore}/10
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
@@ -324,6 +371,16 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
 
             {expanded && (
               <div className="mt-3 space-y-3">
+                {idea.angle && (
+                  <div className="flex items-start gap-2 bg-primary/5 border border-primary/15 rounded-xl p-3">
+                    <Zap className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Strategic Angle</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.angle}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <Lightbulb className="w-3 h-3 text-yellow-400" />
@@ -338,6 +395,16 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
                     <div>
                       <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Why It Will Perform</span>
                       <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.whyItWorks}</p>
+                    </div>
+                  </div>
+                )}
+
+                {idea.sourceInsight && (
+                  <div className="flex items-start gap-2 bg-blue-500/5 border border-blue-500/20 rounded-xl p-3">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Built From</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.sourceInsight}</p>
                     </div>
                   </div>
                 )}
@@ -425,6 +492,33 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
                         </li>
                       ))}
                     </ol>
+                  </div>
+                )}
+
+                {idea.productionNotes && idea.productionNotes.length > 0 && (
+                  <div className="bg-card border border-card-border rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <FileText className="w-3 h-3 text-primary" />
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Production Notes</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {idea.productionNotes.map((note, i) => (
+                        <p key={i} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                          <span className="text-primary font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
+                          <span>{note}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {idea.repurposeHook && (
+                  <div className="flex items-start gap-2 bg-violet-500/5 border border-violet-500/20 rounded-xl p-3">
+                    <RotateCcw className="w-3.5 h-3.5 text-violet-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider">Repurpose Move</span>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{idea.repurposeHook}</p>
+                    </div>
                   </div>
                 )}
 
@@ -814,6 +908,9 @@ export default function AIIdeas() {
   const [additionalContext, setAdditionalContext] = useState("");
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [contentMix, setContentMix] = useState<ContentMix | null>(null);
+  const [strategyBrief, setStrategyBrief] = useState<StrategyBrief | null>(null);
+  const [ideaBuckets, setIdeaBuckets] = useState<IdeaBucket[]>([]);
+  const [workflow, setWorkflow] = useState<WorkflowPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
@@ -939,6 +1036,14 @@ export default function AIIdeas() {
     return allPosts.filter((p: any) => p.platform === platform);
   }, [allPosts, platform]);
 
+  const platformBadge = platform === "instagram"
+    ? { label: "Instagram", className: "border-pink-500/30 text-pink-400", icon: <Instagram className="w-3 h-3 mr-1" /> }
+    : platform === "youtube"
+      ? { label: "YouTube", className: "border-red-500/30 text-red-400", icon: <Youtube className="w-3 h-3 mr-1" /> }
+      : platform === "linkedin"
+        ? { label: "LinkedIn", className: "border-blue-500/30 text-blue-400", icon: <Linkedin className="w-3 h-3 mr-1" /> }
+        : { label: "X / Twitter", className: "border-zinc-500/30 text-zinc-300", icon: <Twitter className="w-3 h-3 mr-1" /> };
+
   const handleGenerate = async () => {
     if (!niche.trim()) {
       toast({ title: "Niche required", description: "Please enter your content niche.", variant: "destructive" });
@@ -949,13 +1054,21 @@ export default function AIIdeas() {
     setApiDone(false);
     setIdeas([]);
     setContentMix(null);
+    setStrategyBrief(null);
+    setIdeaBuckets([]);
+    setWorkflow(null);
     try {
-      // If an Instagram profile URL is set, scrape real posts first for richer AI context
       let scrapedPosts: any[] = [];
       if (platform === "instagram" && profileUrl.trim()) {
         try {
           toast({ title: "Scanning your Instagram…", description: "Analysing your real posts for personalised ideas." });
           const scraped = await apiRequest("POST", "/api/instagram/scrape-profile", { profileUrl: profileUrl.trim() });
+          scrapedPosts = scraped?.posts ?? [];
+        } catch (_) { /* non-critical — continue without scraped data */ }
+      } else if (platform === "youtube" && profileUrl.trim()) {
+        try {
+          toast({ title: "Scanning your YouTube channel…", description: "Pulling recent videos to build sharper ideas." });
+          const scraped = await apiRequest("POST", "/api/youtube/scrape-channel", { channelUrl: profileUrl.trim() });
           scrapedPosts = scraped?.posts ?? [];
         } catch (_) { /* non-critical — continue without scraped data */ }
       }
@@ -970,15 +1083,18 @@ export default function AIIdeas() {
       const resolvedIdeas = Array.isArray(data) ? data : (data?.ideas ?? []);
       setIdeas(resolvedIdeas);
       if (data?.contentMix) setContentMix(data.contentMix);
+       if (data?.strategyBrief) setStrategyBrief(data.strategyBrief);
+       if (Array.isArray(data?.ideaBuckets)) setIdeaBuckets(data.ideaBuckets);
+       if (data?.workflow) setWorkflow(data.workflow);
       if (scrapedPosts.length > 0) {
-        toast({ title: `Ideas based on ${scrapedPosts.length} real posts`, description: "Your actual Instagram content was analysed to make these ideas personal." });
+        toast({ title: `Ideas based on ${scrapedPosts.length} real posts`, description: `Your actual ${platform === "youtube" ? "YouTube" : "Instagram"} content was analysed to make these ideas personal.` });
       }
       if (resolvedIdeas.length > 0) {
         apiRequest("POST", "/api/ai/history", {
           tool: "ideas",
           title: `${niche.trim()} — ${platform}`,
           inputs: { platform, niche, contentType, goal, audience, additionalContext },
-          output: { ideas: resolvedIdeas, contentMix: data?.contentMix },
+          output: { ideas: resolvedIdeas, contentMix: data?.contentMix, strategyBrief: data?.strategyBrief, workflow: data?.workflow, ideaBuckets: data?.ideaBuckets },
         }).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=ideas"] })).catch(() => {});
       }
     } catch (err: any) {
@@ -1040,7 +1156,7 @@ export default function AIIdeas() {
           <div className="flex gap-2 flex-wrap">
             {/* X / Twitter */}
             <button
-              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
               data-testid="platform-twitter"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "twitter"
@@ -1056,7 +1172,7 @@ export default function AIIdeas() {
             </button>
             {/* LinkedIn */}
             <button
-              onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
               data-testid="platform-linkedin"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "linkedin"
@@ -1072,7 +1188,7 @@ export default function AIIdeas() {
             </button>
             {/* YouTube */}
             <button
-              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
               data-testid="platform-youtube"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "youtube"
@@ -1088,7 +1204,7 @@ export default function AIIdeas() {
             </button>
             {/* Instagram */}
             <button
-              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); }}
+              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
               data-testid="platform-instagram"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "instagram"
@@ -1180,6 +1296,9 @@ export default function AIIdeas() {
                                 if (count > 0) {
                                   setIdeas(out.ideas);
                                   setContentMix(out.contentMix ?? null);
+                                  setStrategyBrief(out.strategyBrief ?? null);
+                                  setWorkflow(out.workflow ?? null);
+                                  setIdeaBuckets(Array.isArray(out.ideaBuckets) ? out.ideaBuckets : []);
                                   if (inp.platform) setPlatform(inp.platform);
                                   if (inp.niche) setNiche(inp.niche);
                                   if (inp.contentType) setContentType(inp.contentType);
@@ -1515,7 +1634,7 @@ export default function AIIdeas() {
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
                   {isProfileLinked ? `Generate Ideas for ${detectedHandle}` : "Generate Content Ideas"}
-                  <CreditCostBadge cost={2} level="light" className="ml-2" />
+                  <CreditCostBadge cost={5} level="light" className="ml-2" />
                 </>
               )}
             </Button>
@@ -1535,8 +1654,8 @@ export default function AIIdeas() {
                 <Badge variant="outline" className="border-primary/30 text-primary text-xs">
                   {ideas.length} ideas generated
                 </Badge>
-                <Badge variant="outline" className={`text-xs ${platform === "instagram" ? "border-pink-500/30 text-pink-400" : "border-red-500/30 text-red-400"}`}>
-                  {platform === "instagram" ? <><Instagram className="w-3 h-3 mr-1" />Instagram</> : <><Youtube className="w-3 h-3 mr-1" />YouTube</>}
+                <Badge variant="outline" className={`text-xs ${platformBadge.className}`}>
+                  {platformBadge.icon}{platformBadge.label}
                 </Badge>
                 {isProfileLinked && (
                   <Badge className="text-xs bg-green-500/10 text-green-400 border border-green-500/30">
@@ -1549,6 +1668,144 @@ export default function AIIdeas() {
                 Generate more
               </Button>
             </div>
+
+            {(strategyBrief || workflow || ideaBuckets.length > 0) && (
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                {strategyBrief && (
+                  <Card className="border border-primary/20 bg-primary/5">
+                    <CardContent className="p-5 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        <p className="text-sm font-semibold text-foreground">Strategy Brief</p>
+                      </div>
+
+                      {strategyBrief.positioning && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Positioning</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{strategyBrief.positioning}</p>
+                        </div>
+                      )}
+
+                      {strategyBrief.performanceSnapshot && (
+                        <div className="rounded-xl border border-primary/15 bg-background/40 p-3">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Performance Snapshot</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{strategyBrief.performanceSnapshot}</p>
+                        </div>
+                      )}
+
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {[
+                          { label: "Winning Patterns", items: strategyBrief.winningPatterns },
+                          { label: "Content Gaps", items: strategyBrief.contentGaps },
+                          { label: "Opportunity Lanes", items: strategyBrief.opportunityLanes },
+                          { label: "Recommended Pillars", items: strategyBrief.recommendedPillars },
+                        ].map((section) => (
+                          <div key={section.label} className="rounded-xl border border-card-border bg-card p-3">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{section.label}</p>
+                            <div className="space-y-1.5">
+                              {(section.items || []).slice(0, 4).map((item, idx) => (
+                                <p key={idx} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                                  <span className="text-primary font-bold flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                                  <span>{item}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {strategyBrief.sources && strategyBrief.sources.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sources Used</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {strategyBrief.sources.map((source, idx) => (
+                              <Badge key={idx} variant="outline" className="text-[10px] border-primary/20 text-muted-foreground">{source}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="space-y-4">
+                  {workflow && (
+                    <Card className="border border-card-border">
+                      <CardContent className="p-5 space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-primary" />
+                          <p className="text-sm font-semibold text-foreground">Workflow</p>
+                        </div>
+
+                        {workflow.nextBestAction && (
+                          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                            <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mb-1">Next Best Action</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{workflow.nextBestAction}</p>
+                          </div>
+                        )}
+
+                        {workflow.productionSequence && workflow.productionSequence.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Production Sequence</p>
+                            <div className="space-y-1.5">
+                              {workflow.productionSequence.map((step, idx) => (
+                                <p key={idx} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                                  <span className="text-primary font-bold flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                                  <span>{step}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {workflow.repurposingNotes && workflow.repurposingNotes.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Repurposing Notes</p>
+                            <div className="space-y-1.5">
+                              {workflow.repurposingNotes.map((note, idx) => (
+                                <p key={idx} className="text-xs text-muted-foreground leading-relaxed flex gap-2">
+                                  <span className="text-primary font-bold flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                                  <span>{note}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {ideaBuckets.length > 0 && (
+                    <Card className="border border-card-border">
+                      <CardContent className="p-5 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <PieChart className="w-4 h-4 text-primary" />
+                          <p className="text-sm font-semibold text-foreground">Idea Buckets</p>
+                        </div>
+                        <div className="space-y-2">
+                          {ideaBuckets.map((bucket) => (
+                            <div key={bucket.key} className="rounded-xl border border-card-border bg-card p-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className={
+                                  bucket.key === "growth"
+                                    ? "text-[10px] h-5 border-blue-500/30 text-blue-400"
+                                    : bucket.key === "trust"
+                                      ? "text-[10px] h-5 border-emerald-500/30 text-emerald-400"
+                                      : "text-[10px] h-5 border-amber-500/30 text-amber-400"
+                                }>
+                                  {bucket.title}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{bucket.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               {ideas.map((idea, i) => (

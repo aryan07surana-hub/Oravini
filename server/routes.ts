@@ -1379,6 +1379,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.post("/api/youtube/scrape-channel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl } = req.body;
+      if (!channelUrl) return res.status(400).json({ message: "channelUrl required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+
+      const channelStats = await getYouTubeChannelStats(channelRef);
+      if (!channelStats) return res.status(404).json({ message: "Channel not found on YouTube" });
+
+      const videos = await getYouTubeChannelRecentVideos(channelStats.channelId, 15);
+      return res.json({
+        channel: channelStats,
+        posts: videos.map((vid: any) => ({
+          title: vid.title,
+          contentType: vid.contentType === "short" ? "short" : "video",
+          views: vid.views,
+          likes: vid.likes,
+          comments: vid.comments,
+          postDate: vid.publishedAt,
+          duration: vid.duration,
+          description: vid.description,
+          url: vid.videoUrl,
+        })),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Import recent videos from a YouTube channel into content tracking
   app.post("/api/youtube/import-channel", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -1508,6 +1538,190 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       } catch (e: any) { lastError = e.message; }
     }
     throw new Error(`Groq JSON generation failed: ${lastError}`);
+  }
+
+  type IdeaContextPost = {
+    title?: string;
+    contentType?: string;
+    views?: number;
+    likes?: number;
+    comments?: number;
+    saves?: number;
+    caption?: string;
+    description?: string;
+    postDate?: string | Date;
+    duration?: string;
+  };
+
+  const CONTENT_STOPWORDS = new Set([
+    "about", "after", "again", "being", "because", "between", "could", "every", "first", "from", "have", "into",
+    "just", "like", "more", "most", "much", "need", "only", "over", "really", "should", "still", "than", "that",
+    "their", "there", "these", "they", "this", "what", "when", "where", "which", "while", "with", "would", "your",
+    "youre", "them", "then", "been", "make", "made", "gets", "getting", "using", "used", "will", "here", "into",
+    "ours", "ourselves", "ours", "many", "some", "also", "want", "dont", "doesnt", "cant", "isnt", "arent", "were",
+    "weve", "ive", "youve", "today", "these", "those", "than", "yourself", "herself", "himself", "ourselves",
+  ]);
+
+  function roundTo(value: number, digits = 1): number {
+    const factor = 10 ** digits;
+    return Math.round(value * factor) / factor;
+  }
+
+  function formatCompactNumber(value: number): string {
+    if (!Number.isFinite(value)) return "0";
+    if (Math.abs(value) >= 1_000_000) return `${roundTo(value / 1_000_000, 1)}M`;
+    if (Math.abs(value) >= 1_000) return `${roundTo(value / 1_000, 1)}K`;
+    return `${Math.round(value)}`;
+  }
+
+  function getTextCorpus(posts: IdeaContextPost[]): string[] {
+    return posts.flatMap((post) => [post.title, post.caption, post.description]).filter(Boolean) as string[];
+  }
+
+  function extractTopTerms(posts: IdeaContextPost[], limit = 6): string[] {
+    const counts = new Map<string, number>();
+    for (const text of getTextCorpus(posts)) {
+      const words = text
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, " ")
+        .replace(/[^a-z0-9#@\s-]/g, " ")
+        .split(/\s+/)
+        .map((w) => w.trim())
+        .filter((w) => w.length >= 4 && !CONTENT_STOPWORDS.has(w) && !/^\d+$/.test(w));
+
+      for (const word of words) {
+        counts.set(word, (counts.get(word) || 0) + 1);
+      }
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([word]) => word);
+  }
+
+  function detectHookPatterns(posts: IdeaContextPost[]): string[] {
+    const patterns = new Map<string, number>();
+    const texts = getTextCorpus(posts);
+    for (const text of texts) {
+      const line = text.trim();
+      if (!line) continue;
+      if (/\b\d+\b/.test(line)) patterns.set("number-led hooks", (patterns.get("number-led hooks") || 0) + 1);
+      if (/\bmistake|mistakes|wrong\b/i.test(line)) patterns.set("mistake-based hooks", (patterns.get("mistake-based hooks") || 0) + 1);
+      if (/\bhow to\b/i.test(line)) patterns.set("how-to education", (patterns.get("how-to education") || 0) + 1);
+      if (/\?$/.test(line) || /\bwhy\b|\bwhat\b|\bwhen\b/i.test(line)) patterns.set("question hooks", (patterns.get("question hooks") || 0) + 1);
+      if (/\bmy\b|\bi\b|\bstory\b|\blearned\b|\bjourney\b/i.test(line)) patterns.set("personal-story angles", (patterns.get("personal-story angles") || 0) + 1);
+      if (/\bclient\b|\bcase study\b|\bresults?\b|\bproof\b/i.test(line)) patterns.set("proof / case-study angles", (patterns.get("proof / case-study angles") || 0) + 1);
+    }
+    return [...patterns.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([pattern]) => pattern);
+  }
+
+  function inferAudiencePains(niche: string, audience: string, topTerms: string[]): string[] {
+    const combined = `${niche} ${audience}`.toLowerCase();
+    const pains: string[] = [];
+    if (/\bcoach|consultant|agency|freelancer|service\b/.test(combined)) pains.push("struggling to turn expertise into clear content angles");
+    if (/\bcreator|content|influencer|personal brand\b/.test(combined)) pains.push("running out of fresh ideas without repeating old posts");
+    if (/\bfitness|health|nutrition\b/.test(combined)) pains.push("feeling overwhelmed by conflicting advice and needing simple actions");
+    if (/\bfinance|money|invest|trading\b/.test(combined)) pains.push("wanting practical, low-confusion steps instead of theory");
+    if (/\bsaas|software|b2b|startup|founder\b/.test(combined)) pains.push("needing proof-backed content that earns trust fast");
+    if (/\bmom|parents|busy|founder|entrepreneur\b/.test(combined)) pains.push("not having enough time for long, complicated workflows");
+    for (const term of topTerms.slice(0, 3)) {
+      pains.push(`wanting clearer guidance around ${term}`);
+    }
+    return [...new Set(pains)].slice(0, 4);
+  }
+
+  function buildStrategyBrief(params: {
+    platform: string;
+    niche: string;
+    goal?: string;
+    audience?: string;
+    contentType?: string;
+    profileHandle?: string;
+    contextPosts: IdeaContextPost[];
+    scrapedPostsCount: number;
+    hashtags?: string[];
+  }) {
+    const { platform, niche, goal, audience, contentType, profileHandle, contextPosts, scrapedPostsCount, hashtags } = params;
+    const posts = contextPosts.slice(0, 30);
+    const typeCounts: Record<string, number> = {};
+    for (const post of posts) {
+      const key = (post.contentType || "unknown").toLowerCase();
+      typeCounts[key] = (typeCounts[key] || 0) + 1;
+    }
+
+    const rankedPosts = [...posts].sort((a, b) => {
+      const aScore = (a.views || 0) + (a.likes || 0) * 3 + (a.comments || 0) * 5 + (a.saves || 0) * 4;
+      const bScore = (b.views || 0) + (b.likes || 0) * 3 + (b.comments || 0) * 5 + (b.saves || 0) * 4;
+      return bScore - aScore;
+    });
+    const avgViews = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.views || 0), 0) / posts.length, 0) : 0;
+    const avgLikes = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.likes || 0), 0) / posts.length, 0) : 0;
+    const avgComments = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.comments || 0), 0) / posts.length, 0) : 0;
+    const topTerms = extractTopTerms(posts);
+    const hookPatterns = detectHookPatterns(posts);
+    const topFormats = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([format, count]) => `${format} (${count})`);
+    const winningTitles = rankedPosts.slice(0, 3).map((post) => post.title || post.caption || "Untitled");
+    const missingLanes = [
+      !hookPatterns.includes("proof / case-study angles") ? "more proof-led content with results, screenshots, or case studies" : null,
+      !hookPatterns.includes("personal-story angles") ? "more personal-story content to deepen trust and memorability" : null,
+      !hookPatterns.includes("question hooks") ? "more conversation-starting prompts to pull comments" : null,
+      !Object.keys(typeCounts).some((format) => format.includes("carousel")) && platform === "instagram" ? "carousel breakdowns that package value more clearly" : null,
+      !Object.keys(typeCounts).some((format) => format.includes("reel")) && platform === "instagram" ? "short-form reels built around one sharp promise" : null,
+      platform === "youtube" && !rankedPosts.some((p) => (p.contentType || "").includes("short")) ? "short-form YouTube Shorts to create top-of-funnel discovery" : null,
+      platform === "linkedin" ? "stronger founder/opinion posts that spark disagreement and discussion" : null,
+      platform === "twitter" ? "thread-first educational sequences with sharper opening claims" : null,
+    ].filter(Boolean) as string[];
+
+    const audiencePains = inferAudiencePains(niche, audience || "", topTerms);
+    const recommendedPillars = [
+      `${goal?.includes("sale") || goal?.includes("conversion") ? "buyer-belief shifts" : "audience pain points"} in ${niche}`,
+      `${topTerms[0] || niche} explained with concrete frameworks`,
+      `${hookPatterns[0] || "specific hooks"} tied to ${audience || "the target audience"}`,
+      `${platform === "youtube" ? "series-based content" : "proof-led stories"} that build authority`,
+    ].slice(0, 4);
+
+    const sources = [
+      profileHandle ? `profile context from ${profileHandle}` : null,
+      posts.length ? `${posts.length} logged/tracked content posts` : null,
+      scrapedPostsCount > 0 ? `${scrapedPostsCount} freshly scraped platform posts` : null,
+      hashtags?.length ? `${hashtags.length} niche hashtags/topics` : null,
+    ].filter(Boolean) as string[];
+
+    return {
+      positioning: profileHandle
+        ? `${profileHandle} sits in ${niche} with a ${goal || "growth-focused"} objective and should lean harder into differentiated, proof-backed content.`
+        : `This ${niche} brand should be positioned with sharper specificity and more repeatable content systems instead of one-off generic posts.`,
+      audienceSummary: audience || `Primary audience is people interested in ${niche} who need clearer, more actionable content.`,
+      performanceSnapshot: posts.length
+        ? `Across ${posts.length} context posts, average performance is ${formatCompactNumber(avgViews)} views, ${formatCompactNumber(avgLikes)} likes, and ${formatCompactNumber(avgComments)} comments.`
+        : `No meaningful post history was provided, so the workflow will rely more heavily on niche, platform, and goal context.`,
+      topFormats,
+      winningPatterns: [...new Set([...hookPatterns, ...topTerms.slice(0, 2).map((term) => `${term}-driven education`)])].slice(0, 4),
+      winningTitles,
+      audiencePains,
+      contentGaps: missingLanes.slice(0, 4),
+      opportunityLanes: [
+        `Turn ${topTerms[0] || niche} into a repeatable content series`,
+        `Publish more ${goal?.includes("engagement") ? "comment-driven" : goal?.includes("sale") ? "conversion-aware" : "shareable"} content`,
+        `Use ${hookPatterns[0] || "stronger hooks"} to package ideas with higher clarity`,
+      ].slice(0, 3),
+      recommendedPillars,
+      sources,
+      workflowSteps: [
+        "Use the strategy brief to choose one high-priority lane",
+        "Pick a bucket: Growth, Trust, or Conversion",
+        "Choose the highest-scoring idea and expand it into a script or post",
+        "Repurpose the winning idea into at least one secondary platform-native version",
+      ],
+      metadata: {
+        postsAnalysed: posts.length,
+        avgViews,
+        avgLikes,
+        avgComments,
+        contentTypeHint: contentType || null,
+      },
+    };
   }
 
   // ── Oravini CRM sync helper ───────────────────────────────────────────────
@@ -1894,7 +2108,7 @@ Keep it concise, actionable, and directly tied to the goal.`,
   // ── AI Content Ideas (Groq — fast) ───────────────────────────────────────
   app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts, scrapedPosts } = req.body;
+      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts, scrapedPosts, hashtags } = req.body;
       if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
 
       const _u = req.user as any;
@@ -1908,125 +2122,202 @@ Keep it concise, actionable, and directly tied to the goal.`,
       const goalLabel = goal || "growth and engagement";
       const audienceLabel = audience || "general audience";
 
-      let profileSection = "";
-      if (profileHandle) profileSection = `Creator handle: ${profileHandle}\n`;
-
-      // Merge logged posts + real scraped posts for richer context
-      const allContextPosts: any[] = [
+      const allContextPosts: IdeaContextPost[] = [
         ...(Array.isArray(existingPosts) ? existingPosts : []),
         ...(Array.isArray(scrapedPosts) ? scrapedPosts : []),
       ];
-
-      let existingContentSection = "";
-      if (allContextPosts.length > 0) {
-        const posts = allContextPosts;
-        const typeCounts: Record<string, number> = {};
-        posts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
-        const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
-        const avgViews = Math.round(posts.reduce((s: number, p: any) => s + (p.views || 0), 0) / posts.length);
-        const avgLikes = Math.round(posts.reduce((s: number, p: any) => s + (p.likes || 0), 0) / posts.length);
-        const topPost = [...posts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
-        const recentTitles = posts.slice(0, 10).map((p: any) => p.title).filter(Boolean);
-        const isRealData = scrapedPosts && Array.isArray(scrapedPosts) && scrapedPosts.length > 0;
-        existingContentSection = `\n${isRealData ? "REAL profile analysis" : "Existing content analysis"} (craft ideas that fill gaps and beat best performers):
-- Total posts analysed: ${posts.length}${isRealData ? " (real data)" : ""}
-- Avg views: ${avgViews.toLocaleString()} | Avg likes: ${avgLikes.toLocaleString()}
-- Most-used format: ${topType ? `${topType[0]} (${topType[1]} posts)` : "mixed"}
-- Best performing post: "${topPost?.title}" — ${(topPost?.views || 0).toLocaleString()} views
-- Recent post titles (DO NOT repeat verbatim): ${recentTitles.map((t: string) => `"${t}"`).join(", ")}
-Generate ideas that are FRESH, fill clear content gaps, and strategically build on what's already working.\n`;
-      }
-
       const isYouTube = platform === "youtube";
       const isLinkedIn = platform === "linkedin";
       const isTwitter = platform === "twitter";
+      const strategyBrief = buildStrategyBrief({
+        platform,
+        niche,
+        goal,
+        audience,
+        contentType,
+        profileHandle,
+        contextPosts: allContextPosts,
+        scrapedPostsCount: Array.isArray(scrapedPosts) ? scrapedPosts.length : 0,
+        hashtags: Array.isArray(hashtags) ? hashtags : [],
+      });
 
-      const platformFormatSection = isYouTube ? `
-YouTube format options (match the selected content type):
-- Short Form: YouTube Shorts, quick tips, viral hooks, micro lessons
-- Long Form: Deep educational videos, tutorials, case studies, step-by-step guides
-- Value Based: Educational breakdowns, framework explanations, strategy videos
-- VSL Style: Problem–solution videos, authority videos, offer explanation, story-based persuasion
-` : isLinkedIn ? `
-LinkedIn content formats:
-- Thought Leadership: Personal insights, industry opinions, lessons learned, controversial takes
-- List Posts: "5 things I wish I knew...", "3 mistakes most [role] make", numbered insight posts
-- Story Posts: Personal career stories, failures, wins, transformation arcs — 1st person storytelling
-- How-To Carousel: Step-by-step professional advice, frameworks, systems in carousel format
-- Newsletter Snippets: Long-form insights styled for LinkedIn's algorithm — 1300 char sweet spot
-LinkedIn algorithm rules: hook line (first 1-2 lines before "...see more"), no links in post, high personal = high reach, end with strong engagement question.
-` : isTwitter ? `
-X/Twitter content formats:
-- Thread: Multi-tweet educational breakdown (opener hook + 8-15 numbered tweets + CTA)
-- Single Tweet: Punchy hot take, controversial opinion, or insight under 280 chars
-- Quote Thread: Series of powerful one-liners or facts
-- Poll Thread: Engagement-first tweet + poll question
-X/Twitter algorithm rules: hooks must hook in first 10 words, threads outperform singles for reach, reply baiting = algorithm boost, avoid external links in main tweet.
-` : "";
+      const defaultContentType = isYouTube
+        ? "Mix of long-form videos, YouTube Shorts, and educational breakdowns"
+        : isLinkedIn
+          ? "Mix of thought leadership, story posts, and credibility-building takes"
+          : isTwitter
+            ? "Mix of threads, sharp opinions, and bookmark-worthy single posts"
+            : "Mix of reels, carousels, and trust-building posts";
 
-      const defaultContentType = isYouTube ? "Mix of Long Form, Value-Based, and Short Form videos" : isLinkedIn ? "Mix of thought leadership, list posts, and story posts" : isTwitter ? "Mix of threads, hot takes, and single tweets" : "Mix of Reels, Carousels, Posts";
+      const promptPayload = {
+        platform,
+        platformLabel,
+        niche,
+        contentType: contentType || defaultContentType,
+        goal: goalLabel,
+        audience: audienceLabel,
+        profileHandle: profileHandle || null,
+        additionalContext: additionalContext || null,
+        hashtags: Array.isArray(hashtags) ? hashtags : [],
+        strategyBrief,
+        contextPosts: allContextPosts.slice(0, 12).map((post) => ({
+          title: post.title || null,
+          contentType: post.contentType || null,
+          views: post.views || 0,
+          likes: post.likes || 0,
+          comments: post.comments || 0,
+          saves: post.saves || 0,
+          caption: (post.caption || post.description || "").slice(0, 220) || null,
+          duration: post.duration || null,
+        })),
+      };
 
-      const systemPrompt = `You are an elite social media content strategist specialized in ${platformLabel}. You generate scroll-stopping, high-performing content ideas that are deeply specific, actionable, and hyper-relevant to the exact niche provided. CRITICAL RULES: (1) ZERO generic ideas — every title must name a SPECIFIC pain point, result, or insight tied to the niche. (2) Never use vague openers like "How to grow", "Tips for success", "Why you should". Instead use specific numbers, outcomes, or contrarian angles. (3) Every idea must feel like it was written ONLY for this exact creator, not copy-pasteable to any other niche.${isLinkedIn ? " For LinkedIn: write in a punchy, first-person professional tone. Use specific industry language, name real problems professionals in this niche face, and create ideas that spark genuine debate or sharing among peers. Thought leadership means SPECIFIC insights, not motivational fluff." : ""}${isTwitter ? " For X/Twitter: every thread must have a jaw-dropping opening tweet with a specific claim or stat. Hot takes must be genuinely controversial or counterintuitive for this niche — not obvious advice. Threads must deliver real value in each tweet, not vague teases. Single tweets must pack a complete insight in under 200 chars." : ""}${isYouTube ? " For YouTube, when you create list-style videos (e.g. '5 Ways to...'), you MUST provide all numbered points in full detail." : ""}`;
+      const systemPrompt = `You are Oravini's elite content strategist. Your job is to turn creator context into a real content workflow, not generic brainstorms.
 
-      const { hashtags } = req.body;
-      const hashtagSection = (Array.isArray(hashtags) && hashtags.length > 0)
-        ? `\nPopular hashtags/topics in this niche: ${hashtags.join(" ")}\n`
-        : "";
+Rules:
+1. Every idea must feel platform-native and niche-specific.
+2. Avoid weak generic titles like "How to grow", "3 tips", "Why you should". Be concrete.
+3. Use the strategy brief and context posts to build on what is working and fill what is missing.
+4. Spread ideas across Growth, Trust, and Conversion buckets.
+5. Include execution guidance, not just titles.
+6. If a platform has a native structure, use it:
+- Instagram: reels, carousels, stories, proof posts
+- YouTube: title packaging, thumbnail angle, intro hook, retention structure
+- LinkedIn: opener, belief shift, insight, proof, CTA
+- X/Twitter: opener tweet, thread shape, hot take, reply prompt
+7. Return only valid JSON.`;
 
-      const captionLabel = "captionStarter";
-      const captionDesc = isLinkedIn ? "First 1-2 lines of the LinkedIn post (before 'see more' cutoff) — must stop the scroll and spark curiosity" : isTwitter ? "The opening tweet or hook that makes people click 'show thread' or engage immediately — punchy, under 200 chars" : "An attention-grabbing opening line for the caption or script hook they can copy directly";
-      const formatDesc = isYouTube ? ' (e.g. "Long-form Tutorial", "YouTube Short", "VSL", "Educational Breakdown")' : isLinkedIn ? ' (e.g. "Thought Leadership Post", "List Post", "Story Post", "Carousel", "Newsletter")' : isTwitter ? ' (e.g. "Twitter Thread", "Single Tweet Hot Take", "Quote Thread", "Poll Thread")' : ' (e.g. "Instagram Reel", "Carousel", "Static Post", "Story")';
+      const userPrompt = `Build a strategy-first content workflow for this creator context:
 
-      const userPrompt = `${profileSection}Generate 6 powerful content ideas for a ${platformLabel} creator.
+${JSON.stringify(promptPayload, null, 2)}
 
-Niche: ${niche}
-Content type: ${contentType || defaultContentType}
-Goal: ${goalLabel}
-Target audience: ${audienceLabel}
-${additionalContext ? `Extra context: ${additionalContext}` : ""}
-${hashtagSection}${existingContentSection}${platformFormatSection}
-For each idea provide ALL of these fields:
-1. title — A specific, scroll-stopping hook (max 12 words). NOT generic.
-2. concept — 2-3 sentences explaining exactly what the content covers and why it will perform on ${platformLabel}
-3. formatType — The exact format${formatDesc}
-4. whyItWorks — 1-2 sentences on the ${platformLabel} algorithm advantage and engagement potential of this idea
-5. cta — A specific, compelling call-to-action tailored to ${platformLabel} (${isTwitter ? "e.g. 'Retweet if you agree', 'Reply with your #1 lesson'" : isLinkedIn ? "e.g. 'What do you think? Drop your take below', 'Tag a colleague who needs to see this'" : "e.g. 'Follow for more', 'Save this for later', 'DM me [word]'"})
-6. ${captionLabel} — ${captionDesc}${isYouTube ? `
-7. keyPoints — REQUIRED for YouTube: If the title includes a number, list every single numbered point in full detail as an array of strings.` : isTwitter ? `
-7. threadOutline — For thread ideas: provide the first 3 tweet texts in full as an array of strings (opener + tweet 2 + tweet 3). For single tweets: leave as [].` : isLinkedIn ? `
-7. linkedinStructure — The post structure in 3-4 bullet points (e.g. ["Hook: ...", "Problem: ...", "Solution: ...", "CTA: ..."])` : ""}
-
-Also add a contentMix suggestion at the end as a separate JSON object.
-
-Return ONLY valid JSON in this exact format (no markdown, no extra text):
+Return valid JSON in this exact shape:
 {
+  "strategyBrief": {
+    "positioning": "1-2 sentences",
+    "audienceSummary": "1 sentence",
+    "performanceSnapshot": "1 sentence",
+    "winningPatterns": ["...", "...", "..."],
+    "contentGaps": ["...", "...", "..."],
+    "opportunityLanes": ["...", "...", "..."],
+    "recommendedPillars": ["...", "...", "..."],
+    "workflowSteps": ["...", "...", "...", "..."],
+    "sources": ["...", "..."]
+  },
+  "ideaBuckets": [
+    { "key": "growth", "title": "Growth", "description": "What this bucket is for" },
+    { "key": "trust", "title": "Trust", "description": "What this bucket is for" },
+    { "key": "conversion", "title": "Conversion", "description": "What this bucket is for" }
+  ],
   "ideas": [
     {
-      "title": "...",
-      "concept": "...",
-      "formatType": "...",
-      "whyItWorks": "...",
-      "cta": "...",
-      "${captionLabel}": "..."${isYouTube ? `,
-      "keyPoints": ["1. detailed point...", "2. detailed point..."]` : isTwitter ? `,
-      "threadOutline": ["tweet 1 text...", "tweet 2 text...", "tweet 3 text..."]` : isLinkedIn ? `,
-      "linkedinStructure": ["Hook: ...", "Problem: ...", "Solution/insight: ...", "CTA: ..."]` : ""}
+      "title": "specific hook/title",
+      "bucket": "growth|trust|conversion",
+      "angle": "what strategic angle this idea uses",
+      "concept": "2-3 sentence explanation",
+      "formatType": "exact platform-native format",
+      "whyItWorks": "why this should perform on the platform",
+      "captionStarter": "first line / hook / opener",
+      "cta": "specific CTA",
+      "sourceInsight": "what brief insight this idea is based on",
+      "confidenceScore": 1,
+      "productionNotes": ["...", "...", "..."],
+      "repurposeHook": "how to repurpose this idea for another platform",
+      "keyPoints": [],
+      "threadOutline": [],
+      "linkedinStructure": []
     }
   ],
   "contentMix": {
     "growth": 40,
     "value": 40,
     "conversion": 20,
-    "suggestion": "One sentence on ideal posting mix for this niche and goal on ${platformLabel}"
+    "suggestion": "one sentence"
+  },
+  "workflow": {
+    "nextBestAction": "single next move",
+    "productionSequence": ["...", "...", "..."],
+    "repurposingNotes": ["...", "...", "..."]
   }
-}`;
+}
 
-      const text = await callGroq(systemPrompt, userPrompt, 3500);
+Requirements:
+- Return 8 ideas total.
+- At least 2 ideas per bucket.
+- confidenceScore must be 1-10.
+- productionNotes must be specific execution notes, not fluff.
+- For YouTube, fill keyPoints when the idea implies a breakdown/list video.
+- For X/Twitter, fill threadOutline for thread ideas.
+- For LinkedIn, fill linkedinStructure for LinkedIn ideas.
+- For Instagram, make productionNotes useful for reels/carousels/captions.`;
 
-      const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
+      const parsed = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 5000));
+      if (!parsed || !Array.isArray(parsed.ideas)) {
+        return res.status(500).json({ message: "Failed to build structured content workflow" });
+      }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      parsed.strategyBrief = {
+        ...strategyBrief,
+        ...(parsed.strategyBrief || {}),
+        winningPatterns: Array.isArray(parsed.strategyBrief?.winningPatterns) ? parsed.strategyBrief.winningPatterns : strategyBrief.winningPatterns,
+        contentGaps: Array.isArray(parsed.strategyBrief?.contentGaps) ? parsed.strategyBrief.contentGaps : strategyBrief.contentGaps,
+        opportunityLanes: Array.isArray(parsed.strategyBrief?.opportunityLanes) ? parsed.strategyBrief.opportunityLanes : strategyBrief.opportunityLanes,
+        recommendedPillars: Array.isArray(parsed.strategyBrief?.recommendedPillars) ? parsed.strategyBrief.recommendedPillars : strategyBrief.recommendedPillars,
+        workflowSteps: Array.isArray(parsed.strategyBrief?.workflowSteps) ? parsed.strategyBrief.workflowSteps : strategyBrief.workflowSteps,
+        sources: Array.isArray(parsed.strategyBrief?.sources) ? parsed.strategyBrief.sources : strategyBrief.sources,
+      };
+
+      parsed.ideaBuckets = Array.isArray(parsed.ideaBuckets) && parsed.ideaBuckets.length > 0
+        ? parsed.ideaBuckets
+        : [
+            { key: "growth", title: "Growth", description: "Discovery-focused content designed to reach new people." },
+            { key: "trust", title: "Trust", description: "Authority and credibility content that makes the creator memorable." },
+            { key: "conversion", title: "Conversion", description: "Ideas built to turn attention into DMs, leads, or sales." },
+          ];
+
+      parsed.ideas = parsed.ideas.slice(0, 8).map((idea: any, index: number) => ({
+        title: idea.title || `Idea ${index + 1}`,
+        bucket: ["growth", "trust", "conversion"].includes(idea.bucket) ? idea.bucket : index < 3 ? "growth" : index < 6 ? "trust" : "conversion",
+        angle: idea.angle || "specific platform-native angle",
+        concept: idea.concept || "A sharper content idea built from the strategy brief.",
+        formatType: idea.formatType || (platform === "youtube" ? "Educational Breakdown" : platform === "linkedin" ? "Thought Leadership Post" : platform === "twitter" ? "Thread" : "Instagram Reel"),
+        whyItWorks: idea.whyItWorks || "This idea is aligned with the platform format and audience intent.",
+        captionStarter: idea.captionStarter || idea.title,
+        cta: idea.cta || (platform === "twitter" ? "Reply with your take." : platform === "linkedin" ? "Comment with your experience." : "Save this and follow for more."),
+        sourceInsight: idea.sourceInsight || parsed.strategyBrief?.winningPatterns?.[0] || "Built from the strategy brief.",
+        confidenceScore: Math.max(1, Math.min(10, Number(idea.confidenceScore) || 7)),
+        productionNotes: Array.isArray(idea.productionNotes) ? idea.productionNotes.slice(0, 4) : [],
+        repurposeHook: idea.repurposeHook || "Repurpose the same insight with a tighter hook for a second platform.",
+        keyPoints: Array.isArray(idea.keyPoints) ? idea.keyPoints.slice(0, 8) : [],
+        threadOutline: Array.isArray(idea.threadOutline) ? idea.threadOutline.slice(0, 5) : [],
+        linkedinStructure: Array.isArray(idea.linkedinStructure) ? idea.linkedinStructure.slice(0, 5) : [],
+      }));
+
+      parsed.contentMix = parsed.contentMix && typeof parsed.contentMix === "object"
+        ? {
+            growth: Number(parsed.contentMix.growth) || 40,
+            value: Number(parsed.contentMix.value) || 40,
+            conversion: Number(parsed.contentMix.conversion) || 20,
+            suggestion: parsed.contentMix.suggestion || `Balance discovery, trust-building, and conversion content around ${goalLabel}.`,
+          }
+        : {
+            growth: goalLabel.includes("viral") || goalLabel.includes("followers") ? 50 : 35,
+            value: goalLabel.includes("authority") || goalLabel.includes("educate") ? 45 : 40,
+            conversion: goalLabel.includes("sale") || goalLabel.includes("conversion") ? 30 : 20,
+            suggestion: `Use your strongest format to win attention, then rotate into trust and conversion posts with the same core themes.`,
+          };
+
+      parsed.workflow = parsed.workflow && typeof parsed.workflow === "object"
+        ? {
+            nextBestAction: parsed.workflow.nextBestAction || "Choose one Growth idea and one Trust idea to produce this week.",
+            productionSequence: Array.isArray(parsed.workflow.productionSequence) ? parsed.workflow.productionSequence.slice(0, 4) : strategyBrief.workflowSteps,
+            repurposingNotes: Array.isArray(parsed.workflow.repurposingNotes) ? parsed.workflow.repurposingNotes.slice(0, 4) : ["Turn the winning idea into a second platform-native variation."],
+          }
+        : {
+            nextBestAction: "Choose one Growth idea and turn it into a production-ready draft first.",
+            productionSequence: strategyBrief.workflowSteps,
+            repurposingNotes: ["Turn the best-performing concept into a second platform-native version within 24 hours."],
+          };
 
       // Log this generation for admin visibility
       try {
