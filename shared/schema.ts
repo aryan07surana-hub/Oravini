@@ -822,6 +822,104 @@ export const emailUnsubscribes = pgTable("email_unsubscribes", {
   unsubscribedAt: timestamp("unsubscribed_at").defaultNow(),
 });
 
+// ── Everyday Reading / Daily Reading Library ─────────────────────────────────
+export const readingStatusEnum = pgEnum("reading_status", ["unread", "reading", "completed"]);
+export const readingDifficultyEnum = pgEnum("reading_difficulty", ["beginner", "intermediate", "advanced", "elite"]);
+export const readingPriorityEnum = pgEnum("reading_priority", ["low", "medium", "high", "must_read"]);
+
+export const readingMaterials = pgTable("reading_materials", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  author: text("author"),
+  source: text("source"), // e.g. "$100M Offers", "Sales Psychology PDF"
+  category: text("category").notNull().default("Books"), // Books, Playbooks, Sales, Marketing, Psychology, Communication, Business, Wealth, Mindset, Systems, SOPs, Personal Notes, Swipe Files
+  summary: text("summary"),
+  keyTakeaways: text("key_takeaways").array(),
+  actionableLessons: text("actionable_lessons").array(),
+  tags: text("tags").array(),
+  difficulty: readingDifficultyEnum("difficulty").notNull().default("intermediate"),
+  readTimeMinutes: integer("read_time_minutes").notNull().default(10),
+  priority: readingPriorityEnum("priority").notNull().default("medium"),
+  status: readingStatusEnum("status").notNull().default("unread"),
+  fileUrl: text("file_url"), // PDF upload
+  fileType: text("file_type"), // pdf, txt, markdown
+  favorite: boolean("favorite").notNull().default(false),
+  mustRead: boolean("must_read").notNull().default(false),
+  aiGenerated: boolean("ai_generated").notNull().default(false),
+  lastReviewedAt: timestamp("last_reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertReadingMaterialSchema = createInsertSchema(readingMaterials).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertReadingMaterial = z.infer<typeof insertReadingMaterialSchema>;
+export type ReadingMaterial = typeof readingMaterials.$inferSelect;
+
+export const readingHighlights = pgTable("reading_highlights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  materialId: varchar("material_id").notNull().references(() => readingMaterials.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  excerpt: text("excerpt").notNull(),
+  page: integer("page"),
+  note: text("note"),
+  tag: text("tag"), // framework, swipe, mindset, quote, etc.
+  favorite: boolean("favorite").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertReadingHighlightSchema = createInsertSchema(readingHighlights).omit({ id: true, createdAt: true });
+export type InsertReadingHighlight = z.infer<typeof insertReadingHighlightSchema>;
+export type ReadingHighlight = typeof readingHighlights.$inferSelect;
+
+export const readingStreaks = pgTable("reading_streaks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  currentStreak: integer("current_streak").notNull().default(0),
+  longestStreak: integer("longest_streak").notNull().default(0),
+  lastReadDate: timestamp("last_read_date"),
+  totalDaysRead: integer("total_days_read").notNull().default(0),
+  totalMinutesRead: integer("total_minutes_read").notNull().default(0),
+  booksCompleted: integer("books_completed").notNull().default(0),
+  lessonsImplemented: integer("lessons_implemented").notNull().default(0),
+  knowledgeScore: integer("knowledge_score").notNull().default(0), // 0-100
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type ReadingStreak = typeof readingStreaks.$inferSelect;
+
+export const dailyReadings = pgTable("daily_readings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull().defaultNow(),
+  mode: text("mode").notNull().default("15min"), // 5min, 10min, 15min, 30min, 45min, deep_work
+  quickReadTitle: text("quick_read_title"),
+  quickReadContent: text("quick_read_content"),
+  quickReadSource: text("quick_read_source"),
+  focusReadTitle: text("focus_read_title"),
+  focusReadContent: text("focus_read_content"),
+  focusReadSource: text("focus_read_source"),
+  deepReadTitle: text("deep_read_title"),
+  deepReadContent: text("deep_read_content"),
+  deepReadSource: text("deep_read_source"),
+  mentalModel: text("mental_model"),
+  mentalModelExplanation: text("mental_model_explanation"),
+  framework: text("framework"),
+  frameworkExplanation: text("framework_explanation"),
+  quote: text("quote"),
+  quoteAuthor: text("quote_author"),
+  executionTask: text("execution_task"),
+  reflectionQuestion: text("reflection_question"),
+  challenge: text("challenge"),
+  implementation: text("implementation"),
+  whyToday: text("why_today"),
+  sources: text("sources").array(),
+  knowledgeScore: integer("knowledge_score").default(0),
+  implemented: boolean("implemented").notNull().default(false),
+  savedForLater: boolean("saved_for_later").notNull().default(false),
+  skipped: boolean("skipped").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DailyReading = typeof dailyReadings.$inferSelect;
+
 export const deletionSurveys = pgTable("deletion_surveys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),

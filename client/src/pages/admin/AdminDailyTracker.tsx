@@ -3,21 +3,39 @@ import AdminLayout from "@/components/layout/AdminLayout";
 import { format, addDays, subDays, startOfWeek, isSameDay, isToday } from "date-fns";
 import {
   CheckCircle2, Circle, Plus, Trash2, ChevronLeft, ChevronRight,
-  Sparkles, Flame, Target, CalendarDays, ListTodo, TrendingUp, X, Loader2
+  Sparkles, Flame, Target, CalendarDays, ListTodo, TrendingUp, X, Loader2,
+  Briefcase, Clock, CalendarClock, BarChart3, Zap, CalendarRange
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const GOLD = "#d4b461";
 const STORAGE_KEY = import.meta.env.VITE_DAILY_TRACKER_STORAGE_KEY ?? "admin_daily_tracker_v1";
+const BUSINESS_STORAGE_KEY = "admin_business_tracker_v1";
+const CONTENT_CALENDAR_KEY = "admin_content_calendar_v1";
 
-type Task = { id: string; text: string; done: boolean; category: "work" | "health" | "personal" };
+type Task = { id: string; text: string; done: boolean; category: "work" | "health" | "personal" | "business" };
 type Habit = { id: string; name: string; emoji: string };
-type DayData = { tasks: Task[]; habits: Record<string, boolean>; note: string; aiPlan: string };
+type ContentItem = { id: string; title: string; platform: string; scheduledTime: string; status: "pending" | "published" | "draft"; description: string };
+type BusinessTask = { id: string; text: string; done: boolean; priority: "high" | "medium" | "low"; dueDate?: string };
+type DayData = { tasks: Task[]; habits: Record<string, boolean>; note: string; aiPlan: string; businessTasks: BusinessTask[]; contentCalendar: ContentItem[]; aiContentPrompt: string };
 type TrackerData = Record<string, DayData>;
+
+type ContentCalendarDay = {
+  date: string;
+  items: {
+    time: string;
+    platform: "instagram" | "youtube" | "linkedin" | "twitter" | "tiktok";
+    contentType: "post" | "reel" | "story" | "video" | "article" | "tweet";
+    topic: string;
+    description: string;
+    status: "planned" | "created" | "scheduled" | "published";
+  }[];
+};
 
 const DEFAULT_HABITS: Habit[] = [
   { id: "workout", name: "Workout", emoji: "💪" },
@@ -38,7 +56,7 @@ function dateKey(d: Date) {
 }
 
 function emptyDay(): DayData {
-  return { tasks: [], habits: {}, note: "", aiPlan: "" };
+  return { tasks: [], habits: {}, note: "", aiPlan: "", businessTasks: [], contentCalendar: [], aiContentPrompt: "" };
 }
 
 function loadData(): TrackerData {
@@ -270,7 +288,7 @@ export default function AdminDailyTracker() {
             >
               {tab === "tasks" ? <span className="flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" />{tab}</span>
                 : tab === "habits" ? <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5" />{tab}</span>
-                : <span className="flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5" />{tab}</span>}
+                  : <span className="flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5" />{tab}</span>}
             </button>
           ))}
         </div>

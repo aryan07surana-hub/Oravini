@@ -20,6 +20,7 @@ import {
   videoEdits,
   brollClips,
   meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens,
+  readingMaterials, readingHighlights, readingStreaks, dailyReadings,
   type GoogleCalendarToken,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
@@ -58,6 +59,9 @@ import {
   type EmailEnrollment, type InsertEmailEnrollment,
   type EmailLog,
   type EmailBroadcast, type InsertEmailBroadcast,
+  type ReadingMaterial, type InsertReadingMaterial,
+  type ReadingHighlight, type InsertReadingHighlight,
+  type ReadingStreak, type DailyReading,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -309,6 +313,22 @@ export interface IStorage {
   updateEmailBroadcast(id: string, data: Partial<EmailBroadcast>): Promise<void>;
   isEmailUnsubscribed(email: string): Promise<boolean>;
   addEmailUnsubscribe(email: string): Promise<void>;
+
+  // Everyday Reading
+  getReadingMaterials(userId: string, category?: string): Promise<ReadingMaterial[]>;
+  getReadingMaterial(id: string): Promise<ReadingMaterial | undefined>;
+  createReadingMaterial(data: InsertReadingMaterial): Promise<ReadingMaterial>;
+  updateReadingMaterial(id: string, data: Partial<InsertReadingMaterial>): Promise<ReadingMaterial | undefined>;
+  deleteReadingMaterial(id: string): Promise<void>;
+  getReadingHighlights(userId: string, materialId?: string): Promise<ReadingHighlight[]>;
+  createReadingHighlight(data: InsertReadingHighlight): Promise<ReadingHighlight>;
+  deleteReadingHighlight(id: string): Promise<void>;
+  getReadingStreak(userId: string): Promise<ReadingStreak | undefined>;
+  upsertReadingStreak(userId: string, data: Partial<ReadingStreak>): Promise<ReadingStreak>;
+  getDailyReadings(userId: string, limit?: number): Promise<DailyReading[]>;
+  getDailyReading(userId: string, date: Date): Promise<DailyReading | undefined>;
+  createDailyReading(data: any): Promise<DailyReading>;
+  updateDailyReading(id: string, data: Partial<DailyReading>): Promise<DailyReading | undefined>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1600,6 +1620,78 @@ class DatabaseStorage implements IStorage {
   }
   async addEmailUnsubscribe(email: string) {
     await db.insert(emailUnsubscribes).values({ email }).onConflictDoNothing();
+  }
+
+  // ── Everyday Reading ───────────────────────────────────────────────────────
+  async getReadingMaterials(userId: string, category?: string): Promise<ReadingMaterial[]> {
+    if (category && category !== "all") {
+      return db.select().from(readingMaterials)
+        .where(and(eq(readingMaterials.userId, userId), eq(readingMaterials.category, category)))
+        .orderBy(desc(readingMaterials.createdAt));
+    }
+    return db.select().from(readingMaterials).where(eq(readingMaterials.userId, userId)).orderBy(desc(readingMaterials.createdAt));
+  }
+  async getReadingMaterial(id: string): Promise<ReadingMaterial | undefined> {
+    const [row] = await db.select().from(readingMaterials).where(eq(readingMaterials.id, id));
+    return row;
+  }
+  async createReadingMaterial(data: InsertReadingMaterial): Promise<ReadingMaterial> {
+    const [row] = await db.insert(readingMaterials).values(data).returning();
+    return row;
+  }
+  async updateReadingMaterial(id: string, data: Partial<InsertReadingMaterial>): Promise<ReadingMaterial | undefined> {
+    const [row] = await db.update(readingMaterials).set({ ...data, updatedAt: new Date() }).where(eq(readingMaterials.id, id)).returning();
+    return row;
+  }
+  async deleteReadingMaterial(id: string): Promise<void> {
+    await db.delete(readingMaterials).where(eq(readingMaterials.id, id));
+  }
+  async getReadingHighlights(userId: string, materialId?: string): Promise<ReadingHighlight[]> {
+    if (materialId) {
+      return db.select().from(readingHighlights)
+        .where(and(eq(readingHighlights.userId, userId), eq(readingHighlights.materialId, materialId)))
+        .orderBy(desc(readingHighlights.createdAt));
+    }
+    return db.select().from(readingHighlights).where(eq(readingHighlights.userId, userId)).orderBy(desc(readingHighlights.createdAt));
+  }
+  async createReadingHighlight(data: InsertReadingHighlight): Promise<ReadingHighlight> {
+    const [row] = await db.insert(readingHighlights).values(data).returning();
+    return row;
+  }
+  async deleteReadingHighlight(id: string): Promise<void> {
+    await db.delete(readingHighlights).where(eq(readingHighlights.id, id));
+  }
+  async getReadingStreak(userId: string): Promise<ReadingStreak | undefined> {
+    const [row] = await db.select().from(readingStreaks).where(eq(readingStreaks.userId, userId));
+    return row;
+  }
+  async upsertReadingStreak(userId: string, data: Partial<ReadingStreak>): Promise<ReadingStreak> {
+    const existing = await this.getReadingStreak(userId);
+    if (existing) {
+      const [row] = await db.update(readingStreaks).set({ ...data, updatedAt: new Date() }).where(eq(readingStreaks.userId, userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(readingStreaks).values({ userId, ...data } as any).returning();
+    return row;
+  }
+  async getDailyReadings(userId: string, limit = 30): Promise<DailyReading[]> {
+    return db.select().from(dailyReadings).where(eq(dailyReadings.userId, userId)).orderBy(desc(dailyReadings.date)).limit(limit);
+  }
+  async getDailyReading(userId: string, date: Date): Promise<DailyReading | undefined> {
+    const start = new Date(date); start.setHours(0, 0, 0, 0);
+    const end = new Date(date); end.setHours(23, 59, 59, 999);
+    const [row] = await db.select().from(dailyReadings).where(
+      and(eq(dailyReadings.userId, userId), gte(dailyReadings.date, start), lte(dailyReadings.date, end))
+    );
+    return row;
+  }
+  async createDailyReading(data: any): Promise<DailyReading> {
+    const [row] = await db.insert(dailyReadings).values(data).returning();
+    return row;
+  }
+  async updateDailyReading(id: string, data: Partial<DailyReading>): Promise<DailyReading | undefined> {
+    const [row] = await db.update(dailyReadings).set(data).where(eq(dailyReadings.id, id)).returning();
+    return row;
   }
 
   // ── DM Automation (ManyChat-style) ─────────────────────────────────────────

@@ -214,8 +214,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
       // Auto-enroll in "join" sequences
       storage.getEmailSequences().then(seqs => {
-        seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
-      }).catch(() => {});
+        seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+      }).catch(() => { });
       // Process referral — from body or cookie (await so credits always land before response)
       const refCode = referralCode || (req as any).cookies?.referral_code;
       if (refCode) {
@@ -243,7 +243,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!code) return res.status(400).json({ message: "Code required" });
     const ip = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "";
     const ua = req.headers["user-agent"] || "";
-    await storage.trackReferralClick(code, ip, ua).catch(() => {});
+    await storage.trackReferralClick(code, ip, ua).catch(() => { });
     res.cookie("referral_code", code, { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: false, sameSite: "lax" });
     res.json({ ok: true });
   });
@@ -303,8 +303,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken  = process.env.TWILIO_AUTH_TOKEN;
-      const fromPhone  = process.env.TWILIO_PHONE_NUMBER;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const fromPhone = process.env.TWILIO_PHONE_NUMBER;
       if (!accountSid || !authToken || !fromPhone) {
         return res.status(503).json({ message: "SMS service not configured yet" });
       }
@@ -370,10 +370,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Auto-enroll in "upgrade" sequences if plan is paid
     if (update.plan && update.plan !== "free") {
       storage.getEmailSequences().then(seqs => {
-        seqs.filter(s => s.trigger === "upgrade" && s.active).forEach(s => storage.enrollUserInSequence(userId, s.id).catch(() => {}));
-      }).catch(() => {});
+        seqs.filter(s => s.trigger === "upgrade" && s.active).forEach(s => storage.enrollUserInSequence(userId, s.id).catch(() => { }));
+      }).catch(() => { });
       // Award referrer 50 credits now that this user has upgraded to a paid plan
-      storage.processReferralConversion(userId).catch(() => {});
+      storage.processReferralConversion(userId).catch(() => { });
     }
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;
@@ -499,8 +499,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           // Auto-enroll new Google users in "join" sequences
           if ((user as any)._isNewGoogleUser) {
             storage.getEmailSequences().then(seqs => {
-              seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
-            }).catch(() => {});
+              seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+            }).catch(() => { });
           }
           const dest = user.role === "admin"
             ? "/admin"
@@ -607,8 +607,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
     // Auto-enroll admin-created clients in "join" sequences
     storage.getEmailSequences().then(seqs => {
-      seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => {}));
-    }).catch(() => {});
+      seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+    }).catch(() => { });
     const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
     syncToOraviniCRM({ email: user.email, name: user.name, source: "client_signup", plan: user.plan, tierLabel: tierNames[user.plan || "free"] || user.plan, event: "new_signup" });
     const { password, ...safe } = user;
@@ -649,7 +649,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Delete the user account
       await storage.deleteUser(user.id);
       // Destroy session
-      req.logout(() => {});
+      req.logout(() => { });
       return res.json({ message: "Account deleted" });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -713,20 +713,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getOnboardingSurvey(userId);
       const body = req.body || {};
       // Accept incoming values, fall back to existing row (snake_case from DB)
-      const awareness        = body.awareness       ?? existing?.awareness;
-      const field            = body.field           ?? existing?.field;
-      const fields           = body.fields          ?? existing?.fields;
-      const struggles        = body.struggles       ?? existing?.struggles;
-      const contentTypes     = body.contentTypes    ?? existing?.content_types;
-      const descriptor       = body.descriptor      ?? existing?.descriptor;
-      const experience       = body.experience      ?? existing?.experience;
-      const followerCount    = body.followerCount   ?? existing?.follower_count;
-      const monthlyRevenue   = body.monthlyRevenue  ?? existing?.monthly_revenue;
-      const primaryGoal      = body.primaryGoal     ?? existing?.primary_goal;
-      const platform         = body.platform        ?? existing?.platform;
-      const platforms        = body.platforms       ?? existing?.platforms;
-      const heardAbout       = body.heardAbout      ?? existing?.heard_about;
-      const eliteInterest    = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
+      const awareness = body.awareness ?? existing?.awareness;
+      const field = body.field ?? existing?.field;
+      const fields = body.fields ?? existing?.fields;
+      const struggles = body.struggles ?? existing?.struggles;
+      const contentTypes = body.contentTypes ?? existing?.content_types;
+      const descriptor = body.descriptor ?? existing?.descriptor;
+      const experience = body.experience ?? existing?.experience;
+      const followerCount = body.followerCount ?? existing?.follower_count;
+      const monthlyRevenue = body.monthlyRevenue ?? existing?.monthly_revenue;
+      const primaryGoal = body.primaryGoal ?? existing?.primary_goal;
+      const platform = body.platform ?? existing?.platform;
+      const platforms = body.platforms ?? existing?.platforms;
+      const heardAbout = body.heardAbout ?? existing?.heard_about;
+      const eliteInterest = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
 
       if (!experience || !monthlyRevenue || !primaryGoal) {
         return res.status(400).json({ message: "All survey questions must be answered." });
@@ -1526,7 +1526,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
       }
 
-      type SyncItem = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; };
+      type SyncItem = { postUrl: string; caption: string; postDate: Date; contentType: "reel" | "carousel" | "post"; views: number; likes: number; comments: number; saves: number; };
       let syncItems: SyncItem[] = [];
 
       // Try Meta API first (only for Instagram profiles matching connected account)
@@ -1544,7 +1544,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
                   postUrl: m.permalink,
                   caption: m.caption || "",
                   postDate: new Date(m.timestamp),
-                  contentType: (m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post") as "reel"|"carousel"|"post",
+                  contentType: (m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post") as "reel" | "carousel" | "post",
                   views: 0, likes: m.like_count || 0, comments: m.comments_count || 0, saves: 0,
                 }));
                 console.log(`[sync-profile] Meta API ✓ — ${syncItems.length} posts`);
@@ -1562,7 +1562,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
           caption: item.caption || "",
           postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
-          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel"|"carousel"|"post",
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel" | "carousel" | "post",
           views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
           likes: item.likesCount ?? 0,
           comments: item.commentsCount ?? 0,
@@ -2138,7 +2138,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const handle = normalized.username;
 
       // 1. Try Meta API first, fall back to Apify
-      type NormalisedPost = { postUrl: string; caption: string; postDate: Date; contentType: "reel"|"carousel"|"post"; views: number; likes: number; comments: number; saves: number; type: string; };
+      type NormalisedPost = { postUrl: string; caption: string; postDate: Date; contentType: "reel" | "carousel" | "post"; views: number; likes: number; comments: number; saves: number; type: string; };
       let normalisedPosts: NormalisedPost[] = [];
       let dataSource = "apify";
 
@@ -2181,7 +2181,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
           caption: item.caption || "",
           postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
-          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel"|"carousel"|"post",
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel" | "carousel" | "post",
           views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
           likes: item.likesCount ?? 0,
           comments: item.commentsCount ?? 0,
@@ -2679,8 +2679,8 @@ Requirements:
       const ytTimeHint = ytDuration <= 5
         ? "(0:00-0:15 hook, 0:15-0:40 intro, then 3 main sections, ending with CTA)"
         : ytDuration <= 10
-        ? "(0:00-0:20 hook, 0:20-0:50 intro, then 5-6 detailed sections, mid-video engagement prompt, ending with CTA)"
-        : "(0:00-0:20 hook, 0:20-1:00 intro, then 7-8 deep sections with sub-points, multiple engagement prompts, storytelling segments, ending with CTA)";
+          ? "(0:00-0:20 hook, 0:20-0:50 intro, then 5-6 detailed sections, mid-video engagement prompt, ending with CTA)"
+          : "(0:00-0:20 hook, 0:20-1:00 intro, then 7-8 deep sections with sub-points, multiple engagement prompts, storytelling segments, ending with CTA)";
 
       let prompt: string;
 
@@ -3043,7 +3043,7 @@ Tone: ${tone || "engaging and educational"}
 User instruction: "${prompt}"
 
 Current slides:
-${slides.map((s: any, i: number) => `Slide ${i+1} (${s.role}): "${s.headline}" — ${s.body}`).join("\n")}
+${slides.map((s: any, i: number) => `Slide ${i + 1} (${s.role}): "${s.headline}" — ${s.body}`).join("\n")}
 
 Apply the user's instruction to improve, strengthen, or transform the slides. Keep the same roles and count.
 Return JSON:
@@ -3505,9 +3505,38 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   });
 
   // ── Competitor Analysis ────────────────────────────────────────────────────
-  function extractHandle(url: string): string {
-    const m = url.match(/instagram\.com\/([^/?#]+)/);
-    return m ? `@${m[1]}` : url;
+  function normalizeInstagramUrl(url: string): string {
+    if (!url || typeof url !== "string") return "";
+    let u = url.trim();
+    // Plain handle like "@username" or "username"
+    if (!u.includes("http") && !u.includes("instagram.com")) {
+      return `https://www.instagram.com/${u.replace(/^@/, "")}/`;
+    }
+    // Add https:// if missing
+    if (!u.startsWith("http")) u = "https://" + u;
+    try {
+      const parsed = new URL(u);
+      // Reject non-instagram domains
+      if (!parsed.hostname.includes("instagram.com")) return "";
+      // Extract handle from path (first segment only)
+      const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const handle = pathParts[0];
+      if (!handle) return "";
+      // Reject reel/post/explore URLs and reserved paths
+      const reservedPaths = ["reel", "reels", "p", "tv", "explore", "stories", "direct", "accounts", "emails", "help", "about", "blog", "developer", "api"];
+      if (reservedPaths.includes(handle.toLowerCase())) return "";
+      // Reconstruct clean profile URL — always in the format Apify expects
+      return `https://www.instagram.com/${handle}/`;
+    } catch {
+      return "";
+    }
+  }
+
+  function extractHandle(url: string): string | null {
+    const normalized = normalizeInstagramUrl(url);
+    if (!normalized) return null;
+    const m = normalized.match(/instagram\.com\/([^/?#]+)/);
+    return m ? `@${m[1].replace(/^@/, "")}` : null;
   }
 
   function processProfileMetrics(items: any[], handle: string) {
@@ -3573,8 +3602,14 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { clientUrl, competitorUrl, clientId } = req.body;
-      if (!clientUrl || !competitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl, clientId } = req.body;
+      if (!rawClientUrl || !rawCompetitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+
+      const clientUrl = normalizeInstagramUrl(rawClientUrl);
+      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
+
+      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
+      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
 
       const _u4 = req.user as any;
       if (_u4.role !== "admin") {
@@ -3583,12 +3618,12 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       }
 
       const [clientItems, competitorItems] = await Promise.all([
-        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 30 }),
-        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 30 }),
+        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 30 }).catch((err: any) => { console.error("[competitor/analyze] client scrape failed:", err.message); return [] as any[]; }),
+        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 30 }).catch((err: any) => { console.error("[competitor/analyze] competitor scrape failed:", err.message); return [] as any[]; }),
       ]);
 
-      const clientHandle = extractHandle(clientUrl);
-      const competitorHandle = extractHandle(competitorUrl);
+      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
+      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
 
       const clientData = processProfileMetrics(clientItems, clientHandle);
       const competitorData = processProfileMetrics(competitorItems, competitorHandle);
@@ -3927,7 +3962,8 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
         const naCredit = await storage.deductCredits(_uNa.id, 10, "niche_analysis", "Niche Intelligence Analysis", _uNa.plan || "free");
         if (!naCredit.success) return res.status(402).json({ message: naCredit.message, insufficientCredits: true });
       }
-      const urls = competitorUrls.slice(0, 5).filter(Boolean);
+      const urls = competitorUrls.slice(0, 5).map(normalizeInstagramUrl).filter(Boolean);
+      if (urls.length === 0) return res.status(400).json({ message: "None of the competitor URLs are valid Instagram profile links. Make sure you're using profile URLs (e.g. instagram.com/handle), not reels or posts." });
 
       // Scrape all competitor profiles in parallel
       const scrapedArrays = await Promise.all(
@@ -3935,7 +3971,7 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
       );
 
       const competitors = urls.map((url, i) => {
-        const handle = extractHandle(url);
+        const handle = extractHandle(url) ?? "@unknown";
         const items = scrapedArrays[i] || [];
         const metrics = processProfileMetrics(items, handle);
         const posts = buildPostList(items);
@@ -4084,10 +4120,13 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
         if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
       }
 
-      const items = await apifyInstagram({ directUrls: [profileUrl], resultsType: "posts", resultsLimit: 30 });
+      const normUrl = normalizeInstagramUrl(profileUrl);
+      if (!normUrl) return res.status(400).json({ message: "Invalid Instagram profile URL. Use a profile link (e.g. instagram.com/handle), not a reel or post." });
+
+      const items = await apifyInstagram({ directUrls: [normUrl], resultsType: "posts", resultsLimit: 30 });
       if (!items || items.length === 0) return res.status(404).json({ message: "Could not scrape this profile. Make sure it's a public Instagram account." });
 
-      const handle = extractHandle(profileUrl);
+      const handle = extractHandle(normUrl) ?? "@unknown";
       const metrics = processProfileMetrics(items, handle);
       const posts = buildPostList(items);
 
@@ -4316,7 +4355,7 @@ Return ONLY this exact JSON:
               }
             }
           }
-        } catch {}
+        } catch { }
         if (!contentToAnalyze) contentToAnalyze = `Reel URL: ${reelUrl}`;
       }
 
@@ -4710,8 +4749,10 @@ Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
     try {
       const { url } = req.body;
       if (!url) return res.status(400).json({ message: "url required" });
-      const handle = url.replace(/\/$/, "").split("/").pop()?.replace("@", "") || url;
-      const items = await apifyInstagram({ directUrls: [url], resultsType: "posts", resultsLimit: 15 });
+      const normUrl = normalizeInstagramUrl(url);
+      if (!normUrl) return res.status(400).json({ message: "Invalid Instagram profile URL. Use a profile link (e.g. instagram.com/handle), not a reel or post." });
+      const handle = extractHandle(normUrl) ?? "@unknown";
+      const items = await apifyInstagram({ directUrls: [normUrl], resultsType: "posts", resultsLimit: 15 });
       if (!items?.length) return res.json({ reply: `Hmm, couldn't scrape @${handle} — make sure it's a public account 👀`, mood: "weak", profile: null });
       const posts = items.slice(0, 10).map((p: any) => ({
         caption: (p.caption || "").slice(0, 120),
@@ -5092,7 +5133,7 @@ Return ONLY this JSON:
                 }
               }
             }
-          } catch {}
+          } catch { }
           if (!contentInfo) contentInfo = `Video URL: ${instagramUrl} — optimize for social media editing.`;
         }
       } else if (inputType === "script" && script) {
@@ -5181,7 +5222,7 @@ ${editSchema}`;
               }
               if (!scraped.some(s => s.includes(url))) scraped.push(`Competitor reel URL: ${url} — extract the visual style, hook pattern, pacing and caption approach`);
             }
-          } catch {}
+          } catch { }
         }
         if (scraped.length > 0) {
           competitorContext = `\nCOMPETITOR / INSPIRATION REELS TO STYLE-MATCH:
@@ -5310,7 +5351,7 @@ CURRENT VIDEO CONTEXT:
 - Goal: "${context?.goal || "engagement"}"
 ${context?.summary ? `- Summary: "${context.summary}"` : ""}
 ${context?.fullScript ? `- Full Script:\n"${String(context.fullScript).slice(0, 1000)}"` : ""}
-${context?.timeline?.length ? `- Timeline cuts:\n${context.timeline.slice(0, 8).map((c: any, i: number) => `  [${i+1}] ${c.startSec ?? "?"}s-${c.endSec ?? "?"}s: ${c.text || c.action || c.description || JSON.stringify(c)}`).join("\n")}` : ""}
+${context?.timeline?.length ? `- Timeline cuts:\n${context.timeline.slice(0, 8).map((c: any, i: number) => `  [${i + 1}] ${c.startSec ?? "?"}s-${c.endSec ?? "?"}s: ${c.text || c.action || c.description || JSON.stringify(c)}`).join("\n")}` : ""}
 ${context?.hook?.current ? `- Current hook: "${context.hook.current}"` : ""}
 ${context?.currentHooks?.length ? `- Hook options: ${context.currentHooks.slice(0, 2).join(" | ")}` : ""}
 ${context?.currentTab ? `- Creator is on the "${context.currentTab}" tab right now` : ""}
@@ -5591,14 +5632,14 @@ Return JSON:
       if (_uCfu.role !== "admin") {
         const cfuCredit = await storage.deductCredits(_uCfu.id, 5, "clip_finder", "Clip Finder video upload analysis", _uCfu.plan || "free");
         if (!cfuCredit.success) {
-          try { fs.unlinkSync(req.file.path); } catch {}
+          try { fs.unlinkSync(req.file.path); } catch { }
           return res.status(402).json({ message: cfuCredit.message, insufficientCredits: true });
         }
       }
       const fileStat = fs.statSync(req.file.path);
       const MAX_WHISPER = 25 * 1024 * 1024;
       if (fileStat.size > MAX_WHISPER) {
-        try { fs.unlinkSync(req.file.path); } catch {}
+        try { fs.unlinkSync(req.file.path); } catch { }
         return res.status(413).json({ message: "File too large — Whisper supports up to 25MB. Compress your video or export audio-only first." });
       }
 
@@ -5677,7 +5718,7 @@ Return JSON:
       console.log("[clip-finder/upload] error:", err.message);
       return res.status(500).json({ message: err.message || "Processing failed" });
     } finally {
-      try { if (req.file) fs.unlinkSync(req.file.path); } catch {}
+      try { if (req.file) fs.unlinkSync(req.file.path); } catch { }
     }
   });
 
@@ -5738,12 +5779,12 @@ Return JSON:
       const readStream = fs.createReadStream(outFile);
       readStream.pipe(res);
       readStream.on("end", () => {
-        try { fs.unlinkSync(rawFile); } catch {}
-        try { fs.unlinkSync(outFile); } catch {}
+        try { fs.unlinkSync(rawFile); } catch { }
+        try { fs.unlinkSync(outFile); } catch { }
       });
     } catch (err: any) {
-      try { fs.unlinkSync(rawFile); } catch {}
-      try { fs.unlinkSync(outFile); } catch {}
+      try { fs.unlinkSync(rawFile); } catch { }
+      try { fs.unlinkSync(outFile); } catch { }
       console.log("[clip-finder/cut] error:", err.message);
       return res.status(500).json({ message: err.message || "Failed to cut clip" });
     }
@@ -5933,7 +5974,7 @@ Return JSON:
           method: "POST",
           headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ token: token.accessToken }),
-        }).catch(() => {});
+        }).catch(() => { });
       }
       await storage.deleteCanvaToken(user.id);
       return res.json({ message: "Canva disconnected" });
@@ -6032,8 +6073,8 @@ Return JSON:
       const { title, concept, platform = "instagram-reel", designType } = req.body;
       const canvaDesignType = designType || (
         platform === "youtube" ? "youtube-thumbnail" :
-        platform === "tiktok" ? "tiktok-video" :
-        "instagram-reel"
+          platform === "tiktok" ? "tiktok-video" :
+            "instagram-reel"
       );
       const cleanTitle = String(title || concept || "My Video").slice(0, 80);
       const data = await canvaFetch(user.id, "/designs", {
@@ -6080,7 +6121,7 @@ Return JSON:
         balance,
         transactions,
         featureCosts: FEATURE_COSTS,
-        planAllowance: ({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string,number>)[user.plan as string] ?? 20,
+        planAllowance: ({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string, number>)[user.plan as string] ?? 20,
         total: balance.monthlyCredits + balance.bonusCredits,
       });
     } catch (err: any) {
@@ -6309,14 +6350,14 @@ Return JSON:
         const ratio = ig.following > 0 ? (ig.followers / ig.following).toFixed(2) : "N/A";
         const engTier = ig.followers < 1000 ? "nano (<1K)"
           : ig.followers < 10000 ? "micro (1K–10K)"
-          : ig.followers < 100000 ? "mid-tier (10K–100K)"
-          : ig.followers < 1000000 ? "macro (100K–1M)"
-          : "mega (1M+)";
+            : ig.followers < 100000 ? "mid-tier (10K–100K)"
+              : ig.followers < 1000000 ? "macro (100K–1M)"
+                : "mega (1M+)";
         const postsPerWeekEst = ig.posts > 0 ? (ig.posts / 52).toFixed(1) : "unknown"; // rough estimate
         const bioScore = ig.bio.length === 0 ? "empty (critical issue)"
           : ig.bio.length < 50 ? "very short (needs work)"
-          : ig.bio.length < 120 ? "decent"
-          : "detailed";
+            : ig.bio.length < 120 ? "decent"
+              : "detailed";
 
         igContext = `
 REAL INSTAGRAM PROFILE DATA (use these EXACT numbers in your analysis):
@@ -7286,9 +7327,9 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const ctaInstruction = ctaType === "book-call"
         ? `CTA: Book a discovery call${calendlyUrl ? ` — Calendly: ${calendlyUrl}` : ""}`
         : ctaType === "email-list" ? "CTA: Join the email list / newsletter"
-        : ctaType === "follow-instagram" ? "CTA: Follow on Instagram"
-        : ctaType === "buy-product" ? "CTA: Buy the product/course"
-        : `CTA goal: ${goal || "Generate leads"}`;
+          : ctaType === "follow-instagram" ? "CTA: Follow on Instagram"
+            : ctaType === "buy-product" ? "CTA: Buy the product/course"
+              : `CTA goal: ${goal || "Generate leads"}`;
 
       const userPrompt = `Create a complete, detailed lead magnet with the following details:
 NICHE: ${niche || "Business / Marketing"}
@@ -8299,9 +8340,9 @@ Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The 
 
   // ── Razorpay Payments ────────────────────────────────────────────────────────
   const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountPaise: number; label: string }> = {
-    starter: { credits: 25,  amountPaise: 74900,  label: "Starter Pack – 25 Credits" },
-    growth:  { credits: 75,  amountPaise: 199900, label: "Growth Pack – 75 Credits" },
-    power:   { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
+    starter: { credits: 25, amountPaise: 74900, label: "Starter Pack – 25 Credits" },
+    growth: { credits: 75, amountPaise: 199900, label: "Growth Pack – 75 Credits" },
+    power: { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
   };
 
   app.post("/api/payment/create-order", requireAuth, async (req: Request, res: Response) => {
@@ -8583,7 +8624,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
       const actionMatch = rawReply.match(/\[GO\s+([\S]+)\s+["']([^"']+)["']\]/i);
       const reply = rawReply.replace(actionMatch?.[0] || "", "").trim();
       const action = actionMatch ? { url: actionMatch[1], label: actionMatch[2] } : null;
-      console.log(`[Jarvis] raw="${rawReply.slice(0,120)}" action=${JSON.stringify(action)}`);
+      console.log(`[Jarvis] raw="${rawReply.slice(0, 120)}" action=${JSON.stringify(action)}`);
 
       return res.json({ reply, action, creditCost });
     } catch (err: any) {
@@ -8594,7 +8635,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
 
   // ── Content Analyser ──────────────────────────────────────────────────────
   // YouTube transcript extractor (no external package needed)
-  async function extractYouTubeTranscript(videoId: string): Promise<Array<{time: number, dur: number, text: string}>> {
+  async function extractYouTubeTranscript(videoId: string): Promise<Array<{ time: number, dur: number, text: string }>> {
     // Method 1: Parse caption tracks from video page
     try {
       const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -8604,7 +8645,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
       const captionMatch = html.match(/"captionTracks":(\[.*?\])(?=,|\})/);
       if (captionMatch) {
         let tracks: any[] = [];
-        try { tracks = JSON.parse(captionMatch[1]); } catch {}
+        try { tracks = JSON.parse(captionMatch[1]); } catch { }
         const track = tracks.find((t: any) => t.languageCode === "en") || tracks.find((t: any) => t.languageCode?.startsWith("en")) || tracks[0];
         if (track?.baseUrl) {
           // Try JSON3 format
@@ -8618,7 +8659,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
                 text: e.segs.map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim()
               })).filter((t: any) => t.text.length > 1);
               if (result.length > 5) return result;
-            } catch {}
+            } catch { }
           }
           // Fallback: XML format
           const xRes = await fetch(track.baseUrl);
@@ -8661,7 +8702,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
       try {
         const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
         if (oe.ok) { const d = await oe.json(); videoData = { title: d.title, channel: d.author_name, thumbnail: d.thumbnail_url, videoId }; }
-      } catch {}
+      } catch { }
 
       // Use higher-res thumbnail if we have videoId
       if (videoId && !videoData.thumbnail) videoData.thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
@@ -8692,7 +8733,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
       if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Please check the URL." });
 
       // Build full transcript — group into 2-minute chunks for better AI comprehension
-      const transcript: Array<{time: number, dur: number, text: string}> = transcriptData.status === "fulfilled" ? transcriptData.value : [];
+      const transcript: Array<{ time: number, dur: number, text: string }> = transcriptData.status === "fulfilled" ? transcriptData.value : [];
       const hasTranscript = transcript.length > 5;
       let transcriptStr = "";
       if (hasTranscript) {
@@ -8888,8 +8929,8 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
   // ── Razorpay Plan Purchases ────────────────────────────────────────────────
   const PLAN_PACKAGES_MAP: Record<string, { amountPaise: number; label: string }> = {
     starter: { amountPaise: 249900, label: "Tier 2 – Starter Plan" },
-    growth:  { amountPaise: 499900, label: "Tier 3 – Growth Plan" },
-    pro:     { amountPaise: 649900, label: "Tier 4 – Pro Plan" },
+    growth: { amountPaise: 499900, label: "Tier 3 – Growth Plan" },
+    pro: { amountPaise: 649900, label: "Tier 4 – Pro Plan" },
   };
 
   app.post("/api/payment/create-plan-order", requireAuth, async (req: Request, res: Response) => {
@@ -9243,7 +9284,7 @@ Rules:
         console.log("[meetings] upload/transcribe error:", e);
         await storage.updateMeeting(meeting.id, userId, { status: "failed" });
       } finally {
-        try { fs.unlinkSync(filePath); } catch {}
+        try { fs.unlinkSync(filePath); } catch { }
       }
     })();
 
@@ -9255,7 +9296,7 @@ Rules:
   const SHOTSTACK_BASE = "https://api.shotstack.io/stage";
 
   function detectSilences(words: any[], threshold = 0.5) {
-    const silences: {start: number; end: number; duration: number}[] = [];
+    const silences: { start: number; end: number; duration: number }[] = [];
     for (let i = 1; i < words.length; i++) {
       const gap = words[i].start - words[i - 1].end;
       if (gap >= threshold) silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
@@ -9346,7 +9387,7 @@ Rules:
   app.delete("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
     const userId = (req.user as any).id;
     const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
-    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch {}
+    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch { }
     await storage.deleteVideoEdit(Number(p(req.params.id)), userId);
     res.json({ ok: true });
   });
@@ -9665,7 +9706,7 @@ Rules:
 
       res.json({ ok: true, resultCount });
     } catch (e: any) {
-      await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: e.message }).catch(() => {});
+      await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: e.message }).catch(() => { });
       res.status(500).json({ message: e.message });
     }
   });
@@ -10334,7 +10375,7 @@ Rules:
   // Open tracking pixel
   app.get("/api/email/open/:logId.gif", async (req, res) => {
     const { logId } = req.params;
-    await storage.markEmailOpened(logId).catch(() => {});
+    await storage.markEmailOpened(logId).catch(() => { });
     const gif1x1 = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
     res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store" });
     res.send(gif1x1);
@@ -10343,7 +10384,7 @@ Rules:
   // Unsubscribe
   app.get("/api/email/unsubscribe", async (req, res) => {
     const { email } = req.query as { email?: string };
-    if (email) await storage.addEmailUnsubscribe(email).catch(() => {});
+    if (email) await storage.addEmailUnsubscribe(email).catch(() => { });
     res.send(`<!DOCTYPE html><html><body style="background:#0a0a0a;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;padding:40px;"><p style="color:#d4b461;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px">ORAVINI</p><h2 style="margin:0 0 12px;font-size:24px;">You've been unsubscribed</h2><p style="color:rgba(255,255,255,0.4);margin:0;">You won't receive marketing emails from us anymore.</p></div></body></html>`);
   });
 
