@@ -10645,6 +10645,25 @@ Rules:
   }
 
   // Webinars
+  // IMPORTANT: public route MUST be declared before "/api/webinars/:id"
+  // so Express doesn't treat "public" as an :id param.
+  app.get("/api/webinars/public", async (_req, res) => {
+    try {
+      const limit = 20;
+      const rows = await storage.getPublicWebinars(limit);
+      res.json(rows);
+    } catch (err: any) {
+      // Gracefully handle missing table (pre-migration): return empty list
+      // so the public landing page still renders with its demo fallback.
+      if (err?.code === "42P01") {
+        console.warn("[webinars/public] webinars table missing — returning []");
+        return res.json([]);
+      }
+      console.error("[webinars/public]", err);
+      res.status(500).json({ message: "Failed to fetch public webinars" });
+    }
+  });
+
   app.get("/api/webinars", requireAuth, async (req, res) => {
     const user = req.user as any;
     const status = req.query.status as "completed" | "live" | "cancelled" | "upcoming" | undefined;

@@ -341,6 +341,7 @@ export interface IStorage {
 
   // Video Marketing
   getWebinars(userId: string, status?: "upcoming" | "live" | "completed" | "cancelled"): Promise<Webinar[]>;
+  getPublicWebinars(limit?: number): Promise<Webinar[]>;
   getWebinar(id: string): Promise<Webinar | undefined>;
   getWebinarByMeetingCode(meetingCode: string): Promise<Webinar | undefined>;
   createWebinar(data: InsertWebinar): Promise<Webinar>;
@@ -1919,6 +1920,14 @@ class DatabaseStorage implements IStorage {
       return db.select().from(webinars).where(and(eq(webinars.userId, userId), eq(webinars.status, status))).orderBy(desc(webinars.scheduledAt));
     }
     return db.select().from(webinars).where(eq(webinars.userId, userId)).orderBy(desc(webinars.scheduledAt));
+  }
+  async getPublicWebinars(limit: number = 20): Promise<Webinar[]> {
+    return db
+      .select()
+      .from(webinars)
+      .where(and(eq(webinars.isPublic, true), eq(webinars.status, "upcoming")))
+      .orderBy(webinars.scheduledAt)
+      .limit(limit);
   }
   async getWebinar(id: string): Promise<Webinar | undefined> {
     const [row] = await db.select().from(webinars).where(eq(webinars.id, id));
