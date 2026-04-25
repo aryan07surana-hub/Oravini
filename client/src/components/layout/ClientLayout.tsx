@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -212,6 +212,7 @@ const topNavItems = [
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
+  { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
 ];
 
 const bottomNavItems = [
@@ -245,225 +246,222 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-    {!isAdmin && user?.email && (
-      <WatermarkOverlay email={user.email} name={user.name} />
-    )}
-    <div
-      className="min-h-screen bg-background flex"
-      onContextMenu={!isAdmin ? (e) => e.preventDefault() : undefined}
-    >
-      {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
+      {!isAdmin && user?.email && (
+        <WatermarkOverlay email={user.email} name={user.name} />
       )}
-
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
-        <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
-            <div>
-              <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
-              <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
-            </div>
-          </div>
-          <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <nav className="flex-1 p-4 overflow-y-auto">
-
-          {/* ── Main nav ── */}
-          <div className="space-y-1">
-            {[
-              ...topNavItems.filter(item => {
-                if (item.href === "/documents") return (user as any)?.plan === "elite";
-                return true;
-              }),
-              ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
-            ].map(({ href, label, icon: Icon }) => {
-              const active = href === "/tracking"
-                ? (location === "/tracking" || location.startsWith("/tracking/content"))
-                : href === "/tracking/competitor"
-                ? location.startsWith("/tracking/competitor")
-                : href === "/content-analyser"
-                ? location.startsWith("/content-analyser")
-                : location === href;
-              const badge = href === "/community" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {badge > 0 && (
-                    <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
-                      style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: GOLD }}>
-                      {badge}
-                    </Badge>
-                  )}
-                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                </Link>
-              );
-            })}
-
-            {/* Tools — directly below Video Editor, navigates to /tools hub page */}
-            <Link
-              href="/tools"
-              data-testid="nav-tools"
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                toolsActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
-            >
-              <Wrench className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1">Tools</span>
-              {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-            </Link>
-          </div>
-
-
-          {/* ── Settings ── */}
-          <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            {bottomNavItems.map(({ href, label, icon: Icon }) => {
-              const active = location === href;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* ── Coming Soon ── */}
-          <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Coming Soon</p>
-            <div className="space-y-1">
-              {comingSoonItems.map(({ label, icon: Icon }) => (
-                <div
-                  key={label}
-                  data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
-                  style={{ opacity: 0.4 }}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  <SoonBadge />
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </nav>
-
-        <SidebarReferralWidget />
-        <CreditWidget />
-
-        {(user as any)?.plan === "elite" && (
-          <div className="px-4 pb-3">
-            <a
-              href="https://calendly.com/brandversee/30min"
-              target="_blank"
-              rel="noreferrer"
-              data-testid="sidebar-book-call"
-              className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
-            >
-              <CalendarPlus className="w-4 h-4 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold leading-tight">Book a Call</p>
-                <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-            </a>
-          </div>
+      <div
+        className="min-h-screen bg-background flex"
+        onContextMenu={!isAdmin ? (e) => e.preventDefault() : undefined}
+      >
+        {mobileOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
         )}
 
-        <div className="p-4 border-t border-sidebar-border space-y-2">
-          <div className="flex items-center gap-3 px-2 py-1">
-            <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white truncate" data-testid="sidebar-user-name">{user?.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
+          <div className="px-5 py-4 border-b border-sidebar-border flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
+              <div>
+                <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
+              </div>
+            </div>
+            <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <nav className="flex-1 p-4 overflow-y-auto">
+
+            {/* ── Main nav ── */}
+            <div className="space-y-1">
+              {[
+                ...topNavItems.filter(item => {
+                  if (item.href === "/documents") return (user as any)?.plan === "elite";
+                  return true;
+                }),
+                ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
+              ].map(({ href, label, icon: Icon }) => {
+                const active = href === "/tracking"
+                  ? (location === "/tracking" || location.startsWith("/tracking/content"))
+                  : href === "/tracking/competitor"
+                    ? location.startsWith("/tracking/competitor")
+                    : href === "/content-analyser"
+                      ? location.startsWith("/content-analyser")
+                      : location === href;
+                const badge = href === "/community" ? unreadMessages : href === "/dashboard" ? unreadNotifs : 0;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    {badge > 0 && (
+                      <Badge className="text-[10px] h-5 min-w-5 px-1.5 border-0"
+                        style={active ? { background: "rgba(0,0,0,0.22)", color: "#1a1200" } : { background: "rgba(212,180,97,0.2)", color: GOLD }}>
+                        {badge}
+                      </Badge>
+                    )}
+                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                  </Link>
+                );
+              })}
+
+              {/* Tools — directly below Video Editor, navigates to /tools hub page */}
+              <Link
+                href="/tools"
+                data-testid="nav-tools"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${toolsActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+              >
+                <Wrench className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">Tools</span>
+                {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+              </Link>
+            </div>
+
+
+            {/* ── Settings ── */}
+            <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              {bottomNavItems.map(({ href, label, icon: Icon }) => {
+                const active = location === href;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* ── Coming Soon ── */}
+            <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>Coming Soon</p>
+              <div className="space-y-1">
+                {comingSoonItems.map(({ label, icon: Icon }) => (
+                  <div
+                    key={label}
+                    data-testid={`nav-coming-soon-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-default"
+                    style={{ opacity: 0.4 }}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    <SoonBadge />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </nav>
+
+          <SidebarReferralWidget />
+          <CreditWidget />
+
+          {(user as any)?.plan === "elite" && (
+            <div className="px-4 pb-3">
+              <a
+                href="https://calendly.com/brandversee/30min"
+                target="_blank"
+                rel="noreferrer"
+                data-testid="sidebar-book-call"
+                className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
+              >
+                <CalendarPlus className="w-4 h-4 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold leading-tight">Book a Call</p>
+                  <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+              </a>
+            </div>
+          )}
+
+          <div className="p-4 border-t border-sidebar-border space-y-2">
+            <div className="flex items-center gap-3 px-2 py-1">
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white truncate" data-testid="sidebar-user-name">{user?.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Link href="/settings/plan" className="flex-1" data-testid="sidebar-upgrade-btn">
+                <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.02]"
+                  style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: GOLD }}>
+                  <ArrowUpRight className="w-3 h-3" />
+                  Upgrade Plan
+                </div>
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    data-testid="user-menu"
+                    className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-sidebar-accent transition-colors flex-shrink-0"
+                    style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem
+                    data-testid="logout-button"
+                    onClick={() => logout.mutate()}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
+        </aside>
 
-          <div className="flex items-center gap-2">
-            <Link href="/settings/plan" className="flex-1" data-testid="sidebar-upgrade-btn">
-              <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 hover:scale-[1.02]"
-                style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.25)", color: GOLD }}>
-                <ArrowUpRight className="w-3 h-3" />
-                Upgrade Plan
-              </div>
-            </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  data-testid="user-menu"
-                  className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-sidebar-accent transition-colors flex-shrink-0"
-                  style={{ border: "1px solid rgba(255,255,255,0.07)" }}
-                >
-                  <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem
-                  data-testid="logout-button"
-                  onClick={() => logout.mutate()}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="lg:hidden sticky top-0 z-30 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
+            <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
+              <Menu className="w-5 h-5" />
+            </button>
+            <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, flexShrink: 0 }} />
+            <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
+          </header>
+
+          {!isAdmin && <LowCreditsBanner />}
+          <main
+            className="flex-1 overflow-auto"
+            style={!isAdmin ? { userSelect: "none" } : undefined}
+          >
+            {children}
+          </main>
         </div>
-      </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden sticky top-0 z-30 bg-background border-b border-border px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setMobileOpen(true)} data-testid="mobile-menu">
-            <Menu className="w-5 h-5" />
-          </button>
-          <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, flexShrink: 0 }} />
-          <span className="text-xs font-black tracking-[0.18em] uppercase" style={{ color: GOLD }}>ORAVINI</span>
-        </header>
-
-        {!isAdmin && <LowCreditsBanner />}
-        <main
-          className="flex-1 overflow-auto"
-          style={!isAdmin ? { userSelect: "none" } : undefined}
-        >
-          {children}
-        </main>
+        <FocusMusicPlayer />
+        {!isAdmin && <UpgradeModal />}
       </div>
-
-      <FocusMusicPlayer />
-      {!isAdmin && <UpgradeModal />}
-    </div>
     </>
   );
 }

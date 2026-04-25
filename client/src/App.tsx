@@ -50,6 +50,7 @@ import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
+import ClientVideoMarketing from "@/pages/client/VideoMarketing";
 import CookieBanner from "@/components/CookieBanner";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
@@ -176,6 +177,7 @@ function Router() {
       <Route path="/apply" component={Apply} />
       <Route path="/audit" component={Audit} />
       <Route path="/preview" component={DashboardPreview} />
+      <Route path="/video-marketing" component={ClientVideoMarketing} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={ClientDashboard} />}
       </Route>
