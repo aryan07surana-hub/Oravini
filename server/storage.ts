@@ -365,6 +365,7 @@ export interface IStorage {
   createWebinarLandingPage(data: InsertWebinarLandingPage): Promise<WebinarLandingPage>;
   updateWebinarLandingPage(id: string, data: Partial<InsertWebinarLandingPage>): Promise<WebinarLandingPage | undefined>;
   deleteWebinarLandingPage(id: string): Promise<void>;
+  getWebinarLandingPagesByUser(userId: string): Promise<WebinarLandingPage[]>;
   trackLandingPageView(id: string): Promise<void>;
   incrementLandingPageRegistration(id: string): Promise<void>;
   // Video Marketing: Contacts / CRM
@@ -2010,6 +2011,9 @@ class DatabaseStorage implements IStorage {
     const [webinar] = await db.select().from(webinars).where(eq(webinars.id, lp.webinarId));
     if (!webinar) return undefined;
     return { landingPage: lp, webinar };
+  }
+  async getWebinarLandingPagesByUser(userId: string): Promise<WebinarLandingPage[]> {
+    return db.select().from(webinarLandingPages).where(eq(webinarLandingPages.userId, userId)).orderBy(desc(webinarLandingPages.createdAt));
   }
   async trackLandingPageView(id: string): Promise<void> {
     await db.update(webinarLandingPages).set({ views: sqlExpr`${webinarLandingPages.views} + 1` }).where(eq(webinarLandingPages.id, id));

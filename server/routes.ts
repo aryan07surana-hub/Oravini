@@ -10647,7 +10647,7 @@ Rules:
   // Webinars
   app.get("/api/webinars", requireAuth, async (req, res) => {
     const user = req.user as any;
-    const status = req.query.status as string | undefined;
+    const status = req.query.status as "completed" | "live" | "cancelled" | "upcoming" | undefined;
     const webinars = await storage.getWebinars(user.id, status);
     res.json(webinars);
   });
@@ -10852,6 +10852,16 @@ Rules:
 
   // ── Video Marketing: Public Routes ────────────────────────────────────────
   // Public: Get landing page by slug (no auth required)
+  app.get("/api/webinar-landing-pages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const pages = await storage.getWebinarLandingPagesByUser(user.id);
+      res.json(pages);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/lp/:slug", async (req: Request, res: Response) => {
     try {
       const result = await storage.getWebinarLandingPageWithWebinar(p(req.params.slug));
