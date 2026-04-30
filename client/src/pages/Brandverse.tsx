@@ -129,7 +129,7 @@ export default function Brandverse() {
         <div style={{ position: "relative", zIndex: 1, animation: "bvFadeIn 0.8s ease 0.2s both" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", marginBottom: 18 }}>The Team Behind Oravini</div>
           <h1 style={{ fontSize: "clamp(42px, 7vw, 88px)", fontWeight: 900, letterSpacing: "0.04em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, lineHeight: 0.95 }}>
-            BRANDVERSE
+            ORAVINI
           </h1>
           <p style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", maxWidth: 640, margin: "0 auto 40px", lineHeight: 1.8 }}>
             We build complete growth ecosystems for influencers, consultants, and info product creators — content strategy, offer design, audience monetization, all done with you.
@@ -140,7 +140,7 @@ export default function Brandverse() {
         </div>
       </section>
 
-      {/* What is Brandverse */}
+      {/* What is Oravini */}
       <section style={{ padding: "80px 24px", maxWidth: 900, margin: "0 auto" }}>
         <Anim style={{ textAlign: "center", marginBottom: 56 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Our Mission</div>
@@ -152,7 +152,7 @@ export default function Brandverse() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "center" }} className="bv-mission-grid">
             <div>
               <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85, marginBottom: 20 }}>
-                Brandverse is the growth partner for influencers, consultants, and info product creators who are serious about turning their audience into a real business. We built Oravini — a suite of AI-powered tools — so every client we work with has an unfair advantage.
+                Oravini is the growth partner for influencers, consultants, and info product creators who are serious about turning their audience into a real business. We built Oravini — a suite of AI-powered tools — so every client we work with has an unfair advantage.
               </p>
               <p style={{ fontSize: 16, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
                 Whether you're launching a coaching offer, selling a course, or scaling a consulting brand — we combine content strategy, offer positioning, and audience psychology into one done-with-you system that actually moves numbers.
@@ -185,7 +185,7 @@ export default function Brandverse() {
             <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(212,180,97,0.08) 0%, transparent 60%)" }} />
             <div style={{ textAlign: "center", zIndex: 1 }}>
               <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${GOLD}22`, border: `2px solid ${GOLD}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 30, cursor: "pointer", animation: "bvPulse 2.5s ease-in-out infinite" }}>▶</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>The Brandverse Story</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>The Oravini Story</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)" }}>Video coming soon</div>
             </div>
           </div>
@@ -198,17 +198,17 @@ export default function Brandverse() {
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ display: "inline-block", fontSize: 10, fontWeight: 800, color: "#000", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "4px 14px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Tier 5 — Done With You</div>
             <h2 style={{ fontSize: "clamp(26px, 4vw, 48px)", fontWeight: 900, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
-              What you get when you<br /><span style={{ color: GOLD }}>work with Brandverse</span>
+              What you get when you<br /><span style={{ color: GOLD }}>work with Oravini</span>
             </h2>
           </Anim>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 18 }}>
             {[
               { icon: "🎯", title: "Custom Growth Strategy", desc: "We audit your current presence, map your audience psychology, and build a 90-day content roadmap designed around your specific niche and revenue goals.", tag: "Week 1" },
               { icon: "🤝", title: "Done-With-You Execution", desc: "You're not handed a PDF and left alone. We work alongside you every step of the way — from scripting hooks to reviewing your content calendar weekly.", tag: "Ongoing" },
-              { icon: "📞", title: "Weekly Strategy Calls", desc: "Dedicated 1-on-1 calls with your Brandverse strategist to review performance, adjust the plan, and keep momentum going.", tag: "Weekly" },
+              { icon: "📞", title: "Weekly Strategy Calls", desc: "Dedicated 1-on-1 calls with your Oravini strategist to review performance, adjust the plan, and keep momentum going.", tag: "Weekly" },
               { icon: "🛡️", title: "Offer & Funnel Strategy", desc: "We help you design and position your core offer — whether it's a course, coaching program, or consulting package — for maximum conversion.", tag: "Strategy" },
               { icon: "⚡", title: "Full Platform Access", desc: "Unlimited access to all 9 AI tools in Oravini — content ideas, competitor intelligence, design studio, audience mapping, auto-posting, and more.", tag: "Unlimited" },
-              { icon: "📱", title: "Direct Team Access", desc: "Message the Brandverse team directly through your Oravini dashboard. Real people, real answers — not a ticket system.", tag: "Always On" },
+              { icon: "📱", title: "Direct Team Access", desc: "Message the Oravini team directly through your Oravini dashboard. Real people, real answers — not a ticket system.", tag: "Always On" },
             ].map(({ icon, title, desc, tag }, i) => (
               <Anim key={title} delay={i * 70}>
                 <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(212,180,97,0.12)", borderRadius: 18, padding: "30px 26px", height: "100%", transition: "transform 0.3s, border-color 0.3s", position: "relative" }}
@@ -287,7 +287,7 @@ export default function Brandverse() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 28, width: 28, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Brandverse</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
           </div>
           <button onClick={() => nav("/")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 13, cursor: "pointer" }}
             onMouseEnter={e => (e.currentTarget.style.color = GOLD)}

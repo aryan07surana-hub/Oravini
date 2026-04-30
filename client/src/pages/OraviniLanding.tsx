@@ -197,7 +197,7 @@ function SplashModal({ onDone }: { onDone: () => void }) {
         <div style={{ fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, letterSpacing: "0.12em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
       </div>
       <div style={{ opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.7s ease" }}>
-        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Brandverse</span>
+        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Oravini</span>
       </div>
       <div style={{ position: "absolute", bottom: 40, left: 0, right: 0 }}>
         <div style={{ width: 160, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`, margin: "0 auto", opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s ease 0.5s" }} />
@@ -309,7 +309,7 @@ const FEATURES = [
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
   { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
   { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
-  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
+  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Oravini team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
   { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },
 ];
 
@@ -449,7 +449,7 @@ export default function OraviniLanding() {
             ORAVINI
           </div>
           <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 48 }}>
-            Powered by Brandverse
+            Powered by Oravini
           </div>
           <div className="hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
             <button onClick={handleAuditClick}
@@ -803,7 +803,7 @@ export default function OraviniLanding() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Elite & Pro</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>Private Support Chat</div>
                   <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
-                    A direct line to the Brandverse team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
+                    A direct line to the Oravini team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {["Direct messaging inside the dashboard", "Strategy & content Q&A support", "Platform help & troubleshooting", "Available to Pro & Elite members"].map(f => (
@@ -877,7 +877,7 @@ export default function OraviniLanding() {
                 <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 900, color: GOLD, marginBottom: 8, lineHeight: 1 }}>Apply</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 28 }}>Unlimited credits · Custom pricing</div>
                 <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 24, marginBottom: 36 }}>
-                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Direct Brandverse access", "Priority platform support"].map(f => (
+                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Priority Oravini access", "Priority platform support"].map(f => (
                     <div key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ color: GOLD, fontSize: 13 }}>✦</span>
                       <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{f}</span>
@@ -885,7 +885,7 @@ export default function OraviniLanding() {
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                  <button onClick={() => nav("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
+                  <button onClick={() => nav("/apply")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
                     Learn About Tier 5 →
                   </button>
                   <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.04)", border: `1.5px solid ${GOLD}55`, color: GOLD, fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "15px 32px", cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 0.2s" }}
@@ -1140,7 +1140,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 30, width: 30, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Brandverse</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
             {[["Privacy", "/privacy"], ["Terms", "/terms"], ["Login", "/login"]].map(([label, href]) => (

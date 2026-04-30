@@ -195,7 +195,7 @@ const HEARD_OPTIONS = [
   "Press / media coverage",
   "Event or conference",
   "Oravini.com directly",
-  "Brandverse.com",
+  "Oravini.com",
   "Other",
 ];
 

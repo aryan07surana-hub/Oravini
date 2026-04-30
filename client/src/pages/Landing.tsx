@@ -49,26 +49,17 @@ function Navbar() {
       transition: "all 0.3s ease",
     }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        {/* Left: Logo + Apply link */}
+        {/* Left: Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
           <Link href="/">
             <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${GOLD} 0%, #b8962e 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: "#000" }}>B</div>
-              <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Brandverse</span>
+              <img src="/oravini-logo.png" alt="Oravini" style={{ width: 34, height: 34, borderRadius: 9, objectFit: "cover", objectPosition: "50% 32%" }} />
+              <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Oravini</span>
             </div>
-          </Link>
-          <Link href="/apply">
-            <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "color 0.2s", display: "none" }}
-              className="nav-apply-link">
-              Apply to Work with Brandverse
-            </span>
           </Link>
         </div>
         {/* Right: Login + Sign Up */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <Link href="/apply">
-            <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Apply to Work with Brandverse</span>
-          </Link>
           <Link href="/login">
             <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>Log in</span>
           </Link>
@@ -347,8 +338,8 @@ function PricingSection() {
       color: "rgba(255,255,255,0.04)",
       border: "rgba(255,255,255,0.08)",
       highlight: false,
-      credits: "5 credits / day",
-      features: ["Group chat community access", "Free resources & lead magnets", "5 AI credits per day", "Access to all AI tools", "Basic content ideas", "Partial audit preview"],
+      credits: "20 credits / day",
+      features: ["Group chat community access", "Free resources & lead magnets", "20 AI credits per day", "Access to all AI tools", "Basic content ideas", "Partial audit preview"],
       limitations: ["Watermark on exports", "Slower processing"],
       cta: "Join Free",
       link: "/login?tab=register",
@@ -362,8 +353,8 @@ function PricingSection() {
       color: "rgba(99,102,241,0.07)",
       border: "rgba(99,102,241,0.28)",
       highlight: false,
-      credits: "150 credits / month",
-      features: ["Everything in Tier 1", "150 AI credits per month", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
+      credits: "100 credits / month",
+      features: ["Everything in Tier 1", "100 AI credits per month", "Full audit access", "AI Content Ideas", "Carousel Studio", "Caption Studio", "Story Generator", "Lead Magnet Generator"],
       limitations: ["Watermark on exports"],
       cta: "Get Tier 2",
       link: "/login?tab=register",
@@ -377,8 +368,8 @@ function PricingSection() {
       color: `${GOLD}0a`,
       border: `${GOLD}45`,
       highlight: true,
-      credits: "350 credits / month",
-      features: ["Everything in Tier 2", "350 AI credits/month", "No watermarks", "Competitor Intelligence", "AI Content Report", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
+      credits: "250 credits / month",
+      features: ["Everything in Tier 2", "250 AI credits/month", "No watermarks", "Competitor Intelligence", "AI Content Report", "Brand Kit Builder", "ICP Builder", "Audience Psychology Map", "Priority processing"],
       limitations: [],
       cta: "Get Tier 3",
       link: "/login?tab=register",
@@ -392,8 +383,8 @@ function PricingSection() {
       color: "rgba(52,211,153,0.06)",
       border: "rgba(52,211,153,0.25)",
       highlight: false,
-      credits: "700 credits / month",
-      features: ["Everything in Tier 3", "700 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
+      credits: "500 credits / month",
+      features: ["Everything in Tier 3", "500 AI credits/month", "AI Video Editor", "DM Tracker", "Full AI Content Coach", "SOP Generator", "AI Content Planner", "Direct team messaging"],
       limitations: [],
       cta: "Get Tier 4",
       link: "/login?tab=register",
@@ -508,7 +499,7 @@ function PricingSection() {
 
         <FadeIn delay={300}>
           <p style={{ textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.25)", marginTop: 32 }}>
-            All plans include access to the Brandverse portal · Free during launch — paid tiers coming soon
+            All plans include access to the Oravini portal · Free during launch — paid tiers coming soon
           </p>
         </FadeIn>
       </div>
@@ -545,7 +536,7 @@ function PricingSection() {
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
               >
-                🚀 Sign Up Free — Get 100 Credits
+                🚀 Sign Up Free — Start Today
               </button>
             </div>
             <button
@@ -709,7 +700,7 @@ export default function Landing() {
             </FadeIn>
             <FadeIn delay={120}>
               <div style={{ background: `${GOLD}07`, border: `1px solid ${GOLD}25`, borderRadius: 20, padding: "36px" }}>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: GOLD, marginBottom: 24 }}>With Brandverse</h3>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: GOLD, marginBottom: 24 }}>With Oravini</h3>
                 <CheckItem>A personalized content system tailored to your niche</CheckItem>
                 <CheckItem>Clear direction: audience, goals, and strategy defined</CheckItem>
                 <CheckItem>Workflows that guide you from idea to execution</CheckItem>
@@ -813,7 +804,7 @@ export default function Landing() {
             <div style={{ textAlign: "center", marginBottom: 60 }}>
               <SectionLabel>Real Results</SectionLabel>
               <h2 style={{ fontSize: "clamp(26px, 3.5vw, 46px)", fontWeight: 900, letterSpacing: "-0.03em", color: "#fff", marginBottom: 14 }}>
-                Creators Who Scaled with Brandverse
+                Creators Who Scaled with Oravini
               </h2>
               <p style={{ fontSize: 15, color: "rgba(255,255,255,0.4)" }}>Structured systems. Real growth. Actual results.</p>
             </div>
@@ -821,7 +812,7 @@ export default function Landing() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 18 }}>
             <Testimonial delay={0}
-              text="Before Brandverse, I was posting randomly and hoping something would stick. Within 60 days of having an actual system, my engagement tripled and I finally know what to create every week."
+              text="Before Oravini, I was posting randomly and hoping something would stick. Within 60 days of having an actual system, my engagement tripled and I finally know what to create every week."
               name="Priya M." handle="Lifestyle Creator · 82K Followers" />
             <Testimonial delay={80}
               text="The competitor analysis alone was worth it. I could see exactly which formats were working in my niche and reversed-engineered them fast. Went from 12K to 47K in 4 months."
@@ -911,11 +902,11 @@ export default function Landing() {
       <footer style={{ padding: "40px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 900, color: "#000" }}>B</div>
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Brandverse</span>
+            <img src="/oravini-logo.png" alt="Oravini" style={{ width: 30, height: 30, borderRadius: 8, objectFit: "cover", objectPosition: "50% 32%" }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Oravini</span>
           </div>
           <div style={{ display: "flex", gap: 28 }}>
-            {[["https://brandversee.info", "Website"], [CALENDLY, "Book a Call"], ["/login", "Portal Login"]].map(([href, label]) => (
+            {[[CALENDLY, "Book a Call"], ["/login", "Portal Login"]].map(([href, label]) => (
               <a key={label} href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer"
                 style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", textDecoration: "none", transition: "color 0.2s" }}
                 onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}
@@ -924,7 +915,7 @@ export default function Landing() {
               </a>
             ))}
           </div>
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2025 Brandverse. All rights reserved.</p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2026 Oravini. All rights reserved.</p>
         </div>
       </footer>
     </div>

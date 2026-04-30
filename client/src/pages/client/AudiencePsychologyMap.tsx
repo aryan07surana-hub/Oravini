@@ -88,7 +88,7 @@ const INSPIRATIONS = [
   },
   {
     label: "Content SaaS",
-    businessDescription: "An AI-powered content platform (Brandverse) that helps creators, coaches and personal brands generate, plan, and automate content across Instagram, YouTube, and LinkedIn. Mid-tier SaaS, $97–$197/mo.",
+    businessDescription: "An AI-powered content platform (Oravini) that helps creators, coaches and personal brands generate, plan, and automate content across Instagram, YouTube, and LinkedIn. Mid-tier SaaS, $97–$197/mo.",
     targetAudienceDescription: "Content creators and online entrepreneurs aged 22–38 who struggle with consistency, don't know what to post, and feel overwhelmed by algorithms and trends.",
     icpSummary: "",
   },

@@ -720,7 +720,7 @@ export default function PlanSettings() {
               </div>
               <div>
                 <p className="text-sm font-bold text-white">Legal & Policies</p>
-                <p className="text-xs text-zinc-500">By using Brandverse you agree to both documents below</p>
+                <p className="text-xs text-zinc-500">By using Oravini you agree to both documents below</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

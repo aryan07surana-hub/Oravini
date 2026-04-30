@@ -67,7 +67,7 @@ export default function CanvaPanel({ result, platform }: CanvaPanelProps) {
   });
 
   const uploadAssetMutation = useMutation({
-    mutationFn: (url: string) => apiRequest("POST", "/api/canva/assets/upload-url", { url, name: result?.title || "Brandverse Asset" }),
+    mutationFn: (url: string) => apiRequest("POST", "/api/canva/assets/upload-url", { url, name: result?.title || "Oravini Asset" }),
     onSuccess: (data: any) => {
       setUploadedAssets(prev => [data, ...prev]);
       setUploadingUrl("");
@@ -108,7 +108,7 @@ export default function CanvaPanel({ result, platform }: CanvaPanelProps) {
             <div className="flex-1">
               <h3 className="text-base font-black text-foreground mb-1">Connect Canva</h3>
               <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                Link your Canva account to create stunning designs directly from your video plan — thumbnails, Reel covers, social posts, and more. All inside Brandverse.
+                Link your Canva account to create stunning designs directly from your video plan — thumbnails, Reel covers, social posts, and more. All inside Oravini.
               </p>
               <Button onClick={handleConnect} data-testid="btn-canva-connect"
                 className="bg-[#7d2ae8] hover:bg-[#6b20d0] text-white font-bold gap-2 rounded-xl">

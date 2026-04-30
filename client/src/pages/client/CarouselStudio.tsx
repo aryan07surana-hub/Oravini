@@ -25,7 +25,7 @@ type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral" | "rose" |
 
 // ── Themes ───────────────────────────────────────────────────────────────────
 const THEMES: Record<ThemeKey, ThemeData> = {
-  brandverse: { name: "Brandverse Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.58)",      headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
+  brandverse: { name: "Oravini Gold", bg: "#0a0a0a", overlay: "rgba(0,0,0,0.58)",      headline: "#d4b461", body: "#ffffff", accent: "#d4b461", accentText: "#000000" },
   minimal:    { name: "Clean White",     bg: "#ffffff",  overlay: "rgba(255,255,255,0.72)",headline: "#111111", body: "#444444", accent: "#111111", accentText: "#ffffff" },
   navy:       { name: "Midnight Blue",   bg: "#0f172a",  overlay: "rgba(15,23,42,0.68)",   headline: "#818cf8", body: "#e2e8f0", accent: "#818cf8", accentText: "#0f172a" },
   coral:      { name: "Bold Coral",      bg: "#1a1a1a",  overlay: "rgba(0,0,0,0.52)",      headline: "#ff6b6b", body: "#ffffff", accent: "#ff6b6b", accentText: "#000000" },
@@ -90,7 +90,7 @@ async function renderSlide(slide: DesignSlide, t: ThemeData, num: number, total:
     wrapText(ctx, slide.body || "", S/2, hy+76, S-170, 50);
   }
   ctx.fillStyle = "rgba(255,255,255,0.22)"; ctx.font = "20px Inter,Arial,sans-serif"; ctx.textAlign = "right";
-  ctx.fillText("brandversee", S-36, S-28);
+  ctx.fillText("oravini", S-36, S-28);
   ctx.fillStyle = t.accent; ctx.fillRect(0, S-8, S, 8);
   return canvas.toDataURL("image/png");
 }

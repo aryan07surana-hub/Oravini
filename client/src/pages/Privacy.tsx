@@ -35,7 +35,7 @@ export default function Privacy() {
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Privacy Policy</h1>
           <p className="text-zinc-400 text-sm">Last updated: June 1, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
-            This policy explains how Brandverse collects, uses, stores, and protects your personal data.
+            This policy explains how Oravini collects, uses, stores, and protects your personal data.
             We are committed to full transparency — if anything is unclear, email us at{" "}
             <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.
           </p>
@@ -82,7 +82,7 @@ export default function Privacy() {
 
           <Section num="1" title="About Us">
             <p>
-              Brandverse ("we", "our", or "us") operates the Brandverse Client Portal — a SaaS platform
+              "Oravini ("we", "our", or "us") operates the Oravini Client Portal — a SaaS platform
               designed to help content creators and businesses manage social media growth, track performance
               analytics, generate AI-powered content, and communicate with their team.
             </p>
@@ -107,7 +107,7 @@ export default function Privacy() {
           </Section>
 
           <Section num="3" title="How We Use Your Information">
-            <p>We use your data only to operate and improve Brandverse. Specifically:</p>
+            <p>We use your data only to operate and improve Oravini. Specifically:</p>
             <ul className="list-disc pl-5 space-y-2">
               <Li>To create and manage your account</Li>
               <Li>To provide platform features — analytics, AI tools, scheduling, DM tracking, content calendar</Li>
@@ -141,7 +141,7 @@ export default function Privacy() {
               <Li>We do not sell your data to advertisers, data brokers, or any external companies.</Li>
               <Li>We do not share your personal information with partners, affiliates, or sponsors.</Li>
               <Li>We do not use your data to build advertising profiles or target you with ads outside our platform.</Li>
-              <Li>Your content, messages, and analytics are yours — we only use them to power the features you use inside Brandverse.</Li>
+              <Li>Your content, messages, and analytics are yours — we only use them to power the features you use inside Oravini.</Li>
               <Li>The only time we may disclose information is if required by law (e.g. a valid court order), and even then we will notify you where legally permitted.</Li>
             </ul>
             <p>
@@ -156,7 +156,7 @@ export default function Privacy() {
             <ul className="list-disc pl-5 space-y-2">
               <Li><strong className="text-white">Service providers:</strong> We share data with third-party tools that power the platform (listed in Section 9). These providers are contractually bound to use your data only to provide their service to us.</Li>
               <Li><strong className="text-white">Legal requirements:</strong> We may disclose data if required by law, court order, or government authority. We will notify you where legally permitted.</Li>
-              <Li><strong className="text-white">Business transfers:</strong> If Brandverse is acquired or merges with another company, your data may be transferred as part of that transaction. We will notify you in advance and you will have the right to delete your account.</Li>
+              <Li><strong className="text-white">Business transfers:</strong> If Oravini is acquired or merges with another company, your data may be transferred as part of that transaction. We will notify you in advance and you will have the right to delete your account.</Li>
               <Li><strong className="text-white">With your consent:</strong> We will share data with third parties only if you explicitly request or authorise it.</Li>
             </ul>
             <p>We never share data for advertising, marketing, or commercial purposes outside of operating this platform.</p>
@@ -177,7 +177,7 @@ export default function Privacy() {
 
           <Section num="8" title="AI & Automated Processing">
             <p>
-              Brandverse uses AI models (Groq, Anthropic Claude, OpenRouter) to power content generation, analysis, and planning features. Here is how this works:
+              Oravini uses AI models (Groq, Anthropic Claude, OpenRouter) to power content generation, analysis, and planning features. Here is how this works:
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <Li>When you use an AI feature, relevant context (your niche, goal, or content) is sent to the AI provider to generate a response.</Li>
@@ -211,7 +211,7 @@ export default function Privacy() {
             <p>
               If you are located in the EEA or UK, these transfers are made under appropriate safeguards
               including standard contractual clauses or equivalent data protection frameworks. By using
-              Brandverse, you consent to your data being processed in these locations.
+              Oravini, you consent to your data being processed in these locations.
             </p>
           </Section>
 
@@ -273,7 +273,7 @@ export default function Privacy() {
           </Section>
 
           <Section num="15" title="Cookies" id="cookies">
-            <p>We use cookies to make Brandverse work. Here's exactly what we use:</p>
+            <p>We use cookies to make Oravini work. Here's exactly what we use:</p>
             <ul className="list-disc pl-5 space-y-2">
               <Li><strong className="text-white">Essential session cookies:</strong> Required to keep you logged in. Without these, the platform cannot function. These are never used for tracking.</Li>
               <Li><strong className="text-white">Referral cookies:</strong> If you arrive via a referral link, we store a short-lived cookie (30 days) to credit the referrer. No personal data is stored in this cookie.</Li>
@@ -281,7 +281,7 @@ export default function Privacy() {
               <Li><strong className="text-white">No profiling:</strong> We do not build behavioural profiles or share cookie data with any external party.</Li>
             </ul>
             <p>
-              By continuing to use Brandverse, you consent to our use of essential cookies. You can clear
+              By continuing to use Oravini, you consent to our use of essential cookies. You can clear
               cookies at any time through your browser settings — note that clearing session cookies will log you out.
             </p>
           </Section>
@@ -319,7 +319,7 @@ export default function Privacy() {
 
           <Section num="18" title="Payment Data">
             <p>
-              Brandverse does not directly process or store payment card information. All payments are
+              Oravini does not directly process or store payment card information. All payments are
               handled by our payment processor. We store only:
             </p>
             <ul className="list-disc pl-5 space-y-2">
@@ -371,7 +371,7 @@ export default function Privacy() {
 
           <Section num="21" title="Admin Access Controls & Data Visibility">
             <p>
-              Brandverse operates a tiered access control policy governing what our admin team can view:
+              Oravini operates a tiered access control policy governing what our admin team can view:
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <Li><strong className="text-white">Elite (Tier 5) clients:</strong> Admin has standard account management access for proactive support.</Li>
@@ -384,7 +384,7 @@ export default function Privacy() {
 
           <Section num="22" title="Children's Privacy">
             <p>
-              Brandverse is not intended for users under the age of 13. We do not knowingly collect
+              Oravini is not intended for users under the age of 13. We do not knowingly collect
               personal information from children under 13. If we become aware that a child under 13 has
               provided us with personal data, we will delete it immediately. If you believe a child has
               provided us with their data, contact us at{" "}
@@ -407,7 +407,7 @@ export default function Privacy() {
           <Section num="24" title="Contact">
             <p>For any questions, concerns, or requests regarding this Privacy Policy or your data:</p>
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 mt-2 space-y-1">
-              <p><strong className="text-white">Brandverse</strong></p>
+              <p><strong className="text-white">Oravini</strong></p>
               <p>Email: <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a></p>
               <p className="text-zinc-500 text-sm">Response time: within 48 hours for general queries, 30 days for formal data requests.</p>
             </div>
@@ -416,7 +416,7 @@ export default function Privacy() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-800 text-center text-zinc-500 text-sm">
-          <p>© 2026 Brandverse. All rights reserved.</p>
+          <p>© 2026 Oravini. All rights reserved.</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/terms" className="hover:underline" style={{ color: GOLD }}>Terms of Service</a>
             <span>·</span>

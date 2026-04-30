@@ -19,7 +19,7 @@ export default function Terms() {
           <h1 className="text-3xl font-bold mb-2" style={{ color: GOLD }}>Terms of Service</h1>
           <p className="text-zinc-400 text-sm">Last updated: June 1, 2026</p>
           <p className="text-zinc-500 text-sm mt-2">
-            By accessing or using Brandverse, you agree to these Terms. If you do not agree, do not use the platform.
+            By accessing or using Oravini, you agree to these Terms. If you do not agree, do not use the platform.
             Questions? Email <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>
           </p>
         </div>
@@ -45,15 +45,15 @@ export default function Terms() {
 
           <Section num="1" title="Agreement to Terms">
             <p>
-              By creating an account or using the Brandverse Client Portal ("the Platform"), you confirm
+              By creating an account or using the Oravini Client Portal ("the Platform"), you confirm
               that you have read, understood, and agree to be bound by these Terms of Service and our{" "}
               <a href="/privacy" className="hover:underline" style={{ color: GOLD }}>Privacy Policy</a>.
-              These Terms form a legally binding agreement between you and Brandverse.
+              These Terms form a legally binding agreement between you and Oravini.
             </p>
           </Section>
 
           <Section num="2" title="Eligibility">
-            <p>To use Brandverse, you must:</p>
+            <p>To use Oravini, you must:</p>
             <ul className="list-disc pl-5 space-y-2">
               <li>Be at least 13 years of age (or the minimum age required in your jurisdiction)</li>
               <li>Have the legal capacity to enter into a binding agreement</li>
@@ -110,7 +110,7 @@ export default function Terms() {
             </ul>
             <p>
               You are solely responsible for ensuring your use of Instagram features complies with Meta's
-              policies. Brandverse is not liable for any account restrictions, bans, or penalties imposed
+              policies. Oravini is not liable for any account restrictions, bans, or penalties imposed
               by Meta or Instagram as a result of your use of the platform.
             </p>
           </Section>
@@ -122,18 +122,18 @@ export default function Terms() {
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <li>You are solely responsible for reviewing, editing, and taking responsibility for any content you publish.</li>
-              <li>Brandverse does not guarantee the accuracy, completeness, or suitability of AI-generated content.</li>
+              <li>Oravini does not guarantee the accuracy, completeness, or suitability of AI-generated content.</li>
               <li>AI content may occasionally contain errors, outdated information, or inaccuracies — always review before use.</li>
               <li>You must not use AI tools to generate content that is defamatory, misleading, or violates any law.</li>
-              <li>Brandverse is not liable for any consequences arising from your use or publication of AI-generated content.</li>
+              <li>Oravini is not liable for any consequences arising from your use or publication of AI-generated content.</li>
             </ul>
           </Section>
 
           <Section num="8" title="Intellectual Property">
             <ul className="list-disc pl-5 space-y-2">
-              <li>The platform, including its design, code, branding, and features, is owned by Brandverse and protected by intellectual property laws.</li>
+              <li>The platform, including its design, code, branding, and features, is owned by Oravini and protected by intellectual property laws.</li>
               <li>You retain full ownership of all content you upload, create, or generate through the platform.</li>
-              <li>By using the platform, you grant Brandverse a limited, non-exclusive licence to process and display your content solely to provide the service to you.</li>
+              <li>By using the platform, you grant Oravini a limited, non-exclusive licence to process and display your content solely to provide the service to you.</li>
               <li>This licence does not allow us to sell, redistribute, or use your content for any purpose outside of operating the platform.</li>
               <li>You may not copy, reproduce, or distribute any part of the platform without our written permission.</li>
             </ul>
@@ -173,7 +173,7 @@ export default function Terms() {
 
           <Section num="12" title="Limitation of Liability">
             <p>
-              To the fullest extent permitted by applicable law, Brandverse and its team shall not be
+              To the fullest extent permitted by applicable law, Oravini and its team shall not be
               liable for any indirect, incidental, special, consequential, or punitive damages, including
               but not limited to:
             </p>
@@ -186,13 +186,13 @@ export default function Terms() {
             </ul>
             <p>
               Our total liability to you for any claim arising from your use of the platform shall not
-              exceed the amount you paid to Brandverse in the 3 months preceding the claim.
+              exceed the amount you paid to Oravini in the 3 months preceding the claim.
             </p>
           </Section>
 
           <Section num="13" title="Indemnification">
             <p>
-              You agree to indemnify, defend, and hold harmless Brandverse and its team from any claims,
+              You agree to indemnify, defend, and hold harmless Oravini and its team from any claims,
               damages, losses, or expenses (including legal fees) arising from:
             </p>
             <ul className="list-disc pl-5 space-y-2">
@@ -242,7 +242,7 @@ export default function Terms() {
           <Section num="18" title="Contact">
             <p>For questions about these Terms:</p>
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 mt-2 space-y-1">
-              <p><strong className="text-white">Brandverse</strong></p>
+              <p><strong className="text-white">Oravini</strong></p>
               <p>Email: <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a></p>
               <p className="text-zinc-500 text-sm">Response time: within 48 hours.</p>
             </div>
@@ -251,7 +251,7 @@ export default function Terms() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-800 text-center text-zinc-500 text-sm">
-          <p>© 2026 Brandverse. All rights reserved.</p>
+          <p>© 2026 Oravini. All rights reserved.</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/privacy" className="hover:underline" style={{ color: GOLD }}>Privacy Policy</a>
             <span>·</span>

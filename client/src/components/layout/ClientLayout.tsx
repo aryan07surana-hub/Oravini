@@ -263,7 +263,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7, flexShrink: 0 }} />
               <div>
                 <p className="text-xs font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD, letterSpacing: "0.15em" }}>ORAVINI</p>
-                <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Powered by Brandverse</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Creator Growth Platform</p>
               </div>
             </div>
             <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">

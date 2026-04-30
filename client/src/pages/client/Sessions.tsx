@@ -409,7 +409,7 @@ export default function Sessions() {
             <Crown className="w-10 h-10 mx-auto mb-3" style={{ color: GOLD }} />
             <h3 className="font-bold text-lg text-foreground mb-2">Unlock the Full Experience</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Get access to Starter and Pro sessions, unlimited AI features, live Q&As, masterclasses, and everything Brandverse has to offer.
+              Get access to Starter and Pro sessions, unlimited AI features, live Q&As, masterclasses, and everything Oravini has to offer.
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
               <a href="/select-plan">

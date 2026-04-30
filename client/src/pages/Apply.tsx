@@ -35,7 +35,7 @@ export default function Apply() {
           <Link href="/">
             <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${GOLD} 0%, #b8962e 100%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "#000" }}>B</div>
-              <span style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>Brandverse</span>
+              <span style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>Oravini</span>
             </div>
           </Link>
           <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -66,7 +66,7 @@ export default function Apply() {
               </span>
             </h1>
             <p style={{ fontSize: "clamp(16px, 2vw, 19px)", color: "rgba(255,255,255,0.55)", lineHeight: 1.7, maxWidth: 580, margin: "0 auto 44px" }}>
-              Brandverse works directly with creators, coaches, and info business owners to build the systems, strategy, and content engine that gets you to consistent growth — without burning out.
+              Oravini works directly with creators, coaches, and info business owners to build the systems, strategy, and content engine that gets you to consistent growth — without burning out.
             </p>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
               <a href={CALENDLY} target="_blank" rel="noopener noreferrer">
@@ -97,7 +97,7 @@ export default function Apply() {
           </div>
         </section>
 
-        {/* What Brandverse Does */}
+        {/* What Oravini Does */}
         <section style={{ padding: "80px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ maxWidth: 1080, margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: 56 }}>
@@ -170,14 +170,14 @@ export default function Apply() {
           <div style={{ maxWidth: 720, margin: "0 auto" }}>
             <div style={{ background: `linear-gradient(135deg, ${GOLD}12 0%, rgba(255,255,255,0.03) 100%)`, border: `1px solid ${GOLD}30`, borderRadius: 24, padding: "56px 48px", textAlign: "center" }}>
               <div style={{ display: "inline-block", background: `${GOLD}20`, border: `1px solid ${GOLD}50`, borderRadius: 100, padding: "5px 16px", marginBottom: 20 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>🔴 Brandverse Elite · Application Only</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.08em", textTransform: "uppercase" as const }}>🔴 Oravini Elite · Application Only</span>
               </div>
               <h2 style={{ fontSize: "clamp(24px, 3.5vw, 40px)", fontWeight: 900, letterSpacing: "-0.03em", color: "#fff", marginBottom: 18, lineHeight: 1.15 }}>
                 Scale Your Info Coaching Business<br />
                 <span style={{ color: GOLD }}>With Our Team Beside You</span>
               </h2>
               <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.7, marginBottom: 32, maxWidth: 520, margin: "0 auto 32px" }}>
-                Elite is our highest-touch program — done-with-you strategy, unlimited AI tool access, priority processing, and direct collaboration with the Brandverse team to build your content empire.
+                Elite is our highest-touch program — done-with-you strategy, unlimited AI tool access, priority processing, and direct collaboration with the Oravini team to build your content empire.
               </p>
               <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
                 <a href={CALENDLY} target="_blank" rel="noopener noreferrer">

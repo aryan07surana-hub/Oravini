@@ -319,7 +319,7 @@ export default function ICPBuilder() {
                   <input
                     value={form.businessName}
                     onChange={e => setF("businessName", e.target.value)}
-                    placeholder="e.g. Brandverse, ContentOS, GrowthHQ…"
+                    placeholder="e.g. Oravini, ContentOS, GrowthHQ…"
                     className="w-full rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none transition-colors"
                     style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                     onFocus={e => (e.target.style.borderColor = "rgba(212,180,97,0.5)")}

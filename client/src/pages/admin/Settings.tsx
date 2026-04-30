@@ -827,7 +827,7 @@ export default function AdminSettings() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-zinc-400">
-                Read our full legal documents below. By using Brandverse you agree to both.
+                Read our full legal documents below. By using Oravini you agree to both.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <a

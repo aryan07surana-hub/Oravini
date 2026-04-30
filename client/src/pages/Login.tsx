@@ -200,7 +200,7 @@ export default function Login() {
             ORAVINI
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.25em", textTransform: "uppercase", marginTop: 8 }}>
-            Powered by Brandverse
+            Powered by Oravini
           </div>
         </div>
         <div style={{ width: 60, height: 1, background: `linear-gradient(to right, transparent, rgba(212,180,97,0.5), transparent)` }} />
@@ -225,7 +225,7 @@ export default function Login() {
           <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
             <img src={oraviniLogoPath} alt="Oravini" className="w-16 h-16" style={{ objectFit: "cover", objectPosition: "50% 32%", borderRadius: 10, filter: "drop-shadow(0 0 20px rgba(212,180,97,0.4))" }} />
             <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.1em", background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Brandverse</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", textTransform: "uppercase" }}>Powered by Oravini</div>
           </div>
           <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-6 group lg:hidden" style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
             <ArrowLeft className="w-3.5 h-3.5 group-hover:text-yellow-400 transition-colors" />

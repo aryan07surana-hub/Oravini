@@ -242,7 +242,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/credits",
     target: '[data-tour="credits-main"]',
     title: "Credits — Overview",
-    description: "Every AI action in Brandverse — generating ideas, coaching sessions, video plans, image generation, competitor analysis — uses credits. Your monthly allocation resets every billing cycle. Bonus credits from top-ups never expire and are used after your monthly credits run out.",
+    description: "Every AI action in Oravini — generating ideas, coaching sessions, video plans, image generation, competitor analysis — uses credits. Your monthly allocation resets every billing cycle. Bonus credits from top-ups never expire and are used after your monthly credits run out.",
     position: "bottom",
   },
   {
@@ -271,7 +271,7 @@ const TOUR_STEPS: TourStep[] = [
     route: "/dashboard",
     target: null,
     title: "You are ready — let's go",
-    description: "That's the full Brandverse platform. The workflow is simple: generate ideas → refine with the coach → create content → track results → study competitors → repeat. Start with Content Ideas or drop a script into the Content Coach right now. You can restart this tour anytime from your dashboard.",
+    description: "That's the full Oravini platform. The workflow is simple: generate ideas → refine with the coach → create content → track results → study competitors → repeat. Start with Content Ideas or drop a script into the Content Coach right now. You can restart this tour anytime from your dashboard.",
     position: "center",
   },
 ];

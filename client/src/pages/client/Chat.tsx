@@ -124,7 +124,7 @@ export default function ClientChat() {
             <Zap className="w-4 h-4 text-primary-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">Brandverse Team</p>
+            <p className="text-sm font-semibold text-foreground">Oravini Team</p>
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
               <p className="text-xs text-muted-foreground">Online</p>
@@ -254,7 +254,7 @@ export default function ClientChat() {
             </Button>
             <Input
               data-testid="input-message"
-              placeholder={uploading ? "Uploading..." : adminId ? "Type a message to Brandverse..." : "Loading..."}
+              placeholder={uploading ? "Uploading..." : adminId ? "Type a message to Oravini..." : "Loading..."}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="flex-1 h-10"

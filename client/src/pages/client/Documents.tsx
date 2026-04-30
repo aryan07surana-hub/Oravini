@@ -121,7 +121,7 @@ export default function ClientDocuments() {
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Documents</h1>
-            <p className="text-muted-foreground mt-1">{tab === "files" ? "Files shared with you and your uploads" : "Shared resources from Brandverse"}</p>
+            <p className="text-muted-foreground mt-1">{tab === "files" ? "Files shared with you and your uploads" : "Shared resources from Oravini"}</p>
           </div>
           {tab === "files" && (
             <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setForm({ ...defaultForm }); setSelectedFile(null); setUploadTab("device"); } }}>

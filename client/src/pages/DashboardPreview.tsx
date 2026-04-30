@@ -141,7 +141,7 @@ export default function DashboardPreview() {
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 32, width: 32, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, filter: "drop-shadow(0 0 8px rgba(212,180,97,0.35))" }} />
             <div>
               <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, lineHeight: 1 }}>ORAVINI</p>
-              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}>Powered by Brandverse</p>
+              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}>Powered by Oravini</p>
             </div>
           </div>
 

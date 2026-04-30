@@ -302,11 +302,11 @@ export default function SelectPlan() {
               Elite — <span style={{ color: GOLD }}>Work With Us</span>
             </div>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.7, maxWidth: 480 }}>
-              Done-with-you strategy, weekly 1-on-1 calls, unlimited credits, and direct Brandverse team access. Custom pricing — limited spots.
+              Done-with-you strategy, weekly 1-on-1 calls, unlimited credits, and direct Oravini team access. Custom pricing — limited spots.
             </p>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button onClick={() => navigate("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 32px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.2)` }}>
+            <button onClick={() => navigate("/apply")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "14px 32px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.2)` }}>
               Learn More →
             </button>
             <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}44`, color: GOLD, fontWeight: 600, fontSize: 14, borderRadius: 12, padding: "14px 28px", cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center" }}>
