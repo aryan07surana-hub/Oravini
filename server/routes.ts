@@ -184,8 +184,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       process.env.SITE_URL ||
       process.env.PUBLIC_BASE_URL;
     if (explicitBase) return explicitBase.replace(/\/$/, "");
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (domain) return `https://${domain}`;
     return `http://localhost:${process.env.PORT || "5000"}`;
   };
 
@@ -7124,9 +7122,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   function getSiteBase() {
     if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
     if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (domain) return `https://${domain}`;
-    return "http://localhost:5000";
+    return `http://localhost:${process.env.PORT || "5000"}`;
   }
 
   function getYoutubeCallbackUrl() {
@@ -10082,8 +10078,6 @@ Rules:
     if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
     if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
     if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (domain) return `https://${domain}`;
     return `http://localhost:${process.env.PORT || "5000"}`;
   }
 

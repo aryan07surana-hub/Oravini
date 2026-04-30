@@ -10,3 +10,9 @@ project.zip
 pyproject.toml
 uv.lock
 [0-9]*-player-script.js
+
+# Replit
+.local/
+replit.md
+.replit
+*.replit

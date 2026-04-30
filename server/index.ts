@@ -72,16 +72,12 @@ passport.use(
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 
-const explicitBaseUrl =
+const baseUrl = (
   process.env.APP_URL ||
   process.env.SITE_URL ||
-  process.env.PUBLIC_BASE_URL;
-const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-const baseUrl = explicitBaseUrl
-  ? explicitBaseUrl.replace(/\/$/, "")
-  : replitDomain
-    ? `https://${replitDomain}`
-    : `http://localhost:${process.env.PORT || "5000"}`;
+  process.env.PUBLIC_BASE_URL ||
+  `http://localhost:${process.env.PORT || "5000"}`
+).replace(/\/$/, "");
 const GOOGLE_CALLBACK_URL = `${baseUrl}/api/auth/google/callback`;
 
 console.log("[google-oauth] callbackURL:", GOOGLE_CALLBACK_URL);

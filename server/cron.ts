@@ -252,9 +252,7 @@ async function processScheduledYoutubePosts() {
           process.env.APP_URL?.replace(/\/$/, "") ||
           process.env.SITE_URL?.replace(/\/$/, "") ||
           process.env.PUBLIC_BASE_URL?.replace(/\/$/, "") ||
-          (process.env.REPLIT_DOMAINS?.split(",")[0]
-            ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
-            : `http://localhost:${process.env.PORT || "5000"}`);
+          `http://localhost:${process.env.PORT || "5000"}`;
         const YOUTUBE_CALLBACK = `${siteDomain}/api/auth/youtube/callback`;
         const oauth2Client = new google.auth.OAuth2(
           process.env.YOUTUBE_CLIENT_ID,
