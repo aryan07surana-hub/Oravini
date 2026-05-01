@@ -96,6 +96,7 @@ import AdminEverydayRead from "@/pages/admin/AdminEverydayRead";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
+import AdminFeedback from "@/pages/admin/AdminFeedback";
 
 function Guard({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -227,6 +228,7 @@ function Router() {
       <Route path="/admin/daily-tracker">{() => <Guard component={AdminDailyTracker} adminOnly />}</Route>
       <Route path="/admin/tool-heatmap">{() => <Guard component={AdminToolHeatmap} adminOnly />}</Route>
       <Route path="/admin/project-tracker">{() => <Guard component={ProjectTracker} adminOnly />}</Route>
+      <Route path="/admin/feedback">{() => <Guard component={AdminFeedback} adminOnly />}</Route>
       <Route path="/admin">{() => <Guard component={AdminDashboard} adminOnly />}</Route>
 
       <Route component={NotFound} />

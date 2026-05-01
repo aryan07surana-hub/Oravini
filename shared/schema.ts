@@ -1162,3 +1162,39 @@ export const videoAnalyticsEvents = pgTable("video_analytics_events", {
 });
 export type VideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferSelect;
 export type InsertVideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferInsert;
+
+// ── User Feedback ──────────────────────────────────────────────────────────────
+export const userFeedback = pgTable("user_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Overall Experience
+  overallRating: integer("overall_rating"), // 1-5
+  easeOfUse: text("ease_of_use"), // "very_easy" | "easy" | "neutral" | "difficult" | "very_difficult"
+  // Usage Context
+  purposeToday: text("purpose_today"),
+  completedPurpose: text("completed_purpose"), // "yes" | "no" | "partially"
+  // What's Working Well
+  mostLiked: text("most_liked"),
+  mostUsefulFeature: text("most_useful_feature"),
+  // Issues
+  hadIssues: text("had_issues"), // "yes" | "no"
+  issueType: text("issue_type"), // "bug" | "slow" | "confusing" | "missing_feature" | "other"
+  issueDescription: text("issue_description"),
+  issueFrequency: text("issue_frequency"), // "once" | "occasionally" | "frequently" | "always"
+  // Improvements
+  improvement: text("improvement"),
+  wishedFeature: text("wished_feature"),
+  immediateChange: text("immediate_change"),
+  // Impact & Priority
+  feedbackImportance: text("feedback_importance"), // "low" | "medium" | "high"
+  wouldStopUsing: text("would_stop_using"), // "yes" | "no"
+  // Satisfaction & Recommendation
+  npsScore: integer("nps_score"), // 0-10
+  npsReason: text("nps_reason"),
+  source: text("source").notNull().default("dashboard"), // "dashboard" | "settings"
+  submittedAt: timestamp("submitted_at").defaultNow(),
+});
+
+export const insertUserFeedbackSchema = createInsertSchema(userFeedback).omit({ id: true, submittedAt: true });
+export type InsertUserFeedback = z.infer<typeof insertUserFeedbackSchema>;
+export type UserFeedback = typeof userFeedback.$inferSelect;

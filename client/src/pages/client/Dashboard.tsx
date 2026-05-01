@@ -18,8 +18,9 @@ import {
   Trash2, Check, Sparkles, RefreshCw, ChevronRight, Zap, BarChart2,
   Lightbulb, Music2, Bot, Clapperboard, Map, Flame, Activity, Brain,
   Palette, ScanSearch, Layers, ImagePlay, Wand2, Mic2, Star, TrendingDown,
-  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck
+  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck, MessageCircle
 } from "lucide-react";
+import FeedbackModal from "@/components/FeedbackModal";
 import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
@@ -1777,6 +1778,7 @@ export default function ClientDashboard() {
   // Refresh logic
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
+  const [showFeedback, setShowFeedback] = useState(false);
   const autoRefreshRef = useRef(autoRefresh);
   const versionRef = useRef<string | null>(null);
 
@@ -2292,8 +2294,29 @@ export default function ClientDashboard() {
             <ContentMasteryModule />
           </div>
 
+          {/* ── FEEDBACK BANNER ── */}
+          <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 to-zinc-900/60 p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Share your feedback</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Help us improve Oravini — takes less than 2 minutes</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              <Star className="w-4 h-4" /> Give Feedback
+            </button>
+          </div>
+
         </div>
       </ClientLayout>
+
+      <FeedbackModal open={showFeedback} onClose={() => setShowFeedback(false)} source="dashboard" />
 
       {showOnboarding && (
         <OnboardingModal

@@ -10,7 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
-import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema } from "@shared/schema";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
@@ -11069,5 +11069,38 @@ Rules:
       res.status(500).json({ message: err.message });
     }
   });
+
+  // ── User Feedback ──────────────────────────────────────────────────────────
+  app.post("/api/feedback", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const parsed = insertUserFeedbackSchema.safeParse({ ...req.body, userId });
+      if (!parsed.success) return res.status(400).json({ message: "Invalid feedback data" });
+      const feedback = await storage.createUserFeedback(parsed.data);
+      res.status(201).json(feedback);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/feedback/my", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const feedback = await storage.getUserFeedback(userId);
+      res.json(feedback);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/feedback", requireAdmin, async (req, res) => {
+    try {
+      const feedback = await storage.getAllUserFeedback();
+      res.json(feedback);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

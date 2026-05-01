@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import {
   Users, FileText, MessageSquare, TrendingUp, Calendar,
-  ArrowRight, ChevronRight, Phone, Globe, Quote, FolderKanban
+  ArrowRight, ChevronRight, Phone, Globe, Quote, FolderKanban, Star
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
@@ -90,6 +90,10 @@ export default function AdminDashboard() {
 
   const { data: projectTracker } = useQuery<any>({
     queryKey: ["/api/admin/project-trackers"],
+  });
+
+  const { data: allFeedback } = useQuery<any[]>({
+    queryKey: ["/api/admin/feedback"],
   });
 
   const eliteClients = (clients || []).filter((c: any) => c.tier === "elite");
@@ -174,6 +178,47 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Feedback Summary */}
+        {(allFeedback || []).length > 0 && (() => {
+          const rated = (allFeedback || []).filter((f: any) => f.overallRating);
+          const avgRating = rated.length ? (rated.reduce((a: number, f: any) => a + f.overallRating, 0) / rated.length).toFixed(1) : "—";
+          const npsScored = (allFeedback || []).filter((f: any) => f.npsScore !== null);
+          const promoters = npsScored.filter((f: any) => f.npsScore >= 9).length;
+          const detractors = npsScored.filter((f: any) => f.npsScore <= 6).length;
+          const nps = npsScored.length ? Math.round(((promoters - detractors) / npsScored.length) * 100) : null;
+          return (
+            <Card className="mb-8 border border-card-border">
+              <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center">
+                    <Star className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-foreground">Member Feedback</p>
+                    <p className="text-sm text-muted-foreground mt-1">{(allFeedback || []).length} response{(allFeedback || []).length !== 1 ? "s" : ""} collected from members</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="rounded-2xl border border-card-border bg-black/25 px-4 py-3 text-center">
+                    <p className="text-lg font-semibold text-foreground">{avgRating}</p>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-yellow-400">Avg Rating</p>
+                  </div>
+                  {nps !== null && (
+                    <div className="rounded-2xl border border-card-border bg-black/25 px-4 py-3 text-center">
+                      <p className={`text-lg font-semibold ${nps >= 50 ? "text-emerald-400" : nps >= 0 ? "text-yellow-400" : "text-red-400"}`}>{nps > 0 ? `+${nps}` : nps}</p>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-yellow-400">NPS Score</p>
+                    </div>
+                  )}
+                  <Link href="/admin/feedback" className="inline-flex items-center gap-2 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 px-4 py-3 text-sm font-semibold text-yellow-400 hover:bg-yellow-500/20 transition-colors">
+                    View All Feedback
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Clients list */}

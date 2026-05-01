@@ -70,7 +70,8 @@ import {
   type WebinarLandingPage, type InsertWebinarLandingPage,
   type WebinarContact, type InsertWebinarContact,
   type VideoAnalyticsEvent, type InsertVideoAnalyticsEvent,
-  webinarContacts, videoAnalyticsEvents,
+  type UserFeedback, type InsertUserFeedback,
+  webinarContacts, videoAnalyticsEvents, userFeedback,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -128,6 +129,11 @@ export interface IStorage {
   getReferralStats(userId: string): Promise<{ code: string; clicks: number; signups: number; conversions: number }>;
   getAllReferralStats(): Promise<any[]>;
   getReferralLeaderboard(): Promise<any[]>;
+
+  // User Feedback
+  createUserFeedback(data: InsertUserFeedback): Promise<UserFeedback>;
+  getAllUserFeedback(): Promise<(UserFeedback & { userName?: string; userEmail?: string })[]>;
+  getUserFeedback(userId: string): Promise<UserFeedback[]>;
 
   // Sessions Hub
   getSessions(tierFilter?: string[]): Promise<Session[]>;
@@ -2066,6 +2072,27 @@ class DatabaseStorage implements IStorage {
     const watchTimes = events.filter(e => e.eventType === "progress").map(e => e.position);
     const avgWatchTime = watchTimes.length > 0 ? watchTimes.reduce((a, b) => a + b, 0) / watchTimes.length : 0;
     return { totalViews: uniqueSessions.size, totalCompletions: completions, avgWatchTime };
+  }
+
+  // ── User Feedback ─────────────────────────────────────────────────────────
+  async createUserFeedback(data: InsertUserFeedback): Promise<UserFeedback> {
+    const [row] = await db.insert(userFeedback).values(data).returning();
+    return row;
+  }
+  async getAllUserFeedback(): Promise<(UserFeedback & { userName?: string; userEmail?: string })[]> {
+    const rows = await db
+      .select({
+        feedback: userFeedback,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(userFeedback)
+      .leftJoin(users, eq(userFeedback.userId, users.id))
+      .orderBy(desc(userFeedback.submittedAt));
+    return rows.map(r => ({ ...r.feedback, userName: r.userName ?? undefined, userEmail: r.userEmail ?? undefined }));
+  }
+  async getUserFeedback(userId: string): Promise<UserFeedback[]> {
+    return db.select().from(userFeedback).where(eq(userFeedback.userId, userId)).orderBy(desc(userFeedback.submittedAt));
   }
 }
 

@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Crown, Zap, ArrowUpRight, CheckCircle2, Lock, ChevronRight, Settings,
   Rocket, AlertTriangle, X, ExternalLink, Trash2, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Globe, Languages
+  Globe, Languages, MessageCircle, Star
 } from "lucide-react";
+import FeedbackModal from "@/components/FeedbackModal";
 import { useTimezone, TIMEZONES, LANGUAGES } from "@/hooks/use-timezone";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -378,6 +379,7 @@ export default function PlanSettings() {
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const { timezone, setTimezone, language, setLanguage } = useTimezone();
 
   const currentPlan = (user as any)?.plan || "free";
@@ -425,6 +427,7 @@ export default function PlanSettings() {
   return (
     <ClientLayout>
       {showDeleteModal && <DeleteAccountModal onClose={() => setShowDeleteModal(false)} />}
+      <FeedbackModal open={showFeedback} onClose={() => setShowFeedback(false)} source="settings" />
 
       <div className="max-w-3xl mx-auto px-6 py-10">
 
@@ -748,6 +751,34 @@ export default function PlanSettings() {
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" />
               </a>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FEEDBACK ── */}
+        <div className="mt-6">
+          <div
+            className="rounded-2xl p-6 transition-all"
+            style={{ background: "rgba(212,180,97,0.04)", border: "1px solid rgba(212,180,97,0.15)" }}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <MessageCircle className="w-5 h-5" style={{ color: "#d4b461" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white">Share Feedback</p>
+                <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                  Help us improve Oravini. Rate your experience, report issues, and suggest features.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowFeedback(true)}
+                className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-105 active:scale-95"
+                style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.3)", color: "#d4b461" }}
+              >
+                <Star className="w-3.5 h-3.5" />
+                Give Feedback
+              </button>
             </div>
           </div>
         </div>
