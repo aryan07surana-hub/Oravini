@@ -36,7 +36,7 @@ type ChatMessage = {
 
 type AnalysisData = {
   overallScore: number;
-  scores: { hook: number; clarity: number; emotion: number; pacing: number; retention: number; payoff: number };
+  scores: { clarity: number; persuasion: number; ctaStrength: number; brandVoice: number };
   issues: Array<{ line: string; problem: string; fix: string; severity: string }>;
   strengths: string[];
   dropoffs: Array<{ second: number; reason: string; severity: string }>;
@@ -378,7 +378,7 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
               <ScoreRing score={a.overallScore}/>
               <div className="flex-1 space-y-1.5">
                 {Object.entries(a.scores).map(([k,v])=>(
-                  <ScoreBar key={k} label={k.charAt(0).toUpperCase()+k.slice(1)} value={v as number}/>
+                  <ScoreBar key={k} label={k.replace(/([A-Z])/g,' $1').replace(/^./,(s:string)=>s.toUpperCase())} value={v as number}/>
                 ))}
               </div>
             </div>
