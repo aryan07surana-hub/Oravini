@@ -6180,11 +6180,19 @@ Return JSON:
       const monthCreditsUsed = monthTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
       const uniqueMonthTools = new Set(monthTxns.map(t => t.type)).size;
 
+      // Lifetime stats
+      const lifetimeRow = await pool.query(
+        `SELECT COUNT(*)::int AS total_actions FROM credit_transactions WHERE user_id = $1 AND amount < 0`,
+        [userId]
+      );
+      const lifetimeTotalActions: number = lifetimeRow.rows[0]?.total_actions ?? 0;
+
       return res.json({
         today: { creditsUsed: todayCreditsUsed, toolsUsed: todayToolTypes.length, toolNames: todayToolTypes },
         weekHistory,
         streak,
         thisMonth: { creditsUsed: monthCreditsUsed, uniqueTools: uniqueMonthTools, totalActions: monthTxns.length },
+        lifetime: { totalActions: lifetimeTotalActions },
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });

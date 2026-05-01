@@ -1579,6 +1579,109 @@ function ReferralWidget({ stats }: { stats: any }) {
 }
 
 /* ─────────────────────────────────────────────
+   SINCE JOINING ORAVANI
+───────────────────────────────────────────── */
+function SinceJoiningOravani({
+  joinDate,
+  totalViews,
+  totalFollowers,
+  totalPosts,
+  totalActions,
+  completedTasks,
+  avgProgress,
+  plan,
+}: {
+  joinDate: string | Date;
+  totalViews: number;
+  totalFollowers: number;
+  totalPosts: number;
+  totalActions: number;
+  completedTasks: number;
+  avgProgress: number;
+  plan?: string;
+}) {
+  const joined = new Date(joinDate);
+  const daysSince = Math.max(0, Math.floor((Date.now() - joined.getTime()) / (1000 * 60 * 60 * 24)));
+  const tierInfo = plan && TIER_DISPLAY[plan] ? TIER_DISPLAY[plan] : null;
+
+  const stats = [
+    { label: "Days on Platform",  value: daysSince.toLocaleString(),            icon: Calendar,     color: GOLD,      bg: "rgba(212,180,97,0.1)" },
+    { label: "Views Generated",   value: totalViews.toLocaleString(),            icon: Eye,          color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
+    { label: "Followers Gained",  value: totalFollowers > 0 ? `+${totalFollowers.toLocaleString()}` : "—", icon: Users, color: "#34d399", bg: "rgba(52,211,153,0.1)" },
+    { label: "Posts Tracked",     value: totalPosts.toLocaleString(),            icon: FileText,     color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
+    { label: "Tool Actions",      value: totalActions.toLocaleString(),          icon: Sparkles,     color: "#f472b6", bg: "rgba(244,114,182,0.1)" },
+    { label: "Tasks Completed",   value: completedTasks.toLocaleString(),        icon: CheckCircle2, color: "#fb923c", bg: "rgba(251,146,60,0.1)" },
+  ];
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      {/* Header */}
+      <div
+        className="px-5 py-4 flex items-center justify-between"
+        style={{ background: "rgba(212,180,97,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.25) 0%, rgba(212,180,97,0.08) 100%)", border: "1px solid rgba(212,180,97,0.25)" }}
+          >
+            <Rocket className="w-4 h-4" style={{ color: GOLD }} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-foreground">Since Joining Oravani</p>
+            <p className="text-[10px] text-zinc-500">Member since {format(joined, "MMMM d, yyyy")} · {daysSince}d ago</p>
+          </div>
+        </div>
+        {tierInfo && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+            style={{ background: `${tierInfo.color}15`, border: `1px solid ${tierInfo.color}30` }}
+          >
+            <Crown className="w-3 h-3" style={{ color: tierInfo.color }} />
+            <span className="text-[10px] font-bold" style={{ color: tierInfo.color }}>{tierInfo.name}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 divide-x divide-y divide-zinc-800/50">
+        {stats.map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="flex items-center gap-3 px-5 py-4">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: bg }}>
+              <Icon className="w-4 h-4" style={{ color }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Overall progress bar */}
+      {avgProgress > 0 && (
+        <div
+          className="px-5 py-3 flex items-center gap-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.01)" }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 shrink-0">Overall Progress</p>
+          <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${avgProgress}%`, background: `linear-gradient(90deg, ${GOLD}aa, ${GOLD})` }}
+            />
+          </div>
+          <p className="text-[10px] font-bold shrink-0" style={{ color: GOLD }}>{avgProgress}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    MAIN DASHBOARD
 ───────────────────────────────────────────── */
 export default function ClientDashboard() {
@@ -1705,6 +1808,7 @@ export default function ClientDashboard() {
   const todayTools = activity?.today?.toolsUsed ?? 0;
   const weekHistory = activity?.weekHistory ?? Array(7).fill({ date: "", creditsUsed: 0, actions: 0 });
   const monthActions = activity?.thisMonth?.totalActions ?? 0;
+  const lifetimeTotalActions: number = activity?.lifetime?.totalActions ?? 0;
   const todayToolNames: string[] = activity?.today?.toolNames ?? [];
 
   const userStruggles: string[] = (user as any)?.struggles || [];
@@ -1839,6 +1943,20 @@ export default function ClientDashboard() {
 
           {/* ── CREATOR SCORE ── */}
           <CreatorScore streak={streak} monthActions={monthActions} contentCount={(contentPosts || []).length} />
+
+          {/* ── SINCE JOINING ORAVANI ── */}
+          {user?.createdAt && (
+            <SinceJoiningOravani
+              joinDate={user.createdAt}
+              totalViews={totalContentViews}
+              totalFollowers={totalFollowers}
+              totalPosts={(contentPosts || []).length}
+              totalActions={lifetimeTotalActions}
+              completedTasks={completedTasks}
+              avgProgress={avgProgress}
+              plan={(user as any)?.plan}
+            />
+          )}
 
           {/* ── REFERRAL WIDGET ── */}
           <ReferralWidget stats={referralStats} />
