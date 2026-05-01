@@ -11074,11 +11074,19 @@ Rules:
   app.post("/api/feedback", requireAuth, async (req, res) => {
     try {
       const userId = (req.user as any).id;
-      const parsed = insertUserFeedbackSchema.safeParse({ ...req.body, userId });
-      if (!parsed.success) return res.status(400).json({ message: "Invalid feedback data" });
+      // Zod .optional() rejects null — strip nulls to undefined before parsing
+      const cleaned = Object.fromEntries(
+        Object.entries(req.body).map(([k, v]) => [k, v === null ? undefined : v])
+      );
+      const parsed = insertUserFeedbackSchema.safeParse({ ...cleaned, userId });
+      if (!parsed.success) {
+        console.error("Feedback validation error:", parsed.error.errors);
+        return res.status(400).json({ message: "Invalid feedback data", errors: parsed.error.errors });
+      }
       const feedback = await storage.createUserFeedback(parsed.data);
       res.status(201).json(feedback);
     } catch (err: any) {
+      console.error("Feedback insert error:", err.message);
       res.status(500).json({ message: err.message });
     }
   });

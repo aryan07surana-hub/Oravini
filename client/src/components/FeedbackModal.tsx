@@ -200,13 +200,21 @@ export default function FeedbackModal({ open, onClose, source = "dashboard" }: F
   const set = (key: string, val: any) => setForm(p => ({ ...p, [key]: val }));
 
   const submit = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/feedback", { ...form, overallRating: form.overallRating || null }),
+    mutationFn: () => {
+      // Strip empty strings and zero-rating so optional DB columns get undefined
+      const payload: Record<string, any> = {};
+      for (const [k, v] of Object.entries(form)) {
+        if (v === null || v === "" || v === 0) continue;
+        payload[k] = v;
+      }
+      return apiRequest("POST", "/api/feedback", payload);
+    },
     onSuccess: () => {
       toast({ title: "Thank you for your feedback!", description: "We read every response and use it to improve Oravini." });
       onClose();
     },
-    onError: () => {
-      toast({ title: "Failed to submit", description: "Please try again.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Failed to submit", description: err?.message || "Please try again.", variant: "destructive" });
     },
   });
 
