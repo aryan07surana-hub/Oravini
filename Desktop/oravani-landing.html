@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oravani — AI-Powered Content Growth Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   RESET & VARIABLES
+================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --black:     #06060a;
+  --dark:      #0d0d12;
+  --gold:      #FFD700;
+  --gold2:     #FFC200;
+  --gold-dim:  rgba(255,215,0,0.12);
+  --white:     #ffffff;
+  --gray:      rgba(255,255,255,0.45);
+  --border:    rgba(255,215,0,0.12);
+  --easing:    cubic-bezier(0.16, 1, 0.3, 1);
+}
+html { scroll-behavior: smooth; overflow-x: hidden; }
+body {
+  font-family: 'Poppins', sans-serif;
+  background: var(--black);
+  color: var(--white);
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* ================================================================
+   CUSTOM CURSOR
+================================================================ */
+#cursor {
+  position: fixed; width: 10px; height: 10px;
+  background: var(--gold); border-radius: 50%;
+  pointer-events: none; z-index: 99999;
+  transform: translate(-50%,-50%);
+  transition: transform 0.1s, width 0.3s, height 0.3s, opacity 0.3s;
+  mix-blend-mode: screen;
+}
+#cursor-ring {
+  position: fixed; width: 36px; height: 36px;
+  border: 1.5px solid rgba(255,215,0,0.5); border-radius: 50%;
+  pointer-events: none; z-index: 99998;
+  transform: translate(-50%,-50%);
+  transition: left 0.12s var(--easing), top 0.12s var(--easing), width 0.3s, height 0.3s, opacity 0.3s;
+}
+body:hover #cursor, body:hover #cursor-ring { opacity: 1; }
+a:hover ~ #cursor, button:hover ~ #cursor { transform: translate(-50%,-50%) scale(2.5); }
+#cursor-glow {
+  position: fixed; width: 500px; height: 500px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,215,0,0.035) 0%, transparent 65%);
+  pointer-events: none; z-index: 1;
+  transform: translate(-50%,-50%);
+  transition: left 0.3s ease, top 0.3s ease;
+}
+
+/* ================================================================
+   PRELOADER
+================================================================ */
+#preloader {
+  position: fixed; inset: 0; background: var(--black);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+#preloader.hide { opacity: 0; visibility: hidden; }
+.preloader-logo {
+  display: flex; gap: 0;
+  font-size: clamp(2.5rem, 8vw, 6rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  text-shadow: 0 0 60px rgba(255,215,0,0.4);
+}
+.preloader-logo span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(40px);
+  animation: letterIn 0.6s var(--easing) forwards;
+}
+@keyframes letterIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+.preloader-line {
+  margin-top: 24px;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: lineGrow 0.8s ease 1.2s forwards;
+}
+@keyframes lineGrow { to { width: 300px; } }
+.preloader-sub {
+  margin-top: 16px;
+  font-size: 0.78rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255,215,0,0.5);
+  opacity: 0;
+  animation: fadeIn 0.6s ease 1.6s forwards;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+
+/* ================================================================
+   NAVBAR
+================================================================ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  padding: 22px 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  backdrop-filter: blur(24px);
+  background: rgba(6,6,10,0.6);
+  border-bottom: 1px solid rgba(255,215,0,0.08);
+  transition: padding 0.4s ease, background 0.4s ease;
+}
+nav.scrolled {
+  padding: 14px 48px;
+  background: rgba(6,6,10,0.92);
+}
+.nav-logo {
+  font-size: 1.3rem; font-weight: 900; letter-spacing: 0.22em;
+  color: var(--gold); text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(255,215,0,0.3);
+}
+.nav-links {
+  display: flex; gap: 36px; list-style: none;
+}
+.nav-links a {
+  font-size: 0.82rem; font-weight: 500; color: rgba(255,255,255,0.5);
+  text-decoration: none; letter-spacing: 0.05em;
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--gold); }
+.nav-cta {
+  background: linear-gradient(135deg, #FFD700, #FFC200);
+  color: #000; border: none; padding: 11px 28px;
+  border-radius: 50px; font-family: 'Poppins', sans-serif;
+  font-weight: 700; font-size: 0.82rem; cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.3s; box-shadow: 0 4px 20px rgba(255,215,0,0.2);
+}
+.nav-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,215,0,0.45); }
+
+/* ================================================================
+   HERO
+================================================================ */
+#hero {
+  position: relative; height: 100vh; min-height: 700px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; overflow: hidden;
+}
+#hero-canvas {
+  position: absolute; inset: 0; z-index: 0;
+}
+.hero-radial {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255,215,0,0.07) 0%, transparent 70%);
+  animation: radialPulse 5s ease-in-out infinite;
+}
+@keyframes radialPulse {
+  0%,100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+.hero-content {
+  position: relative; z-index: 2;
+  padding: 0 20px;
+}
+.hero-eyebrow {
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.4em;
+  text-transform: uppercase; color: rgba(255,215,0,0.6);
+  opacity: 0; transform: translateY(16px);
+  animation: fadeUp 0.8s var(--easing) 2s forwards;
+  margin-bottom: 20px;
+}
+.hero-title {
+  display: flex; justify-content: center; gap: 0.06em;
+  font-size: clamp(4rem, 12vw, 10rem);
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1;
+  filter: drop-shadow(0 0 40px rgba(255,215,0,0.3));
+}
+.hero-title .letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(60px) rotateX(-90deg);
+  animation: letterReveal 0.7s var(--easing) forwards;
+}
+@keyframes letterReveal {
+  to { opacity: 1; transform: translateY(0) rotateX(0deg); }
+}
+.hero-sub {
+  font-size: clamp(0.95rem, 2.5vw, 1.25rem);
+  font-weight: 400; letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(255,255,255,0.65);
+  margin-top: 20px;
+  opacity: 0; transform: translateY(20px);
+  animation: fadeUp 0.9s var(--easing) 2.4s forwards;
+}
+.hero-subsub {
+  font-size: 0.9rem; color: rgba(255,255,255,0.32);
+  margin-top: 10px;
+  opacity: 0; transform: translateY(16px);
+  animation: fadeUp 0.9s var(--easing) 2.7s forwards;
+}
+.hero-buttons {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  justify-content: center; margin-top: 50px;
+  opacity: 0; transform: translateY(20px);
+  animation: fadeUp 0.9s var(--easing) 3s forwards;
+}
+.hero-scroll {
+  position: absolute; bottom: 36px; left: 50%;
+  transform: translateX(-50%); z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  opacity: 0; animation: fadeIn 0.6s ease 3.5s forwards;
+}
+.hero-scroll span {
+  font-size: 0.65rem; letter-spacing: 0.3em; text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+}
+.scroll-mouse {
+  width: 24px; height: 38px;
+  border: 1.5px solid rgba(255,215,0,0.3); border-radius: 14px;
+  position: relative;
+}
+.scroll-wheel {
+  width: 3px; height: 7px; background: var(--gold); border-radius: 2px;
+  position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+  animation: scrollDown 2.2s ease-in-out infinite;
+}
+@keyframes scrollDown {
+  0%   { transform: translateX(-50%) translateY(0); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(18px); opacity: 0; }
+}
+
+/* ================================================================
+   BUTTONS
+================================================================ */
+.btn-gold {
+  background: linear-gradient(135deg, #FFD700, #FFC200);
+  color: #000; border: none; padding: 16px 38px;
+  border-radius: 50px; font-family: 'Poppins', sans-serif;
+  font-weight: 700; font-size: 0.9rem; cursor: pointer;
+  letter-spacing: 0.04em; text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s; box-shadow: 0 8px 30px rgba(255,215,0,0.2);
+}
+.btn-gold:hover { transform: translateY(-3px); box-shadow: 0 16px 50px rgba(255,215,0,0.5); }
+.btn-outline {
+  background: transparent; color: var(--gold);
+  border: 1.5px solid rgba(255,215,0,0.45); padding: 16px 38px;
+  border-radius: 50px; font-family: 'Poppins', sans-serif;
+  font-weight: 600; font-size: 0.9rem; cursor: pointer;
+  letter-spacing: 0.04em; text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s;
+}
+.btn-outline:hover {
+  background: rgba(255,215,0,0.08); transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(255,215,0,0.15);
+}
+.btn-ghost {
+  background: transparent; color: rgba(255,255,255,0.5);
+  border: 1.5px solid rgba(255,255,255,0.14); padding: 16px 38px;
+  border-radius: 50px; font-family: 'Poppins', sans-serif;
+  font-weight: 500; font-size: 0.9rem; cursor: pointer;
+  letter-spacing: 0.04em; text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s;
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.35); color: white; transform: translateY(-3px); }
+
+/* ================================================================
+   STATS FLOAT BAR
+================================================================ */
+.stats-float {
+  position: relative; z-index: 10;
+  max-width: 1100px; margin: -50px auto 0; padding: 0 40px;
+}
+.stats-float-inner {
+  background: linear-gradient(135deg, rgba(20,18,6,0.9) 0%, rgba(14,12,4,0.95) 100%);
+  border: 1px solid rgba(255,215,0,0.2);
+  border-radius: 24px; padding: 32px 48px;
+  display: flex; justify-content: space-around; flex-wrap: wrap; gap: 24px;
+  backdrop-filter: blur(30px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,215,0,0.05) inset;
+}
+.stat-item { text-align: center; }
+.stat-num {
+  font-size: 2.2rem; font-weight: 900; color: var(--gold);
+  line-height: 1; text-shadow: 0 0 20px rgba(255,215,0,0.3);
+}
+.stat-lbl {
+  font-size: 0.75rem; color: rgba(255,255,255,0.35);
+  margin-top: 6px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+
+/* ================================================================
+   SECTION SKELETON
+================================================================ */
+.section-wrap {
+  max-width: 1200px; margin: 0 auto; padding: 130px 48px;
+}
+.section-wrap-full {
+  padding: 130px 48px;
+}
+.section-label {
+  display: inline-block;
+  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.35em;
+  text-transform: uppercase; color: var(--gold);
+  background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.2);
+  padding: 6px 16px; border-radius: 50px;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: clamp(1.9rem, 4.5vw, 3.6rem);
+  font-weight: 900; line-height: 1.15;
+}
+.section-body {
+  font-size: 1rem; color: var(--gray); line-height: 1.75; max-width: 560px;
+}
+.divider {
+  width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,215,0,0.15), transparent);
+}
+
+/* ================================================================
+   SCROLL ANIMATIONS
+================================================================ */
+.ao { /* animate on scroll */
+  opacity: 0; transform: translateY(48px);
+  transition: opacity 0.9s var(--easing), transform 0.9s var(--easing);
+}
+.ao.show { opacity: 1; transform: translateY(0); }
+.ao-left { opacity: 0; transform: translateX(-48px); transition: opacity 0.9s var(--easing), transform 0.9s var(--easing); }
+.ao-left.show { opacity: 1; transform: translateX(0); }
+.ao-right { opacity: 0; transform: translateX(48px); transition: opacity 0.9s var(--easing), transform 0.9s var(--easing); }
+.ao-right.show { opacity: 1; transform: translateX(0); }
+.ao-scale { opacity: 0; transform: scale(0.88); transition: opacity 0.8s var(--easing), transform 0.8s var(--easing); }
+.ao-scale.show { opacity: 1; transform: scale(1); }
+.d1 { transition-delay: 0.08s; }
+.d2 { transition-delay: 0.16s; }
+.d3 { transition-delay: 0.24s; }
+.d4 { transition-delay: 0.32s; }
+.d5 { transition-delay: 0.40s; }
+.d6 { transition-delay: 0.48s; }
+.d7 { transition-delay: 0.56s; }
+.d8 { transition-delay: 0.64s; }
+.d9 { transition-delay: 0.72s; }
+.d10 { transition-delay: 0.80s; }
+
+/* ================================================================
+   SECTION 1 — HOOK
+================================================================ */
+#hook {
+  background: var(--black);
+  text-align: center;
+}
+.hook-headline {
+  font-size: clamp(2.2rem, 5.5vw, 4.8rem);
+  font-weight: 900; line-height: 1.12;
+  max-width: 960px; margin: 16px auto 0;
+}
+.hook-headline .hl {
+  color: var(--gold);
+  position: relative; display: inline-block;
+}
+.hook-headline .hl::after {
+  content: '';
+  position: absolute; bottom: -4px; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 1.1s var(--easing) 0.6s;
+}
+.hook-headline.show .hl::after { transform: scaleX(1); }
+.hook-body {
+  font-size: 1.05rem; color: var(--gray);
+  max-width: 620px; margin: 28px auto 0; line-height: 1.75;
+}
+
+/* ================================================================
+   SECTION 2 — PROBLEM
+================================================================ */
+#problem {
+  background: linear-gradient(180deg, var(--black) 0%, #0e0900 60%, var(--black) 100%);
+}
+.problem-header { text-align: center; margin-bottom: 70px; }
+.problem-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
+  max-width: 960px; margin: 0 auto;
+}
+.problem-card {
+  background: linear-gradient(140deg, rgba(255,50,50,0.04) 0%, rgba(12,4,0,0.6) 100%);
+  border: 1px solid rgba(255,60,60,0.1); border-radius: 20px; padding: 34px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.4s, transform 0.4s;
+}
+.problem-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+  background: linear-gradient(180deg, #ff4444 0%, transparent 100%);
+}
+.problem-card:hover { border-color: rgba(255,80,80,0.22); transform: translateY(-4px); }
+.problem-num {
+  font-size: 3.5rem; font-weight: 900;
+  color: rgba(255,60,60,0.1); line-height: 1;
+  margin-bottom: 6px; font-variant-numeric: tabular-nums;
+}
+.problem-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; color: rgba(255,255,255,0.9); }
+.problem-card p { font-size: 0.88rem; color: rgba(255,255,255,0.42); line-height: 1.7; }
+
+/* ================================================================
+   SECTION 3 — QUIZ
+================================================================ */
+#quiz { background: var(--black); text-align: center; }
+.quiz-wrap { max-width: 680px; margin: 0 auto; }
+.quiz-prog {
+  display: flex; justify-content: center; gap: 8px; margin-bottom: 44px;
+}
+.quiz-dot {
+  width: 8px; height: 8px; border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+  transition: all 0.4s var(--easing);
+}
+.quiz-dot.on { background: var(--gold); width: 28px; }
+.quiz-step { display: none; animation: fadeUp 0.5s var(--easing) both; }
+.quiz-step.on { display: block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
+.quiz-q-num { font-size: 0.72rem; letter-spacing: 0.3em; color: var(--gold); text-transform: uppercase; margin-bottom: 10px; }
+.quiz-q { font-size: clamp(1.1rem, 2.5vw, 1.45rem); font-weight: 700; margin-bottom: 34px; }
+.quiz-opts { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.quiz-opt {
+  padding: 12px 26px; border: 1.5px solid rgba(255,215,0,0.2);
+  border-radius: 50px; background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-family: 'Poppins', sans-serif; font-size: 0.88rem;
+  cursor: pointer; transition: all 0.3s;
+}
+.quiz-opt:hover, .quiz-opt.picked {
+  border-color: var(--gold); background: rgba(255,215,0,0.08); color: var(--gold);
+}
+.quiz-nav { margin-top: 38px; }
+.quiz-result-box { display: none; }
+.quiz-result-box.on {
+  display: block; animation: fadeUp 0.6s var(--easing) both;
+}
+.quiz-result-card {
+  background: linear-gradient(135deg, rgba(255,215,0,0.07), rgba(255,215,0,0.02));
+  border: 1px solid rgba(255,215,0,0.3); border-radius: 26px; padding: 52px 40px;
+}
+.quiz-result-icon { font-size: 3.5rem; margin-bottom: 18px; }
+.quiz-result-card h2 { font-size: clamp(1.3rem, 3vw, 2rem); font-weight: 800; color: var(--gold); margin-bottom: 14px; }
+.quiz-result-card p { color: var(--gray); font-size: 0.95rem; line-height: 1.75; margin-bottom: 36px; }
+
+/* ================================================================
+   SECTION 4 — TOOLS
+================================================================ */
+#tools {
+  background: linear-gradient(180deg, var(--black) 0%, #0c0a00 50%, var(--black) 100%);
+}
+.tools-hdr { text-align: center; margin-bottom: 72px; }
+.tools-hdr h2 { font-size: clamp(2rem, 5vw, 3.8rem); font-weight: 900; line-height: 1.15; }
+.tools-hdr h2 span { color: var(--gold); }
+.tools-hdr p { color: var(--gray); margin-top: 16px; font-size: 0.98rem; max-width: 520px; margin-left: auto; margin-right: auto; }
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 20px;
+}
+.tool-card {
+  background: linear-gradient(140deg, rgba(255,215,0,0.03) 0%, rgba(14,12,2,0.6) 100%);
+  border: 1px solid var(--border);
+  border-radius: 20px; padding: 28px 26px;
+  transition: all 0.45s var(--easing); position: relative; overflow: hidden;
+}
+.tool-card::after {
+  content: '';
+  position: absolute; top: 0; left: -100%; right: -100%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent);
+  transition: left 0.6s ease;
+}
+.tool-card:hover::after { left: 100%; }
+.tool-card:hover {
+  border-color: rgba(255,215,0,0.3); transform: translateY(-7px);
+  box-shadow: 0 24px 60px rgba(255,215,0,0.09);
+  background: linear-gradient(140deg, rgba(255,215,0,0.06) 0%, rgba(18,14,2,0.7) 100%);
+}
+.tool-icon { font-size: 2rem; margin-bottom: 14px; display: block; }
+.tool-name { font-size: 0.98rem; font-weight: 700; margin-bottom: 7px; }
+.tool-desc { font-size: 0.83rem; color: var(--gray); line-height: 1.65; }
+.tool-tag {
+  display: inline-block; margin-top: 13px;
+  font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); border: 1px solid rgba(255,215,0,0.25);
+  border-radius: 20px; padding: 4px 12px;
+}
+.tool-card.wide { grid-column: span 2; }
+@media (max-width: 640px) { .tool-card.wide { grid-column: span 1; } }
+.sub-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.sub-tag {
+  font-size: 0.78rem; padding: 6px 14px;
+  background: rgba(255,215,0,0.06); border: 1px solid rgba(255,215,0,0.13);
+  border-radius: 20px; color: rgba(255,255,255,0.55); transition: all 0.3s;
+  cursor: default;
+}
+.sub-tag:hover { background: rgba(255,215,0,0.12); color: var(--gold); border-color: rgba(255,215,0,0.35); }
+
+/* ================================================================
+   SECTION 5 — HOW IT WORKS
+================================================================ */
+#hiw { background: var(--black); text-align: center; }
+.hiw-hdr { margin-bottom: 80px; }
+.hiw-flow {
+  display: flex; gap: 0; position: relative;
+  max-width: 1100px; margin: 0 auto;
+}
+.hiw-line {
+  position: absolute; top: 55px; left: calc(16.5% + 50px);
+  width: calc(67% - 100px); height: 2px;
+  background: rgba(255,215,0,0.1);
+  overflow: hidden;
+}
+.hiw-line-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  transition: width 1.8s ease 0.3s;
+}
+.hiw-flow.show .hiw-line-fill { width: 100%; }
+.hiw-step { flex: 1; padding: 0 28px; }
+.hiw-num {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,215,0,0.04));
+  border: 2px solid rgba(255,215,0,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem; font-weight: 900; color: var(--gold);
+  margin: 0 auto 26px; position: relative; z-index: 1;
+  transition: all 0.5s;
+}
+.hiw-step:hover .hiw-num {
+  box-shadow: 0 0 40px rgba(255,215,0,0.35); border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,215,0,0.08));
+}
+.hiw-step h3 { font-size: 1.15rem; font-weight: 700; color: var(--gold); margin-bottom: 12px; }
+.hiw-step p { font-size: 0.88rem; color: var(--gray); line-height: 1.75; }
+
+/* ================================================================
+   SECTION 6 — PRICING
+================================================================ */
+#pricing {
+  background: linear-gradient(180deg, var(--black) 0%, #0d0b00 100%);
+  text-align: center;
+}
+.pricing-hdr { margin-bottom: 70px; }
+.pricing-hdr p { color: var(--gray); margin-top: 14px; font-size: 0.98rem; }
+.pricing-row {
+  display: flex; gap: 18px; justify-content: center;
+  flex-wrap: wrap; align-items: flex-end;
+}
+.price-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07); border-radius: 24px;
+  padding: 34px 26px; width: 210px;
+  text-align: left; flex-shrink: 0;
+  transition: all 0.45s var(--easing);
+  display: flex; flex-direction: column; position: relative;
+}
+.price-card:hover { transform: translateY(-8px); border-color: rgba(255,215,0,0.2); }
+.price-card.hot {
+  background: linear-gradient(145deg, rgba(255,215,0,0.09), rgba(255,200,0,0.04));
+  border: 1.5px solid rgba(255,215,0,0.38);
+  transform: scale(1.05);
+  box-shadow: 0 0 70px rgba(255,215,0,0.14);
+}
+.price-card.hot:hover { transform: scale(1.05) translateY(-8px); }
+.popular-badge {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, #FFD700, #FFC200);
+  color: #000; font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 5px 16px; border-radius: 20px; white-space: nowrap;
+}
+.price-tier { font-size: 0.7rem; letter-spacing: 0.2em; color: rgba(255,255,255,0.35); text-transform: uppercase; margin-bottom: 4px; }
+.price-name { font-size: 1.3rem; font-weight: 800; margin-bottom: 14px; }
+.price-card.hot .price-name { color: var(--gold); }
+.price-amount { font-size: 2.8rem; font-weight: 900; line-height: 1; }
+.price-card.hot .price-amount { color: var(--gold); text-shadow: 0 0 30px rgba(255,215,0,0.3); }
+.price-period { font-size: 0.76rem; color: rgba(255,255,255,0.3); margin: 4px 0 16px; }
+.price-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 16px 0; }
+.price-features { list-style: none; flex: 1; margin-bottom: 22px; }
+.price-features li {
+  font-size: 0.8rem; color: rgba(255,255,255,0.5);
+  padding: 5px 0 5px 20px; position: relative; line-height: 1.4;
+}
+.price-features li::before { content: '✓'; position: absolute; left: 0; color: var(--gold); font-weight: 700; }
+.price-card.hot .price-features li { color: rgba(255,255,255,0.75); }
+.price-btn {
+  width: 100%; padding: 13px 0; border-radius: 50px;
+  font-family: 'Poppins', sans-serif; font-size: 0.83rem; font-weight: 700;
+  cursor: pointer; transition: all 0.3s; border: none; letter-spacing: 0.04em;
+}
+.price-btn-gold { background: linear-gradient(135deg, #FFD700, #FFC200); color: #000; }
+.price-btn-gold:hover { box-shadow: 0 8px 28px rgba(255,215,0,0.45); transform: translateY(-2px); }
+.price-btn-ghost { background: transparent; color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.13) !important; }
+.price-btn-ghost:hover { border-color: rgba(255,215,0,0.3) !important; color: var(--gold); }
+
+/* ================================================================
+   SECTION 7 — INSTAGRAM
+================================================================ */
+#instagram { background: var(--black); text-align: center; }
+.ig-wrap { max-width: 860px; margin: 0 auto; }
+.ig-icon {
+  width: 72px; height: 72px; border-radius: 20px;
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 22px; font-size: 2.2rem;
+}
+.ig-title { font-size: clamp(1.5rem, 3.5vw, 2.8rem); font-weight: 800; margin-bottom: 10px; }
+.ig-handle { font-size: 1.15rem; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+.ig-sub { color: var(--gray); font-size: 0.92rem; margin-bottom: 36px; }
+.ig-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  color: white; text-decoration: none; padding: 15px 38px;
+  border-radius: 50px; font-family: 'Poppins', sans-serif;
+  font-weight: 700; font-size: 0.92rem;
+  transition: all 0.3s; margin-bottom: 60px;
+}
+.ig-btn:hover { transform: translateY(-3px); box-shadow: 0 16px 45px rgba(188,24,136,0.35); }
+.ig-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+}
+.ig-post {
+  aspect-ratio: 1; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; padding: 10px;
+  transition: all 0.35s; overflow: hidden; position: relative;
+}
+.ig-post::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255,215,0,0.06), transparent);
+  opacity: 0; transition: opacity 0.3s;
+}
+.ig-post:hover::before { opacity: 1; }
+.ig-post:hover { transform: scale(1.06) rotate(1deg); border-color: rgba(255,215,0,0.2); z-index: 1; }
+.ig-post-emoji { font-size: 1.6rem; }
+.ig-post-txt { font-size: 0.52rem; color: rgba(255,255,255,0.28); text-align: center; line-height: 1.3; }
+
+/* ================================================================
+   FOOTER
+================================================================ */
+footer {
+  padding: 64px 48px 44px;
+  border-top: 1px solid rgba(255,215,0,0.07);
+  text-align: center;
+}
+.footer-logo { font-size: 1.9rem; font-weight: 900; letter-spacing: 0.22em; color: var(--gold); text-transform: uppercase; margin-bottom: 10px; }
+.footer-tag { color: rgba(255,255,255,0.28); font-size: 0.84rem; margin-bottom: 30px; }
+.footer-links { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
+.footer-links a { color: rgba(255,255,255,0.32); font-size: 0.82rem; text-decoration: none; transition: color 0.3s; }
+.footer-links a:hover { color: var(--gold); }
+.footer-copy { color: rgba(255,255,255,0.16); font-size: 0.76rem; }
+
+/* ================================================================
+   RESPONSIVE
+================================================================ */
+@media (max-width: 900px) {
+  .nav-links { display: none; }
+  .problem-grid { grid-template-columns: 1fr; }
+  .hiw-flow { flex-direction: column; gap: 44px; }
+  .hiw-line { display: none; }
+  .ig-grid { grid-template-columns: repeat(3, 1fr); }
+  .stats-float { padding: 0 20px; }
+  .stats-float-inner { padding: 26px 24px; }
+}
+@media (max-width: 640px) {
+  .section-wrap, .section-wrap-full { padding: 90px 22px; }
+  nav { padding: 16px 22px; }
+  nav.scrolled { padding: 12px 22px; }
+  .hero-buttons { flex-direction: column; align-items: center; }
+  .pricing-row { flex-direction: column; align-items: center; }
+  .price-card { width: 100%; max-width: 320px; }
+  .price-card.hot { transform: scale(1); }
+  .price-card.hot:hover { transform: translateY(-8px); }
+  .ig-grid { grid-template-columns: repeat(2, 1fr); }
+  .tools-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<div id="cursor-glow"></div>
+
+<!-- PRELOADER -->
+<div id="preloader">
+  <div class="preloader-logo" id="preloader-logo"></div>
+  <div class="preloader-line"></div>
+  <div class="preloader-sub">AI-Powered Content Growth Platform</div>
+</div>
+
+<!-- NAV -->
+<nav id="navbar">
+  <div class="nav-logo">ORAVANI</div>
+  <ul class="nav-links">
+    <li><a href="#hook">Why Oravani</a></li>
+    <li><a href="#tools">Tools</a></li>
+    <li><a href="#hiw">How it Works</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+  </ul>
+  <button class="nav-cta" onclick="smoothTo('pricing')">Get Early Access</button>
+</nav>
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<section id="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-radial"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">The only platform creators need</div>
+    <h1 class="hero-title" id="hero-title"></h1>
+    <p class="hero-sub">Powered by AI. Built for Creators.</p>
+    <p class="hero-subsub">The only platform you'll ever need to turn content into growth.</p>
+    <div class="hero-buttons">
+      <a href="#tools" class="btn-gold" onclick="smoothTo('tools'); return false;">See What's Inside</a>
+      <a href="#hook" class="btn-outline" onclick="smoothTo('hook'); return false;">See More</a>
+      <a href="#quiz" class="btn-ghost" onclick="smoothTo('quiz'); return false;">Get More Information</a>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <div class="scroll-mouse"><div class="scroll-wheel"></div></div>
+  </div>
+</section>
+
+<!-- STATS FLOAT BAR -->
+<div class="stats-float">
+  <div class="stats-float-inner ao">
+    <div class="stat-item">
+      <div class="stat-num"><span class="counter" data-to="14">0</span>+</div>
+      <div class="stat-lbl">AI-Powered Tools</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num"><span class="counter" data-to="12000">0</span>+</div>
+      <div class="stat-lbl">Creators Growing</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num"><span class="counter" data-to="487">0</span>%</div>
+      <div class="stat-lbl">Avg. Growth Increase</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num"><span class="counter" data-to="1">0</span></div>
+      <div class="stat-lbl">Platform. All Tools.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SECTION 1 — HOOK
+============================================================ -->
+<section id="hook">
+  <div class="section-wrap" style="text-align:center;">
+    <div class="ao">
+      <div class="section-label">The Reality Check</div>
+    </div>
+    <h2 class="hook-headline ao">
+      You're creating content every day.<br>
+      But it's <span class="hl">not growing.</span><br>
+      Here's why — and how to fix it.
+    </h2>
+    <p class="hook-body ao d2">
+      The problem isn't your talent. It's not your effort. It's the missing layer — the strategy,
+      the system, the data — that transforms random posting into compounding growth.
+      Oravani is that layer.
+    </p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 2 — PROBLEM
+============================================================ -->
+<div id="problem">
+  <div class="section-wrap">
+    <div class="problem-header">
+      <div class="ao"><div class="section-label">Sound Familiar?</div></div>
+      <h2 class="section-title ao d1">Here's what's killing<br>your growth.</h2>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card ao d1">
+        <div class="problem-num">01</div>
+        <h3>Posting Without a Strategy</h3>
+        <p>You're creating content based on vibes, not data. Every post is a gamble — and you're bleeding time without a return.</p>
+      </div>
+      <div class="problem-card ao d2">
+        <div class="problem-num">02</div>
+        <h3>No Idea What Actually Converts</h3>
+        <p>You get views, maybe likes. But none of it turns into real growth, real leads, or real revenue. You're living in vanity metric hell.</p>
+      </div>
+      <div class="problem-card ao d3">
+        <div class="problem-num">03</div>
+        <h3>Juggling 10 Different Tools</h3>
+        <p>Canva for design. Notion for planning. ChatGPT for ideas. Sheets for tracking. You're managing tools, not building a brand.</p>
+      </div>
+      <div class="problem-card ao d4">
+        <div class="problem-num">04</div>
+        <h3>No System. No Consistency. No Growth.</h3>
+        <p>Bursts of motivation. Weeks of silence. Without a system, consistency is impossible — and consistency is literally everything.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 3 — QUIZ
+============================================================ -->
+<section id="quiz">
+  <div class="section-wrap">
+    <div class="quiz-wrap ao">
+      <div class="section-label">Personalize Your Experience</div>
+      <h2 class="section-title" style="margin-bottom:10px;">Let's find your perfect fit.</h2>
+      <p style="color:var(--gray); margin-bottom:44px; font-size:0.95rem;">3 quick questions. Tailored insight. Zero fluff.</p>
+
+      <div class="quiz-prog">
+        <div class="quiz-dot on" id="qdot0"></div>
+        <div class="quiz-dot" id="qdot1"></div>
+        <div class="quiz-dot" id="qdot2"></div>
+      </div>
+
+      <!-- Q1 -->
+      <div class="quiz-step on" id="qs0">
+        <div class="quiz-q-num">Question 1 of 3</div>
+        <div class="quiz-q">What's your biggest content struggle?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,0)">I don't know what to post</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I post but get zero traction</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I can't stay consistent</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I don't understand my analytics</button>
+          <button class="quiz-opt" onclick="pick(this,0)">Too many tools, not enough time</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qNext(1)">Next →</button></div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="quiz-step" id="qs1">
+        <div class="quiz-q-num">Question 2 of 3</div>
+        <div class="quiz-q">Which platforms are you on?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,1)">📸 Instagram</button>
+          <button class="quiz-opt" onclick="pick(this,1)">▶️ YouTube</button>
+          <button class="quiz-opt" onclick="pick(this,1)">💼 LinkedIn</button>
+          <button class="quiz-opt" onclick="pick(this,1)">🎵 TikTok</button>
+          <button class="quiz-opt" onclick="pick(this,1)">🐦 Twitter / X</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qNext(2)">Next →</button></div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="quiz-step" id="qs2">
+        <div class="quiz-q-num">Question 3 of 3</div>
+        <div class="quiz-q">What's your primary goal?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,2)">🔥 Brand Awareness</button>
+          <button class="quiz-opt" onclick="pick(this,2)">🎯 Lead Generation</button>
+          <button class="quiz-opt" onclick="pick(this,2)">💰 Direct Sales</button>
+          <button class="quiz-opt" onclick="pick(this,2)">🌱 Community Building</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qResult()">See My Match →</button></div>
+      </div>
+
+      <!-- Result -->
+      <div class="quiz-result-box" id="qresult">
+        <div class="quiz-result-card">
+          <div class="quiz-result-icon">✨</div>
+          <h2>Oravani is built for exactly this.</h2>
+          <p>
+            Based on your answers, what you need is a unified system that combines smart content planning,
+            real-time performance analytics, and AI-driven strategy — all inside one platform, with zero app-switching.
+            That's exactly what Oravani was built for.
+          </p>
+          <a href="#tools" class="btn-gold" onclick="smoothTo('tools'); return false;">Explore the Platform →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 4 — TOOLS
+============================================================ -->
+<div id="tools">
+  <div class="section-wrap">
+    <div class="tools-hdr ao">
+      <div class="section-label">The Full Arsenal</div>
+      <h2>14 tools. <span>One platform.</span><br>Zero excuses.</h2>
+      <p>Everything you need to create, grow, and monetize — seamlessly unified in a single dashboard.</p>
+    </div>
+    <div class="tools-grid">
+
+      <div class="tool-card ao d1">
+        <span class="tool-icon">💡</span>
+        <div class="tool-name">Content Ideas Generator</div>
+        <div class="tool-desc">Never run dry. AI generates scroll-stopping ideas tailored to your niche, audience, and current trends — on demand.</div>
+        <span class="tool-tag">AI-Powered</span>
+      </div>
+
+      <div class="tool-card ao d2">
+        <span class="tool-icon">📸</span>
+        <div class="tool-name">Instagram Tracker</div>
+        <div class="tool-desc">Monitor follower growth, engagement rates, story views, reach, and exactly which posts are pulling weight.</div>
+        <span class="tool-tag">Analytics</span>
+      </div>
+
+      <div class="tool-card ao d3">
+        <span class="tool-icon">▶️</span>
+        <div class="tool-name">YouTube Tracker</div>
+        <div class="tool-desc">Track views, watch time, subscriber velocity, and surface your highest-performing content patterns.</div>
+        <span class="tool-tag">Analytics</span>
+      </div>
+
+      <div class="tool-card ao d4">
+        <span class="tool-icon">💰</span>
+        <div class="tool-name">Sales Tracker</div>
+        <div class="tool-desc">Connect your content performance directly to revenue. See exactly which posts are generating real money.</div>
+        <span class="tool-tag">Revenue</span>
+      </div>
+
+      <div class="tool-card wide ao d1">
+        <span class="tool-icon">🎨</span>
+        <div class="tool-name">Design Studio — 8-in-1 Creative Suite</div>
+        <div class="tool-desc">A complete creative powerhouse inside Oravani. Build stunning branded content without ever leaving the platform.</div>
+        <div class="sub-tags">
+          <span class="sub-tag">Carousel Generator</span>
+          <span class="sub-tag">Lead Magnet Generator</span>
+          <span class="sub-tag">Brand Kit Builder</span>
+          <span class="sub-tag">Story Generator</span>
+          <span class="sub-tag">Audience Psychology Tool</span>
+          <span class="sub-tag">Quantum System Builder</span>
+          <span class="sub-tag">AI Content Planner</span>
+          <span class="sub-tag">Clip Finder</span>
+        </div>
+        <span class="tool-tag">8-in-1 Suite</span>
+      </div>
+
+      <div class="tool-card ao d2">
+        <span class="tool-icon">🧠</span>
+        <div class="tool-name">Content Coach</div>
+        <div class="tool-desc">Your personal AI coach that reviews your content, breaks down what's weak, and gives you a precise path to improve.</div>
+        <span class="tool-tag">AI Coach</span>
+      </div>
+
+      <div class="tool-card ao d3">
+        <span class="tool-icon">🔬</span>
+        <div class="tool-name">Content Analyzer</div>
+        <div class="tool-desc">Deep pattern recognition across your entire content library. Find what's working and ruthlessly double down on it.</div>
+        <span class="tool-tag">Deep Analytics</span>
+      </div>
+
+      <div class="tool-card ao d4">
+        <span class="tool-icon">🎬</span>
+        <div class="tool-name">Video Marketing Hub</div>
+        <div class="tool-desc">Host webinars, produce VSLs, and manage your entire video content strategy from a single, powerful hub.</div>
+        <span class="tool-tag">Video</span>
+      </div>
+
+      <div class="tool-card ao d5">
+        <span class="tool-icon">📅</span>
+        <div class="tool-name">Content Calendar</div>
+        <div class="tool-desc">Plan, schedule, and automate your entire content pipeline weeks ahead — no chaos, no missed posts.</div>
+        <span class="tool-tag">Automation</span>
+      </div>
+
+      <div class="tool-card ao d6">
+        <span class="tool-icon">🔍</span>
+        <div class="tool-name">Competitor Study Tool</div>
+        <div class="tool-desc">Study your competitors' strategy legally. Find their gaps, steal what's working, and execute it better.</div>
+        <span class="tool-tag">Intelligence</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 5 — HOW IT WORKS
+============================================================ -->
+<section id="hiw">
+  <div class="section-wrap" style="text-align:center;">
+    <div class="hiw-hdr">
+      <div class="ao"><div class="section-label">The Process</div></div>
+      <h2 class="section-title ao d1">How Oravani works.</h2>
+    </div>
+    <div class="hiw-flow ao" id="hiwflow">
+      <div class="hiw-line"><div class="hiw-line-fill" id="hiwlinefill"></div></div>
+      <div class="hiw-step ao d1">
+        <div class="hiw-num">01</div>
+        <h3>Direct Your Growth</h3>
+        <p>Set your goals, define your niche, choose your platforms. Oravani builds a custom strategy around you — not a generic one-size-fits-all template.</p>
+      </div>
+      <div class="hiw-step ao d3">
+        <div class="hiw-num">02</div>
+        <h3>Let Oravani Do the Work</h3>
+        <p>AI generates your content plan, surfaces ideas, tracks performance across platforms, and hands you prioritized, data-backed actions every single day.</p>
+      </div>
+      <div class="hiw-step ao d5">
+        <div class="hiw-num">03</div>
+        <h3>Watch the Magic Happen</h3>
+        <p>Consistent content. Compounding growth. Real results. Watch your audience and revenue climb while you stay focused on creating — not managing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 6 — PRICING
+============================================================ -->
+<div id="pricing">
+  <div class="section-wrap" style="text-align:center;">
+    <div class="pricing-hdr">
+      <div class="ao"><div class="section-label">Simple, Honest Pricing</div></div>
+      <h2 class="section-title ao d1">Invest in your growth.</h2>
+      <p class="ao d2">No hidden fees. No locked features. Just compounding results.</p>
+    </div>
+    <div class="pricing-row">
+
+      <div class="price-card ao d1">
+        <div class="price-tier">Starter</div>
+        <div class="price-name">Free</div>
+        <div class="price-amount">$0</div>
+        <div class="price-period">forever free</div>
+        <div class="price-sep"></div>
+        <ul class="price-features">
+          <li>Content Ideas Generator</li>
+          <li>Basic Analytics Dashboard</li>
+          <li>Content Calendar (7 days)</li>
+          <li>Community Access</li>
+          <li>3 AI generations / day</li>
+        </ul>
+        <button class="price-btn price-btn-ghost">Get Started</button>
+      </div>
+
+      <div class="price-card ao d2">
+        <div class="price-tier">Creator</div>
+        <div class="price-name">Growth</div>
+        <div class="price-amount">$29</div>
+        <div class="price-period">per month</div>
+        <div class="price-sep"></div>
+        <ul class="price-features">
+          <li>Everything in Free</li>
+          <li>Instagram + YouTube Tracker</li>
+          <li>Content Coach (AI)</li>
+          <li>Design Studio — Basic</li>
+          <li>50 AI generations / day</li>
+          <li>Calendar — 30 days</li>
+        </ul>
+        <button class="price-btn price-btn-ghost">Get Started</button>
+      </div>
+
+      <div class="price-card hot ao d3">
+        <div class="popular-badge">Most Popular</div>
+        <div class="price-tier">Pro</div>
+        <div class="price-name">Creator Pro</div>
+        <div class="price-amount">$59</div>
+        <div class="price-period">per month</div>
+        <div class="price-sep"></div>
+        <ul class="price-features">
+          <li>Everything in Growth</li>
+          <li>Full Design Studio (8 tools)</li>
+          <li>Sales Tracker</li>
+          <li>Content Analyzer</li>
+          <li>Competitor Study Tool</li>
+          <li>Unlimited AI generations</li>
+          <li>Video Marketing Hub</li>
+          <li>Priority Support</li>
+        </ul>
+        <button class="price-btn price-btn-gold">Get Started</button>
+      </div>
+
+      <div class="price-card ao d4">
+        <div class="price-tier">Agency</div>
+        <div class="price-name">Scale</div>
+        <div class="price-amount">$99</div>
+        <div class="price-period">per month</div>
+        <div class="price-sep"></div>
+        <ul class="price-features">
+          <li>Everything in Pro</li>
+          <li>5 Team Members</li>
+          <li>Client Reporting Suite</li>
+          <li>White-label Reports</li>
+          <li>API Access</li>
+          <li>Dedicated Account Manager</li>
+        </ul>
+        <button class="price-btn price-btn-ghost">Get Started</button>
+      </div>
+
+      <div class="price-card ao d5">
+        <div class="price-tier">Enterprise</div>
+        <div class="price-name">Unlimited</div>
+        <div class="price-amount">$199</div>
+        <div class="price-period">per month</div>
+        <div class="price-sep"></div>
+        <ul class="price-features">
+          <li>Everything in Scale</li>
+          <li>Unlimited Team Members</li>
+          <li>Custom AI Model Training</li>
+          <li>SLA Guarantee</li>
+          <li>Custom Integrations</li>
+          <li>Quarterly Strategy Call</li>
+          <li>Early Feature Access</li>
+        </ul>
+        <button class="price-btn price-btn-ghost">Get Started</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================
+     SECTION 7 — INSTAGRAM
+============================================================ -->
+<section id="instagram">
+  <div class="section-wrap">
+    <div class="ig-wrap ao">
+      <div class="ig-icon">📸</div>
+      <h2 class="ig-title">Follow for daily content gold.</h2>
+      <div class="ig-handle">@oravini_ai</div>
+      <p class="ig-sub">Daily tips, strategies, and behind-the-scenes of the future of content creation.</p>
+      <a href="https://www.instagram.com/oravini_ai/?utm_source=ig_web_button_share_sheet" target="_blank" rel="noopener" class="ig-btn">
+        📸 &nbsp;Follow on Instagram
+      </a>
+      <div class="ig-grid">
+        <div class="ig-post ao d1">
+          <div class="ig-post-emoji">💡</div>
+          <div class="ig-post-txt">5 hooks that 10x your reach overnight</div>
+        </div>
+        <div class="ig-post ao d2">
+          <div class="ig-post-emoji">📈</div>
+          <div class="ig-post-txt">How I grew 10k in 30 days with one system</div>
+        </div>
+        <div class="ig-post ao d3">
+          <div class="ig-post-emoji">🎯</div>
+          <div class="ig-post-txt">Content that converts, not just views</div>
+        </div>
+        <div class="ig-post ao d4">
+          <div class="ig-post-emoji">🧠</div>
+          <div class="ig-post-txt">The psychology behind viral content</div>
+        </div>
+        <div class="ig-post ao d5">
+          <div class="ig-post-emoji">⚡</div>
+          <div class="ig-post-txt">AI tools crushing it for creators right now</div>
+        </div>
+        <div class="ig-post ao d6">
+          <div class="ig-post-emoji">🔑</div>
+          <div class="ig-post-txt">The content growth system blueprint</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">ORAVANI</div>
+  <p class="footer-tag">Powered by AI. Built for Creators.</p>
+  <div class="footer-links">
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="#">Contact Us</a>
+    <a href="https://www.instagram.com/oravini_ai/" target="_blank">Instagram</a>
+  </div>
+  <p class="footer-copy">© 2025 Oravani. All rights reserved. Built for creators who refuse to stay small.</p>
+</footer>
+
+<!-- ============================================================
+     SCRIPTS
+============================================================ -->
+<script>
+/* =============================================
+   CURSOR
+============================================= */
+const cur = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+const glow = document.getElementById('cursor-glow');
+let mx = 0, my = 0, rx = 0, ry = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cur.style.left = mx + 'px';
+  cur.style.top  = my + 'px';
+  glow.style.left = mx + 'px';
+  glow.style.top  = my + 'px';
+});
+
+(function lerp() {
+  rx += (mx - rx) * 0.14;
+  ry += (my - ry) * 0.14;
+  ring.style.left = rx + 'px';
+  ring.style.top  = ry + 'px';
+  requestAnimationFrame(lerp);
+})();
+
+document.querySelectorAll('a, button, .quiz-opt, .tool-card, .price-card, .ig-post').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cur.style.transform  = 'translate(-50%,-50%) scale(2.5)';
+    ring.style.width = '60px'; ring.style.height = '60px';
+    ring.style.borderColor = 'rgba(255,215,0,0.7)';
+  });
+  el.addEventListener('mouseleave', () => {
+    cur.style.transform  = 'translate(-50%,-50%) scale(1)';
+    ring.style.width = '36px'; ring.style.height = '36px';
+    ring.style.borderColor = 'rgba(255,215,0,0.5)';
+  });
+});
+
+/* =============================================
+   PRELOADER
+============================================= */
+(function buildPreloader() {
+  const wrap = document.getElementById('preloader-logo');
+  'ORAVANI'.split('').forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.textContent = ch;
+    s.style.animationDelay = (0.1 + i * 0.09) + 's';
+    wrap.appendChild(s);
+  });
+})();
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('preloader').classList.add('hide');
+    document.body.style.overflowY = 'auto';
+  }, 2200);
+});
+document.body.style.overflowY = 'hidden';
+
+/* =============================================
+   HERO LETTERS
+============================================= */
+(function buildHero() {
+  const wrap = document.getElementById('hero-title');
+  'ORAVANI'.split('').forEach((ch, i) => {
+    const span = document.createElement('span');
+    span.className = 'letter';
+    span.textContent = ch;
+    span.style.animationDelay = (2.3 + i * 0.09) + 's';
+    wrap.appendChild(span);
+  });
+})();
+
+/* =============================================
+   NAVBAR SCROLL
+============================================= */
+window.addEventListener('scroll', () => {
+  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 80);
+});
+
+/* =============================================
+   PARTICLES CANVAS
+============================================= */
+const canvas = document.getElementById('hero-canvas');
+const ctx    = canvas.getContext('2d');
+let W, H, particles = [];
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); spawnParticles(); });
+
+class Particle {
+  constructor() { this.init(); }
+  init() {
+    this.x  = Math.random() * W;
+    this.y  = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.45;
+    this.vy = (Math.random() - 0.5) * 0.45;
+    this.r  = Math.random() * 2.4 + 0.4;
+    this.a  = Math.random() * 0.55 + 0.08;
+    this.da = (Math.random() * 0.003 + 0.001) * (Math.random() < 0.5 ? 1 : -1);
+    this.gold = Math.random() < 0.35;
+  }
+  tick() {
+    this.x += this.vx; this.y += this.vy;
+    this.a += this.da;
+    if (this.a > 0.65 || this.a < 0.05) this.da *= -1;
+    if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.init();
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = this.gold
+      ? `rgba(255,215,0,${this.a})`
+      : `rgba(255,255,255,${this.a * 0.35})`;
+    ctx.fill();
+    if (this.gold && this.r > 1.4) {
+      const g = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r * 4);
+      g.addColorStop(0, `rgba(255,215,0,${this.a * 0.18})`);
+      g.addColorStop(1, 'transparent');
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.r * 4, 0, Math.PI * 2);
+      ctx.fillStyle = g; ctx.fill();
+    }
+  }
+}
+
+function spawnParticles() {
+  const count = Math.min(Math.floor(W / 10), 140);
+  particles = Array.from({ length: count }, () => new Particle());
+}
+spawnParticles();
+
+(function loop() {
+  ctx.clearRect(0, 0, W, H);
+  // connections
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < 110) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(255,215,0,${(1 - d/110) * 0.07})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+  }
+  particles.forEach(p => { p.tick(); p.draw(); });
+  requestAnimationFrame(loop);
+})();
+
+/* =============================================
+   HERO PARALLAX
+============================================= */
+window.addEventListener('scroll', () => {
+  const s = window.scrollY;
+  const hc = document.querySelector('.hero-content');
+  if (hc && s < innerHeight) {
+    hc.style.transform = `translateY(${s * 0.28}px)`;
+    hc.style.opacity   = Math.max(0, 1 - s / (innerHeight * 0.75));
+  }
+});
+
+/* =============================================
+   SCROLL ANIMATIONS
+============================================= */
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('show');
+      // hook underline
+      if (e.target.classList.contains('hook-headline')) {
+        e.target.classList.add('show');
+      }
+      // HIW line
+      if (e.target.id === 'hiwflow') {
+        document.getElementById('hiwlinefill').style.width = '100%';
+      }
+    }
+  });
+}, { threshold: 0.14, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.ao, .ao-left, .ao-right, .ao-scale, .hook-headline').forEach(el => obs.observe(el));
+obs.observe(document.getElementById('hiwflow'));
+
+/* =============================================
+   COUNTER
+============================================= */
+const cObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.querySelectorAll('.counter').forEach(el => {
+      const to = parseInt(el.dataset.to), dur = 2000;
+      const step = to / (dur / 16);
+      let v = 0;
+      const go = () => {
+        v = Math.min(v + step, to);
+        el.textContent = Math.floor(v).toLocaleString();
+        if (v < to) requestAnimationFrame(go);
+      };
+      go();
+    });
+    cObs.unobserve(e.target);
+  });
+}, { threshold: 0.5 });
+
+const sb = document.querySelector('.stats-float-inner');
+if (sb) cObs.observe(sb);
+
+/* =============================================
+   QUIZ
+============================================= */
+function pick(el, step) {
+  document.querySelectorAll(`#qs${step} .quiz-opt`).forEach(o => o.classList.remove('picked'));
+  el.classList.add('picked');
+}
+function qNext(to) {
+  document.getElementById('qs'+(to-1)).classList.remove('on');
+  document.getElementById('qs'+to).classList.add('on');
+  document.getElementById('qdot'+(to-1)).classList.remove('on');
+  document.getElementById('qdot'+to).classList.add('on');
+}
+function qResult() {
+  document.getElementById('qs2').classList.remove('on');
+  document.getElementById('qresult').classList.add('on');
+  document.querySelectorAll('.quiz-dot').forEach(d => d.classList.remove('on'));
+}
+
+/* =============================================
+   SMOOTH SCROLL UTIL
+============================================= */
+function smoothTo(id) {
+  const el = document.getElementById(id);
+  if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+}
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); smoothTo(t.id); }
+  });
+});
+</script>
+</body>
+</html>
