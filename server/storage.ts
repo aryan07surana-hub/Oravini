@@ -457,6 +457,8 @@ class DatabaseStorage implements IStorage {
     await db.delete(documents).where(eq(documents.clientId, id));
     await db.delete(documents).where(eq(documents.uploadedBy, id));
     await db.delete(messages).where(or(eq(messages.senderId, id), eq(messages.receiverId, id)));
+    await db.delete(referralConversions).where(or(eq(referralConversions.referrerId, id), eq(referralConversions.referredUserId, id)));
+    await db.delete(referralCodes).where(eq(referralCodes.userId, id));
     await db.delete(users).where(eq(users.id, id));
   }
 
