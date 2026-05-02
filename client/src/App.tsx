@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
+import OraviniLanding3D from "@/pages/OraviniLanding3D";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
 import DashboardPreview from "@/pages/DashboardPreview";
@@ -119,7 +120,7 @@ function HomeRedirect() {
       <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
     </div>
   );
-  if (!user) return <Landing />;
+  if (!user) return <OraviniLanding3D />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -132,6 +133,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/oravini-3d" component={OraviniLanding3D} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>

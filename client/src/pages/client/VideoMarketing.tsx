@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
-import TierGate, { isTier4Or5 } from "@/components/video-marketing/TierGate";
+import { isTier4Or5 } from "@/components/video-marketing/TierGate";
 import PlatformView from "@/components/video-marketing/PlatformView";
+import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 
 export default function VideoMarketing() {
     const { user, isLoading } = useAuth();
@@ -13,11 +14,11 @@ export default function VideoMarketing() {
         );
     }
 
-    if (!user) return null;
-
-    if (!isTier4Or5((user as any).plan)) {
-        return <TierGate currentPlan={(user as any).plan} userName={(user as any).name} />;
+    // Show landing page if not logged in or not tier 4/5
+    if (!user || !isTier4Or5((user as any).plan)) {
+        return <VideoMarketingLanding />;
     }
 
+    // Show platform for tier 4/5 users
     return <PlatformView />;
 }
