@@ -2051,6 +2051,21 @@ class DatabaseStorage implements IStorage {
     return { totalViews: uniqueSessions.size, totalCompletions: completions, avgWatchTime };
   }
 
+  // ── Canva Integration ─────────────────────────────────────────────────────
+  async getCanvaToken(userId: string): Promise<any | null> {
+    // Placeholder - implement when canva_tokens table exists
+    return null;
+  }
+
+  async upsertCanvaToken(data: { userId: string; accessToken: string; refreshToken?: string; expiresAt?: Date; scope?: string }): Promise<any> {
+    // Placeholder - implement when canva_tokens table exists
+    return data;
+  }
+
+  async deleteCanvaToken(userId: string): Promise<void> {
+    // Placeholder - implement when canva_tokens table exists
+  }
+
   // ── User Feedback ─────────────────────────────────────────────────────────
   async createUserFeedback(data: InsertUserFeedback): Promise<UserFeedback> {
     const [row] = await db.insert(userFeedback).values(data).returning();

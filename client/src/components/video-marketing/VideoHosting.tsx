@@ -31,7 +31,7 @@ export default function VideoHosting() {
     progressBarEnabled: false, progressBarStyle: "steady", customProgressSegments: "", duration: "", category: "General"
   });
 
-  const { data: videos = [] } = useQuery({ queryKey: ["/api/video-events"] });
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/video-events", data),
@@ -107,7 +107,7 @@ export default function VideoHosting() {
           <TabsTrigger value="webinar">Webinars</TabsTrigger>
           <TabsTrigger value="standard">Standard</TabsTrigger>
         </TabsList>
-        <TabsContent value="all" className="mt-4"><VideoGrid videos={videos} onDelete={(id) => deleteMut.mutate(id)} /></TabsContent>
+        <TabsContent value="all" className="mt-4"><VideoGrid videos={videos as any[]} onDelete={(id) => deleteMut.mutate(id)} /></TabsContent>
         <TabsContent value="vsl" className="mt-4"><VideoGrid videos={vslVideos} onDelete={(id) => deleteMut.mutate(id)} /></TabsContent>
         <TabsContent value="webinar" className="mt-4"><VideoGrid videos={webinarVideos} onDelete={(id) => deleteMut.mutate(id)} /></TabsContent>
         <TabsContent value="standard" className="mt-4"><VideoGrid videos={standardVideos} onDelete={(id) => deleteMut.mutate(id)} /></TabsContent>
