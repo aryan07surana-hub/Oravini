@@ -280,8 +280,14 @@ export default function OraviniLanding3D() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Skip splash for now to debug
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <div style={{ background: "#000", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFD700", fontSize: 48 }}>Loading...</div>;
   }
 
   return (
