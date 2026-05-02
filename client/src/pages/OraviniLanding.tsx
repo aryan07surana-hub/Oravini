@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-const oraviniLogoPath = "/oravini-logo.png";
+import oraviniLogoPath from "@assets/FINAL_IMAGE_ORAVINI_1774725144846.png";
 
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
@@ -197,7 +197,7 @@ function SplashModal({ onDone }: { onDone: () => void }) {
         <div style={{ fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, letterSpacing: "0.12em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
       </div>
       <div style={{ opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.7s ease" }}>
-        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Oravini</span>
+        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Brandverse</span>
       </div>
       <div style={{ position: "absolute", bottom: 40, left: 0, right: 0 }}>
         <div style={{ width: 160, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`, margin: "0 auto", opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s ease 0.5s" }} />
@@ -302,14 +302,14 @@ const FEATURES = [
   { icon: "🔥", title: "Virality Testing", desc: "Score your script before posting. See exactly what's weak, what's strong, and how to make it go viral.", tag: "AI Scoring" },
   { icon: "📊", title: "Content Tracking", desc: "Automatically log reels, views, and comments. Generate detailed performance reports with one click.", tag: "Auto-Logging" },
   { icon: "🎨", title: "AI Design Studio", desc: "Create professional carousels, lead magnets, SOPs, and Instagram story sequences in minutes.", tag: "4 Tools" },
-  { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Pro" },
+  { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Coming Soon" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
   { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
   { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
-  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Oravini team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
+  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
   { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },
 ];
 
@@ -321,10 +321,10 @@ const STATS = [
 
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
 const PRICING_TIERS = [
-  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas", "Virality Tester", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
-  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas", "Carousel Studio", "Story Generator", "Lead Magnet Generator", "Brand Kit Builder", "Virality Tester", "IG Growth Tracker", "Full Script Generator"], cta: "Get Started" },
-  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis", "Reel vs Reel Comparison", "Steal Strategy 30-Day Plan", "Niche Intelligence Engine", "ICP Builder", "Audience Psychology Map", "Content DNA Analysis", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor", "Clip Finder & Download", "AI Content Coach", "SOP Generator", "AI Content Planner", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
+  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
+  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor — 2 credits/msg", "Clip Finder — 5 credits", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -449,7 +449,7 @@ export default function OraviniLanding() {
             ORAVINI
           </div>
           <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 48 }}>
-            Powered by Oravini
+            Powered by Brandverse
           </div>
           <div className="hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
             <button onClick={handleAuditClick}
@@ -803,7 +803,7 @@ export default function OraviniLanding() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Elite & Pro</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>Private Support Chat</div>
                   <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
-                    A direct line to the Oravini team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
+                    A direct line to the Brandverse team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {["Direct messaging inside the dashboard", "Strategy & content Q&A support", "Platform help & troubleshooting", "Available to Pro & Elite members"].map(f => (
@@ -877,7 +877,7 @@ export default function OraviniLanding() {
                 <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 900, color: GOLD, marginBottom: 8, lineHeight: 1 }}>Apply</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 28 }}>Unlimited credits · Custom pricing</div>
                 <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 24, marginBottom: 36 }}>
-                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Priority Oravini access", "Priority platform support"].map(f => (
+                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Direct Brandverse access", "Priority platform support"].map(f => (
                     <div key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ color: GOLD, fontSize: 13 }}>✦</span>
                       <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{f}</span>
@@ -885,7 +885,7 @@ export default function OraviniLanding() {
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                  <button onClick={() => nav("/apply")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
+                  <button onClick={() => nav("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
                     Learn About Tier 5 →
                   </button>
                   <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.04)", border: `1.5px solid ${GOLD}55`, color: GOLD, fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "15px 32px", cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 0.2s" }}
@@ -929,7 +929,7 @@ export default function OraviniLanding() {
 
           <Anim delay={150}>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 560, margin: "0 auto 32px", lineHeight: 1.75 }}>
-              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you both get 25 credits</strong> instantly. When they upgrade to a paid plan — <strong style={{ color: "#34d399" }}>you both get 100 bonus credits</strong>.
+              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you get 50 credits</strong> and <strong style={{ color: "#34d399" }}>they get 25 bonus credits</strong> as a welcome gift.
             </p>
           </Anim>
 
@@ -938,11 +938,11 @@ export default function OraviniLanding() {
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}12`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "8px 20px" }}>
                 <span style={{ fontSize: 16 }}>🤝</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You both get 25 credits on signup</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You earn 50 credits per referral</span>
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 99, padding: "8px 20px" }}>
-                <span style={{ fontSize: 16 }}>🚀</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>You both get 100 bonus credits when they upgrade</span>
+                <span style={{ fontSize: 16 }}>🎁</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Your friend gets 25 welcome credits</span>
               </div>
             </div>
           </Anim>
@@ -966,7 +966,7 @@ export default function OraviniLanding() {
                 step: "03",
                 icon: "⚡",
                 title: "Both sides win",
-                desc: "You both get 25 credits when they join free. You both get 100 bonus credits when they upgrade to a paid plan.",
+                desc: "You get 50 credits when they join. They get 25 welcome credits automatically.",
               },
             ].map(({ step, icon, title, desc }, i) => (
               <Anim key={step} delay={i * 80}>
@@ -1029,9 +1029,9 @@ export default function OraviniLanding() {
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
                 {[
-                  { n: "1", label: "referral", credits: "25" },
-                  { n: "5", label: "referrals", credits: "125" },
-                  { n: "10", label: "referrals", credits: "250" },
+                  { n: "1", label: "referral", credits: "50" },
+                  { n: "5", label: "referrals", credits: "250" },
+                  { n: "10", label: "referrals", credits: "500" },
                 ].map(({ n, label, credits }) => (
                   <div key={n} style={{ textAlign: "center", padding: "12px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
                     <p style={{ fontSize: 22, fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>{credits}</p>
@@ -1140,7 +1140,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 30, width: 30, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Brandverse</span>
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
             {[["Privacy", "/privacy"], ["Terms", "/terms"], ["Login", "/login"]].map(([label, href]) => (
