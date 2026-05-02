@@ -475,7 +475,7 @@ function WebinarsTab() {
 
 // ── VIDEOS TAB ───────────────────────────────────────────────────────────────
 
-function VideosTab() {
+function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
@@ -513,15 +513,16 @@ function VideosTab() {
   });
 
   const categories = ["General", "Training", "Masterclass", "Product Demo", "Tutorial", "Webinar Replay"];
-  const totalViews = (videos as any[]).reduce((s: number, v: any) => s + (v.views || 0), 0);
+  const displayed = typeFilter ? (videos as any[]).filter((v: any) => v.videoType === typeFilter) : (videos as any[]);
+  const totalViews = displayed.reduce((s: number, v: any) => s + (v.views || 0), 0);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Video} label="Total Videos" value={videos.length} />
+        <StatCard icon={Video} label="Total Videos" value={displayed.length} />
         <StatCard icon={Eye} label="Total Views" value={totalViews} color="#60a5fa" />
-        <StatCard icon={Globe} label="Public" value={(videos as any[]).filter((v: any) => v.isPublic).length} color="#34d399" />
-        <StatCard icon={Film} label="Categories" value={new Set((videos as any[]).map((v: any) => v.category)).size} color="#a78bfa" />
+        <StatCard icon={Globe} label="Public" value={displayed.filter((v: any) => v.isPublic).length} color="#34d399" />
+        <StatCard icon={Film} label="Categories" value={new Set(displayed.map((v: any) => v.category)).size} color="#a78bfa" />
       </div>
 
       <div className="flex items-center justify-between">
@@ -535,11 +536,11 @@ function VideosTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-48 rounded-xl bg-zinc-800" />)}
         </div>
-      ) : videos.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <EmptyState
           icon={Video}
-          title="No videos yet"
-          desc="Add your video links to host them in your video library."
+          title={typeFilter === "vsl" ? "No VSLs yet" : "No videos yet"}
+          desc={typeFilter === "vsl" ? "Add a VSL via Video Hosting to see it here." : "Add your video links to host them in your video library."}
           action={
             <Button size="sm" style={{ background: GOLD, color: "#000" }} onClick={() => setShowCreate(true)}>
               <Plus className="w-4 h-4 mr-1.5" /> Add Video
@@ -548,7 +549,7 @@ function VideosTab() {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(videos as any[]).map((v: any) => (
+          {displayed.map((v: any) => (
             <Card key={v.id} className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-all overflow-hidden group">
               <div
                 className="h-36 flex items-center justify-center relative"
@@ -1858,122 +1859,132 @@ function SettingsTab() {
 
 // ── MAIN PLATFORM VIEW ────────────────────────────────────────────────────────
 
+type NavItem = { id: string; label: string; icon: React.ComponentType<{ className?: string }> };
+
+const WEBINAR_NAV: NavItem[] = [
+  { id: "webinars",      label: "Live Webinars",  icon: MonitorPlay },
+  { id: "landing-pages", label: "Landing Pages",  icon: LayoutTemplate },
+  { id: "crm",           label: "CRM",            icon: Users },
+  { id: "recordings",    label: "Recordings",     icon: Mic },
+  { id: "analytics",     label: "Analytics",      icon: BarChart3 },
+  { id: "settings",      label: "API & Settings", icon: Settings2 },
+];
+
+const HOSTING_NAV: NavItem[] = [
+  { id: "video-hosting", label: "Video Hosting",  icon: Video },
+  { id: "vsl-library",   label: "VSL Library",    icon: Film },
+];
+
 export default function PlatformView() {
   const [section, setSection] = useState<"webinars" | "video-hosting">("webinars");
-  const [webinarTab, setWebinarTab] = useState("webinars");
-  const [hostingTab, setHostingTab] = useState("video-hosting");
+  const [activeId, setActiveId] = useState("webinars");
+
+  const switchSection = (s: "webinars" | "video-hosting") => {
+    setSection(s);
+    setActiveId(s === "webinars" ? "webinars" : "video-hosting");
+  };
+
+  const navItems = section === "webinars" ? WEBINAR_NAV : HOSTING_NAV;
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: "linear-gradient(180deg, #0a0910 0%, #0f0d17 100%)" }}
-    >
-      {/* Header */}
-      <div
-        className="sticky top-0 z-30 backdrop-blur-xl px-6 py-4 border-b"
-        style={{ background: "rgba(10,9,16,0.92)", borderColor: "rgba(255,255,255,0.05)" }}
+    <div className="flex min-h-screen" style={{ background: "#0a0910" }}>
+
+      {/* ── SIDEBAR ── */}
+      <aside
+        className="w-60 flex-shrink-0 flex flex-col border-r"
+        style={{ background: "#0a0910", borderColor: "rgba(255,255,255,0.06)", minHeight: "100vh" }}
       >
-        <div className="max-w-6xl mx-auto flex items-center gap-4">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}33` }}
-          >
+        {/* Logo */}
+        <div className="px-5 py-4 border-b flex items-center gap-2.5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}33` }}>
             <MonitorPlay className="w-4 h-4" style={{ color: GOLD }} />
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-black text-white tracking-wide">Video Marketing Studio</h1>
-            <p className="text-[10px] text-zinc-500 leading-none">Powered by Oravini</p>
-          </div>
-
-          {/* Section switcher */}
-          <div
-            className="flex items-center gap-1 p-1 rounded-xl"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-          >
-            {([
-              { id: "webinars", label: "Webinars", icon: MonitorPlay },
-              { id: "video-hosting", label: "Video Hosting", icon: Video },
-            ] as const).map(({ id, label, icon: Icon }) => {
-              const active = section === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setSection(id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all"
-                  style={{
-                    background: active ? `linear-gradient(135deg, ${GOLD}, #b8962e)` : "transparent",
-                    color: active ? "#000" : "rgba(255,255,255,0.45)",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              );
-            })}
+          <div>
+            <p className="text-[11px] font-black tracking-widest uppercase leading-none" style={{ color: GOLD }}>ORAVINI</p>
+            <p className="text-[9px] text-zinc-500 mt-0.5 tracking-wide uppercase leading-none">Video Studio</p>
           </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {/* Section switcher */}
+        <div className="px-3 pt-4 pb-2">
+          <div className="flex gap-1 p-1 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            {(["webinars", "video-hosting"] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => switchSection(s)}
+                className="flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all"
+                style={{
+                  background: section === s ? `linear-gradient(135deg, ${GOLD}, #b8962e)` : "transparent",
+                  color: section === s ? "#000" : "rgba(255,255,255,0.4)",
+                  border: "none", cursor: "pointer",
+                }}
+              >
+                {s === "webinars" ? "Webinars" : "Hosting"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {/* ── WEBINARS SECTION ── */}
-        {section === "webinars" && (
-          <Tabs value={webinarTab} onValueChange={setWebinarTab}>
-            <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
-              {[
-                { value: "webinars",      label: "Webinars",      icon: MonitorPlay },
-                { value: "landing-pages", label: "Landing Pages", icon: LayoutTemplate },
-                { value: "crm",           label: "CRM",           icon: Users },
-                { value: "recordings",    label: "Recordings",    icon: Mic },
-                { value: "analytics",     label: "Analytics",     icon: BarChart3 },
-                { value: "settings",      label: "API & Settings",icon: Settings2 },
-              ].map(({ value, label, icon: Icon }) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="flex items-center gap-1.5 text-xs font-semibold data-[state=active]:text-black rounded-lg px-3 py-2"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <TabsContent value="webinars"><WebinarsTab /></TabsContent>
-            <TabsContent value="landing-pages"><LandingPagesTab /></TabsContent>
-            <TabsContent value="crm"><CRMTab /></TabsContent>
-            <TabsContent value="recordings"><RecordingsTab /></TabsContent>
-            <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-            <TabsContent value="settings"><SettingsTab /></TabsContent>
-          </Tabs>
-        )}
+        {/* Nav items */}
+        <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+          <p className="text-[9px] font-bold uppercase tracking-widest px-2 py-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+            {section === "webinars" ? "Webinars" : "Video Hosting"}
+          </p>
+          {navItems.map(({ id, label, icon: Icon }) => {
+            const active = activeId === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveId(id)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group text-left"
+                style={{
+                  background: active ? `${GOLD}18` : "transparent",
+                  color: active ? GOLD : "rgba(255,255,255,0.5)",
+                  border: active ? `1px solid ${GOLD}30` : "1px solid transparent",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">{label}</span>
+                {active && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: GOLD }} />}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
 
-        {/* ── VIDEO HOSTING SECTION ── */}
-        {section === "video-hosting" && (
-          <Tabs value={hostingTab} onValueChange={setHostingTab}>
-            <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
-              {[
-                { value: "video-hosting", label: "Video Hosting", icon: Video },
-                { value: "videos",        label: "Video Library", icon: Film },
-              ].map(({ value, label, icon: Icon }) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  className="flex items-center gap-1.5 text-xs font-semibold data-[state=active]:text-black rounded-lg px-3 py-2"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <TabsContent value="video-hosting"><VideoHosting /></TabsContent>
-            <TabsContent value="videos"><VideosTab /></TabsContent>
-          </Tabs>
-        )}
+      {/* ── MAIN CONTENT ── */}
+      <main className="flex-1 overflow-y-auto">
+        {/* Top bar */}
+        <div
+          className="sticky top-0 z-20 px-6 py-3 border-b flex items-center gap-3"
+          style={{ background: "rgba(10,9,16,0.95)", backdropFilter: "blur(12px)", borderColor: "rgba(255,255,255,0.05)" }}
+        >
+          <div>
+            <h1 className="text-sm font-black text-white">
+              {navItems.find(n => n.id === activeId)?.label ?? "Video Marketing Studio"}
+            </h1>
+            <p className="text-[10px] text-zinc-500 leading-none">Powered by Oravini</p>
+          </div>
+        </div>
 
-      </div>
+        {/* Content */}
+        <div className="px-6 py-8">
+          {/* Webinars section */}
+          {activeId === "webinars"      && <WebinarsTab />}
+          {activeId === "landing-pages" && <LandingPagesTab />}
+          {activeId === "crm"           && <CRMTab />}
+          {activeId === "recordings"    && <RecordingsTab />}
+          {activeId === "analytics"     && <AnalyticsTab />}
+          {activeId === "settings"      && <SettingsTab />}
+          {/* Video hosting section */}
+          {activeId === "video-hosting" && <VideoHosting />}
+          {activeId === "vsl-library"   && <VideosTab typeFilter="vsl" />}
+        </div>
+      </main>
+
     </div>
   );
 }
