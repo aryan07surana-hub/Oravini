@@ -15,6 +15,7 @@ import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSum
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } from "./contentIntelligence";
+import contentWorkflowRoutes from "./contentWorkflowRoutes";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -11449,8 +11450,6 @@ Rules:
   });
 
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
-  // Import content workflow routes
-  const contentWorkflowRoutes = (await import("./contentWorkflowRoutes")).default;
   app.use(contentWorkflowRoutes);
 
   return httpServer;
