@@ -212,7 +212,7 @@ const topNavItems = [
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
-  { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
+  { href: "/video-marketing-landing", label: "Video Marketing", icon: MonitorPlay },
 ];
 
 const bottomNavItems = [
