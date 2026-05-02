@@ -11448,11 +11448,11 @@ Rules:
     }
   });
 
-  return httpServer;
-}
-
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
   // Import content workflow routes
   const contentWorkflowRoutes = (await import("./contentWorkflowRoutes")).default;
   app.use(contentWorkflowRoutes);
+
+  return httpServer;
+}
 

@@ -205,6 +205,7 @@ export interface IStorage {
   getDueScheduledNotifications(): Promise<Notification[]>;
 
   // Content Posts
+  getContentPosts(userId: string, filters?: { limit?: number }): Promise<ContentPost[]>;
   getContentPostsByClient(clientId: string): Promise<ContentPost[]>;
   getContentPost(id: string): Promise<ContentPost | undefined>;
   createContentPost(post: InsertContentPost): Promise<ContentPost>;
@@ -667,6 +668,12 @@ class DatabaseStorage implements IStorage {
         lte(notifications.scheduledFor, now)
       )
     );
+  }
+
+  async getContentPosts(userId: string, filters?: { limit?: number }): Promise<ContentPost[]> {
+    let query = db.select().from(contentPosts).where(eq(contentPosts.clientId, userId)).orderBy(desc(contentPosts.postDate));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    return query;
   }
 
   async getContentPostsByClient(clientId: string) {
@@ -2177,6 +2184,14 @@ class DatabaseStorage implements IStorage {
   // Brand Voice Profiles
   async getBrandVoiceProfile(userId: string): Promise<BrandVoiceProfile | undefined> {
     const [row] = await db.select().from(brandVoiceProfiles).where(eq(brandVoiceProfiles.userId, userId));
+    return row;
+  }
+  async createBrandVoiceProfile(data: InsertBrandVoiceProfile): Promise<BrandVoiceProfile> {
+    const [row] = await db.insert(brandVoiceProfiles).values(data).returning();
+    return row;
+  }
+  async updateBrandVoiceProfile(userId: string, data: Partial<InsertBrandVoiceProfile>): Promise<BrandVoiceProfile> {
+    const [row] = await db.update(brandVoiceProfiles).set({ ...data, updatedAt: new Date() }).where(eq(brandVoiceProfiles.userId, userId)).returning();
     return row;
   }
   async upsertBrandVoiceProfile(data: InsertBrandVoiceProfile): Promise<BrandVoiceProfile> {
