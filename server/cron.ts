@@ -438,13 +438,27 @@ export async function processEmailSequences() {
   }
 }
 
+export async function processScheduledInstagramPosts() {
+  try {
+    const due = await storage.getPendingDueInstagramPosts();
+    if (due.length === 0) return;
+    log(`Instagram scheduler: marking ${due.length} post(s) as ready`, "cron");
+    for (const post of due) {
+      await storage.updateScheduledInstagramPost(post.id, { status: "ready" });
+    }
+  } catch (e: any) {
+    log(`processScheduledInstagramPosts error: ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
+  cron.schedule("*/5 * * * *", processScheduledInstagramPosts);
   cron.schedule("*/15 * * * *", sendBookingReminders);
   cron.schedule("0 * * * *", processEmailSequences);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour", "cron");
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube + Instagram schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour", "cron");
 }

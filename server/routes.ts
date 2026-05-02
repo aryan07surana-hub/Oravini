@@ -10,7 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
-import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema } from "@shared/schema";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, insertScheduledInstagramPostSchema } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
@@ -11120,6 +11120,331 @@ Rules:
       res.json(feedback);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Instagram scheduled posts (caption reminders) ─────────────────────────
+  app.get("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      const posts = await storage.getScheduledInstagramPosts(userId);
+      res.json(posts);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      const parsed = insertScheduledInstagramPostSchema.safeParse({ ...req.body, userId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid input" });
+      const post = await storage.createScheduledInstagramPost(parsed.data);
+      res.json(post);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { status } = req.body;
+      if (!["posted"].includes(status)) return res.status(400).json({ message: "Invalid status" });
+      await storage.updateScheduledInstagramPost(p(req.params.id), { status });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      await storage.deleteScheduledInstagramPost(p(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTENT INTELLIGENCE ENGINE
+  // ══════════════════════════════════════════════════════════════════════════
+  const { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } = await import("./contentIntelligence");
+
+  // ── Brand Voice Analyzer ───────────────────────────────────────────────────
+  app.post("/api/brand-voice/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const existingPosts = await storage.getContentPostsByClient(user.id);
+      
+      if (existingPosts.length < 5) {
+        return res.status(400).json({ message: "Need at least 5 posts to analyze brand voice. Add more content first." });
+      }
+
+      const voiceProfile = await analyzeBrandVoice(user.id, existingPosts);
+      const saved = await storage.upsertBrandVoiceProfile({
+        userId: user.id,
+        ...voiceProfile,
+      });
+      
+      return res.json(saved);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/brand-voice", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const profile = await storage.getBrandVoiceProfile(user.id);
+      return res.json(profile || null);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Performance Feedback (Learning Loop) ───────────────────────────────────
+  app.post("/api/content/:id/performance-feedback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { views, likes, comments, saves, niche } = req.body;
+      
+      if (!niche) return res.status(400).json({ message: "niche is required" });
+      
+      await processPerformanceFeedback(
+        user.id,
+        p(req.params.id),
+        views || 0,
+        likes || 0,
+        comments || 0,
+        saves || 0,
+        niche
+      );
+      
+      return res.json({ message: "Performance logged. AI will learn from this." });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Winning Patterns ───────────────────────────────────────────────────────
+  app.get("/api/winning-patterns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { platform, funnelStage } = req.query;
+      const patterns = await storage.getWinningPatterns(user.id, {
+        platform: platform as string,
+        funnelStage: funnelStage as string,
+        limit: 20,
+      });
+      return res.json(patterns);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Hook Library ───────────────────────────────────────────────────────────
+  app.get("/api/hook-library", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { platform, niche, hookType } = req.query;
+      const hooks = await storage.getHookLibrary({
+        platform: platform as string,
+        niche: niche as string,
+        hookType: hookType as string,
+        limit: 50,
+      });
+      return res.json(hooks);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── TRAINED CONTENT CALENDAR GENERATOR ─────────────────────────────────────
+  app.post("/api/content-calendar/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { month, niche, platform, goal, days } = req.body;
+      
+      if (!month || !niche || !platform || !goal) {
+        return res.status(400).json({ message: "month, niche, platform, and goal are required" });
+      }
+
+      const daysToGenerate = Math.min(Math.max(parseInt(days) || 30, 7), 30);
+      const creditCost = Math.ceil(daysToGenerate / 3); // 3 days = 1 credit
+      
+      if (user.role !== "admin") {
+        const creditResult = await storage.deductCredits(user.id, creditCost, "content_calendar", `${daysToGenerate}-day Content Calendar`, user.plan || "free");
+        if (!creditResult.success) {
+          return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        }
+      }
+
+      // Get user's existing posts for context
+      const existingPosts = await storage.getContentPostsByClient(user.id);
+      
+      // Build training prompt with ALL the intelligence
+      const trainingPrompt = await buildTrainingPrompt(user.id, platform, niche, "top");
+      
+      // Build strategy brief
+      const contextPosts = existingPosts.slice(0, 30).map(p => ({
+        title: p.title || "",
+        contentType: p.contentType,
+        views: p.views,
+        likes: p.likes,
+        comments: p.comments,
+        saves: p.saves,
+      }));
+
+      const systemPrompt = trainingPrompt + `\n\nYou are generating a ${daysToGenerate}-day content calendar. Every piece of content MUST use proven patterns from the training data above.`;
+      
+      const userPrompt = `Generate a ${daysToGenerate}-day content calendar for ${month}.\n\nPlatform: ${platform}\nNiche: ${niche}\nGoal: ${goal}\n\nContext: User has ${existingPosts.length} existing posts tracked.\n\nReturn ONLY valid JSON (no markdown):\n{\n  "strategy": {\n    "tofuPercent": 40,\n    "mofuPercent": 40,\n    "bofuPercent": 20,\n    "postingFrequency": "daily",\n    "contentMix": { "reels": 50, "carousels": 30, "posts": 20 },\n    "keyThemes": ["theme1", "theme2", "theme3"]\n  },\n  "posts": [\n    {\n      "day": 1,\n      "date": "2025-10-01",\n      "funnelStage": "top",\n      "contentType": "reel",\n      "title": "Hook-driven title using proven pattern",\n      "hook": "Exact opening line",\n      "hookType": "curiosity",\n      "body": "Main content structure",\n      "cta": "Specific call to action",\n      "hashtags": ["#tag1", "#tag2"],\n      "notes": "Production notes",\n      "whyItWorks": "Why this will perform based on training data"\n    }\n  ]\n}\n\nGenerate exactly ${daysToGenerate} posts. Use ONLY proven hook patterns. Match the brand voice. Follow platform-specific structure.`;
+
+      const calendar = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 8000));
+      
+      // Validate and ensure we have the right number of posts
+      if (!calendar.posts || calendar.posts.length < daysToGenerate) {
+        return res.status(500).json({ message: "AI failed to generate complete calendar. Please try again." });
+      }
+
+      // Save to database
+      const saved = await storage.createContentCalendar({
+        userId: user.id,
+        month,
+        niche,
+        platform: platform as any,
+        goal,
+        strategy: calendar.strategy,
+        posts: calendar.posts,
+        status: "active",
+      });
+
+      return res.json({ ...saved, creditsUsed: creditCost });
+    } catch (err: any) {
+      console.error("[content-calendar/generate] error:", err);
+      return res.status(500).json({ message: err.message || "Calendar generation failed" });
+    }
+  });
+
+  // ── Get Content Calendars ──────────────────────────────────────────────────
+  app.get("/api/content-calendar", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const calendars = await storage.getContentCalendars(user.id);
+      return res.json(calendars);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const calendar = await storage.getContentCalendar(p(req.params.id));
+      if (!calendar) return res.status(404).json({ message: "Calendar not found" });
+      return res.json(calendar);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateContentCalendar(p(req.params.id), req.body);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteContentCalendar(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Content Templates ──────────────────────────────────────────────────────
+  app.get("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const templates = await storage.getContentTemplates(user.id);
+      const publicTemplates = await storage.getPublicContentTemplates();
+      return res.json({ userTemplates: templates, publicTemplates });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const template = await storage.createContentTemplate({ ...req.body, userId: user.id });
+      return res.json(template);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateContentTemplate(p(req.params.id), req.body);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteContentTemplate(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Admin: Seed Training Data ──────────────────────────────────────────────
+  app.post("/api/admin/seed-training-data", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      // Seed some initial platform training data for Instagram Reels
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "reel" as any,
+        pattern: "Hook in first 3 seconds",
+        category: "hook_rules",
+        description: "First 3 seconds must stop the scroll. Use text overlay + visual pattern interrupt.",
+        examples: null,
+        effectiveness: 9.5,
+        source: "admin_curated",
+      });
+
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "reel" as any,
+        pattern: "Jump cuts every 2-3 seconds",
+        category: "retention_tricks",
+        description: "Fast cuts keep attention. Never let a shot run longer than 3 seconds.",
+        examples: null,
+        effectiveness: 8.5,
+        source: "admin_curated",
+      });
+
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "carousel" as any,
+        pattern: "Max 15 words per slide",
+        category: "structure",
+        description: "Each slide should have one clear idea. Bold headline + supporting line.",
+        examples: null,
+        effectiveness: 9.0,
+        source: "admin_curated",
+      });
+
+      return res.json({ message: "Training data seeded successfully" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
     }
   });
 

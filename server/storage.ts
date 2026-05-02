@@ -13,7 +13,7 @@ import {
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
-  youtubeTokens, scheduledYoutubePosts,
+  youtubeTokens, scheduledYoutubePosts, scheduledInstagramPosts,
   referralCodes, referralClicks, referralConversions,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
   meetings,
@@ -26,6 +26,7 @@ import {
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
+  type ScheduledInstagramPost, type InsertScheduledInstagramPost,
   type AiSessionHistory, type InsertAiSessionHistory,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
@@ -71,6 +72,16 @@ import {
   type VideoAnalyticsEvent, type InsertVideoAnalyticsEvent,
   type UserFeedback, type InsertUserFeedback,
   webinarContacts, videoAnalyticsEvents, userFeedback,
+  // Content Intelligence Engine
+  hookLibrary, winningPatterns, brandVoiceProfiles, contentCalendars, contentTemplates,
+  platformTrainingData, funnelStageTraining,
+  type HookLibrary, type InsertHookLibrary,
+  type WinningPattern, type InsertWinningPattern,
+  type BrandVoiceProfile, type InsertBrandVoiceProfile,
+  type ContentCalendar, type InsertContentCalendar,
+  type ContentTemplate, type InsertContentTemplate,
+  type PlatformTrainingData, type InsertPlatformTrainingData,
+  type FunnelStageTraining, type InsertFunnelStageTraining,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -257,6 +268,13 @@ export interface IStorage {
   createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost>;
   updateScheduledYoutubePost(id: string, data: Partial<ScheduledYoutubePost>): Promise<void>;
   deleteScheduledYoutubePost(id: string, userId: string): Promise<void>;
+
+  // Instagram scheduled posts (caption reminders — no direct publish)
+  getScheduledInstagramPosts(userId: string): Promise<ScheduledInstagramPost[]>;
+  getPendingDueInstagramPosts(): Promise<ScheduledInstagramPost[]>;
+  createScheduledInstagramPost(data: InsertScheduledInstagramPost): Promise<ScheduledInstagramPost>;
+  updateScheduledInstagramPost(id: string, data: Partial<ScheduledInstagramPost>): Promise<void>;
+  deleteScheduledInstagramPost(id: string, userId: string): Promise<void>;
 
   // Forms
   getForms(userId: string): Promise<Form[]>;
@@ -1272,6 +1290,28 @@ class DatabaseStorage implements IStorage {
     await db.delete(scheduledYoutubePosts).where(and(eq(scheduledYoutubePosts.id, id), eq(scheduledYoutubePosts.userId, userId)));
   }
 
+  async getScheduledInstagramPosts(userId: string): Promise<ScheduledInstagramPost[]> {
+    return db.select().from(scheduledInstagramPosts).where(eq(scheduledInstagramPosts.userId, userId)).orderBy(desc(scheduledInstagramPosts.scheduledFor));
+  }
+
+  async getPendingDueInstagramPosts(): Promise<ScheduledInstagramPost[]> {
+    return db.select().from(scheduledInstagramPosts)
+      .where(and(eq(scheduledInstagramPosts.status, "pending"), lte(scheduledInstagramPosts.scheduledFor, new Date())));
+  }
+
+  async createScheduledInstagramPost(data: InsertScheduledInstagramPost): Promise<ScheduledInstagramPost> {
+    const [row] = await db.insert(scheduledInstagramPosts).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledInstagramPost(id: string, data: Partial<ScheduledInstagramPost>): Promise<void> {
+    await db.update(scheduledInstagramPosts).set(data).where(eq(scheduledInstagramPosts.id, id));
+  }
+
+  async deleteScheduledInstagramPost(id: string, userId: string): Promise<void> {
+    await db.delete(scheduledInstagramPosts).where(and(eq(scheduledInstagramPosts.id, id), eq(scheduledInstagramPosts.userId, userId)));
+  }
+
   // ── Forms ──────────────────────────────────────────────────────────────────
   async getForms(userId: string): Promise<Form[]> {
     return db.select().from(forms).where(eq(forms.userId, userId)).orderBy(desc(forms.createdAt));
@@ -2085,6 +2125,137 @@ class DatabaseStorage implements IStorage {
   }
   async getUserFeedback(userId: string): Promise<UserFeedback[]> {
     return db.select().from(userFeedback).where(eq(userFeedback.userId, userId)).orderBy(desc(userFeedback.submittedAt));
+  }
+
+  // ── CONTENT INTELLIGENCE ENGINE ──────────────────────────────────────────
+  // Hook Library
+  async getHookLibrary(filters?: { platform?: string; niche?: string; hookType?: string; limit?: number }): Promise<HookLibrary[]> {
+    let query = db.select().from(hookLibrary).orderBy(desc(hookLibrary.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(h => {
+      if (filters?.platform && h.platform !== filters.platform) return false;
+      if (filters?.niche && !h.niche.toLowerCase().includes(filters.niche.toLowerCase())) return false;
+      if (filters?.hookType && h.hookType !== filters.hookType) return false;
+      return true;
+    });
+  }
+  async createHook(data: InsertHookLibrary): Promise<HookLibrary> {
+    const [row] = await db.insert(hookLibrary).values(data).returning();
+    return row;
+  }
+  async incrementHookUsage(id: string): Promise<void> {
+    await db.update(hookLibrary).set({ usageCount: sqlExpr`${hookLibrary.usageCount} + 1` }).where(eq(hookLibrary.id, id));
+  }
+
+  // Winning Patterns
+  async getWinningPatterns(userId: string, filters?: { platform?: string; funnelStage?: string; limit?: number }): Promise<WinningPattern[]> {
+    let query = db.select().from(winningPatterns).where(eq(winningPatterns.userId, userId)).orderBy(desc(winningPatterns.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(p => {
+      if (filters?.platform && p.platform !== filters.platform) return false;
+      if (filters?.funnelStage && p.funnelStage !== filters.funnelStage) return false;
+      return true;
+    });
+  }
+  async createWinningPattern(data: InsertWinningPattern): Promise<WinningPattern> {
+    const [row] = await db.insert(winningPatterns).values(data).returning();
+    return row;
+  }
+  async getTopWinningPatterns(filters?: { platform?: string; niche?: string; limit?: number }): Promise<WinningPattern[]> {
+    let query = db.select().from(winningPatterns).orderBy(desc(winningPatterns.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(p => {
+      if (filters?.platform && p.platform !== filters.platform) return false;
+      if (filters?.niche && !p.niche.toLowerCase().includes(filters.niche.toLowerCase())) return false;
+      return true;
+    });
+  }
+
+  // Brand Voice Profiles
+  async getBrandVoiceProfile(userId: string): Promise<BrandVoiceProfile | undefined> {
+    const [row] = await db.select().from(brandVoiceProfiles).where(eq(brandVoiceProfiles.userId, userId));
+    return row;
+  }
+  async upsertBrandVoiceProfile(data: InsertBrandVoiceProfile): Promise<BrandVoiceProfile> {
+    const existing = await this.getBrandVoiceProfile(data.userId);
+    if (existing) {
+      const [row] = await db.update(brandVoiceProfiles).set({ ...data, updatedAt: new Date() }).where(eq(brandVoiceProfiles.userId, data.userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(brandVoiceProfiles).values(data).returning();
+    return row;
+  }
+
+  // Content Calendars
+  async getContentCalendars(userId: string): Promise<ContentCalendar[]> {
+    return db.select().from(contentCalendars).where(eq(contentCalendars.userId, userId)).orderBy(desc(contentCalendars.createdAt));
+  }
+  async getContentCalendar(id: string): Promise<ContentCalendar | undefined> {
+    const [row] = await db.select().from(contentCalendars).where(eq(contentCalendars.id, id));
+    return row;
+  }
+  async createContentCalendar(data: InsertContentCalendar): Promise<ContentCalendar> {
+    const [row] = await db.insert(contentCalendars).values(data).returning();
+    return row;
+  }
+  async updateContentCalendar(id: string, data: Partial<InsertContentCalendar>): Promise<ContentCalendar> {
+    const [row] = await db.update(contentCalendars).set({ ...data, updatedAt: new Date() }).where(eq(contentCalendars.id, id)).returning();
+    return row;
+  }
+  async deleteContentCalendar(id: string): Promise<void> {
+    await db.delete(contentCalendars).where(eq(contentCalendars.id, id));
+  }
+
+  // Content Templates
+  async getContentTemplates(userId: string): Promise<ContentTemplate[]> {
+    return db.select().from(contentTemplates).where(eq(contentTemplates.userId, userId)).orderBy(desc(contentTemplates.createdAt));
+  }
+  async getPublicContentTemplates(): Promise<ContentTemplate[]> {
+    return db.select().from(contentTemplates).where(eq(contentTemplates.isPublic, true)).orderBy(desc(contentTemplates.usageCount));
+  }
+  async createContentTemplate(data: InsertContentTemplate): Promise<ContentTemplate> {
+    const [row] = await db.insert(contentTemplates).values(data).returning();
+    return row;
+  }
+  async updateContentTemplate(id: string, data: Partial<InsertContentTemplate>): Promise<ContentTemplate> {
+    const [row] = await db.update(contentTemplates).set({ ...data, updatedAt: new Date() }).where(eq(contentTemplates.id, id)).returning();
+    return row;
+  }
+  async deleteContentTemplate(id: string): Promise<void> {
+    await db.delete(contentTemplates).where(eq(contentTemplates.id, id));
+  }
+  async incrementTemplateUsage(id: string): Promise<void> {
+    await db.update(contentTemplates).set({ usageCount: sqlExpr`${contentTemplates.usageCount} + 1` }).where(eq(contentTemplates.id, id));
+  }
+
+  // Platform Training Data
+  async getPlatformTrainingData(platform: string, contentType?: string): Promise<PlatformTrainingData[]> {
+    let query = db.select().from(platformTrainingData).where(eq(platformTrainingData.platform, platform as any));
+    const results = await query;
+    if (contentType) {
+      return results.filter(p => p.contentType === contentType);
+    }
+    return results;
+  }
+  async createPlatformTrainingData(data: InsertPlatformTrainingData): Promise<PlatformTrainingData> {
+    const [row] = await db.insert(platformTrainingData).values(data).returning();
+    return row;
+  }
+
+  // Funnel Stage Training
+  async getFunnelStageTraining(funnelStage: string): Promise<FunnelStageTraining | undefined> {
+    const [row] = await db.select().from(funnelStageTraining).where(eq(funnelStageTraining.funnelStage, funnelStage as any));
+    return row;
+  }
+  async getAllFunnelStageTraining(): Promise<FunnelStageTraining[]> {
+    return db.select().from(funnelStageTraining);
+  }
+  async createFunnelStageTraining(data: InsertFunnelStageTraining): Promise<FunnelStageTraining> {
+    const [row] = await db.insert(funnelStageTraining).values(data).returning();
+    return row;
   }
 }
 
