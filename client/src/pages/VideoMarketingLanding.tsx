@@ -190,13 +190,9 @@ function EmailPopup({ onClose }: { onClose: () => void }) {
           Create a free account and launch your first webinar or VSL instantly — no credit card required.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={() => { onClose(); nav("/login?tab=register"); }}
+          <button onClick={() => { onClose(); nav("/login?redirect=/video-marketing"); }}
             style={{ width: "100%", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 11, padding: "14px 0", cursor: "pointer" }}>
-            Create Free Account →
-          </button>
-          <button onClick={() => { onClose(); nav("/login"); }}
-            style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 13, borderRadius: 11, padding: "12px 0", cursor: "pointer" }}>
-            I already have an account
+            Login with Oravini →
           </button>
         </div>
         <div style={{ marginTop: 20, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
@@ -327,9 +323,9 @@ function Navbar({ onStrategy }: { onStrategy: () => void }) {
             onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
             Free Assessment
           </button>
-          <button onClick={() => nav("/login")}
+          <button onClick={() => nav("/login?redirect=/video-marketing")}
             style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, border: "none", borderRadius: 8, color: "#000", fontSize: 13, fontWeight: 800, padding: "9px 20px", cursor: "pointer" }}>
-            Get Started →
+            Login with Oravini →
           </button>
         </div>
       </div>
@@ -438,11 +434,11 @@ export default function VideoMarketingLanding() {
             Webinars, VSLs with custom progress bars, AI clip extraction, video hosting,<br />and real-time analytics — all under one roof.
           </p>
           <div className="vm-hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={() => nav("/login?tab=register")}
+            <button onClick={() => nav("/login?redirect=/video-marketing")}
               style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 16, border: "none", borderRadius: 12, padding: "17px 40px", cursor: "pointer", animation: "pulse-ring 2.5s ease 2s infinite" }}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
-              Start Hosting Free →
+              Login with Oravini →
             </button>
             <button onClick={() => setShowStrategy(true)}
               style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 34px", cursor: "pointer", transition: "all 0.2s" }}
@@ -952,11 +948,11 @@ export default function VideoMarketingLanding() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={() => nav("/login?tab=register")}
+                  <button onClick={() => nav("/login?redirect=/video-marketing")}
                     style={{ width: "100%", background: tier.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : `rgba(255,255,255,0.06)`, color: tier.highlight ? "#000" : tier.accent, fontWeight: 800, fontSize: 14, border: tier.highlight ? "none" : `1px solid ${tier.border}`, borderRadius: 12, padding: "14px 0", cursor: "pointer", transition: "all 0.2s" }}
                     onMouseEnter={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.1)"); }}
                     onMouseLeave={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.06)"); }}>
-                    {tier.cta} →
+                    Login with Oravini →
                   </button>
                 </div>
               </Anim>
@@ -1015,11 +1011,11 @@ export default function VideoMarketingLanding() {
           </Anim>
           <Anim delay={240}>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-              <button onClick={() => nav("/login?tab=register")}
+              <button onClick={() => nav("/login?redirect=/video-marketing")}
                 style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 17, border: "none", borderRadius: 12, padding: "18px 46px", cursor: "pointer", animation: "pulse-ring 2.5s ease infinite" }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
-                Get Started Free →
+                Login with Oravini →
               </button>
               <a href={CALENDLY} target="_blank" rel="noopener noreferrer"
                 style={{ display: "inline-flex", alignItems: "center", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 16, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "18px 38px", textDecoration: "none", cursor: "pointer", transition: "all 0.2s" }}

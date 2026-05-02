@@ -1,10 +1,10 @@
 import { useAuth } from "@/hooks/use-auth";
-import { isTier4Or5 } from "@/components/video-marketing/TierGate";
+import { useLocation } from "wouter";
 import PlatformView from "@/components/video-marketing/PlatformView";
-import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 
 export default function VideoMarketing() {
     const { user, isLoading } = useAuth();
+    const [, nav] = useLocation();
 
     if (isLoading) {
         return (
@@ -14,11 +14,10 @@ export default function VideoMarketing() {
         );
     }
 
-    // Show landing page if not logged in or not tier 4/5
-    if (!user || !isTier4Or5((user as any).plan)) {
-        return <VideoMarketingLanding />;
+    if (!user) {
+        nav("/login?redirect=/video-marketing");
+        return null;
     }
 
-    // Show platform for tier 4/5 users
     return <PlatformView />;
 }

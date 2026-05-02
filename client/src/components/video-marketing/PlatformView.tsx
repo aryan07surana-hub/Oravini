@@ -1859,6 +1859,10 @@ function SettingsTab() {
 // ── MAIN PLATFORM VIEW ────────────────────────────────────────────────────────
 
 export default function PlatformView() {
+  const [section, setSection] = useState<"webinars" | "video-hosting">("webinars");
+  const [webinarTab, setWebinarTab] = useState("webinars");
+  const [hostingTab, setHostingTab] = useState("video-hosting");
+
   return (
     <div
       className="min-h-screen"
@@ -1867,65 +1871,108 @@ export default function PlatformView() {
       {/* Header */}
       <div
         className="sticky top-0 z-30 backdrop-blur-xl px-6 py-4 border-b"
-        style={{ background: "rgba(10,9,16,0.85)", borderColor: "rgba(255,255,255,0.05)" }}
+        style={{ background: "rgba(10,9,16,0.92)", borderColor: "rgba(255,255,255,0.05)" }}
       >
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
+        <div className="max-w-6xl mx-auto flex items-center gap-4">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}33` }}
           >
             <MonitorPlay className="w-4 h-4" style={{ color: GOLD }} />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-sm font-black text-white tracking-wide">Video Marketing Studio</h1>
             <p className="text-[10px] text-zinc-500 leading-none">Powered by Oravini</p>
           </div>
-          <Badge
-            className="ml-auto border-none text-[10px] font-bold"
-            style={{ background: `${GOLD}18`, color: GOLD }}
+
+          {/* Section switcher */}
+          <div
+            className="flex items-center gap-1 p-1 rounded-xl"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
           >
-            PRO
-          </Badge>
+            {([
+              { id: "webinars", label: "Webinars", icon: MonitorPlay },
+              { id: "video-hosting", label: "Video Hosting", icon: Video },
+            ] as const).map(({ id, label, icon: Icon }) => {
+              const active = section === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setSection(id)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                  style={{
+                    background: active ? `linear-gradient(135deg, ${GOLD}, #b8962e)` : "transparent",
+                    color: active ? "#000" : "rgba(255,255,255,0.45)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <Tabs defaultValue="video-hosting">
-          <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
-            {[
-              { value: "video-hosting", label: "Video Hosting", icon: Video },
-              { value: "videos", label: "Video Library", icon: Video },
-              { value: "webinars", label: "Webinars", icon: MonitorPlay },
-              { value: "landing-pages", label: "Landing Pages", icon: LayoutTemplate },
-              { value: "crm", label: "CRM", icon: Users },
-              { value: "recordings", label: "Recordings", icon: Mic },
-              { value: "analytics", label: "Analytics", icon: BarChart3 },
-              { value: "settings", label: "Settings", icon: Settings2 },
-            ].map(({ value, label, icon: Icon }) => (
-              <TabsTrigger
-                key={value}
-                value={value}
-                className="flex items-center gap-1.5 text-xs font-semibold data-[state=active]:text-black rounded-lg px-3 py-2"
-                style={{
-                  // active state overridden by CSS
-                }}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
 
-          <TabsContent value="webinars"><WebinarsTab /></TabsContent>
-          <TabsContent value="video-hosting"><VideoHosting /></TabsContent>
-          <TabsContent value="videos"><VideosTab /></TabsContent>
-          <TabsContent value="landing-pages"><LandingPagesTab /></TabsContent>
-          <TabsContent value="crm"><CRMTab /></TabsContent>
-          <TabsContent value="recordings"><RecordingsTab /></TabsContent>
-          <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-          <TabsContent value="settings"><SettingsTab /></TabsContent>
-        </Tabs>
+        {/* ── WEBINARS SECTION ── */}
+        {section === "webinars" && (
+          <Tabs value={webinarTab} onValueChange={setWebinarTab}>
+            <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
+              {[
+                { value: "webinars",      label: "Webinars",      icon: MonitorPlay },
+                { value: "landing-pages", label: "Landing Pages", icon: LayoutTemplate },
+                { value: "crm",           label: "CRM",           icon: Users },
+                { value: "recordings",    label: "Recordings",    icon: Mic },
+                { value: "analytics",     label: "Analytics",     icon: BarChart3 },
+                { value: "settings",      label: "API & Settings",icon: Settings2 },
+              ].map(({ value, label, icon: Icon }) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="flex items-center gap-1.5 text-xs font-semibold data-[state=active]:text-black rounded-lg px-3 py-2"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="webinars"><WebinarsTab /></TabsContent>
+            <TabsContent value="landing-pages"><LandingPagesTab /></TabsContent>
+            <TabsContent value="crm"><CRMTab /></TabsContent>
+            <TabsContent value="recordings"><RecordingsTab /></TabsContent>
+            <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+            <TabsContent value="settings"><SettingsTab /></TabsContent>
+          </Tabs>
+        )}
+
+        {/* ── VIDEO HOSTING SECTION ── */}
+        {section === "video-hosting" && (
+          <Tabs value={hostingTab} onValueChange={setHostingTab}>
+            <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
+              {[
+                { value: "video-hosting", label: "Video Hosting", icon: Video },
+                { value: "videos",        label: "Video Library", icon: Film },
+              ].map(({ value, label, icon: Icon }) => (
+                <TabsTrigger
+                  key={value}
+                  value={value}
+                  className="flex items-center gap-1.5 text-xs font-semibold data-[state=active]:text-black rounded-lg px-3 py-2"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="video-hosting"><VideoHosting /></TabsContent>
+            <TabsContent value="videos"><VideosTab /></TabsContent>
+          </Tabs>
+        )}
+
       </div>
     </div>
   );
