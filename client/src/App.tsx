@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
+import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
 import DashboardPreview from "@/pages/DashboardPreview";
@@ -133,6 +134,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
