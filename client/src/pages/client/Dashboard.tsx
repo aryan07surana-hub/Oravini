@@ -686,15 +686,48 @@ function ConnectedPlatforms() {
   const { data: twitter }   = useQuery<any>({ queryKey: ["/api/twitter/status"],  staleTime: 60000 });
   const { data: youtube }   = useQuery<any>({ queryKey: ["/api/youtube/status"],  staleTime: 60000 });
   const { data: linkedin }  = useQuery<any>({ queryKey: ["/api/linkedin/status"], staleTime: 60000 });
-  const { data: instagram } = useQuery<any>({ queryKey: ["/api/meta/account"],    staleTime: 60000 });
-  const { data: canva }     = useQuery<any>({ queryKey: ["/api/canva/status"],    staleTime: 60000 });
+  const { data: meta }      = useQuery<any>({ queryKey: ["/api/oauth/meta/status"], staleTime: 60000 });
+  const { toast } = useToast();
+
+  const disconnectMutation = useMutation({
+    mutationFn: async (platform: string) => {
+      const endpoints: Record<string, string> = {
+        instagram: "/api/oauth/meta/disconnect",
+        facebook: "/api/oauth/meta/disconnect",
+        twitter: "/api/oauth/twitter/disconnect",
+        linkedin: "/api/oauth/linkedin/disconnect",
+      };
+      const res = await fetch(endpoints[platform], { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("Disconnect failed");
+      return res.json();
+    },
+    onSuccess: (_data, platform) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/oauth/meta/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/twitter/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/linkedin/status"] });
+      toast({ title: `${platform} disconnected successfully` });
+    },
+    onError: () => {
+      toast({ title: "Disconnect failed", variant: "destructive" });
+    },
+  });
+
+  const handleConnect = (platform: string) => {
+    const endpoints: Record<string, string> = {
+      instagram: "/api/oauth/meta/connect",
+      facebook: "/api/oauth/meta/connect",
+      twitter: "/api/oauth/twitter/connect",
+      linkedin: "/api/oauth/linkedin/connect",
+    };
+    window.location.href = endpoints[platform];
+  };
 
   const platforms = [
-    { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", href: "/instagram-scheduler", connected: instagram?.connected ?? false },
-    { id: "youtube",   label: "YouTube",   icon: Youtube,       color: "#f87171", href: "/youtube-scheduler",   connected: youtube?.connected ?? false  },
-    { id: "twitter",   label: "Twitter/X", icon: MessageSquare, color: "#60a5fa", href: "/twitter-scheduler",   connected: twitter?.connected ?? false  },
-    { id: "linkedin",  label: "LinkedIn",  icon: Users,         color: "#818cf8", href: "/linkedin-scheduler",  connected: linkedin?.connected ?? false  },
-    { id: "canva",     label: "Canva",     icon: Palette,       color: "#a78bfa", href: "/video-editor",        connected: canva?.connected ?? false    },
+    { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", connected: meta?.connected && meta?.igUsername ? true : false, username: meta?.igUsername },
+    { id: "facebook",  label: "Facebook",  icon: Users,        color: "#1877f2", connected: meta?.connected && meta?.fbPageName ? true : false, username: meta?.fbPageName },
+    { id: "youtube",   label: "YouTube",   icon: Youtube,      color: "#f87171", connected: youtube?.connected ?? false, username: youtube?.channelTitle },
+    { id: "twitter",   label: "X/Twitter", icon: MessageSquare, color: "#60a5fa", connected: twitter?.connected ?? false, username: twitter?.twitterHandle },
+    { id: "linkedin",  label: "LinkedIn",  icon: Users,        color: "#818cf8", connected: linkedin?.connected ?? false, username: linkedin?.linkedinName },
   ];
 
   const connectedCount = platforms.filter(p => p.connected).length;
@@ -712,24 +745,47 @@ function ConnectedPlatforms() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-2">
-        {platforms.map(({ id, label, icon: Icon, color, href, connected }) => (
-          <Link key={id} href={href}>
-            <div
-              data-testid={`platform-${id}`}
-              title={label}
-              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl cursor-pointer transition-all group"
-              style={{
-                background: connected ? `${color}12` : "rgba(255,255,255,0.02)",
-                border: `1px solid ${connected ? `${color}35` : "rgba(255,255,255,0.05)"}`,
-                boxShadow: connected ? `0 0 12px ${color}18` : "none",
-              }}
-            >
-              <Icon className="w-5 h-5 transition-all group-hover:scale-110" style={{ color: connected ? color : "rgba(255,255,255,0.2)" }} />
-              <p className="text-[9px] font-semibold text-center leading-tight" style={{ color: connected ? color : "rgba(255,255,255,0.25)" }}>{label}</p>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: connected ? color : "rgba(255,255,255,0.1)", boxShadow: connected ? `0 0 5px ${color}` : "none" }} />
+      <div className="space-y-3">
+        {platforms.map(({ id, label, icon: Icon, color, connected, username }) => (
+          <div
+            key={id}
+            data-testid={`platform-${id}`}
+            className="flex items-center justify-between p-3 rounded-xl transition-all"
+            style={{
+              background: connected ? `${color}12` : "rgba(255,255,255,0.02)",
+              border: `1px solid ${connected ? `${color}35` : "rgba(255,255,255,0.05)"}`,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Icon className="w-5 h-5" style={{ color: connected ? color : "rgba(255,255,255,0.2)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: connected ? color : "rgba(255,255,255,0.4)" }}>{label}</p>
+                {connected && username && <p className="text-xs text-zinc-500 mt-0.5">@{username}</p>}
+              </div>
             </div>
-          </Link>
+            <div className="flex items-center gap-2">
+              {connected ? (
+                <>
+                  <div className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+                  <button
+                    onClick={() => disconnectMutation.mutate(id)}
+                    disabled={disconnectMutation.isPending}
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:bg-red-500/20 text-red-400 border border-red-500/30"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => handleConnect(id)}
+                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
         ))}
       </div>
       {connectedCount < platforms.length && (

@@ -23,6 +23,8 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+import VideoHosting from "@/components/video-marketing/VideoHosting";
+
 const GOLD = "#d4b461";
 
 // ── Utility ─────────────────────────────────────────────────────────────────
@@ -1893,7 +1895,8 @@ export default function PlatformView() {
           <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
             {[
               { value: "webinars", label: "Webinars", icon: MonitorPlay },
-              { value: "videos", label: "Videos", icon: Video },
+              { value: "video-hosting", label: "Video Hosting", icon: Video },
+              { value: "videos", label: "Video Library", icon: Video },
               { value: "landing-pages", label: "Landing Pages", icon: LayoutTemplate },
               { value: "crm", label: "CRM", icon: Users },
               { value: "recordings", label: "Recordings", icon: Mic },
@@ -1915,6 +1918,7 @@ export default function PlatformView() {
           </TabsList>
 
           <TabsContent value="webinars"><WebinarsTab /></TabsContent>
+          <TabsContent value="video-hosting"><VideoHosting /></TabsContent>
           <TabsContent value="videos"><VideosTab /></TabsContent>
           <TabsContent value="landing-pages"><LandingPagesTab /></TabsContent>
           <TabsContent value="crm"><CRMTab /></TabsContent>

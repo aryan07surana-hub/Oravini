@@ -351,20 +351,21 @@ export const insertVideoResourceSchema = createInsertSchema(videoResources).omit
 export type InsertVideoResource = z.infer<typeof insertVideoResourceSchema>;
 export type VideoResource = typeof videoResources.$inferSelect;
 
-export const canvaTokens = pgTable("canva_tokens", {
+// Meta (Instagram/Facebook) OAuth tokens
+export const metaTokens = pgTable("meta_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
   accessToken: text("access_token").notNull(),
-  refreshToken: text("refresh_token"),
-  expiresAt: timestamp("expires_at").notNull(),
+  expiresAt: timestamp("expires_at"),
   scope: text("scope"),
+  igAccountId: text("ig_account_id"),
+  igUsername: text("ig_username"),
+  fbPageId: text("fb_page_id"),
+  fbPageName: text("fb_page_name"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-export const insertCanvaTokenSchema = createInsertSchema(canvaTokens).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertCanvaToken = z.infer<typeof insertCanvaTokenSchema>;
-export type CanvaToken = typeof canvaTokens.$inferSelect;
+export type MetaToken = typeof metaTokens.$inferSelect;
 
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdAt: true });
 export type InsertSession = z.infer<typeof insertSessionSchema>;
