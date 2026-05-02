@@ -132,16 +132,17 @@ export default function Privacy() {
             <p>You may withdraw consent at any time by contacting us at <a href={`mailto:${email}`} className="hover:underline" style={{ color: GOLD }}>{email}</a>.</p>
           </Section>
 
-          <Section num="5" title="We Will Never Sell or Share Your Information">
+          <Section num="5" title="We Will Never Sell, Share, or Leak Your Information">
             <p>
-              This is our core commitment: your personal information, account data, content, and usage activity will{" "}
-              <strong className="text-white">never</strong> be sold, rented, traded, or shared with any third party for commercial purposes — ever.
+              This is our core commitment: your personal information, account data, content, social media connections, and usage activity will{" "}
+              <strong className="text-white">never</strong> be sold, rented, traded, shared, or leaked to any third party for commercial purposes — ever.
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <Li>We do not sell your data to advertisers, data brokers, or any external companies.</Li>
               <Li>We do not share your personal information with partners, affiliates, or sponsors.</Li>
               <Li>We do not use your data to build advertising profiles or target you with ads outside our platform.</Li>
-              <Li>Your content, messages, and analytics are yours — we only use them to power the features you use inside Oravini.</Li>
+              <Li>Your content, messages, analytics, and connected social accounts (Instagram, Facebook, LinkedIn, X/Twitter) are yours — we only use them to power the features you use inside Oravini.</Li>
+              <Li>We will never leak, expose, or mishandle your information. All data is stored securely with industry-standard encryption.</Li>
               <Li>The only time we may disclose information is if required by law (e.g. a valid court order), and even then we will notify you where legally permitted.</Li>
             </ul>
             <p>

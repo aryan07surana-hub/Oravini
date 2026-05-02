@@ -724,10 +724,9 @@ function ConnectedPlatforms() {
 
   const platforms = [
     { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", connected: meta?.connected && meta?.igUsername ? true : false, username: meta?.igUsername },
-    { id: "facebook",  label: "Facebook",  icon: Users,        color: "#1877f2", connected: meta?.connected && meta?.fbPageName ? true : false, username: meta?.fbPageName },
     { id: "youtube",   label: "YouTube",   icon: Youtube,      color: "#f87171", connected: youtube?.connected ?? false, username: youtube?.channelTitle },
-    { id: "twitter",   label: "X/Twitter", icon: MessageSquare, color: "#60a5fa", connected: twitter?.connected ?? false, username: twitter?.twitterHandle },
-    { id: "linkedin",  label: "LinkedIn",  icon: Users,        color: "#818cf8", connected: linkedin?.connected ?? false, username: linkedin?.linkedinName },
+    { id: "linkedin",  label: "LinkedIn",  icon: Users,        color: "#0077b5", connected: linkedin?.connected ?? false, username: linkedin?.linkedinName },
+    { id: "twitter",   label: "X/Twitter", icon: MessageSquare, color: "#000000", connected: twitter?.connected ?? false, username: twitter?.twitterHandle },
   ];
 
   const connectedCount = platforms.filter(p => p.connected).length;
