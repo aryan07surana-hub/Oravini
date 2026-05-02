@@ -14,6 +14,7 @@ import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCal
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
+import { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } from "./contentIntelligence";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -11170,7 +11171,6 @@ Rules:
   // ══════════════════════════════════════════════════════════════════════════
   // CONTENT INTELLIGENCE ENGINE
   // ══════════════════════════════════════════════════════════════════════════
-  const { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } = await import("./contentIntelligence.js");
 
   // ── Brand Voice Analyzer ───────────────────────────────────────────────────
   app.post("/api/brand-voice/analyze", requireAuth, async (req: Request, res: Response) => {
@@ -11450,3 +11450,9 @@ Rules:
 
   return httpServer;
 }
+
+  // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
+  // Import content workflow routes
+  const contentWorkflowRoutes = (await import("./contentWorkflowRoutes")).default;
+  app.use(contentWorkflowRoutes);
+
