@@ -188,6 +188,7 @@ function CustomCursor() {
 // Splash Screen with 3D Animation
 function SplashScreen({ onComplete }: { onComplete: () => void }) {
   const [phase, setPhase] = useState(0);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     const timers = [
@@ -210,15 +211,21 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
       justifyContent: "center",
       flexDirection: "column",
     }}>
-      <div style={{ width: "100%", height: "50vh" }}>
-        <Canvas camera={{ position: [0, 0, 5] }}>
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} intensity={1} />
-          <Suspense fallback={null}>
-            {phase >= 1 && <AnimatedLogo />}
-          </Suspense>
-        </Canvas>
-      </div>
+      {!error ? (
+        <>
+          <div style={{ width: "100%", height: "50vh" }}>
+            <Canvas camera={{ position: [0, 0, 5] }} onError={() => setError(true)}>
+              <ambientLight intensity={0.5} />
+              <pointLight position={[10, 10, 10]} intensity={1} />
+              <Suspense fallback={null}>
+                {phase >= 1 && <AnimatedLogo />}
+              </Suspense>
+            </Canvas>
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 60, marginBottom: 40 }}>✨</div>
+      )}
       
       {phase >= 2 && (
         <div style={{
@@ -265,6 +272,7 @@ export default function OraviniLanding3D() {
   const [, nav] = useLocation();
   const [showSplash, setShowSplash] = useState(true);
   const [scrollY, setScrollY] = useState(0);
+  const [canvasError, setCanvasError] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -316,17 +324,19 @@ export default function OraviniLanding3D() {
         overflow: "hidden",
       }}>
         {/* 3D Canvas Background */}
-        <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-          <Canvas camera={{ position: [0, 0, 8] }}>
-            <ambientLight intensity={0.3} />
-            <pointLight position={[10, 10, 10]} intensity={1} color={GOLD} />
-            <pointLight position={[-10, -10, -10]} intensity={0.5} color={GOLD_BRIGHT} />
-            <Suspense fallback={null}>
-              <ParticleSystem />
-              <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
-            </Suspense>
-          </Canvas>
-        </div>
+        {!canvasError && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+            <Canvas camera={{ position: [0, 0, 8] }} onError={() => setCanvasError(true)}>
+              <ambientLight intensity={0.3} />
+              <pointLight position={[10, 10, 10]} intensity={1} color={GOLD} />
+              <pointLight position={[-10, -10, -10]} intensity={0.5} color={GOLD_BRIGHT} />
+              <Suspense fallback={null}>
+                <ParticleSystem />
+                <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
+              </Suspense>
+            </Canvas>
+          </div>
+        )}
 
         {/* Content */}
         <div style={{
