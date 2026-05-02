@@ -48,6 +48,44 @@ const TYPE_COLORS: Record<string, string> = {
 };
 const CHART_COLORS = ["#d4b461", "#6366f1", "#ec4899", "#22c55e", "#f97316", "#14b8a6"];
 
+// Content Style options (replaces funnel stage for Instagram)
+const CONTENT_STYLES = [
+  "Talking Head",
+  "Text Overlay",
+  "Raw Documentary",
+  "Green Screen",
+  "Micro Video Storytelling",
+  "Proper Script",
+  "Podcast-Type",
+  "B-Roll Cinematic",
+  "Voiceover Explainer",
+  "Day-in-the-Life",
+  "Tutorial / How-To",
+  "Reaction / Commentary",
+  "Behind the Scenes",
+  "Trending Audio Sync",
+  "Interview Style",
+  "Custom",
+];
+
+const STYLE_COLORS: Record<string, string> = {
+  "Talking Head": "bg-pink-500/10 text-pink-400 border-pink-500/20",
+  "Text Overlay": "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  "Raw Documentary": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Green Screen": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  "Micro Video Storytelling": "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "Proper Script": "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  "Podcast-Type": "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  "B-Roll Cinematic": "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  "Voiceover Explainer": "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  "Day-in-the-Life": "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  "Tutorial / How-To": "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  "Reaction / Commentary": "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  "Behind the Scenes": "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  "Trending Audio Sync": "bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20",
+  "Interview Style": "bg-lime-500/10 text-lime-400 border-lime-500/20",
+};
+
 function engRate(views: number, likes: number, comments: number, saves: number): number | null {
   const safeViews = Number(views);
   if (!Number.isFinite(safeViews) || safeViews <= 0) return null;
@@ -92,16 +130,19 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
     queryKey: ["/api/ig-tracker"],
     enabled: !isYt,
   });
+  const [customStyle, setCustomStyle] = useState("");
   const [form, setForm] = useState({
     title: post?.title || "",
     postUrl: post?.postUrl || "",
     postDate: post ? format(new Date(post.postDate), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
     contentType: post?.contentType || (isYt ? "video" : "reel"),
     funnelStage: post?.funnelStage || "top",
+    contentStyle: post?.contentStyle || "",
     views: post?.views ?? 0,
     likes: post?.likes ?? 0,
     comments: post?.comments ?? 0,
     saves: post?.saves ?? 0,
+    shares: post?.shares ?? 0,
     followersGained: post?.followersGained ?? 0,
     subscribersGained: post?.subscribersGained ?? 0,
   });
@@ -147,11 +188,13 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalStyle = form.contentStyle === "Custom" ? customStyle : form.contentStyle;
     mutation.mutate({
       ...form,
+      contentStyle: finalStyle || undefined,
       postDate: new Date(form.postDate).toISOString(),
       views: +form.views, likes: +form.likes, comments: +form.comments,
-      saves: +form.saves, followersGained: +form.followersGained, subscribersGained: +form.subscribersGained,
+      saves: +form.saves, shares: +form.shares, followersGained: +form.followersGained, subscribersGained: +form.subscribersGained,
     });
   };
 
@@ -199,13 +242,27 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
         </div>
         {!isYt && (
           <div className="col-span-2">
+            <Label>Content Style</Label>
+            <Select value={form.contentStyle} onValueChange={v => set("contentStyle", v)}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Select style (optional)" /></SelectTrigger>
+              <SelectContent>
+                {CONTENT_STYLES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {form.contentStyle === "Custom" && (
+              <Input value={customStyle} onChange={e => setCustomStyle(e.target.value)} placeholder="Enter custom style name" className="mt-2" />
+            )}
+          </div>
+        )}
+        {!isYt && (
+          <div className="col-span-2">
             <Label>Funnel Stage</Label>
             <Select value={form.funnelStage} onValueChange={v => set("funnelStage", v)}>
               <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="top">Top of Funnel</SelectItem>
-                <SelectItem value="middle">Middle of Funnel</SelectItem>
-                <SelectItem value="bottom">Bottom of Funnel</SelectItem>
+                <SelectItem value="top">Top of Funnel — Awareness</SelectItem>
+                <SelectItem value="middle">Middle of Funnel — Consideration</SelectItem>
+                <SelectItem value="bottom">Bottom of Funnel — Conversion</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -239,6 +296,10 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
               <div>
                 <Label className="text-xs">Saves</Label>
                 <Input type="number" min="0" value={form.saves} onChange={e => set("saves", e.target.value)} className="mt-1 h-9" data-testid="input-saves" />
+              </div>
+              <div>
+                <Label className="text-xs">Shares</Label>
+                <Input type="number" min="0" value={form.shares} onChange={e => set("shares", e.target.value)} className="mt-1 h-9" data-testid="input-shares" />
               </div>
             </>
           )}
@@ -1279,6 +1340,7 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="text-sm font-semibold text-foreground">{post.title || "Untitled"}</span>
                 <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${TYPE_COLORS[post.contentType] || ""}`}>{CONTENT_TYPE_LABELS[post.contentType]}</Badge>
+                {post.contentStyle && <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${STYLE_COLORS[post.contentStyle] || "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"}`}>{post.contentStyle}</Badge>}
                 {post.funnelStage && <Badge variant="outline" className={`text-[10px] px-2 py-0 border ${FUNNEL_COLORS[post.funnelStage] || ""}`}>{FUNNEL_LABELS[post.funnelStage]}</Badge>}
                 {!isYt && <EngagementBadge rate={er0} />}
               </div>
@@ -1297,6 +1359,7 @@ function PostCard({ post, platform, clientId, onEdit, onDelete }: { post: any; p
                   <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{toNum(post.likes).toLocaleString()}</span>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{toNum(post.comments).toLocaleString()}</span>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground"><Bookmark className="w-3 h-3" />{toNum(post.saves).toLocaleString()}</span>
+                {toNum(post.shares) > 0 && <span className="flex items-center gap-1 text-xs text-muted-foreground"><TrendingUp className="w-3 h-3" />{toNum(post.shares).toLocaleString()} shares</span>}
                 </>}
                 <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="w-3 h-3" />+{toNum(isYt ? post.subscribersGained : post.followersGained)}</span>
               </div>
@@ -2065,6 +2128,318 @@ function FollowerReportDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+// ── Instagram Hero Dashboard ─────────────────────────────────────────────────
+function IgHeroDashboard({ posts, trackedProfiles, user }: { posts: any[]; trackedProfiles: any[]; user: any }) {
+  const totalViews = posts.reduce((s, p) => s + toNum(p.views), 0);
+  const totalLikes = posts.reduce((s, p) => s + toNum(p.likes), 0);
+  const totalComments = posts.reduce((s, p) => s + toNum(p.comments), 0);
+  const totalSaves = posts.reduce((s, p) => s + toNum(p.saves), 0);
+  const totalShares = posts.reduce((s, p) => s + toNum(p.shares), 0);
+  const totalInteractions = totalLikes + totalComments + totalSaves + totalShares;
+
+  const liveFollowers = trackedProfiles.length > 0
+    ? trackedProfiles.reduce((s: number, p: any) => s + (p.latestSnapshot?.followersCount ?? 0), 0)
+    : null;
+  const followerGain = trackedProfiles.length > 0
+    ? trackedProfiles.reduce((s: number, p: any) => {
+        const latest = p.latestSnapshot?.followersCount ?? 0;
+        const prev = p.prevSnapshot?.followersCount ?? latest;
+        return s + (latest - prev);
+      }, 0)
+    : null;
+
+  // Since joining Oravini
+  const joinedAt = user?.createdAt ? new Date(user.createdAt) : null;
+  const daysSinceJoin = joinedAt ? Math.floor((Date.now() - joinedAt.getTime()) / 86400000) : null;
+  const firstPost = posts.length > 0 ? [...posts].sort((a, b) => new Date(a.postDate).getTime() - new Date(b.postDate).getTime())[0] : null;
+  const viewsFirstPost = firstPost?.views ?? 0;
+  const viewsLatestPost = posts.length > 0 ? [...posts].sort((a, b) => new Date(b.postDate).getTime() - new Date(a.postDate).getTime())[0]?.views ?? 0 : 0;
+  const growthPct = viewsFirstPost > 0 ? Math.round(((viewsLatestPost - viewsFirstPost) / viewsFirstPost) * 100) : null;
+
+  // Chart: views + interactions over time (by week)
+  const byWeek: Record<string, { week: string; views: number; interactions: number }> = {};
+  posts.forEach(p => {
+    const d = new Date(p.postDate);
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - d.getDay());
+    const key = format(weekStart, "MMM d");
+    if (!byWeek[key]) byWeek[key] = { week: key, views: 0, interactions: 0 };
+    byWeek[key].views += toNum(p.views);
+    byWeek[key].interactions += toNum(p.likes) + toNum(p.comments) + toNum(p.saves) + toNum(p.shares);
+  });
+  const chartData = Object.values(byWeek).slice(-12);
+
+  const avgEr = posts.length > 0
+    ? (posts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / posts.length).toFixed(2)
+    : "0.00";
+
+  return (
+    <div className="relative overflow-hidden rounded-[28px] border border-pink-500/20 bg-[radial-gradient(circle_at_top_left,rgba(236,72,153,0.12),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(212,180,97,0.10),transparent_35%),linear-gradient(145deg,rgba(10,10,14,0.98),rgba(18,14,24,0.95))] p-6">
+      <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+
+      {/* Header */}
+      <div className="relative flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-500/30 flex items-center justify-center">
+            <Instagram className="w-5 h-5 text-pink-400" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground text-base">Instagram Command Center</p>
+            <p className="text-[11px] text-muted-foreground">{posts.length} posts tracked · {avgEr}% avg engagement</p>
+          </div>
+        </div>
+        {liveFollowers !== null && (
+          <div className="text-right">
+            <p className="text-2xl font-black text-foreground">{fmtFollowers(liveFollowers)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Live Followers</p>
+            {followerGain !== null && followerGain !== 0 && (
+              <p className={`text-xs font-semibold ${followerGain > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {followerGain > 0 ? "+" : ""}{fmtFollowers(followerGain)} since last scan
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="relative grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+        {[
+          { label: "Total Views", value: compactNum(totalViews), icon: Eye, color: "text-sky-400", glow: "border-sky-500/20 bg-sky-500/5" },
+          { label: "Total Likes", value: compactNum(totalLikes), icon: Heart, color: "text-pink-400", glow: "border-pink-500/20 bg-pink-500/5" },
+          { label: "Comments", value: compactNum(totalComments), icon: MessageCircle, color: "text-violet-400", glow: "border-violet-500/20 bg-violet-500/5" },
+          { label: "Saves", value: compactNum(totalSaves), icon: Bookmark, color: "text-amber-400", glow: "border-amber-500/20 bg-amber-500/5" },
+          { label: "Interactions", value: compactNum(totalInteractions), icon: Zap, color: "text-emerald-400", glow: "border-emerald-500/20 bg-emerald-500/5" },
+        ].map(({ label, value, icon: Icon, color, glow }) => (
+          <div key={label} className={`rounded-2xl border ${glow} p-3 text-center`}>
+            <Icon className={`w-4 h-4 ${color} mx-auto mb-1.5`} />
+            <p className={`text-xl font-black ${color}`}>{value}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Since Joining Oravini */}
+      {daysSinceJoin !== null && (
+        <div className="relative mb-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-4 flex-wrap">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-primary uppercase tracking-wider">Since Joining Oravini</p>
+            <p className="text-sm text-foreground mt-0.5">
+              {daysSinceJoin} days in · {posts.length} posts logged · {compactNum(totalViews)} total views
+              {growthPct !== null && ` · `}
+              {growthPct !== null && (
+                <span className={growthPct >= 0 ? "text-emerald-400" : "text-red-400"}>
+                  {growthPct >= 0 ? "+" : ""}{growthPct}% view growth
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            {[
+              { label: "Days Active", value: daysSinceJoin },
+              { label: "Posts", value: posts.length },
+              { label: "Avg ER", value: `${avgEr}%` },
+            ].map(({ label, value }) => (
+              <div key={label} className="text-center">
+                <p className="text-lg font-black text-primary">{value}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Chart */}
+      {chartData.length > 1 && (
+        <div className="relative">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Views & Interactions Over Time</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis dataKey="week" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactNum(v)} />
+              <RechartTooltip contentStyle={{ background: "#111218", border: "1px solid rgba(236,72,153,0.25)", borderRadius: 12, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
+              <Line type="monotone" dataKey="views" stroke="#ec4899" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: "#ec4899" }} name="Views" />
+              <Line type="monotone" dataKey="interactions" stroke="#d4b461" strokeWidth={2} dot={false} activeDot={{ r: 3, fill: "#d4b461" }} name="Interactions" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Performance by Format (Content Style) ────────────────────────────────────
+function PerformanceByFormat({ posts }: { posts: any[] }) {
+  const igPosts = posts.filter(p => p.platform === "instagram");
+  if (igPosts.length === 0) return null;
+
+  // By content style
+  const styleMap: Record<string, { views: number; likes: number; comments: number; saves: number; count: number }> = {};
+  igPosts.forEach(p => {
+    const key = p.contentStyle || "Untagged";
+    if (!styleMap[key]) styleMap[key] = { views: 0, likes: 0, comments: 0, saves: 0, count: 0 };
+    styleMap[key].views += toNum(p.views);
+    styleMap[key].likes += toNum(p.likes);
+    styleMap[key].comments += toNum(p.comments);
+    styleMap[key].saves += toNum(p.saves);
+    styleMap[key].count++;
+  });
+
+  const styleData = Object.entries(styleMap)
+    .map(([name, d]) => ({
+      name,
+      avgViews: Math.round(d.views / d.count),
+      totalViews: d.views,
+      count: d.count,
+      avgEr: d.views > 0 ? +((d.likes + d.comments + d.saves) / d.views * 100).toFixed(2) : 0,
+    }))
+    .sort((a, b) => b.avgViews - a.avgViews);
+
+  // By content type
+  const typeMap: Record<string, number> = {};
+  igPosts.forEach(p => { typeMap[p.contentType] = (typeMap[p.contentType] || 0) + 1; });
+  const typeData = Object.entries(typeMap).map(([name, value]) => ({ name: CONTENT_TYPE_LABELS[name] || name, value }));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Performance by Content Style — bar chart */}
+        <div className="rounded-2xl border border-card-border bg-card p-5">
+          <p className="text-sm font-bold text-foreground mb-1">Performance by Content Style</p>
+          <p className="text-[11px] text-muted-foreground mb-4">Avg views per style</p>
+          {styleData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={styleData} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                <XAxis type="number" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => compactNum(v)} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
+                <RechartTooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: any, name: string) => [compactNum(v), name === "avgViews" ? "Avg Views" : name]}
+                />
+                <Bar dataKey="avgViews" radius={[0, 6, 6, 0]}>
+                  {styleData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <p className="text-xs text-muted-foreground text-center py-8">Tag your posts with a content style to see this chart</p>}
+        </div>
+
+        {/* Content Type Pie */}
+        <div className="rounded-2xl border border-card-border bg-card p-5">
+          <p className="text-sm font-bold text-foreground mb-1">Content Type Mix</p>
+          <p className="text-[11px] text-muted-foreground mb-4">Distribution of post formats</p>
+          {typeData.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width="50%" height={180}>
+                <PieChart>
+                  <Pie data={typeData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3}>
+                    {typeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  </Pie>
+                  <RechartTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex-1 space-y-2">
+                {typeData.map((d, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="text-xs text-foreground flex-1">{d.name}</span>
+                    <span className="text-xs font-bold text-foreground">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <p className="text-xs text-muted-foreground text-center py-8">No data yet</p>}
+        </div>
+      </div>
+
+      {/* Style ER table */}
+      {styleData.filter(s => s.name !== "Untagged").length > 0 && (
+        <div className="rounded-2xl border border-card-border bg-card p-5">
+          <p className="text-sm font-bold text-foreground mb-4">Style Breakdown</p>
+          <div className="space-y-2">
+            {styleData.map((s, i) => (
+              <div key={s.name} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold text-foreground" style={{ background: CHART_COLORS[i % CHART_COLORS.length] + "33", color: CHART_COLORS[i % CHART_COLORS.length] }}>{i + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{s.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{s.count} post{s.count !== 1 ? "s" : ""}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-foreground">{compactNum(s.avgViews)} avg views</p>
+                  <p className="text-[11px] text-muted-foreground">{s.avgEr}% ER</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Top 10 Reels Leaderboard ──────────────────────────────────────────────────
+function TopReelsLeaderboard({ posts }: { posts: any[] }) {
+  const reels = posts
+    .filter(p => p.platform === "instagram")
+    .sort((a, b) => toNum(b.views) - toNum(a.views))
+    .slice(0, 10);
+
+  if (reels.length === 0) return null;
+
+  const medals = ["🥇", "🥈", "🥉"];
+
+  return (
+    <div className="rounded-2xl border border-card-border bg-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Star className="w-4 h-4 text-yellow-400" />
+        <p className="text-sm font-bold text-foreground">Top 10 Reels</p>
+        <Badge variant="outline" className="text-[10px] ml-auto">by views</Badge>
+      </div>
+      <div className="space-y-2">
+        {reels.map((post, i) => {
+          const er = engRate(post.views, post.likes, post.comments, post.saves);
+          return (
+            <div key={post.id} className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+              i === 0 ? "bg-yellow-500/5 border border-yellow-500/20" :
+              i === 1 ? "bg-zinc-500/5 border border-zinc-500/20" :
+              i === 2 ? "bg-amber-700/5 border border-amber-700/20" :
+              "bg-muted/20 border border-transparent hover:bg-muted/40"
+            }`}>
+              <span className="text-base w-6 text-center flex-shrink-0">{medals[i] || `${i + 1}`}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{post.title || "Untitled"}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Eye className="w-2.5 h-2.5" />{compactNum(post.views)}</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" />{compactNum(post.likes)}</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" />{compactNum(post.comments)}</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><Bookmark className="w-2.5 h-2.5" />{compactNum(post.saves)}</span>
+                  {toNum(post.shares) > 0 && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><TrendingUp className="w-2.5 h-2.5" />{compactNum(post.shares)}</span>}
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                {er !== null && <EngagementBadge rate={er} />}
+                {post.contentStyle && (
+                  <p className="text-[10px] text-muted-foreground mt-1">{post.contentStyle}</p>
+                )}
+                {post.postUrl && (
+                  <a href={post.postUrl} target="_blank" rel="noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-0.5 justify-end mt-1">
+                    <ExternalLink className="w-2.5 h-2.5" /> View
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -2252,6 +2627,11 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         {/* Instagram Profile Setup — shown first on Instagram only */}
         {!isYt && user?.id && <InstagramSetupCard userId={user.id} />}
 
+        {/* Instagram Hero Dashboard — full-width command center */}
+        {!isYt && posts.length > 0 && (
+          <IgHeroDashboard posts={posts} trackedProfiles={trackedProfiles} user={user} />
+        )}
+
         {/* Follower Growth Tracker — Instagram only */}
         {!isYt && <IgFollowerPanel />}
 
@@ -2297,6 +2677,12 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
 
         {/* Follower Report Dialog */}
         <FollowerReportDialog open={followerReportOpen} onClose={() => setFollowerReportOpen(false)} />
+
+        {/* Top 10 Reels Leaderboard — Instagram only */}
+        {!isYt && posts.length > 0 && <TopReelsLeaderboard posts={posts} />}
+
+        {/* Performance by Format — Instagram only */}
+        {!isYt && posts.length > 0 && <PerformanceByFormat posts={posts} />}
 
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Posts by Month</p>

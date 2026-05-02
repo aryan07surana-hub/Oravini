@@ -177,7 +177,23 @@ app.use((req, res, next) => {
   next();
 });
 
+async function runMigrations() {
+  try {
+    await pool.query(`
+      ALTER TABLE content_posts
+        ADD COLUMN IF NOT EXISTS shares INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS content_style TEXT,
+        ADD COLUMN IF NOT EXISTS shares_2w INTEGER,
+        ADD COLUMN IF NOT EXISTS shares_4w INTEGER
+    `);
+    console.log("[migration] content_posts columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] skipped:", e.message);
+  }
+}
+
 (async () => {
+  await runMigrations();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

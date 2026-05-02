@@ -6,7 +6,7 @@ import { z } from "zod";
 export const roleEnum = pgEnum("role", ["admin", "client"]);
 export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", "strategy", "worksheet", "contract", "material", "other"]);
 export const platformEnum = pgEnum("platform", ["instagram", "youtube"]);
-export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video"]);
+export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video", "post"]);
 export const funnelStageEnum = pgEnum("funnel_stage", ["top", "middle", "bottom"]);
 export const planEnum = pgEnum("plan", ["free", "starter", "growth", "pro", "elite"]);
 export const sessionTypeEnum = pgEnum("session_type", ["recording", "live_qa", "workshop", "masterclass"]);
@@ -163,18 +163,22 @@ export const contentPosts = pgTable("content_posts", {
   likes: integer("likes").notNull().default(0),
   comments: integer("comments").notNull().default(0),
   saves: integer("saves").notNull().default(0),
+  shares: integer("shares").notNull().default(0),
+  contentStyle: text("content_style"),
   followersGained: integer("followers_gained").notNull().default(0),
   subscribersGained: integer("subscribers_gained").notNull().default(0),
   views2w: integer("views_2w"),
   likes2w: integer("likes_2w"),
   comments2w: integer("comments_2w"),
   saves2w: integer("saves_2w"),
+  shares2w: integer("shares_2w"),
   followersGained2w: integer("followers_gained_2w"),
   subscribersGained2w: integer("subscribers_gained_2w"),
   views4w: integer("views_4w"),
   likes4w: integer("likes_4w"),
   comments4w: integer("comments_4w"),
   saves4w: integer("saves_4w"),
+  shares4w: integer("shares_4w"),
   followersGained4w: integer("followers_gained_4w"),
   subscribersGained4w: integer("subscribers_gained_4w"),
   metricsReminded: boolean("metrics_reminded").notNull().default(false),
