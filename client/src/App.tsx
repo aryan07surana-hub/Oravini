@@ -36,6 +36,7 @@ import AIDesign from "@/pages/client/AIDesign";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
+import DMHub from "@/pages/client/DMHub";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -176,6 +177,7 @@ function Router() {
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
+      <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
@@ -210,6 +212,7 @@ function Router() {
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-tracker">{() => <Guard component={DMTracker} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/dm-hub">{() => <Guard component={DMHub} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/calendar">{() => <Guard component={AdminCalendar} adminOnly />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
       <Route path="/admin/course-modules">{() => <Guard component={AdminCourseModules} adminOnly />}</Route>
