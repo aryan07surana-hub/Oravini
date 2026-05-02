@@ -15,9 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 import {
   MessageCircle, Plus, Trash2, Edit2, Zap, Send, Play, Pause, Clock,
-  Target, TrendingUp, Users, Activity, Settings, ChevronRight, AlertCircle
+  Target, TrendingUp, Users, Activity, Settings, ChevronRight, AlertCircle,
+  BarChart3, Radio, Tag, Filter, Copy, CheckCircle2, XCircle, Megaphone,
+  GitBranch, Workflow, MessageSquare, Eye, MousePointerClick, Share2
 } from "lucide-react";
 
 export default function ManyChatDMTracker({ useAdmin = false }: { useAdmin?: boolean }) {
@@ -29,6 +32,8 @@ export default function ManyChatDMTracker({ useAdmin = false }: { useAdmin?: boo
   const [selectedClientId, setSelectedClientId] = useState<string>("all");
   const [triggerDialog, setTriggerDialog] = useState<any>(null);
   const [sequenceDialog, setSequenceDialog] = useState<any>(null);
+  const [broadcastDialog, setBroadcastDialog] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ["/api/clients"],
@@ -54,9 +59,11 @@ export default function ManyChatDMTracker({ useAdmin = false }: { useAdmin?: boo
 
   const stats = {
     totalLeads: leads.length,
+    newLeads: leads.filter((l: any) => l.status === "new").length,
     activeTriggers: triggers.filter((t: any) => t.isActive).length,
     activeSequences: sequences.filter((s: any) => s.isActive).length,
     totalEnrollments: sequences.reduce((sum: number, s: any) => sum + (s.enrollmentCount || 0), 0),
+    totalTriggerFires: triggers.reduce((sum: number, t: any) => sum + (t.triggerCount || 0), 0),
   };
 
   return (
@@ -65,12 +72,12 @@ export default function ManyChatDMTracker({ useAdmin = false }: { useAdmin?: boo
         {/* Header */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+              <Zap className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">ManyChat DM Automation</h1>
-              <p className="text-xs text-muted-foreground">Auto-reply triggers, sequences & lead tracking</p>
+              <h1 className="text-2xl font-bold text-foreground">ManyChat Automation</h1>
+              <p className="text-xs text-muted-foreground">Instagram DM automation & lead management</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -85,76 +92,200 @@ export default function ManyChatDMTracker({ useAdmin = false }: { useAdmin?: boo
                 </SelectContent>
               </Select>
             )}
+            <Button onClick={() => setBroadcastDialog(true)} className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+              <Megaphone className="w-4 h-4" />Broadcast
+            </Button>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Card className="border-blue-500/20 bg-blue-500/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground">Total Leads</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.totalLeads}</p>
+                  <p className="text-2xl font-bold text-blue-400">{stats.totalLeads}</p>
                 </div>
                 <Users className="w-8 h-8 text-blue-400 opacity-20" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-green-500/20 bg-green-500/5">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">New Leads</p>
+                  <p className="text-2xl font-bold text-green-400">{stats.newLeads}</p>
+                </div>
+                <TrendingUp className="w-8 h-8 text-green-400 opacity-20" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-amber-500/20 bg-amber-500/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground">Active Triggers</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.activeTriggers}</p>
+                  <p className="text-2xl font-bold text-amber-400">{stats.activeTriggers}</p>
                 </div>
-                <Target className="w-8 h-8 text-green-400 opacity-20" />
+                <Target className="w-8 h-8 text-amber-400 opacity-20" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-purple-500/20 bg-purple-500/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Active Sequences</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.activeSequences}</p>
+                  <p className="text-xs text-muted-foreground">Sequences</p>
+                  <p className="text-2xl font-bold text-purple-400">{stats.activeSequences}</p>
                 </div>
                 <Activity className="w-8 h-8 text-purple-400 opacity-20" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="border-pink-500/20 bg-pink-500/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground">Enrollments</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.totalEnrollments}</p>
+                  <p className="text-2xl font-bold text-pink-400">{stats.totalEnrollments}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-amber-400 opacity-20" />
+                <GitBranch className="w-8 h-8 text-pink-400 opacity-20" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-orange-500/20 bg-orange-500/5">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Trigger Fires</p>
+                  <p className="text-2xl font-bold text-orange-400">{stats.totalTriggerFires}</p>
+                </div>
+                <Zap className="w-8 h-8 text-orange-400 opacity-20" />
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Tabs */}
-        <Tabs defaultValue="triggers">
-          <TabsList>
-            <TabsTrigger value="triggers" className="gap-1.5 text-xs">
-              <Target className="w-3.5 h-3.5" />Triggers
+        <Tabs defaultValue="automation">
+          <TabsList className="grid grid-cols-6 w-full">
+            <TabsTrigger value="automation" className="gap-1.5 text-xs">
+              <Workflow className="w-3.5 h-3.5" />Automation
+            </TabsTrigger>
+            <TabsTrigger value="keywords" className="gap-1.5 text-xs">
+              <Target className="w-3.5 h-3.5" />Keywords
             </TabsTrigger>
             <TabsTrigger value="sequences" className="gap-1.5 text-xs">
               <Activity className="w-3.5 h-3.5" />Sequences
             </TabsTrigger>
-            <TabsTrigger value="leads" className="gap-1.5 text-xs">
-              <Users className="w-3.5 h-3.5" />Leads
+            <TabsTrigger value="audience" className="gap-1.5 text-xs">
+              <Users className="w-3.5 h-3.5" />Audience
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-1.5 text-xs">
+              <BarChart3 className="w-3.5 h-3.5" />Analytics
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5 text-xs">
               <Settings className="w-3.5 h-3.5" />Settings
             </TabsTrigger>
           </TabsList>
 
-          {/* Triggers Tab */}
-          <TabsContent value="triggers" className="mt-4 space-y-4">
+          {/* Automation Tab - Flow Builder Overview */}
+          <TabsContent value="automation" className="mt-4 space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Workflow className="w-4 h-4 text-purple-400" />
+                    Automation Flows
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground mb-4">Visual automation builder coming soon. For now, use Keywords and Sequences.</p>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg border border-border bg-card/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                        <p className="text-xs font-semibold">Welcome Flow</p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Trigger: "start" → 3 steps → 12 enrolled</p>
+                    </div>
+                    <div className="p-3 rounded-lg border border-border bg-card/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                        <p className="text-xs font-semibold">Pricing Flow</p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Trigger: "price" → Instant reply → 47 fires</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-cyan-500/5">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Radio className="w-4 h-4 text-blue-400" />
+                    Growth Tools
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50">
+                      <div>
+                        <p className="text-xs font-semibold">Comment Auto-Reply</p>
+                        <p className="text-[10px] text-muted-foreground">Reply to comments automatically</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">Coming Soon</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50">
+                      <div>
+                        <p className="text-xs font-semibold">Story Mention Reply</p>
+                        <p className="text-[10px] text-muted-foreground">Auto-reply to story mentions</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">Coming Soon</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50">
+                      <div>
+                        <p className="text-xs font-semibold">DM Link in Bio</p>
+                        <p className="text-[10px] text-muted-foreground">Generate ref links for bio</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">Coming Soon</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => setTriggerDialog({})}>
+                    <Target className="w-5 h-5 text-amber-400" />
+                    <span className="text-xs">New Keyword</span>
+                  </Button>
+                  <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => setSequenceDialog({})}>
+                    <Activity className="w-5 h-5 text-purple-400" />
+                    <span className="text-xs">New Sequence</span>
+                  </Button>
+                  <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => setBroadcastDialog(true)}>
+                    <Megaphone className="w-5 h-5 text-pink-400" />
+                    <span className="text-xs">Send Broadcast</span>
+                  </Button>
+                  <Button variant="outline" className="h-auto flex-col gap-2 p-4">
+                    <BarChart3 className="w-5 h-5 text-blue-400" />
+                    <span className="text-xs">View Analytics</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Keywords Tab */}
+          <TabsContent value="keywords" className="mt-4 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Auto-reply when someone sends a keyword</p>
               <Button onClick={() => setTriggerDialog({})} className="gap-2 h-9 text-sm">
