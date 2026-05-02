@@ -295,13 +295,11 @@ export default function OraviniLanding3D() {
       background: "#000",
       color: "#fff",
       minHeight: "100vh",
-      cursor: "none",
       fontFamily: "'Inter', sans-serif",
     }}>
-      <CustomCursor />
+      {/* Removed custom cursor for performance */}
       
       <style>{`
-        * { cursor: none !important; }
         @keyframes glow {
           0%, 100% { box-shadow: 0 0 20px ${GOLD}66, 0 0 40px ${GOLD}44, 0 0 60px ${GOLD}22; }
           50% { box-shadow: 0 0 40px ${GOLD}88, 0 0 80px ${GOLD}66, 0 0 120px ${GOLD}44; }
@@ -329,20 +327,13 @@ export default function OraviniLanding3D() {
         justifyContent: "center",
         overflow: "hidden",
       }}>
-        {/* 3D Canvas Background */}
-        {!canvasError && (
-          <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-            <Canvas camera={{ position: [0, 0, 8] }} onError={() => setCanvasError(true)}>
-              <ambientLight intensity={0.3} />
-              <pointLight position={[10, 10, 10]} intensity={1} color={GOLD} />
-              <pointLight position={[-10, -10, -10]} intensity={0.5} color={GOLD_BRIGHT} />
-              <Suspense fallback={null}>
-                <ParticleSystem />
-                <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
-              </Suspense>
-            </Canvas>
-          </div>
-        )}
+        {/* Simple gradient background instead of 3D canvas */}
+        <div style={{ 
+          position: "absolute", 
+          inset: 0, 
+          zIndex: 0,
+          background: "radial-gradient(ellipse at center, rgba(255,215,0,0.1), transparent 70%)"
+        }} />
 
         {/* Content */}
         <div style={{
