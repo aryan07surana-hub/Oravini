@@ -9,7 +9,7 @@ import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, dmTriggers, dmSequences, dmSequenceSteps, dmSequenceEnrollments,
-  instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
+  instagramProfileReports, appSettings, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
@@ -41,7 +41,6 @@ import {
   type DmSequenceStep, type InsertDmSequenceStep,
   type DmSequenceEnrollment,
   type InstagramProfileReport, type InsertInstagramProfileReport,
-  type CanvaToken, type InsertCanvaToken,
   type VideoResource, type InsertVideoResource,
   type OtpCode,
   type Session, type InsertSession,
@@ -81,11 +80,6 @@ export interface IStorage {
   // App Settings
   getAppSetting(key: string): Promise<string | undefined>;
   setAppSetting(key: string, value: string): Promise<void>;
-
-  // Canva OAuth tokens
-  getCanvaToken(userId: string): Promise<CanvaToken | undefined>;
-  upsertCanvaToken(data: InsertCanvaToken): Promise<CanvaToken>;
-  deleteCanvaToken(userId: string): Promise<void>;
 
   // Video Resource Library
   getVideoResources(): Promise<VideoResource[]>;
@@ -453,7 +447,6 @@ class DatabaseStorage implements IStorage {
     await db.delete(instagramProfileReports).where(eq(instagramProfileReports.clientId, id));
     await db.delete(nicheAnalyses).where(eq(nicheAnalyses.clientId, id));
     await db.delete(competitorAnalyses).where(eq(competitorAnalyses.clientId, id));
-    await db.delete(canvaTokens).where(eq(canvaTokens.userId, id));
     await db.delete(creditTransactions).where(eq(creditTransactions.userId, id));
     await db.delete(creditBalances).where(eq(creditBalances.userId, id));
     await db.delete(notifications).where(eq(notifications.clientId, id));
@@ -845,22 +838,6 @@ class DatabaseStorage implements IStorage {
   async setAppSetting(key: string, value: string): Promise<void> {
     await db.insert(appSettings).values({ key, value })
       .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-  }
-
-  async getCanvaToken(userId: string): Promise<CanvaToken | undefined> {
-    const [row] = await db.select().from(canvaTokens).where(eq(canvaTokens.userId, userId));
-    return row;
-  }
-
-  async upsertCanvaToken(data: InsertCanvaToken): Promise<CanvaToken> {
-    const [row] = await db.insert(canvaTokens).values(data)
-      .onConflictDoUpdate({ target: canvaTokens.userId, set: { accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt, scope: data.scope, updatedAt: new Date() } })
-      .returning();
-    return row;
-  }
-
-  async deleteCanvaToken(userId: string): Promise<void> {
-    await db.delete(canvaTokens).where(eq(canvaTokens.userId, userId));
   }
 
   async getVideoResources(): Promise<VideoResource[]> {
