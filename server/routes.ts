@@ -11170,7 +11170,7 @@ Rules:
   // ══════════════════════════════════════════════════════════════════════════
   // CONTENT INTELLIGENCE ENGINE
   // ══════════════════════════════════════════════════════════════════════════
-  const { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } = await import("./contentIntelligence");
+  const { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } = await import("./contentIntelligence.js");
 
   // ── Brand Voice Analyzer ───────────────────────────────────────────────────
   app.post("/api/brand-voice/analyze", requireAuth, async (req: Request, res: Response) => {
