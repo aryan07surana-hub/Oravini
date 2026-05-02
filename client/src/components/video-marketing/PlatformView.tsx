@@ -1891,12 +1891,12 @@ export default function PlatformView() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <Tabs defaultValue="webinars">
+        <Tabs defaultValue="video-hosting">
           <TabsList className="mb-8 flex flex-wrap gap-1 h-auto bg-zinc-900/80 border border-zinc-800 p-1 rounded-xl">
             {[
-              { value: "webinars", label: "Webinars", icon: MonitorPlay },
               { value: "video-hosting", label: "Video Hosting", icon: Video },
               { value: "videos", label: "Video Library", icon: Video },
+              { value: "webinars", label: "Webinars", icon: MonitorPlay },
               { value: "landing-pages", label: "Landing Pages", icon: LayoutTemplate },
               { value: "crm", label: "CRM", icon: Users },
               { value: "recordings", label: "Recordings", icon: Mic },
