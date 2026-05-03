@@ -135,9 +135,10 @@ export default function SelectPlan() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const whopSuccess = params.get("whop_success");
+    const hasVideo = params.get("video") === "true";
     if (whopSuccess === "starter" && user) {
       setConfirming("starter");
-      apiRequest("POST", "/api/auth/confirm-plan", { plan: "starter" })
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "starter", hasVideoMarketing: false })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
           toast({ title: "Welcome to Starter! 🎉", description: "Your $19/mo plan is now active. Enjoy 100 credits per month." });
@@ -146,19 +147,19 @@ export default function SelectPlan() {
         .catch(() => setConfirming(null));
     } else if (whopSuccess === "growth" && user) {
       setConfirming("growth");
-      apiRequest("POST", "/api/auth/confirm-plan", { plan: "growth" })
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "growth", hasVideoMarketing: hasVideo })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Growth! 🚀", description: "Your plan is now active. Enjoy 250 credits per month." });
+          toast({ title: "Welcome to Growth! 🚀", description: hasVideo ? "Your plan is now active with Video Marketing! Enjoy 250 credits per month." : "Your plan is now active. Enjoy 250 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
     } else if (whopSuccess === "pro" && user) {
       setConfirming("pro");
-      apiRequest("POST", "/api/auth/confirm-plan", { plan: "pro" })
+      apiRequest("POST", "/api/auth/confirm-plan", { plan: "pro", hasVideoMarketing: true })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Pro! ⚡", description: "Your plan is now active. Enjoy 500 credits per month." });
+          toast({ title: "Welcome to Pro! ⚡", description: "Your plan is now active with FREE Video Marketing! Enjoy 500 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
@@ -172,13 +173,13 @@ export default function SelectPlan() {
       return;
     }
     if (slug === "growth") {
-      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth`;
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth${videoMarketingGrowth ? '&video=true' : ''}`;
       const checkoutUrl = videoMarketingGrowth ? WHOP_GROWTH_VIDEO_URL : WHOP_GROWTH_URL;
       window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
     if (slug === "pro") {
-      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro`;
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro${videoMarketingPro ? '&video=true' : ''}`;
       const checkoutUrl = videoMarketingPro ? WHOP_PRO_VIDEO_URL : WHOP_PRO_URL;
       window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;

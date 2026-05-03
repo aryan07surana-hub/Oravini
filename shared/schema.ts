@@ -26,6 +26,7 @@ export const users = pgTable("users", {
   googleId: text("google_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
   planConfirmed: boolean("plan_confirmed").notNull().default(false),
+  hasVideoMarketing: boolean("has_video_marketing").notNull().default(false),
   surveyCompleted: boolean("survey_completed").notNull().default(false),
   hasVideoMarketingAddon: boolean("has_video_marketing_addon").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
