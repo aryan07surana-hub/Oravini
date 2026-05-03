@@ -43,35 +43,58 @@ async function handleSubscriptionCreated(data: WhopWebhookEvent["data"]) {
 
   let tier = "tier1";
   let autoGrantVideoMarketing = false;
+  let aiCreditsTotal = 20;
 
   if (data.plan_id.includes("free")) {
     tier = "tier1";
+    aiCreditsTotal = 20;
   } else if (data.plan_id.includes("starter")) {
     tier = "tier2";
+    aiCreditsTotal = 100;
   } else if (data.plan_id.includes("professional")) {
     tier = "tier3";
+    aiCreditsTotal = 250;
   } else if (data.plan_id.includes("business")) {
     tier = "tier4";
-    autoGrantVideoMarketing = true; // Tier 4 gets video marketing FREE
+    aiCreditsTotal = 500;
+    autoGrantVideoMarketing = true;
   } else if (data.plan_id.includes("enterprise")) {
     tier = "tier5";
-    autoGrantVideoMarketing = true; // Tier 5 includes video marketing
+    aiCreditsTotal = 9999;
+    autoGrantVideoMarketing = true;
   }
 
   const finalHasVideoMarketing = hasVideoMarketing || autoGrantVideoMarketing;
+  const resetDate = new Date();
+  resetDate.setMonth(resetDate.getMonth() + 1);
 
   console.log("Creating/updating user:", {
     userId: data.user_id,
     email: data.email,
     tier,
     hasVideoMarketing: finalHasVideoMarketing,
+    aiCreditsTotal,
+    aiCreditsRemaining: aiCreditsTotal,
   });
 
   // TODO: Update Prisma database
   // await prisma.user.upsert({
   //   where: { email: data.email },
-  //   update: { tier, hasVideoMarketing: finalHasVideoMarketing },
-  //   create: { email: data.email, tier, hasVideoMarketing: finalHasVideoMarketing }
+  //   update: { 
+  //     tier, 
+  //     hasVideoMarketing: finalHasVideoMarketing,
+  //     aiCreditsTotal,
+  //     aiCreditsRemaining: aiCreditsTotal,
+  //     creditsResetDate: resetDate
+  //   },
+  //   create: { 
+  //     email: data.email, 
+  //     tier, 
+  //     hasVideoMarketing: finalHasVideoMarketing,
+  //     aiCreditsTotal,
+  //     aiCreditsRemaining: aiCreditsTotal,
+  //     creditsResetDate: resetDate
+  //   }
   // });
 }
 

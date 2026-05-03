@@ -13,6 +13,19 @@ model User {
   name              String?
   tier              String   @default("tier1") // tier1, tier2, tier3, tier4, tier5
   hasVideoMarketing Boolean  @default(false)
+  aiCreditsRemaining Int     @default(20)
+  aiCreditsTotal     Int     @default(20)
+  creditsResetDate   DateTime @default(now())
+  transactions      CreditTransaction[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  creditsUsed Int
+  timestamp   DateTime @default(now())
 }

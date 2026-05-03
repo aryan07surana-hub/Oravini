@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CreditWidget from "./credit-widget";
 import styles from "./navigation.module.css";
 
 export default function Navigation() {
@@ -12,8 +13,9 @@ export default function Navigation() {
           <Link href="/">Planner</Link>
           <Link href="/video-marketing">Video Marketing</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/video-marketing/platform">Platform</Link>
+          <Link href="/dashboard">Dashboard</Link>
         </div>
+        <CreditWidget />
       </div>
     </nav>
   );
