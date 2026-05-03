@@ -17,7 +17,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 const GOLD = "#d4b461";
@@ -103,7 +103,7 @@ export default function AdminResponses() {
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/onboarding-surveys/clear-all", { method: "DELETE" });
+      return apiRequest("DELETE", "/api/admin/onboarding-surveys/clear-all");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
@@ -116,7 +116,7 @@ export default function AdminResponses() {
 
   const deleteResponseMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return apiRequest(`/api/admin/onboarding-surveys/${userId}`, { method: "DELETE" });
+      return apiRequest("DELETE", `/api/admin/onboarding-surveys/${userId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
