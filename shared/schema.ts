@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   plan: planEnum("plan").notNull().default("free"),
   planConfirmed: boolean("plan_confirmed").notNull().default(false),
   surveyCompleted: boolean("survey_completed").notNull().default(false),
+  hasVideoMarketingAddon: boolean("has_video_marketing_addon").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

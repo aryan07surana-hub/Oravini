@@ -5,20 +5,26 @@ import { Lock, Sparkles, Crown, Check, ArrowRight } from "lucide-react";
 
 const GOLD = "#d4b461";
 
-const ALLOWED_PLANS = ["pro", "elite"] as const;
-
-export function isTier4Or5(plan: string | undefined | null): boolean {
+// Growth with addon, Pro, or Elite can access
+export function hasVideoMarketingAccess(plan: string | undefined | null, hasAddon: boolean = false): boolean {
     if (!plan) return false;
-    return (ALLOWED_PLANS as readonly string[]).includes(plan);
+    // Pro and Elite always have access
+    if (plan === "pro" || plan === "elite") return true;
+    // Growth has access only if they purchased the addon
+    if (plan === "growth" && hasAddon) return true;
+    return false;
 }
 
 interface TierGateProps {
     currentPlan?: string;
     userName?: string;
+    hasVideoMarketingAddon?: boolean;
 }
 
-export default function TierGate({ currentPlan, userName }: TierGateProps) {
+export default function TierGate({ currentPlan, userName, hasVideoMarketingAddon = false }: TierGateProps) {
     const planLabel = (currentPlan || "free").replace(/^./, (c) => c.toUpperCase());
+    const isGrowth = currentPlan === "growth";
+    const needsAddon = isGrowth && !hasVideoMarketingAddon;
 
     return (
         <div
@@ -104,14 +110,34 @@ export default function TierGate({ currentPlan, userName }: TierGateProps) {
 
                     <h1 className="text-4xl md:text-5xl font-black leading-tight tracking-tight text-white">
                         {userName ? `Hey ${userName.split(" ")[0]}, ` : ""}
-                        Video Marketing is a{" "}
-                        <span style={{ color: GOLD }}>Tier 4 & 5</span> feature
+                        {needsAddon ? (
+                            <>
+                                Video Marketing is an{" "}
+                                <span style={{ color: GOLD }}>optional add-on</span>
+                            </>
+                        ) : (
+                            <>
+                                Video Marketing is a{" "}
+                                <span style={{ color: GOLD }}>Pro & Elite</span> feature
+                            </>
+                        )}
                     </h1>
                     <p className="mt-5 text-base md:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-                        Hosting webinars, uploading videos, building landing pages, and
-                        accessing the full video marketing analytics suite is reserved for
-                        our <strong className="text-white">Pro</strong> and{" "}
-                        <strong className="text-white">Elite</strong> members.
+                        {needsAddon ? (
+                            <>
+                                You're on the <strong className="text-white">Growth</strong> plan.
+                                Add the Video Marketing Suite for just{" "}
+                                <strong style={{ color: GOLD }}>+$20/mo</strong> to unlock
+                                webinars, VSLs, video hosting, and analytics.
+                            </>
+                        ) : (
+                            <>
+                                Hosting webinars, uploading videos, building landing pages, and
+                                accessing the full video marketing analytics suite is reserved for
+                                our <strong className="text-white">Pro</strong> and{" "}
+                                <strong className="text-white">Elite</strong> members.
+                            </>
+                        )}
                     </p>
 
                     {/* Feature bullets */}
@@ -148,17 +174,33 @@ export default function TierGate({ currentPlan, userName }: TierGateProps) {
 
                     {/* CTAs */}
                     <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                        <Link href="/select-plan">
-                            <Button
-                                size="lg"
-                                className="px-8 font-semibold"
-                                style={{ background: GOLD, color: "#000" }}
-                            >
-                                <Sparkles className="w-4 h-4 mr-2" />
-                                Upgrade to Pro or Elite
-                                <ArrowRight className="w-4 h-4 ml-2" />
-                            </Button>
-                        </Link>
+                        {needsAddon ? (
+                            <>
+                                <Link href="/select-plan?addon=video">
+                                    <Button
+                                        size="lg"
+                                        className="px-8 font-semibold"
+                                        style={{ background: GOLD, color: "#000" }}
+                                    >
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        Add Video Marketing (+$20/mo)
+                                        <ArrowRight className="w-4 h-4 ml-2" />
+                                    </Button>
+                                </Link>
+                            </>
+                        ) : (
+                            <Link href="/select-plan">
+                                <Button
+                                    size="lg"
+                                    className="px-8 font-semibold"
+                                    style={{ background: GOLD, color: "#000" }}
+                                >
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Upgrade to Pro or Elite
+                                    <ArrowRight className="w-4 h-4 ml-2" />
+                                </Button>
+                            </Link>
+                        )}
                         <Link href="/dashboard">
                             <Button
                                 size="lg"
@@ -171,8 +213,9 @@ export default function TierGate({ currentPlan, userName }: TierGateProps) {
                     </div>
 
                     <p className="mt-6 text-xs text-zinc-500">
-                        Already on Pro or Elite? Contact support — this might be a
-                        provisioning delay.
+                        {needsAddon
+                            ? "Upgrade to Pro to get Video Marketing included FREE — a $49/mo value."
+                            : "Already on Pro or Elite? Contact support — this might be a provisioning delay."}
                     </p>
                 </div>
             </main>

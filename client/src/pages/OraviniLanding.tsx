@@ -324,9 +324,9 @@ const STATS = [
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
 const PRICING_TIERS = [
   { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
-  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
-  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor — 2 credits/msg", "Clip Finder — 5 credits", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 2", name: "Starter", price: "$19", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
+  { tier: "Tier 3", name: "Growth", price: "$49", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -736,10 +736,10 @@ export default function OraviniLanding() {
               <div>
                 <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Optional Add-on · Growth & Pro Plans</div>
                 <h3 style={{ fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
-                  Add full video access<br />from <span style={{ color: GOLD }}>$29/mo</span>
+                  Add full video access<br />from <span style={{ color: GOLD }}>$20/mo</span>
                 </h3>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, maxWidth: 420 }}>
-                  Growth members add the Video Hosting + Webinar add-on for +$39/mo. Pro members get the full Video Pro Bundle for just +$29/mo — saving $10 vs the standalone price.
+                  Growth members add the Video Marketing Suite for +$20/mo. Pro members get the full Video Marketing Suite included FREE — a $49/mo value at no extra cost.
                 </p>
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -950,37 +950,57 @@ export default function OraviniLanding() {
                     ))}
                   </div>
 
-                  {/* Video Marketing add-on — Growth (+$39) and Pro (+$29, exclusive rate) */}
-                  {(t.name === "Growth" || t.name === "Pro") && (
-                    <div style={{ background: t.name === "Pro" ? `${GOLD}0c` : "rgba(255,255,255,0.025)", border: `1px solid ${t.name === "Pro" ? `${GOLD}30` : "rgba(255,255,255,0.09)"}`, borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                  {/* Video Marketing add-on — Growth (+$20) and Pro (INCLUDED FREE) */}
+                  {t.name === "Growth" && (
+                    <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
                       <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Optional Add-on</div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                         <div>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: t.name === "Pro" ? GOLD : "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Video Marketing</div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Video Marketing Suite</div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{t.name === "Pro" ? "+$29" : "+$39"}</span>
+                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>+$20</span>
                             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>/mo</span>
                           </div>
                         </div>
-                        {t.name === "Pro" && (
-                          <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.28)", borderRadius: 99, padding: "2px 8px" }}>
-                            <span style={{ fontSize: 9, fontWeight: 800, color: "#f87171" }}>Save $10</span>
-                          </div>
-                        )}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
-                        {(t.name === "Pro"
-                          ? ["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages"]
-                          : ["Video hosting + VSL pages", "3 webinars/mo + registration pages", "Email reminders + basic analytics"]
-                        ).map(f => (
+                        {["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder", "Email reminders + analytics"].map(f => (
                           <div key={f} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                            <span style={{ color: t.name === "Pro" ? GOLD : "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
+                            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
                             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>{f}</span>
                           </div>
                         ))}
                       </div>
                       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.16)", lineHeight: 1.5 }}>
-                        {t.name === "Pro" ? "Best rate available — $59/mo standalone." : "Upgrade to Pro for exclusive $29/mo rate."}
+                        Upgrade to Pro to get this FREE — $49/mo value included.
+                      </div>
+                    </div>
+                  )}
+                  {t.name === "Pro" && (
+                    <div style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}30`, borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: GOLD, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>✨ Included Free</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Full Video Marketing Suite</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>FREE</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>$49/mo</span>
+                          </div>
+                        </div>
+                        <div style={{ background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.28)", borderRadius: 99, padding: "2px 8px" }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: "#34d399" }}>$49 Value</span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+                        {["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "Priority video processing"].map(f => (
+                          <div key={f} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <span style={{ color: GOLD, fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: GOLD, lineHeight: 1.5, fontWeight: 600 }}>
+                        Everything included at no extra cost.
                       </div>
                     </div>
                   )}
