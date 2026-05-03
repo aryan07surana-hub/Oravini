@@ -1,0 +1,7 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/parse/route": "/api/parse",
+  "/api/plan/route": "/api/plan",
+  "/page": "/"
+}

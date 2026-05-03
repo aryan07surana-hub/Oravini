@@ -1,6 +1,74 @@
-.next
+# ── Project / build ──────────────────────────────────────────
 node_modules
-npm-debug.log*
+node_modules/
+dist
+server/public
+vite.config.ts.*
+*.tar.gz
 .env
-.env.local
+project.zip
+pyproject.toml
+uv.lock
+[0-9]*-player-script.js
+
+# ── Replit ───────────────────────────────────────────────────
+replit.md
+.replit
+*.replit
+
+# ── Sensitive credentials & keys ─────────────────────────────
+.aws/
+.ssh/
+.gnupg/
+.claude.json
+.claude.json.backup
+.cline/
+.codex/
+.copilot/
+.cursor/
+.gemini/
+.th-client/
+.openclaw/
+.antigravity/
+.vscode-shared/
+.vscode/
+
+# ── Shell & system history ────────────────────────────────────
+.zsh_history
+.bash_history
+.zsh_sessions/
+.lesshst
+.node_repl_history
+
+# ── System files ──────────────────────────────────────────────
 .DS_Store
+.CFUserTextEncoding
+.zcompdump
+.profile
+.zprofile
+.zshrc
+.zshrc.save
+.gitconfig
+.local/
+.cache/
+.config/
+.npm/
+.nvm/
+.ollama/
+.platformio/
+
+# ── Large personal directories ────────────────────────────────
+Applications/
+Library/
+Music/
+Movies/
+Pictures/
+Public/
+Downloads/
+Documents/
+iCloud Drive (Archive)/
+
+# ── Misc ──────────────────────────────────────────────────────
+package-lock.json
+free-claude-code/
+*.py

@@ -1,0 +1,12008 @@
+import type { Express, Request, Response } from "express";
+import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
+import dns from "dns";
+import passport from "passport";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes } from "./routes/index";
+import nodemailer from "nodemailer";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import Anthropic from "@anthropic-ai/sdk";
+import { storage, pool } from "./storage";
+import { hashPassword } from "./auth";
+import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, insertScheduledInstagramPostSchema } from "@shared/schema";
+import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
+import { seedDatabase } from "./seed";
+import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
+import { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } from "./contentIntelligence";
+import contentWorkflowRoutes from "./contentWorkflowRoutes";
+
+const uploadsDir = path.resolve("uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      cb(null, `${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 200 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v", ".mp3", ".m4a", ".wav"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error("Only video/audio files are allowed"));
+  },
+});
+
+function requireAuth(req: Request, res: Response, next: Function) {
+  if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+  next();
+}
+
+function requireAdmin(req: Request, res: Response, next: Function) {
+  if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+  if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+  next();
+}
+
+const clients = new Map<string, WebSocket>();
+const projectTrackerKey = (clientId: string) => `project_tracker:${clientId}`;
+
+// Express 5 types req.params values as string | string[]; this helper always returns a string
+const p = (param: string | string[]): string => Array.isArray(param) ? param[0] : param;
+
+function normalizeInstagramProfileInput(input: string): { profileUrl: string; username: string } | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  const cleaned = raw
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/^instagram\.com\//i, "")
+    .replace(/^@/, "")
+    .split("?")[0]
+    .split("#")[0]
+    .replace(/^\/+|\/+$/g, "");
+
+  if (!cleaned) return null;
+
+  const firstSegment = cleaned.split("/")[0]?.trim().toLowerCase();
+  if (!firstSegment) return null;
+  if (["p", "reel", "reels", "tv", "stories", "explore"].includes(firstSegment)) return null;
+
+  return {
+    username: firstSegment,
+    profileUrl: `https://www.instagram.com/${firstSegment}/`,
+  };
+}
+
+async function getProjectTrackerForClient(clientId: string, fallbackName = "Client", programName?: string) {
+  const raw = await storage.getAppSetting(projectTrackerKey(clientId));
+  if (!raw) {
+    const tracker = createDefaultProjectTracker(clientId, fallbackName, programName);
+    await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+    return tracker;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as ProjectTracker;
+    return parsed;
+  } catch {
+    const tracker = createDefaultProjectTracker(clientId, fallbackName, programName);
+    await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+    return tracker;
+  }
+}
+
+async function saveProjectTrackerForClient(clientId: string, tracker: ProjectTracker) {
+  await storage.setAppSetting(projectTrackerKey(clientId), JSON.stringify(tracker));
+}
+
+function buildProjectHealth(tracker: ProjectTracker): ProjectHealth {
+  const summary = getProjectTrackerSummary(tracker);
+  if (tracker.projectStatus === "completed" || summary.completion >= 100) return "completed";
+  if (summary.blockerCount > 0 || tracker.projectStatus === "blocked") return "blocked";
+  if (summary.approvalCount >= 3 || summary.clientQueueCount >= 4) return "watch";
+  return "on_track";
+}
+
+function syncProjectTracker(tracker: ProjectTracker, clientName?: string, programName?: string): ProjectTracker {
+  const normalized = normalizeProjectTracker(tracker);
+  const completion = getProjectCompletion(normalized);
+  const currentPhase = getCurrentPhase(normalized);
+  const summary = getProjectTrackerSummary(normalized);
+  const projectStatus: ProjectStatus = completion >= 100 ? "completed" : normalized.projectStatus === "paused" ? "paused" : summary.blockerCount > 0 ? "blocked" : "active";
+
+  return {
+    ...normalized,
+    projectName: normalized.projectName || `${clientName || "Client"}'s Growth Engine`,
+    programName: normalized.programName || programName || "Tier 5 Elite Buildout",
+    currentFocus: normalized.currentFocus || currentPhase?.objective || "Execution is moving through the current milestone.",
+    nextClientAction: normalized.nextClientAction || summary.nextActions.find((action) => action.owner === "client")?.title || "Stay ready for the next approval or action request.",
+    projectStatus,
+    health: buildProjectHealth({ ...normalized, projectStatus }),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function appendProjectUpdate(tracker: ProjectTracker, title: string, message: string, type: "system" | "milestone" | "alert" | "client" = "system") {
+  const next = {
+    ...tracker,
+    updates: [
+      {
+        id: `update-${Date.now()}`,
+        title,
+        message,
+        type,
+        createdAt: new Date().toISOString(),
+      },
+      ...(tracker.updates || []),
+    ].slice(0, 12),
+  };
+
+  return syncProjectTracker(next);
+}
+
+export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  await seedDatabase();
+
+  app.use("/uploads", (await import("express")).default.static(uploadsDir));
+
+  // ── Webinar analytics schema migration ────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webinar_events (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        webinar_id VARCHAR NOT NULL REFERENCES webinars(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        viewer_name TEXT,
+        viewer_id TEXT,
+        data JSONB,
+        ts TIMESTAMP DEFAULT NOW()
+      );
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP;
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS peak_viewers INTEGER DEFAULT 0;
+    `);
+  } catch (e: any) {
+    console.warn("[migration] webinar analytics:", e?.message);
+  }
+
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+
+  // ── Webinar signaling rooms ──────────────────────────────────────────────
+  interface WRViewer { ws: WebSocket; name: string; raisedHand?: boolean; }
+  type WRRoom = { host: WebSocket | null; viewers: Map<string, WRViewer>; activePoll: { pollId: string; options: string[]; votes: number[] } | null };
+  const webinarRooms = new Map<string, WRRoom>();
+
+  const wrSend = (socket: WebSocket | null | undefined, data: object) => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data));
+  };
+  const wrNotifyCount = (roomId: string) => {
+    const room = webinarRooms.get(roomId);
+    if (!room) return;
+    const count = room.viewers.size;
+    const list = Array.from(room.viewers.entries()).map(([id, v]) => ({ id, name: v.name, raisedHand: !!v.raisedHand }));
+    wrSend(room.host, { type: "wr_attendee_update", count, list });
+    room.viewers.forEach(v => wrSend(v.ws, { type: "wr_attendee_count", count }));
+  };
+
+  wss.on("connection", (ws, req) => {
+    const url = new URL(req.url!, `http://localhost`);
+    const userId = url.searchParams.get("userId");
+    if (userId) clients.set(userId, ws);
+
+    let wrRole: "host" | "viewer" | null = null;
+    let wrId:   string | null = null;
+    let vrId:   string | null = null;
+
+    ws.on("message", async (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        switch (msg.type) {
+
+          case "wr_host_join": {
+            wrRole = "host"; wrId = msg.webinarId;
+            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
+            const room = webinarRooms.get(wrId!)!;
+            room.host = ws;
+            wrSend(ws, { type: "wr_host_ready" });
+            room.viewers.forEach((v, vid) => wrSend(ws, { type: "wr_viewer_joined", viewerId: vid, name: v.name }));
+            wrNotifyCount(wrId!);
+            break;
+          }
+
+          case "wr_viewer_join": {
+            wrRole = "viewer"; wrId = msg.webinarId;
+            vrId = msg.viewerId || Math.random().toString(36).slice(2, 10);
+            const vName = msg.name || "Anonymous";
+            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
+            const room = webinarRooms.get(wrId!)!;
+            room.viewers.set(vrId!, { ws, name: vName });
+            wrSend(ws, { type: "wr_viewer_ready", viewerId: vrId });
+            wrSend(room.host, { type: "wr_viewer_joined", viewerId: vrId, name: vName });
+            wrNotifyCount(wrId!);
+            storage.createWebinarEvent({ webinarId: wrId!, eventType: "viewer_join", viewerName: vName, viewerId: vrId!, data: null }).catch(() => {});
+            pool.query(`UPDATE webinars SET peak_viewers = GREATEST(COALESCE(peak_viewers,0), $1) WHERE id = $2`, [room.viewers.size, wrId!]).catch(() => {});
+            break;
+          }
+
+          case "wr_offer": {
+            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
+            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_offer", sdp: msg.sdp }));
+            break;
+          }
+
+          case "wr_answer": {
+            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_answer", viewerId: msg.viewerId, sdp: msg.sdp });
+            break;
+          }
+
+          case "wr_ice_host": {
+            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
+            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_ice", candidate: msg.candidate }));
+            break;
+          }
+
+          case "wr_ice_viewer": {
+            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_ice", viewerId: msg.viewerId, candidate: msg.candidate });
+            break;
+          }
+
+          case "wr_chat": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const pkt = { type: "wr_chat", message: { name: msg.name, text: msg.text, ts: msg.ts, isHost: !!msg.isHost } };
+            if (msg.isHost) {
+              room.viewers.forEach(v => wrSend(v.ws, pkt));
+            } else {
+              wrSend(room.host, pkt);
+              room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
+            }
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "chat", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, isHost: !!msg.isHost } }).catch(() => {});
+            break;
+          }
+
+          case "wr_qa": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            wrSend(room.host, { type: "wr_qa", question: { id: msg.id, name: msg.name, text: msg.text, ts: msg.ts } });
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "qa", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, id: msg.id } }).catch(() => {});
+            break;
+          }
+
+          case "wr_reaction": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const pkt = { type: "wr_reaction", emoji: msg.emoji, name: msg.name };
+            wrSend(room.host, pkt);
+            room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "reaction", viewerName: msg.name || null, viewerId: vrId || null, data: { emoji: msg.emoji } }).catch(() => {});
+            break;
+          }
+
+          case "wr_raise_hand": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room || !vrId) break;
+            const viewer = room.viewers.get(vrId);
+            if (viewer) viewer.raisedHand = true;
+            wrSend(room.host, { type: "wr_raise_hand", viewerId: vrId, name: msg.name });
+            wrNotifyCount(msg.webinarId);
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "raise_hand", viewerName: msg.name || null, viewerId: vrId, data: null }).catch(() => {});
+            break;
+          }
+
+          case "wr_lower_hand": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const viewer = room.viewers.get(msg.viewerId);
+            if (viewer) {
+              viewer.raisedHand = false;
+              wrSend(viewer.ws, { type: "wr_hand_lowered" });
+            }
+            wrNotifyCount(msg.webinarId);
+            break;
+          }
+
+          case "wr_lower_hand_self": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room || !vrId) break;
+            const viewer = room.viewers.get(vrId);
+            if (viewer) viewer.raisedHand = false;
+            wrNotifyCount(msg.webinarId);
+            break;
+          }
+
+          case "wr_cta_launch": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const ctaPkt = { type: "wr_cta_show", title: msg.title, url: msg.url, buttonText: msg.buttonText || "Get Access Now →" };
+            room.viewers.forEach(v => wrSend(v.ws, ctaPkt));
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_launched", viewerName: null, viewerId: null, data: { title: msg.title, url: msg.url } }).catch(() => {});
+            break;
+          }
+
+          case "wr_cta_hide": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            room.viewers.forEach(v => wrSend(v.ws, { type: "wr_cta_hidden" }));
+            break;
+          }
+
+          case "wr_cta_click": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_click", viewerName: msg.name || null, viewerId: vrId || null, data: { url: msg.url } }).catch(() => {});
+            if (room) wrSend(room.host, { type: "wr_cta_clicked" });
+            break;
+          }
+
+          case "wr_poll_launch": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            room.activePoll = { pollId: msg.pollId, options: msg.options || [], votes: new Array((msg.options || []).length).fill(0) };
+            const pkt = { type: "wr_poll_show", pollId: msg.pollId, question: msg.question, options: msg.options };
+            room.viewers.forEach(v => wrSend(v.ws, pkt));
+            break;
+          }
+
+          case "wr_poll_vote": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room?.activePoll || room.activePoll.pollId !== msg.pollId) break;
+            const idx = Number(msg.optionIndex);
+            if (idx >= 0 && idx < room.activePoll.votes.length) {
+              room.activePoll.votes[idx] = (room.activePoll.votes[idx] || 0) + 1;
+            }
+            wrSend(room.host, { type: "wr_poll_results", pollId: msg.pollId, votes: room.activePoll.votes });
+            break;
+          }
+
+          case "wr_poll_end": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const finalVotes = room.activePoll?.votes || [];
+            const endPkt = { type: "wr_poll_ended", pollId: msg.pollId, options: msg.options || room.activePoll?.options || [], votes: finalVotes };
+            room.viewers.forEach(v => wrSend(v.ws, endPkt));
+            wrSend(room.host, endPkt);
+            room.activePoll = null;
+            break;
+          }
+
+          case "wr_host_end": {
+            const room = webinarRooms.get(msg.webinarId);
+            room?.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
+            webinarRooms.delete(msg.webinarId);
+            break;
+          }
+        }
+      } catch {}
+    });
+
+    ws.on("close", () => {
+      if (userId) clients.delete(userId);
+      if (!wrId) return;
+      const room = webinarRooms.get(wrId);
+      if (!room) return;
+      if (wrRole === "host") {
+        room.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
+        webinarRooms.delete(wrId);
+      } else if (wrRole === "viewer" && vrId) {
+        room.viewers.delete(vrId);
+        wrSend(room.host, { type: "wr_viewer_left", viewerId: vrId });
+        wrNotifyCount(wrId);
+        if (wrId) storage.createWebinarEvent({ webinarId: wrId, eventType: "viewer_leave", viewerName: null, viewerId: vrId, data: null }).catch(() => {});
+      }
+    });
+  });
+
+  function sendToUser(userId: string, data: object) {
+    const ws = clients.get(userId);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
+  }
+
+  const getConfiguredAppBase = () => {
+    const explicitBase =
+      process.env.APP_URL ||
+      process.env.SITE_URL ||
+      process.env.PUBLIC_BASE_URL;
+    if (explicitBase) return explicitBase.replace(/\/$/, "");
+    return `http://localhost:${process.env.PORT || "5000"}`;
+  };
+
+  const getRequestAwareBase = (req: Request) => {
+    const explicitBase =
+      process.env.APP_URL ||
+      process.env.SITE_URL ||
+      process.env.PUBLIC_BASE_URL;
+    if (explicitBase) return explicitBase.replace(/\/$/, "");
+    const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+    const host = req.get("host") || `localhost:${process.env.PORT || "5000"}`;
+    return `${proto}://${host}`;
+  };
+
+  // Auth
+  // ── Public self-registration ─────────────────────────────────────────────
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { name, email, password, referralCode } = req.body;
+      if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
+      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(400).json({ message: "An account with this email already exists" });
+      const hashed = await hashPassword(password);
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false } as any);
+      syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
+      // Auto-enroll in "join" sequences
+      storage.getEmailSequences().then(seqs => {
+        seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+      }).catch(() => { });
+      // Process referral — from body or cookie (await so credits always land before response)
+      const refCode = referralCode || (req as any).cookies?.referral_code;
+      if (refCode) {
+        try {
+          const ip = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "";
+          await storage.processReferralSignup(refCode, user.id, email, ip);
+        } catch (refErr) {
+          console.error("[referral] processReferralSignup failed for new user", user.id, "code:", refCode, refErr);
+        }
+      }
+      req.logIn(user, (err) => {
+        if (err) return res.status(500).json({ message: "Login after register failed" });
+        const { password: _, ...safe } = user;
+        return res.json(safe);
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Registration failed" });
+    }
+  });
+
+  // ── Referral System ─────────────────────────────────────────────────────────
+  // Public: track a click and set cookie
+  app.get("/api/referral/track", async (req: Request, res: Response) => {
+    const code = req.query.code as string;
+    if (!code) return res.status(400).json({ message: "Code required" });
+    const ip = req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "";
+    const ua = req.headers["user-agent"] || "";
+    await storage.trackReferralClick(code, ip, ua).catch(() => { });
+    res.cookie("referral_code", code, { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: false, sameSite: "lax" });
+    res.json({ ok: true });
+  });
+
+  // Authenticated: get user's referral code + stats
+  app.get("/api/referral/my-stats", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const stats = await storage.getReferralStats(userId);
+    const host = req.headers.host || "oravini.com";
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const link = `${protocol}://${host}/?ref=${stats.code}`;
+    res.json({ ...stats, link });
+  });
+
+  // Admin: full referral stats list
+  app.get("/api/admin/referral-stats", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const stats = await storage.getAllReferralStats();
+    res.json(stats);
+  });
+
+  // Admin: leaderboard
+  app.get("/api/admin/referral-leaderboard", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const board = await storage.getReferralLeaderboard();
+    res.json(board);
+  });
+
+  // Admin: all conversions/leads
+  app.get("/api/admin/referral-leads", requireAuth, async (req: Request, res: Response) => {
+    if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const result = await (storage as any).pool?.query(`
+      SELECT rv.*, u.name as referrer_name, u.email as referrer_email,
+             ru.name as referred_name, ru.email as referred_email_addr, ru.plan as referred_plan
+      FROM referral_conversions rv
+      LEFT JOIN users u ON u.id = rv.referrer_id
+      LEFT JOIN users ru ON ru.id = rv.referred_user_id
+      ORDER BY rv.created_at DESC
+    `).catch(() => ({ rows: [] }));
+    res.json(result?.rows || []);
+  });
+
+  // ── Phone OTP — request ────────────────────────────────────────────────────
+  app.post("/api/auth/phone/request-otp", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      let { phone } = req.body;
+      if (!phone) return res.status(400).json({ message: "Phone number is required" });
+      // Normalise: strip spaces, ensure +country prefix
+      phone = phone.replace(/\s+/g, "");
+      if (!phone.startsWith("+")) return res.status(400).json({ message: "Phone must start with country code, e.g. +91..." });
+
+      // Check if phone already taken by a DIFFERENT user
+      const existing = await storage.getUserByPhone(phone);
+      if (existing && existing.id !== userId) {
+        return res.status(400).json({ message: "This phone number is already linked to another account" });
+      }
+
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+      if (!accountSid || !authToken || !fromPhone) {
+        return res.status(503).json({ message: "SMS service not configured yet" });
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await storage.createOtpCode(phone, code, expiresAt);
+
+      const twilio = (await import("twilio")).default;
+      const client = twilio(accountSid, authToken);
+      await client.messages.create({
+        to: phone,
+        from: fromPhone,
+        body: `Your Oravini verification code is: ${code}. Valid for 10 minutes.`,
+      });
+
+      res.json({ message: "OTP sent" });
+    } catch (err: any) {
+      console.error("[phone-otp] request error:", err);
+      res.status(500).json({ message: err.message || "Failed to send OTP" });
+    }
+  });
+
+  // ── Phone OTP — verify ─────────────────────────────────────────────────────
+  app.post("/api/auth/phone/verify-otp", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      let { phone, code } = req.body;
+      if (!phone || !code) return res.status(400).json({ message: "Phone and code are required" });
+      phone = phone.replace(/\s+/g, "");
+
+      // Check if phone taken by another user
+      const existing = await storage.getUserByPhone(phone);
+      if (existing && existing.id !== userId) {
+        return res.status(400).json({ message: "This phone number is already linked to another account" });
+      }
+
+      const otp = await storage.getValidOtpCode(phone, code);
+      if (!otp) return res.status(400).json({ message: "Invalid or expired code. Please request a new one." });
+
+      await storage.markOtpUsed(otp.id);
+      await storage.setPhoneVerified(userId, phone);
+
+      const user = await storage.getUser(userId);
+      const { password: _, ...safe } = user!;
+      res.json(safe);
+    } catch (err: any) {
+      console.error("[phone-otp] verify error:", err);
+      res.status(500).json({ message: err.message || "Verification failed" });
+    }
+  });
+
+  // ── Confirm plan (mark user as onboarded after choosing a plan) ──────────
+  app.post("/api/auth/confirm-plan", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const { plan } = req.body;
+    const update: any = { planConfirmed: true };
+    if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
+    await storage.updateUser(userId, update);
+    // Immediately activate the correct credit allowance for the new plan
+    const activatedPlan = update.plan || "free";
+    await storage.activatePlanCredits(userId, activatedPlan);
+    // Auto-enroll in "upgrade" sequences if plan is paid
+    if (update.plan && update.plan !== "free") {
+      storage.getEmailSequences().then(seqs => {
+        seqs.filter(s => s.trigger === "upgrade" && s.active).forEach(s => storage.enrollUserInSequence(userId, s.id).catch(() => { }));
+      }).catch(() => { });
+      // Award referrer 50 credits now that this user has upgraded to a paid plan
+      storage.processReferralConversion(userId).catch(() => { });
+    }
+    const updated = await storage.getUser(userId);
+    const { password: _, ...safe } = updated!;
+    res.json(safe);
+  });
+
+  // POST /api/auth/cancel-plan — downgrade user back to free immediately
+  app.post("/api/auth/cancel-plan", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    await storage.updateUser(userId, { plan: "free" });
+    await storage.activatePlanCredits(userId, "free");
+    const updated = await storage.getUser(userId);
+    const { password: _, ...safe } = updated!;
+    res.json(safe);
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        const { password, ...safeUser } = user;
+        return res.json(safeUser);
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout(() => res.json({ message: "Logged out" }));
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    const { password, ...safeUser } = req.user as any;
+    // Merge survey fields if not already on the session user
+    if (!safeUser.fields && !safeUser.struggles) {
+      try {
+        const survey = await storage.getOnboardingSurvey(safeUser.id);
+        if (survey) {
+          Object.assign(safeUser, {
+            awareness: survey.awareness,
+            fields: survey.fields,
+            struggles: survey.struggles,
+            contentTypes: survey.content_types,
+            descriptor: survey.descriptor,
+            experience: survey.experience,
+            followerCount: survey.follower_count,
+            monthlyRevenue: survey.monthly_revenue,
+            primaryGoal: survey.primary_goal,
+            platforms: survey.platforms,
+            heardAbout: survey.heard_about,
+          });
+          // Cache on session user for subsequent requests
+          Object.assign(req.user as any, safeUser);
+        }
+      } catch (_) { /* non-critical */ }
+    }
+    res.json(safeUser);
+  });
+
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const { comparePassword } = await import("./auth");
+    const user = await storage.getUser((req.user as any).id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const valid = await comparePassword(currentPassword, user.password);
+    if (!valid) return res.status(400).json({ message: "Current password is incorrect" });
+    const hashed = await hashPassword(newPassword);
+    await storage.updateUser(user.id, { password: hashed });
+    res.json({ message: "Password updated" });
+  });
+
+  // ── Google OAuth ────────────────────────────────────────────────────────────
+  // Save referral code into session BEFORE redirecting to Google — the callback
+  // cannot read body/form data, so session is the only reliable carrier.
+  app.get("/api/auth/google", (req, res, next) => {
+    const refCode = (req.cookies as any)?.referral_code || (req.query.ref as string) || null;
+    if (refCode) {
+      // Explicitly save session BEFORE redirecting to Google so the referral code
+      // survives the round-trip. Passive session.save-on-end is not reliable here.
+      (req.session as any).pendingReferralCode = refCode;
+      req.session.save(() => {
+        passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+      });
+    } else {
+      passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
+    }
+  });
+
+  app.get("/api/auth/google/callback",
+    (req, res, next) => {
+      passport.authenticate("google", (err: any, user: any, info: any) => {
+        if (err) {
+          console.error("[google-oauth] callback error:", err);
+          return res.redirect(`/login?error=google_failed&msg=${encodeURIComponent(err.message || "unknown")}`);
+        }
+        if (!user) {
+          console.error("[google-oauth] no user returned, info:", info);
+          return res.redirect(`/login?error=google_failed&msg=${encodeURIComponent(info?.message || "auth_failed")}`);
+        }
+        // ⚠️ Passport v0.6+ calls req.session.regenerate() inside req.logIn,
+        // which destroys any session data we stored BEFORE this call.
+        // Capture pendingReferralCode NOW, before logIn wipes the session.
+        const capturedRefCode =
+          (req.session as any)?.pendingReferralCode ||
+          (req.cookies as any)?.referral_code ||
+          null;
+
+        req.logIn(user, async (loginErr) => {
+          if (loginErr) {
+            console.error("[google-oauth] login error:", loginErr);
+            return res.redirect("/login?error=google_failed");
+          }
+          // Process referral for brand-new Google signups using the pre-captured code
+          if ((user as any)._isNewGoogleUser && capturedRefCode) {
+            try {
+              await storage.processReferralSignup(capturedRefCode, user.id, user.email || "");
+              console.log("[referral] ✅ google signup — referrer credited, new user credited. code:", capturedRefCode, "user:", user.id);
+            } catch (refErr) {
+              console.error("[referral] google signup referral failed for", user.id, "code:", capturedRefCode, refErr);
+            }
+          }
+          // Auto-enroll new Google users in "join" sequences
+          if ((user as any)._isNewGoogleUser) {
+            storage.getEmailSequences().then(seqs => {
+              seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+            }).catch(() => { });
+          }
+          const dest = user.role === "admin"
+            ? "/admin"
+            : !(user as any).surveyCompleted
+              ? "/onboarding"
+              : user.planConfirmed
+                ? "/dashboard"
+                : "/select-plan";
+          return res.redirect(dest);
+        });
+      })(req, res, next);
+    }
+  );
+
+  // ── OTP ─────────────────────────────────────────────────────────────────────
+  const otpTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
+
+  app.post("/api/auth/otp/send", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.status(404).json({ message: "No account found with this email" });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await storage.createOtpCode(email, code, expiresAt);
+    try {
+      await otpTransporter.sendMail({
+        from: `"Brandverse" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Your Brandverse login code",
+        html: `
+          <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
+            <h2 style="color:#d4b461;margin-bottom:8px">Brandverse</h2>
+            <p style="color:#aaa;margin-bottom:24px">Your one-time login code:</p>
+            <div style="background:#222;border:1px solid #d4b46133;border-radius:8px;padding:24px;text-align:center;letter-spacing:12px;font-size:32px;font-weight:700;color:#d4b461">${code}</div>
+            <p style="color:#666;font-size:13px;margin-top:20px">This code expires in 10 minutes. Do not share it with anyone.</p>
+          </div>`,
+      });
+      res.json({ message: "OTP sent" });
+    } catch (err: any) {
+      console.error("OTP email error:", err);
+      res.status(500).json({ message: "Failed to send email. Check email config." });
+    }
+  });
+
+  app.post("/api/auth/otp/verify", async (req, res) => {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ message: "Email and code required" });
+    const otp = await storage.getValidOtpCode(email, code);
+    if (!otp) return res.status(400).json({ message: "Invalid or expired code" });
+    await storage.markOtpUsed(otp.id);
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    req.logIn(user, (err) => {
+      if (err) return res.status(500).json({ message: "Login failed" });
+      const { password, ...safeUser } = user as any;
+      res.json(safeUser);
+    });
+  });
+
+  // File upload endpoint (authenticated users)
+  app.post("/api/upload", requireAuth, upload.single("file"), (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file provided" });
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileSize = req.file.size > 1024 * 1024
+      ? `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(req.file.size / 1024)} KB`;
+    res.json({ fileUrl, fileName: req.file.originalname, fileSize });
+  });
+
+  // Get admin user (for client chat to address the admin)
+  app.get("/api/admin-user", requireAuth, async (req, res) => {
+    const admin = await storage.getUserByEmail("admin@brandverse.com");
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+    const { password, ...safe } = admin;
+    res.json(safe);
+  });
+
+  // Users / Clients
+  app.get("/api/clients", requireAdmin, async (req, res) => {
+    const allClients = await storage.getAllClients();
+    let clients = allClients.map(({ password, ...u }) => u);
+    if (req.query.plan) {
+      clients = clients.filter((c: any) => c.plan === req.query.plan);
+    }
+    res.json(clients);
+  });
+
+  app.get("/api/clients/:id", requireAdmin, async (req, res) => {
+    const user = await storage.getUser(p(req.params.id));
+    if (!user) return res.status(404).json({ message: "Not found" });
+    const { password, ...safe } = user;
+    res.json(safe);
+  });
+
+  app.post("/api/clients", requireAdmin, async (req, res) => {
+    const parsed = insertUserSchema.safeParse({ ...req.body, role: "client" });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const hashed = await hashPassword(parsed.data.password);
+    const user = await storage.createUser({ ...parsed.data, password: hashed, role: "client", planConfirmed: true, surveyCompleted: false } as any);
+    await storage.upsertProgress({ clientId: user.id, offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
+    // Auto-enroll admin-created clients in "join" sequences
+    storage.getEmailSequences().then(seqs => {
+      seqs.filter(s => s.trigger === "join" && s.active).forEach(s => storage.enrollUserInSequence(user.id, s.id).catch(() => { }));
+    }).catch(() => { });
+    const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
+    syncToOraviniCRM({ email: user.email, name: user.name, source: "client_signup", plan: user.plan, tierLabel: tierNames[user.plan || "free"] || user.plan, event: "new_signup" });
+    const { password, ...safe } = user;
+    res.json(safe);
+  });
+
+  app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
+    const { password, ...data } = req.body;
+    const updated = await storage.updateUser(p(req.params.id), data);
+    const { password: _p, ...safe } = updated;
+    res.json(safe);
+  });
+
+  app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteUser(p(req.params.id) as string);
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      console.log("[deleteUser] error:", err?.message);
+      res.status(500).json({ message: err?.message || "Failed to delete client" });
+    }
+  });
+
+  // POST /api/account/delete — user submits exit survey then deletes own account
+  app.post("/api/account/delete", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { reason, duration, rating, favoriteFeature, wouldReturn } = req.body;
+      if (!reason || !duration || !rating || !favoriteFeature || !wouldReturn) {
+        return res.status(400).json({ message: "All survey questions are required" });
+      }
+      // Save survey answers
+      await pool.query(
+        `INSERT INTO deletion_surveys (user_id, user_name, user_email, user_plan, reason, duration, rating, favorite_feature, would_return)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [user.id, user.name, user.email, user.plan || "free", reason, duration, rating, favoriteFeature, wouldReturn]
+      );
+      // Delete the user account
+      await storage.deleteUser(user.id);
+      // Destroy session
+      req.logout(() => { });
+      return res.json({ message: "Account deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/deletion-surveys — admin: see all exit survey responses
+  app.get("/api/admin/deletion-surveys", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const rows = await pool.query(
+        `SELECT * FROM deletion_surveys ORDER BY created_at DESC`
+      );
+      return res.json(rows.rows);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/deletion-surveys/reset — admin: delete all churn data
+  app.post("/api/admin/deletion-surveys/reset", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      await pool.query(`DELETE FROM deletion_surveys`);
+      return res.json({ message: "All churn data cleared" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/clients/:id/reset-password", requireAdmin, async (req, res) => {
+    const { newPassword } = req.body;
+    if (!newPassword) return res.status(400).json({ message: "newPassword required" });
+    const hashed = await hashPassword(newPassword);
+    await storage.updateUser(p(req.params.id), { password: hashed });
+    res.json({ message: "Password reset" });
+  });
+
+  // Profile update for self (name, phone, program, email)
+  app.patch("/api/profile", requireAuth, async (req, res) => {
+    const userId = (req.user as any).id;
+    const { name, phone, program, email } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (program !== undefined) updateData.program = program;
+    if (email !== undefined) updateData.email = email;
+    const updated = await storage.updateUser(userId, updateData);
+    const { password, ...safe } = updated;
+    res.json(safe);
+  });
+
+  // Onboarding Survey
+  app.get("/api/user/onboarding-status", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const survey = await storage.getOnboardingSurvey(userId);
+    res.json({ done: !!survey, survey: survey || null });
+  });
+
+  app.post("/api/user/onboarding-survey", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const existing = await storage.getOnboardingSurvey(userId);
+      const body = req.body || {};
+      // Accept incoming values, fall back to existing row (snake_case from DB)
+      const awareness = body.awareness ?? existing?.awareness;
+      const field = body.field ?? existing?.field;
+      const fields = body.fields ?? existing?.fields;
+      const struggles = body.struggles ?? existing?.struggles;
+      const contentTypes = body.contentTypes ?? existing?.content_types;
+      const descriptor = body.descriptor ?? existing?.descriptor;
+      const experience = body.experience ?? existing?.experience;
+      const followerCount = body.followerCount ?? existing?.follower_count;
+      const monthlyRevenue = body.monthlyRevenue ?? existing?.monthly_revenue;
+      const primaryGoal = body.primaryGoal ?? existing?.primary_goal;
+      const platform = body.platform ?? existing?.platform;
+      const platforms = body.platforms ?? existing?.platforms;
+      const heardAbout = body.heardAbout ?? existing?.heard_about;
+      const eliteInterest = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
+
+      if (!experience || !monthlyRevenue || !primaryGoal) {
+        return res.status(400).json({ message: "All survey questions must be answered." });
+      }
+      const saved = await storage.saveOnboardingSurvey({
+        userId,
+        awareness, field, fields, struggles, contentTypes,
+        descriptor, experience, followerCount, monthlyRevenue,
+        primaryGoal, platform, platforms, heardAbout,
+        answers: {
+          ...(existing?.answers || {}),
+          awareness, field, fields, struggles, contentTypes,
+          descriptor, experience, followerCount, monthlyRevenue,
+          primaryGoal, platform, platforms, heardAbout,
+          eliteInterest,
+        },
+      });
+      await storage.updateUser(userId, { surveyCompleted: true } as any);
+      const updated = await storage.getUser(userId);
+      // Merge survey fields onto the session user so /api/auth/me returns them immediately
+      if (req.user) Object.assign(req.user as any, {
+        surveyCompleted: true,
+        awareness, fields, struggles, contentTypes,
+        descriptor, experience, followerCount, monthlyRevenue,
+        primaryGoal, platforms, heardAbout,
+      });
+      res.json({ success: true, survey: saved, user: updated });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/admin/onboarding-surveys", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const surveys = await storage.getAllOnboardingSurveys();
+      res.json(surveys);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Documents
+  app.get("/api/documents", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    let docs;
+    if (user.role === "admin") {
+      const { clientId } = req.query;
+      docs = clientId ? await storage.getDocumentsByClient(clientId as string) : await storage.getAllDocuments();
+    } else {
+      docs = await storage.getDocumentsByClient(user.id);
+    }
+    res.json(docs);
+  });
+
+  app.get("/api/documents/:id", requireAuth, async (req, res) => {
+    const doc = await storage.getDocument(p(req.params.id));
+    if (!doc) return res.status(404).json({ message: "Not found" });
+    res.json(doc);
+  });
+
+  app.post("/api/documents", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = user.role === "client" ? user.id : req.body.clientId;
+    const derivedFileName = req.body.fileName || (req.body.fileUrl ? req.body.fileUrl.split("/").pop()?.split("?")[0] || req.body.title : req.body.title) || req.body.title;
+    const parsed = insertDocumentSchema.safeParse({ ...req.body, fileName: derivedFileName, clientId, uploadedBy: user.id });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const doc = await storage.createDocument(parsed.data);
+    if (user.role === "client") {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) sendToUser(admin.id, { type: "notification", message: `Client uploaded a document: ${doc.title}` });
+    } else {
+      const notifMsg = `New document shared: ${doc.title}`;
+      await storage.createNotification({ clientId: doc.clientId, message: notifMsg, type: "document" });
+      sendToUser(doc.clientId, { type: "notification", message: notifMsg });
+    }
+    res.json(doc);
+  });
+
+  app.delete("/api/documents/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const doc = await storage.getDocument(p(req.params.id));
+    if (!doc) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && doc.uploadedBy !== user.id) return res.status(403).json({ message: "Forbidden" });
+    if (doc.fileUrl.startsWith("/uploads/")) {
+      const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    await storage.deleteDocument(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Materials Library
+  app.get("/api/materials", requireAuth, async (req, res) => {
+    const materials = await storage.getMaterials();
+    res.json(materials);
+  });
+
+  app.post("/api/materials", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const derivedFileName = req.body.fileName || (req.body.fileUrl ? req.body.fileUrl.split("/").pop()?.split("?")[0] || req.body.title : req.body.title) || req.body.title;
+    const parsed = insertDocumentSchema.safeParse({
+      ...req.body,
+      fileName: derivedFileName,
+      clientId: user.id,
+      uploadedBy: user.id,
+      fileType: "material",
+    });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const doc = await storage.createDocument(parsed.data);
+    res.json(doc);
+  });
+
+  app.delete("/api/materials/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role !== "admin") return res.status(403).json({ message: "Admin only" });
+    const doc = await storage.getDocument(p(req.params.id));
+    if (!doc) return res.status(404).json({ message: "Not found" });
+    if (doc.fileUrl.startsWith("/uploads/")) {
+      const filePath = path.join(uploadsDir, path.basename(doc.fileUrl));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    await storage.deleteDocument(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Messages / Chat
+  app.get("/api/messages/:otherUserId", requireAuth, async (req, res) => {
+    const caller = req.user as any;
+    let userId = caller.id;
+    // Admins share the primary inbox
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) userId = primaryAdmin.id;
+    }
+    const msgs = await storage.getMessagesBetween(userId, p(req.params.otherUserId));
+    await storage.markMessagesRead(p(req.params.otherUserId), userId);
+    res.json(msgs);
+  });
+
+  app.get("/api/conversations", requireAdmin, async (_req, res) => {
+    // Always use primary admin inbox regardless of which admin account is logged in
+    const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+    const adminId = primaryAdmin?.id;
+    if (!adminId) return res.json([]);
+    const convs = await storage.getConversations(adminId);
+    const result = await Promise.all(
+      convs.map(async ({ clientId, lastMessage, unreadCount }) => {
+        const client = await storage.getUser(clientId);
+        const { password: _, ...safeClient } = client || ({ name: "Unknown", email: "" } as any);
+        return { client: safeClient, lastMessage, unreadCount };
+      })
+    );
+    res.json(result);
+  });
+
+  app.post("/api/messages", requireAuth, async (req, res) => {
+    const caller = req.user as any;
+    // All admin accounts share one inbox — always send from primary admin
+    let senderId = caller.id;
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) senderId = primaryAdmin.id;
+    }
+    const { receiverId, content, fileUrl, fileName } = req.body;
+    const msg = await storage.createMessage({ senderId, receiverId, content, fileUrl, fileName });
+    sendToUser(receiverId, { type: "message", message: msg });
+    // Also notify the sender if they're in a different browser session
+    if (senderId !== caller.id) sendToUser(senderId, { type: "message", message: msg });
+    res.json(msg);
+  });
+
+  app.patch("/api/messages/:id", requireAuth, async (req, res) => {
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: "Content required" });
+    const msg = await storage.getMessage(p(req.params.id));
+    if (!msg) return res.status(404).json({ message: "Not found" });
+    if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
+    const updated = await storage.updateMessage(p(req.params.id), content.trim());
+    const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
+    sendToUser(otherId, { type: "message_updated", message: updated });
+    res.json(updated);
+  });
+
+  app.delete("/api/messages/:id", requireAuth, async (req, res) => {
+    const msg = await storage.getMessage(p(req.params.id));
+    if (!msg) return res.status(404).json({ message: "Not found" });
+    if (msg.senderId !== (req.user as any).id) return res.status(403).json({ message: "Forbidden" });
+    await storage.deleteMessage(p(req.params.id));
+    const otherId = msg.senderId === (req.user as any).id ? msg.receiverId : msg.senderId;
+    sendToUser(otherId, { type: "message_deleted", messageId: p(req.params.id) });
+    res.json({ message: "Deleted" });
+  });
+
+  app.get("/api/messages/unread/count", requireAuth, async (req, res) => {
+    const caller = req.user as any;
+    let countId = caller.id;
+    // Admins share the primary inbox, so count unread for the primary admin
+    if (caller.role === "admin") {
+      const primaryAdmin = await storage.getUserByEmail("admin@brandverse.com");
+      if (primaryAdmin) countId = primaryAdmin.id;
+    }
+    const count = await storage.getUnreadCount(countId);
+    res.json({ count });
+  });
+
+  // Progress
+  app.get("/api/progress/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const prog = await storage.getProgress(p(req.params.clientId));
+    res.json(prog || { offerCreation: 0, funnelProgress: 0, contentProgress: 0, monetizationProgress: 0 });
+  });
+
+  app.put("/api/progress/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const data = { ...req.body, clientId: p(req.params.clientId) };
+    const parsed = insertProgressSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const prog = await storage.upsertProgress(parsed.data);
+    sendToUser(p(req.params.clientId), { type: "progress_update" });
+    if (user.role === "client") {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) sendToUser(admin.id, { type: "progress_update", clientId: p(req.params.clientId) });
+    }
+    res.json(prog);
+  });
+
+  // Call Feedback
+  app.get("/api/calls/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const calls = await storage.getCallFeedbackByClient(p(req.params.clientId));
+    res.json(calls);
+  });
+
+  app.post("/api/calls", requireAdmin, async (req, res) => {
+    const parsed = insertCallFeedbackSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const cf = await storage.createCallFeedback(parsed.data);
+    await storage.createNotification({ clientId: cf.clientId, message: `New call feedback uploaded: ${cf.title}`, type: "call" });
+    sendToUser(cf.clientId, { type: "notification", message: `New call feedback uploaded` });
+    res.json(cf);
+  });
+
+  app.patch("/api/calls/:id", requireAdmin, async (req, res) => {
+    const cf = await storage.updateCallFeedback(p(req.params.id), req.body);
+    res.json(cf);
+  });
+
+  app.delete("/api/calls/:id", requireAdmin, async (req, res) => {
+    await storage.deleteCallFeedback(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Tasks
+  app.get("/api/tasks/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const list = await storage.getTasksByClient(p(req.params.clientId));
+    res.json(list);
+  });
+
+  app.post("/api/tasks", requireAdmin, async (req, res) => {
+    const parsed = insertTaskSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const task = await storage.createTask(parsed.data);
+    await storage.createNotification({ clientId: task.clientId, message: `New task assigned: ${task.title}`, type: "task" });
+    sendToUser(task.clientId, { type: "notification", message: `New task: ${task.title}` });
+    res.json(task);
+  });
+
+  app.patch("/api/tasks/:id", requireAuth, async (req, res) => {
+    const task = await storage.updateTask(p(req.params.id), req.body);
+    res.json(task);
+  });
+
+  app.delete("/api/tasks/:id", requireAdmin, async (req, res) => {
+    await storage.deleteTask(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Project Tracker
+  app.get("/api/project-tracker/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = p(req.params.clientId);
+    if (user.role === "client" && user.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const tracker = syncProjectTracker(
+      await getProjectTrackerForClient(clientId, client.name, client.program || undefined),
+      client.name,
+      client.program || undefined,
+    );
+    await saveProjectTrackerForClient(clientId, tracker);
+
+    res.json({
+      tracker,
+      summary: getProjectTrackerSummary(tracker),
+      completion: getProjectCompletion(tracker),
+      currentPhase: getCurrentPhase(tracker),
+    });
+  });
+
+  app.put("/api/project-tracker/:clientId", requireAdmin, async (req, res) => {
+    const clientId = p(req.params.clientId);
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    if (!req.body || typeof req.body !== "object") return res.status(400).json({ message: "Invalid tracker payload" });
+
+    const tracker = appendProjectUpdate(
+      syncProjectTracker(req.body as ProjectTracker, client.name, client.program || undefined),
+      "Mission board updated",
+      "The project tracker was updated in the admin command center.",
+      "system",
+    );
+
+    await saveProjectTrackerForClient(clientId, tracker);
+    sendToUser(clientId, { type: "project_tracker_update" });
+
+    res.json({
+      tracker,
+      summary: getProjectTrackerSummary(tracker),
+      completion: getProjectCompletion(tracker),
+      currentPhase: getCurrentPhase(tracker),
+    });
+  });
+
+  app.patch("/api/project-tracker/:clientId/actions/:actionId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = p(req.params.clientId);
+    const actionId = p(req.params.actionId);
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+    if (user.role === "client" && user.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+
+    const existing = await getProjectTrackerForClient(clientId, client.name, client.program || undefined);
+    const nextStatus = req.body?.status as ActionStatus | undefined;
+    const nextNotes = typeof req.body?.notes === "string" ? req.body.notes : undefined;
+    const allowedStatuses: ActionStatus[] = ["pending", "in_progress", "review", "blocked", "completed"];
+
+    let found = false;
+    let forbidden = false;
+    const phases = existing.phases.map((phase) => {
+      const steps = phase.steps.map((step) => {
+        const actions = step.actions.map((action) => {
+          if (action.id !== actionId) return action;
+          found = true;
+          if (user.role === "client" && (!action.clientVisible || action.owner !== "client")) {
+            forbidden = true;
+            return action;
+          }
+
+          return {
+            ...action,
+            status: nextStatus && allowedStatuses.includes(nextStatus) ? nextStatus : action.status,
+            notes: nextNotes ?? action.notes,
+          };
+        });
+
+        const stepStatus: ActionStatus =
+          actions.every((action) => action.status === "completed")
+            ? "completed"
+            : actions.some((action) => action.status === "blocked")
+              ? "blocked"
+              : actions.some((action) => action.status === "in_progress" || action.status === "review")
+                ? "in_progress"
+                : "pending";
+
+        return {
+          ...step,
+          actions,
+          status: stepStatus,
+        };
+      });
+
+      const phaseStatus: PhaseStatus =
+        steps.every((step) => step.status === "completed")
+          ? "completed"
+          : steps.some((step) => step.status === "blocked")
+            ? "review"
+            : steps.some((step) => step.status === "in_progress")
+              ? "in_progress"
+              : phase.status;
+
+      return {
+        ...phase,
+        steps,
+        status: phaseStatus,
+      };
+    });
+
+    if (!found) return res.status(404).json({ message: "Action not found" });
+    if (forbidden) return res.status(403).json({ message: "Forbidden" });
+
+    const nextTracker = syncProjectTracker({
+      ...existing,
+      phases,
+    }, client.name, client.program || undefined);
+
+    const saved = appendProjectUpdate(
+      nextTracker,
+      user.role === "admin" ? "Admin updated an action" : "Client updated an action",
+      user.role === "admin" ? "The mission board was updated by the admin team." : "A client-owned action moved forward in the tracker.",
+      user.role === "admin" ? "system" : "client",
+    );
+
+    await saveProjectTrackerForClient(clientId, saved);
+
+    sendToUser(clientId, { type: "project_tracker_update" });
+    res.json({
+      tracker: saved,
+      summary: getProjectTrackerSummary(saved),
+      completion: getProjectCompletion(saved),
+      currentPhase: getCurrentPhase(saved),
+    });
+  });
+
+  app.get("/api/admin/project-trackers", requireAdmin, async (_req, res) => {
+    const allClients = await storage.getAllClients();
+    const eliteClients = allClients.filter((client: any) => client.plan === "elite");
+
+    const projects = await Promise.all(
+      eliteClients.map(async (client: any) => {
+        const tracker = syncProjectTracker(
+          await getProjectTrackerForClient(client.id, client.name, client.program || undefined),
+          client.name,
+          client.program || undefined,
+        );
+        await saveProjectTrackerForClient(client.id, tracker);
+        return {
+          client: {
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            program: client.program,
+            nextCallDate: client.nextCallDate,
+          },
+          tracker,
+          summary: getProjectTrackerSummary(tracker),
+          completion: getProjectCompletion(tracker),
+          currentPhase: getCurrentPhase(tracker),
+        };
+      }),
+    );
+
+    const alerts = projects.flatMap((project) => {
+      const items: Array<{ clientId: string; clientName: string; type: string; message: string }> = [];
+      if (project.summary.blockerCount > 0) {
+        items.push({
+          clientId: project.client.id,
+          clientName: project.client.name,
+          type: "blocked",
+          message: `${project.summary.blockerCount} blocked item${project.summary.blockerCount !== 1 ? "s" : ""} need attention`,
+        });
+      }
+      if (project.summary.approvalCount > 0) {
+        items.push({
+          clientId: project.client.id,
+          clientName: project.client.name,
+          type: "approval",
+          message: `${project.summary.approvalCount} approval${project.summary.approvalCount !== 1 ? "s" : ""} pending`,
+        });
+      }
+      return items;
+    }).slice(0, 10);
+
+    res.json({
+      projects,
+      metrics: {
+        totalClients: eliteClients.length,
+        activeProjects: projects.filter((project) => project.tracker.projectStatus === "active").length,
+        blockedProjects: projects.filter((project) => project.tracker.health === "blocked").length,
+        approvalsPending: projects.reduce((sum, project) => sum + project.summary.approvalCount, 0),
+      },
+      alerts,
+    });
+  });
+
+  // Notifications
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    const notifs = await storage.getNotificationsByClient((req.user as any).id);
+    res.json(notifs);
+  });
+
+  app.post("/api/notifications", requireAdmin, async (req, res) => {
+    const parsed = insertNotificationSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const notif = await storage.createNotification(parsed.data);
+    sendToUser(notif.clientId, { type: "notification", message: notif.message });
+    res.json(notif);
+  });
+
+  app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
+    await storage.markNotificationRead(p(req.params.id));
+    res.json({ message: "Marked read" });
+  });
+
+  app.post("/api/notifications/read-all", requireAuth, async (req, res) => {
+    await storage.markAllNotificationsRead((req.user as any).id);
+    res.json({ message: "All marked read" });
+  });
+
+  app.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+    await storage.deleteNotification(p(req.params.id));
+    res.json({ message: "Notification deleted" });
+  });
+
+  // Client submits their own call feedback
+  app.patch("/api/calls/:id/client-feedback", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const cf = await storage.getCallFeedback(p(req.params.id));
+    if (!cf) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== cf.clientId) return res.status(403).json({ message: "Forbidden" });
+    const { clientFeedback, clientLearnings } = req.body;
+    const updated = await storage.updateCallFeedback(p(req.params.id), { clientFeedback, clientLearnings });
+    res.json(updated);
+  });
+
+  // Content Posts
+  app.get("/api/content/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const posts = await storage.getContentPostsByClient(p(req.params.clientId));
+    res.json(posts);
+  });
+
+  app.post("/api/content", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const data = {
+      ...req.body,
+      clientId: user.role === "admin" ? req.body.clientId : user.id,
+      postDate: req.body.postDate ? new Date(req.body.postDate) : undefined,
+    };
+    const parsed = insertContentPostSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const post = await storage.createContentPost(parsed.data);
+
+    res.json(post);
+  });
+
+  app.patch("/api/content/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const post = await storage.getContentPost(p(req.params.id));
+    if (!post) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
+    const body = { ...req.body };
+    if (body.postDate && typeof body.postDate === "string") {
+      body.postDate = new Date(body.postDate);
+    }
+    const updated = await storage.updateContentPost(p(req.params.id), body);
+    res.json(updated);
+  });
+
+  app.delete("/api/content/:id", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const post = await storage.getContentPost(p(req.params.id));
+    if (!post) return res.status(404).json({ message: "Not found" });
+    if (user.role === "client" && user.id !== post.clientId) return res.status(403).json({ message: "Forbidden" });
+    await storage.deleteContentPost(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // ── Instagram / Apify Sync ────────────────────────────────────────────────
+  async function apifyInstagram(
+    payload: object,
+    options?: { timeoutMs?: number; endpoint?: "post-scraper" | "profile-scraper" },
+  ): Promise<any[]> {
+    const token =
+      process.env.APIFY_INSTAGRAM_TOKEN ||
+      process.env.APIFY_COMMENT_TOKEN ||
+      process.env.APIFY_TOKEN;
+    if (!token) {
+      throw new Error("Apify is not configured (set APIFY_TOKEN or APIFY_INSTAGRAM_TOKEN).");
+    }
+
+    const endpoint =
+      options?.endpoint === "profile-scraper"
+        ? "apify~instagram-profile-scraper"
+        : "apify~instagram-scraper";
+    const timeoutMs = options?.timeoutMs ?? 90000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const url = `https://api.apify.com/v2/acts/${endpoint}/run-sync-get-dataset-items?token=${token}&timeout=${Math.ceil(timeoutMs / 1000)}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!resp.ok) {
+        const raw = await resp.text();
+        let detail = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          detail =
+            parsed?.error?.message ||
+            parsed?.message ||
+            parsed?.error?.type ||
+            raw;
+        } catch {
+          // Keep raw text fallback.
+        }
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error("Apify authentication failed. Check your APIFY token.");
+        }
+        if (resp.status === 429) {
+          throw new Error("Apify rate limit hit. Please retry in a minute.");
+        }
+        throw new Error(`Apify request failed (${resp.status}): ${String(detail).slice(0, 220)}`);
+      }
+
+      const json = (await resp.json()) as any[];
+      return Array.isArray(json) ? json : [];
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw new Error("Apify request timed out while fetching Instagram data. Please retry.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // ── Meta API account status ──────────────────────────────────────────────
+  let _cachedIgAccountId: string | null = null;
+  let _igAccountCacheTime = 0;
+
+  async function getIgAccountIdCached(): Promise<string | null> {
+    const now = Date.now();
+    if (_cachedIgAccountId && now - _igAccountCacheTime < 60 * 60 * 1000) return _cachedIgAccountId;
+    try {
+      const acct = await getConnectedIGAccount();
+      if (acct?.igAccountId) {
+        _cachedIgAccountId = acct.igAccountId;
+        _igAccountCacheTime = now;
+      }
+    } catch { _cachedIgAccountId = null; }
+    return _cachedIgAccountId;
+  }
+
+  app.get("/api/meta/account", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const tokenInfo = await getTokenInfo();
+      if (!tokenInfo.valid) {
+        return res.json({ connected: false, tokenExpired: true, message: "Access token is expired or invalid. Please refresh it." });
+      }
+      const account = await getConnectedIGAccount();
+      if (!account) {
+        return res.json({ connected: false, tokenValid: true, message: "No Instagram Business Account linked to this token." });
+      }
+      const profile = await getIGProfile(account.igAccountId);
+      return res.json({
+        connected: true, tokenValid: true,
+        expiresAt: tokenInfo.expiresAt,
+        scopes: tokenInfo.scopes,
+        igAccountId: account.igAccountId,
+        igUsername: account.igUsername,
+        pageName: account.pageName,
+        followersCount: profile?.followers_count,
+        mediaCount: profile?.media_count,
+      });
+    } catch (err: any) {
+      return res.json({ connected: false, error: err.message });
+    }
+  });
+
+  app.post("/api/meta/refresh-token", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { shortToken } = req.body;
+      if (!shortToken) return res.status(400).json({ message: "shortToken required" });
+      const result = await exchangeForLongLivedToken(shortToken);
+      if (!result) return res.status(400).json({ message: "Could not exchange token — check your app credentials." });
+      // Auto-save the long-lived token to the database so it's available immediately
+      await saveTokenToDB(result.access_token);
+      return res.json({ access_token: result.access_token, expires_in: result.expires_in, message: "Token saved and active. Valid for ~60 days." });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sync a single post's stats from its Instagram URL — Meta API first, Apify fallback
+  app.post("/api/instagram/sync-post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postUrl } = req.body;
+      if (!postUrl) return res.status(400).json({ message: "postUrl required" });
+
+      // Try Meta API first
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          if (metaResult) {
+            console.log("[sync-post] Meta API ✓");
+            return res.json({ ...metaResult, source: "meta" });
+          }
+        }
+      } catch (e: any) { console.warn("[sync-post] Meta API failed, falling back to Apify:", e.message); }
+
+      // Apify fallback
+      const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
+      const item = items?.[0];
+      if (!item) return res.status(404).json({ message: "No data returned for this URL" });
+      return res.json({
+        views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+        likes: item.likesCount ?? 0,
+        comments: item.commentsCount ?? 0,
+        saves: item.savesCount ?? 0,
+        title: item.caption ? item.caption.slice(0, 120) : undefined,
+        postDate: item.timestamp ? new Date(item.timestamp).toISOString() : undefined,
+        contentType: item.type === "Video" || item.type === "Reel" ? "reel"
+          : item.type === "Sidecar" ? "carousel" : "post",
+        source: "apify",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Send an Instagram DM
+  app.post("/api/instagram/send-dm", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { recipientId, message } = req.body;
+      if (!recipientId?.trim()) return res.status(400).json({ message: "recipientId is required" });
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      const result = await sendInstagramDM(recipientId.trim(), message.trim());
+      return res.json({ success: true, messageId: result.messageId });
+    } catch (err: any) {
+      console.log("[send-dm] error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sync checkpoint — Meta API first, Apify fallback
+  app.post("/api/instagram/sync-checkpoint", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postId, postUrl, checkpoint } = req.body;
+      if (!postUrl || !postId || !checkpoint) return res.status(400).json({ message: "postId, postUrl, and checkpoint required" });
+
+      let v = 0, l = 0, c = 0, s = 0, source = "apify";
+
+      // Try Meta API first
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const metaResult = await syncPostByPermalink(igAccountId, postUrl);
+          if (metaResult) {
+            v = metaResult.views; l = metaResult.likes; c = metaResult.comments; s = metaResult.saves;
+            source = "meta";
+            console.log("[sync-checkpoint] Meta API ✓");
+          }
+        }
+      } catch (e: any) { console.warn("[sync-checkpoint] Meta fallback:", e.message); }
+
+      // Apify fallback
+      if (source === "apify") {
+        const items = await apifyInstagram({ directUrls: [postUrl], resultsType: "posts", resultsLimit: 1 });
+        const item = items?.[0];
+        if (!item) return res.status(404).json({ message: "No data returned for this Instagram URL" });
+        v = item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0;
+        l = item.likesCount ?? 0;
+        c = item.commentsCount ?? 0;
+        s = item.savesCount ?? 0;
+      }
+
+      const now = new Date();
+      let updateData: any = {};
+      if (checkpoint === "initial") updateData = { views: v, likes: l, comments: c, saves: s, initialSyncedAt: now };
+      else if (checkpoint === "2w") updateData = { views2w: v, likes2w: l, comments2w: c, saves2w: s, twoWeekSyncedAt: now };
+      else if (checkpoint === "4w") updateData = { views4w: v, likes4w: l, comments4w: c, saves4w: s, fourWeekSyncedAt: now };
+      else return res.status(400).json({ message: "Invalid checkpoint" });
+
+      const updated = await storage.updateContentPost(postId, updateData);
+      return res.json({ ...updated, source });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Bulk import a profile's recent posts
+  app.post("/api/instagram/sync-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl, clientId, platform } = req.body;
+      if (!profileUrl || !clientId) return res.status(400).json({ message: "profileUrl and clientId required" });
+      const normalizedInstagram = normalizeInstagramProfileInput(String(profileUrl));
+      const resolvedProfileUrl =
+        platform === "youtube"
+          ? String(profileUrl).trim()
+          : normalizedInstagram?.profileUrl;
+      if (platform !== "youtube" && !resolvedProfileUrl) {
+        return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      }
+
+      type SyncItem = { postUrl: string; caption: string; postDate: Date; contentType: "reel" | "carousel" | "post"; views: number; likes: number; comments: number; saves: number; };
+      let syncItems: SyncItem[] = [];
+
+      // Try Meta API first (only for Instagram profiles matching connected account)
+      if (platform !== "youtube") {
+        try {
+          const igAccountId = await getIgAccountIdCached();
+          if (igAccountId) {
+            const connAcct = await getConnectedIGAccount();
+            const reqHandle = normalizedInstagram?.username || "";
+            const connHandle = (connAcct?.igUsername || "").toLowerCase();
+            if (reqHandle && connHandle && reqHandle === connHandle) {
+              const media = await getIGMedia(igAccountId, 30);
+              if (media.length > 0) {
+                syncItems = media.map((m: any) => ({
+                  postUrl: m.permalink,
+                  caption: m.caption || "",
+                  postDate: new Date(m.timestamp),
+                  contentType: (m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post") as "reel" | "carousel" | "post",
+                  views: 0, likes: m.like_count || 0, comments: m.comments_count || 0, saves: 0,
+                }));
+                console.log(`[sync-profile] Meta API ✓ — ${syncItems.length} posts`);
+              }
+            }
+          }
+        } catch (e: any) { console.warn("[sync-profile] Meta fallback:", e.message); }
+      }
+
+      // Apify fallback
+      if (!syncItems.length) {
+        const items = await apifyInstagram({ directUrls: [resolvedProfileUrl], resultsType: "posts", resultsLimit: 20 });
+        if (!items?.length) return res.status(404).json({ message: "No posts found for this profile" });
+        syncItems = items.map((item: any) => ({
+          postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
+          caption: item.caption || "",
+          postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel" | "carousel" | "post",
+          views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+          likes: item.likesCount ?? 0,
+          comments: item.commentsCount ?? 0,
+          saves: item.savesCount ?? 0,
+        })).filter((p: SyncItem) => p.postUrl);
+      }
+
+      const created: any[] = [];
+      for (const p of syncItems) {
+        if (!p.postUrl) continue;
+        try {
+          const post = await storage.createContentPost({
+            clientId, platform: platform ?? "instagram",
+            title: p.caption ? p.caption.slice(0, 120) : "Untitled",
+            postUrl: p.postUrl, postDate: p.postDate,
+            contentType: p.contentType as any, funnelStage: "top",
+            views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
+            followersGained: 0, subscribersGained: 0,
+          });
+          created.push(post);
+        } catch (_) { /* skip duplicates/errors */ }
+      }
+      return res.json({ imported: created.length, posts: created });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ─── YouTube Data API v3 ────────────────────────────────────────────────────
+
+  // Fetch live stats for a YouTube video by URL
+  app.post("/api/youtube/sync-post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postUrl } = req.body;
+      if (!postUrl) return res.status(400).json({ message: "postUrl required" });
+      const videoId = extractYouTubeVideoId(postUrl);
+      if (!videoId) return res.status(400).json({ message: "Could not extract YouTube video ID from this URL" });
+      const stats = await getYouTubeVideoStats(videoId);
+      if (!stats) return res.status(404).json({ message: "Video not found on YouTube" });
+      return res.json({ ...stats, source: "youtube-api" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sync a checkpoint (initial / 2w / 4w) for a YouTube post
+  app.post("/api/youtube/sync-checkpoint", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { postId, postUrl, checkpoint } = req.body;
+      if (!postUrl || !postId || !checkpoint) return res.status(400).json({ message: "postId, postUrl, and checkpoint required" });
+      const videoId = extractYouTubeVideoId(postUrl);
+      if (!videoId) return res.status(400).json({ message: "Could not extract YouTube video ID from this URL" });
+      const stats = await getYouTubeVideoStats(videoId);
+      if (!stats) return res.status(404).json({ message: "Video not found on YouTube" });
+
+      const now = new Date();
+      let updateData: any = {};
+      if (checkpoint === "initial") updateData = { views: stats.views, likes: stats.likes, comments: stats.comments, initialSyncedAt: now };
+      else if (checkpoint === "2w") updateData = { views2w: stats.views, likes2w: stats.likes, comments2w: stats.comments, twoWeekSyncedAt: now };
+      else if (checkpoint === "4w") updateData = { views4w: stats.views, likes4w: stats.likes, comments4w: stats.comments, fourWeekSyncedAt: now };
+      else return res.status(400).json({ message: "Invalid checkpoint" });
+
+      const updated = await storage.updateContentPost(postId, updateData);
+      return res.json({ ...updated, source: "youtube-api" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Fetch YouTube channel stats by channel URL/handle
+  app.post("/api/youtube/channel-stats", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl } = req.body;
+      if (!channelUrl) return res.status(400).json({ message: "channelUrl required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+      const stats = await getYouTubeChannelStats(channelRef);
+      if (!stats) return res.status(404).json({ message: "Channel not found on YouTube" });
+      return res.json(stats);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/youtube/scrape-channel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl } = req.body;
+      if (!channelUrl) return res.status(400).json({ message: "channelUrl required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+
+      const channelStats = await getYouTubeChannelStats(channelRef);
+      if (!channelStats) return res.status(404).json({ message: "Channel not found on YouTube" });
+
+      const videos = await getYouTubeChannelRecentVideos(channelStats.channelId, 15);
+      return res.json({
+        channel: channelStats,
+        posts: videos.map((vid: any) => ({
+          title: vid.title,
+          contentType: vid.contentType === "short" ? "short" : "video",
+          views: vid.views,
+          likes: vid.likes,
+          comments: vid.comments,
+          postDate: vid.publishedAt,
+          duration: vid.duration,
+          description: vid.description,
+          url: vid.videoUrl,
+        })),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Import recent videos from a YouTube channel into content tracking
+  app.post("/api/youtube/import-channel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channelUrl, clientId } = req.body;
+      if (!channelUrl || !clientId) return res.status(400).json({ message: "channelUrl and clientId required" });
+      const channelRef = extractYouTubeChannelId(channelUrl);
+      if (!channelRef) return res.status(400).json({ message: "Could not extract channel from URL. Use a youtube.com/@handle, /channel/, or /user/ URL." });
+
+      const channelStats = await getYouTubeChannelStats(channelRef);
+      if (!channelStats) return res.status(404).json({ message: "Channel not found on YouTube" });
+
+      const videos = await getYouTubeChannelRecentVideos(channelStats.channelId, 20);
+      if (!videos.length) return res.status(404).json({ message: "No videos found for this channel" });
+
+      const created: any[] = [];
+      for (const vid of videos as any[]) {
+        if (!vid.videoUrl) continue;
+        try {
+          const post = await storage.createContentPost({
+            clientId,
+            platform: "youtube",
+            title: vid.title ? vid.title.slice(0, 120) : "Untitled",
+            postUrl: vid.videoUrl,
+            postDate: vid.publishedAt ? new Date(vid.publishedAt) : new Date(),
+            contentType: vid.contentType === "short" ? "reel" : "video",
+            views: vid.views,
+            likes: vid.likes,
+            comments: vid.comments,
+            saves: 0,
+          });
+          created.push(post);
+        } catch (_) { /* skip duplicates */ }
+      }
+      return res.json({ imported: created.length, posts: created, channel: channelStats });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Income Goals
+  app.get("/api/income-goal/:clientId", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (user.role === "client" && user.id !== p(req.params.clientId)) return res.status(403).json({ message: "Forbidden" });
+    const goal = await storage.getIncomeGoal(p(req.params.clientId));
+    res.json(goal || null);
+  });
+
+  app.post("/api/income-goal", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const data = { ...req.body, clientId: user.role === "admin" ? req.body.clientId : user.id };
+    const parsed = insertIncomeGoalSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const goal = await storage.upsertIncomeGoal(parsed.data);
+    res.json(goal);
+  });
+
+  // Chat file upload
+  app.post("/api/messages/upload", requireAuth, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file" });
+    const { receiverId } = req.body;
+    if (!receiverId) return res.status(400).json({ message: "receiverId required" });
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const msg = await storage.createMessage({
+      senderId: (req.user as any).id,
+      receiverId,
+      content: req.file.originalname,
+      fileUrl,
+      fileName: req.file.originalname,
+      fileMime: req.file.mimetype,
+    });
+    sendToUser(receiverId, { type: "message", message: msg });
+    res.json(msg);
+  });
+
+  // AI Content Ideas
+  // ── Groq helper (fast – used for content ideas) ──────────────────────────
+  async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.9,
+            max_tokens: maxTokens,
+          }),
+        });
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message; console.warn(`Groq ${model} error: ${lastError}`); continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`Groq generation failed: ${lastError}`);
+  }
+
+  // ── Groq JSON-mode helper (structured output, virality analysis) ──────────
+  async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.6,
+            max_tokens: maxTokens,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message; console.warn(`GroqJSON ${model} error: ${lastError}`); continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`Groq JSON generation failed: ${lastError}`);
+  }
+
+  type IdeaContextPost = {
+    title?: string;
+    contentType?: string;
+    views?: number;
+    likes?: number;
+    comments?: number;
+    saves?: number;
+    caption?: string;
+    description?: string;
+    postDate?: string | Date;
+    duration?: string;
+  };
+
+  const CONTENT_STOPWORDS = new Set([
+    "about", "after", "again", "being", "because", "between", "could", "every", "first", "from", "have", "into",
+    "just", "like", "more", "most", "much", "need", "only", "over", "really", "should", "still", "than", "that",
+    "their", "there", "these", "they", "this", "what", "when", "where", "which", "while", "with", "would", "your",
+    "youre", "them", "then", "been", "make", "made", "gets", "getting", "using", "used", "will", "here", "into",
+    "ours", "ourselves", "ours", "many", "some", "also", "want", "dont", "doesnt", "cant", "isnt", "arent", "were",
+    "weve", "ive", "youve", "today", "these", "those", "than", "yourself", "herself", "himself", "ourselves",
+  ]);
+
+  function roundTo(value: number, digits = 1): number {
+    const factor = 10 ** digits;
+    return Math.round(value * factor) / factor;
+  }
+
+  function formatCompactNumber(value: number): string {
+    if (!Number.isFinite(value)) return "0";
+    if (Math.abs(value) >= 1_000_000) return `${roundTo(value / 1_000_000, 1)}M`;
+    if (Math.abs(value) >= 1_000) return `${roundTo(value / 1_000, 1)}K`;
+    return `${Math.round(value)}`;
+  }
+
+  function getTextCorpus(posts: IdeaContextPost[]): string[] {
+    return posts.flatMap((post) => [post.title, post.caption, post.description]).filter(Boolean) as string[];
+  }
+
+  function extractTopTerms(posts: IdeaContextPost[], limit = 6): string[] {
+    const counts = new Map<string, number>();
+    for (const text of getTextCorpus(posts)) {
+      const words = text
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, " ")
+        .replace(/[^a-z0-9#@\s-]/g, " ")
+        .split(/\s+/)
+        .map((w) => w.trim())
+        .filter((w) => w.length >= 4 && !CONTENT_STOPWORDS.has(w) && !/^\d+$/.test(w));
+
+      for (const word of words) {
+        counts.set(word, (counts.get(word) || 0) + 1);
+      }
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([word]) => word);
+  }
+
+  function detectHookPatterns(posts: IdeaContextPost[]): string[] {
+    const patterns = new Map<string, number>();
+    const texts = getTextCorpus(posts);
+    for (const text of texts) {
+      const line = text.trim();
+      if (!line) continue;
+      if (/\b\d+\b/.test(line)) patterns.set("number-led hooks", (patterns.get("number-led hooks") || 0) + 1);
+      if (/\bmistake|mistakes|wrong\b/i.test(line)) patterns.set("mistake-based hooks", (patterns.get("mistake-based hooks") || 0) + 1);
+      if (/\bhow to\b/i.test(line)) patterns.set("how-to education", (patterns.get("how-to education") || 0) + 1);
+      if (/\?$/.test(line) || /\bwhy\b|\bwhat\b|\bwhen\b/i.test(line)) patterns.set("question hooks", (patterns.get("question hooks") || 0) + 1);
+      if (/\bmy\b|\bi\b|\bstory\b|\blearned\b|\bjourney\b/i.test(line)) patterns.set("personal-story angles", (patterns.get("personal-story angles") || 0) + 1);
+      if (/\bclient\b|\bcase study\b|\bresults?\b|\bproof\b/i.test(line)) patterns.set("proof / case-study angles", (patterns.get("proof / case-study angles") || 0) + 1);
+    }
+    return [...patterns.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([pattern]) => pattern);
+  }
+
+  function inferAudiencePains(niche: string, audience: string, topTerms: string[]): string[] {
+    const combined = `${niche} ${audience}`.toLowerCase();
+    const pains: string[] = [];
+    if (/\bcoach|consultant|agency|freelancer|service\b/.test(combined)) pains.push("struggling to turn expertise into clear content angles");
+    if (/\bcreator|content|influencer|personal brand\b/.test(combined)) pains.push("running out of fresh ideas without repeating old posts");
+    if (/\bfitness|health|nutrition\b/.test(combined)) pains.push("feeling overwhelmed by conflicting advice and needing simple actions");
+    if (/\bfinance|money|invest|trading\b/.test(combined)) pains.push("wanting practical, low-confusion steps instead of theory");
+    if (/\bsaas|software|b2b|startup|founder\b/.test(combined)) pains.push("needing proof-backed content that earns trust fast");
+    if (/\bmom|parents|busy|founder|entrepreneur\b/.test(combined)) pains.push("not having enough time for long, complicated workflows");
+    for (const term of topTerms.slice(0, 3)) {
+      pains.push(`wanting clearer guidance around ${term}`);
+    }
+    return [...new Set(pains)].slice(0, 4);
+  }
+
+  function buildStrategyBrief(params: {
+    platform: string;
+    niche: string;
+    goal?: string;
+    audience?: string;
+    contentType?: string;
+    profileHandle?: string;
+    contextPosts: IdeaContextPost[];
+    scrapedPostsCount: number;
+    hashtags?: string[];
+  }) {
+    const { platform, niche, goal, audience, contentType, profileHandle, contextPosts, scrapedPostsCount, hashtags } = params;
+    const posts = contextPosts.slice(0, 30);
+    const typeCounts: Record<string, number> = {};
+    for (const post of posts) {
+      const key = (post.contentType || "unknown").toLowerCase();
+      typeCounts[key] = (typeCounts[key] || 0) + 1;
+    }
+
+    const rankedPosts = [...posts].sort((a, b) => {
+      const aScore = (a.views || 0) + (a.likes || 0) * 3 + (a.comments || 0) * 5 + (a.saves || 0) * 4;
+      const bScore = (b.views || 0) + (b.likes || 0) * 3 + (b.comments || 0) * 5 + (b.saves || 0) * 4;
+      return bScore - aScore;
+    });
+    const avgViews = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.views || 0), 0) / posts.length, 0) : 0;
+    const avgLikes = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.likes || 0), 0) / posts.length, 0) : 0;
+    const avgComments = posts.length ? roundTo(posts.reduce((sum, p) => sum + (p.comments || 0), 0) / posts.length, 0) : 0;
+    const topTerms = extractTopTerms(posts);
+    const hookPatterns = detectHookPatterns(posts);
+    const topFormats = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([format, count]) => `${format} (${count})`);
+    const winningTitles = rankedPosts.slice(0, 3).map((post) => post.title || post.caption || "Untitled");
+    const missingLanes = [
+      !hookPatterns.includes("proof / case-study angles") ? "more proof-led content with results, screenshots, or case studies" : null,
+      !hookPatterns.includes("personal-story angles") ? "more personal-story content to deepen trust and memorability" : null,
+      !hookPatterns.includes("question hooks") ? "more conversation-starting prompts to pull comments" : null,
+      !Object.keys(typeCounts).some((format) => format.includes("carousel")) && platform === "instagram" ? "carousel breakdowns that package value more clearly" : null,
+      !Object.keys(typeCounts).some((format) => format.includes("reel")) && platform === "instagram" ? "short-form reels built around one sharp promise" : null,
+      platform === "youtube" && !rankedPosts.some((p) => (p.contentType || "").includes("short")) ? "short-form YouTube Shorts to create top-of-funnel discovery" : null,
+      platform === "linkedin" ? "stronger founder/opinion posts that spark disagreement and discussion" : null,
+      platform === "twitter" ? "thread-first educational sequences with sharper opening claims" : null,
+    ].filter(Boolean) as string[];
+
+    const audiencePains = inferAudiencePains(niche, audience || "", topTerms);
+    const recommendedPillars = [
+      `${goal?.includes("sale") || goal?.includes("conversion") ? "buyer-belief shifts" : "audience pain points"} in ${niche}`,
+      `${topTerms[0] || niche} explained with concrete frameworks`,
+      `${hookPatterns[0] || "specific hooks"} tied to ${audience || "the target audience"}`,
+      `${platform === "youtube" ? "series-based content" : "proof-led stories"} that build authority`,
+    ].slice(0, 4);
+
+    const sources = [
+      profileHandle ? `profile context from ${profileHandle}` : null,
+      posts.length ? `${posts.length} logged/tracked content posts` : null,
+      scrapedPostsCount > 0 ? `${scrapedPostsCount} freshly scraped platform posts` : null,
+      hashtags?.length ? `${hashtags.length} niche hashtags/topics` : null,
+    ].filter(Boolean) as string[];
+
+    return {
+      positioning: profileHandle
+        ? `${profileHandle} sits in ${niche} with a ${goal || "growth-focused"} objective and should lean harder into differentiated, proof-backed content.`
+        : `This ${niche} brand should be positioned with sharper specificity and more repeatable content systems instead of one-off generic posts.`,
+      audienceSummary: audience || `Primary audience is people interested in ${niche} who need clearer, more actionable content.`,
+      performanceSnapshot: posts.length
+        ? `Across ${posts.length} context posts, average performance is ${formatCompactNumber(avgViews)} views, ${formatCompactNumber(avgLikes)} likes, and ${formatCompactNumber(avgComments)} comments.`
+        : `No meaningful post history was provided, so the workflow will rely more heavily on niche, platform, and goal context.`,
+      topFormats,
+      winningPatterns: [...new Set([...hookPatterns, ...topTerms.slice(0, 2).map((term) => `${term}-driven education`)])].slice(0, 4),
+      winningTitles,
+      audiencePains,
+      contentGaps: missingLanes.slice(0, 4),
+      opportunityLanes: [
+        `Turn ${topTerms[0] || niche} into a repeatable content series`,
+        `Publish more ${goal?.includes("engagement") ? "comment-driven" : goal?.includes("sale") ? "conversion-aware" : "shareable"} content`,
+        `Use ${hookPatterns[0] || "stronger hooks"} to package ideas with higher clarity`,
+      ].slice(0, 3),
+      recommendedPillars,
+      sources,
+      workflowSteps: [
+        "Use the strategy brief to choose one high-priority lane",
+        "Pick a bucket: Growth, Trust, or Conversion",
+        "Choose the highest-scoring idea and expand it into a script or post",
+        "Repurpose the winning idea into at least one secondary platform-native version",
+      ],
+      metadata: {
+        postsAnalysed: posts.length,
+        avgViews,
+        avgLikes,
+        avgComments,
+        contentTypeHint: contentType || null,
+      },
+    };
+  }
+
+  // ── Oravini CRM sync helper ───────────────────────────────────────────────
+  async function syncToOraviniCRM(payload: Record<string, any>): Promise<void> {
+    const key = process.env.ORAVINI_CRM_KEY;
+    if (!key || !payload.email) return;
+    try {
+      await fetch("https://oravinicrm.replit.app/api/integration/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": key },
+        body: JSON.stringify({ source: "brandverse", ...payload }),
+      });
+    } catch (_) { /* fire-and-forget — never block main response */ }
+  }
+
+  // ── Anthropic helper (deep analysis — Claude 4 models) ───────────────────
+  async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
+    const apiKey = process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("No Anthropic API key configured");
+    const client = new Anthropic({ apiKey });
+    const models = [
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-20250514",
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-20250514",
+    ];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const message = await client.messages.create({
+          model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        });
+        return message.content[0].type === "text" ? message.content[0].text : "";
+      } catch (e: any) {
+        lastError = e.message || String(e);
+        console.warn(`[Anthropic] ${model} failed: ${lastError}`);
+      }
+    }
+    throw new Error(`Anthropic generation failed: ${lastError}`);
+  }
+
+  // ── OpenRouter / Anthropic / Groq cascade (deep analysis) ──────────────────
+  async function callOpenRouter(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
+    // 1. Try Anthropic first (if key present) — catch auth/model errors and fall through
+    if (process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY) {
+      try {
+        const result = await callAnthropic(systemPrompt, userPrompt, maxTokens);
+        if (result) return result;
+      } catch (e: any) {
+        console.warn("[OpenRouter cascade] Anthropic failed, falling back to Groq:", e.message?.slice(0, 120));
+      }
+    }
+
+    // 2. Try Groq as a reliable fallback for deep analysis
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const result = await callGroq(systemPrompt, userPrompt, Math.min(maxTokens, 8000));
+        if (result) return result;
+      } catch (e: any) {
+        console.warn("[OpenRouter cascade] Groq failed:", e.message?.slice(0, 120));
+      }
+    }
+
+    // 3. Try OpenRouter as last resort
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (apiKey) {
+      const models = ["deepseek/deepseek-chat", "anthropic/claude-3-haiku", "openai/gpt-4o-mini"];
+      let lastError = "";
+      for (const model of models) {
+        try {
+          const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://brandverse.app",
+              "X-Title": "Brandverse Portal",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.7,
+              max_tokens: maxTokens,
+            }),
+          });
+          const data: any = await r.json();
+          if (data?.error) { lastError = data.error.message || JSON.stringify(data.error); console.warn(`OpenRouter ${model} error: ${lastError}`); continue; }
+          const text = data?.choices?.[0]?.message?.content;
+          if (text) return text;
+        } catch (e: any) { lastError = e.message; }
+      }
+    }
+
+    throw new Error("All AI providers failed — check your API keys");
+  }
+
+  // ── Scrape Instagram profile without saving (for AI context) ─────────────
+  app.post("/api/instagram/scrape-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
+      const normalized = normalizeInstagramProfileInput(String(profileUrl));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      const items = await apifyInstagram({ directUrls: [normalized.profileUrl], resultsType: "posts", resultsLimit: 20 });
+      if (!items?.length) return res.json({ posts: [] });
+      const posts = items.map((item: any) => ({
+        title: item.caption ? item.caption.slice(0, 120) : "Untitled",
+        contentType: item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post",
+        views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+        likes: item.likesCount ?? 0,
+        comments: item.commentsCount ?? 0,
+        postDate: item.timestamp,
+        url: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : null),
+      }));
+      return res.json({ posts });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Instagram Profile Setup: get saved report ─────────────────────────────
+  app.get("/api/instagram/profile-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const clientId = (req as any).user.id;
+      const report = await storage.getInstagramProfileReport(clientId);
+      res.json(report ?? null);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Instagram Profile Setup: scrape + sync + AI analyze ──────────────────
+  app.post("/api/instagram/analyze-profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const clientId = (req as any).user.id;
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl required" });
+      const normalized = normalizeInstagramProfileInput(String(profileUrl));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram profile URL or @handle" });
+      const resolvedProfileUrl = normalized.profileUrl;
+
+      // extract handle from URL
+      const handle = normalized.username;
+
+      // 1. Try Meta API first, fall back to Apify
+      type NormalisedPost = { postUrl: string; caption: string; postDate: Date; contentType: "reel" | "carousel" | "post"; views: number; likes: number; comments: number; saves: number; type: string; };
+      let normalisedPosts: NormalisedPost[] = [];
+      let dataSource = "apify";
+
+      try {
+        const igAccountId = await getIgAccountIdCached();
+        if (igAccountId) {
+          const connAcct = await getConnectedIGAccount();
+          // Check if the profile handle matches connected account
+          const reqHandle = normalized.username;
+          const connHandle = (connAcct?.igUsername || "").toLowerCase();
+          if (reqHandle && connHandle && reqHandle === connHandle) {
+            const media = await getIGMedia(igAccountId, 50);
+            if (media.length > 0) {
+              for (const m of media) {
+                const insights = await getMediaInsights(m.id, m.media_type);
+                normalisedPosts.push({
+                  postUrl: m.permalink,
+                  caption: m.caption || "",
+                  postDate: new Date(m.timestamp),
+                  contentType: m.media_type === "VIDEO" || m.media_type === "REELS" ? "reel" : m.media_type === "CAROUSEL_ALBUM" ? "carousel" : "post",
+                  views: insights.plays ?? insights.video_views ?? 0,
+                  likes: m.like_count || insights.likes || 0,
+                  comments: m.comments_count || insights.comments || 0,
+                  saves: insights.saved || 0,
+                  type: m.media_type,
+                });
+              }
+              dataSource = "meta";
+              console.log(`[analyze-profile] Meta API ✓ — ${normalisedPosts.length} posts`);
+            }
+          }
+        }
+      } catch (e: any) { console.warn("[analyze-profile] Meta API failed, using Apify:", e.message); }
+
+      // Apify fallback
+      if (!normalisedPosts.length) {
+        const items = await apifyInstagram({ directUrls: [resolvedProfileUrl], resultsType: "posts", resultsLimit: 30 });
+        if (!items?.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
+        normalisedPosts = items.map((item: any) => ({
+          postUrl: item.url ?? (item.shortCode ? `https://instagram.com/p/${item.shortCode}` : ""),
+          caption: item.caption || "",
+          postDate: item.timestamp ? new Date(item.timestamp) : new Date(),
+          contentType: (item.type === "Video" || item.type === "Reel" ? "reel" : item.type === "Sidecar" ? "carousel" : "post") as "reel" | "carousel" | "post",
+          views: item.videoPlayCount ?? item.videoViewCount ?? item.playsCount ?? 0,
+          likes: item.likesCount ?? 0,
+          comments: item.commentsCount ?? 0,
+          saves: item.savesCount ?? 0,
+          type: item.type || "",
+        })).filter((p: NormalisedPost) => p.postUrl);
+      }
+
+      if (!normalisedPosts.length) return res.status(404).json({ message: "No posts found — make sure the account is public." });
+
+      // 2. Sync posts to content tracking (upsert by url; skip duplicates)
+      const existingPosts = await storage.getContentPostsByClient(clientId);
+      const existingUrls = new Set(existingPosts.map((p: any) => p.postUrl).filter(Boolean));
+      let imported = 0;
+      for (const p of normalisedPosts) {
+        if (!p.postUrl || existingUrls.has(p.postUrl)) continue;
+        try {
+          await storage.createContentPost({
+            clientId, platform: "instagram",
+            title: p.caption ? p.caption.slice(0, 120) : "Untitled",
+            postUrl: p.postUrl, postDate: p.postDate,
+            contentType: p.contentType as any, funnelStage: "top",
+            views: p.views, likes: p.likes, comments: p.comments, saves: p.saves,
+            followersGained: 0, subscribersGained: 0,
+          });
+          imported++;
+        } catch (_) { /* skip */ }
+      }
+
+      // 3. Build data summary for AI
+      const items = normalisedPosts; // alias for AI prompt below
+      const totalLikes = items.reduce((s, p) => s + p.likes, 0);
+      const totalComments = items.reduce((s, p) => s + p.comments, 0);
+      const totalViews = items.reduce((s, p) => s + p.views, 0);
+      const reels = items.filter((p) => p.contentType === "reel").length;
+      const carousels = items.filter((p) => p.contentType === "carousel").length;
+      const posts = items.filter((p) => p.contentType === "post").length;
+      const captions = items.slice(0, 10).map((p) => p.caption?.slice(0, 200)).filter(Boolean);
+      const topByLikes = [...items].sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0)).slice(0, 3);
+
+      const systemPrompt = `You are an elite Instagram growth strategist. Analyze Instagram profile data and return ONLY valid JSON — no markdown, no extra text.`;
+      const userPrompt = `Analyze this Instagram account and return a detailed profile report as JSON.
+
+Handle: @${handle ?? "unknown"}
+Posts analyzed: ${items.length}
+Total likes: ${totalLikes}, Total comments: ${totalComments}, Total views: ${totalViews}
+Content breakdown: ${reels} Reels, ${carousels} Carousels, ${posts} Static posts
+Sample captions: ${JSON.stringify(captions)}
+Top 3 posts by likes: ${JSON.stringify(topByLikes.map((p) => ({ likes: p.likes, comments: p.comments, views: p.views, saves: p.saves, type: p.contentType, caption: p.caption?.slice(0, 100) })))}
+
+Return this exact JSON structure:
+{
+  "niche": "primary niche category (e.g. Business & Entrepreneurship, Fitness, Fashion, etc.)",
+  "subniche": "specific sub-niche (e.g. Online Coaching, Weight Loss for Moms, Streetwear, etc.)",
+  "audienceType": "description of likely audience (age range, interests, demographics)",
+  "contentStyle": "overall content style and tone",
+  "topContentType": "best performing content format based on data",
+  "avgEngagementRate": "estimated engagement rate as string (e.g. 3.2%)",
+  "postFrequency": "estimated posting frequency based on sample (e.g. ~4 posts/week)",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "gaps": ["gap 1", "gap 2", "gap 3"],
+  "recommendations": ["specific actionable tip 1", "specific actionable tip 2", "specific actionable tip 3", "tip 4"],
+  "summary": "2-3 sentence overview of the account's positioning, audience, and growth potential"
+}`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 1500);
+      let report: any;
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid JSON. Please try again." });
+      }
+
+      // 4. Save to DB
+      const saved = await storage.upsertInstagramProfileReport({
+        clientId,
+        instagramUrl: resolvedProfileUrl,
+        handle,
+        postCount: items.length,
+        report,
+      });
+
+      return res.json({ ...saved, newPostsImported: imported });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Admin: Tool Usage Heatmap
+  app.get("/api/admin/tool-heatmap", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          ct.type AS tool,
+          COUNT(*)::int AS total_uses,
+          COUNT(DISTINCT ct.user_id)::int AS unique_users,
+          SUM(ABS(ct.amount))::int AS total_credits
+        FROM credit_transactions ct
+        WHERE ct.amount < 0
+        GROUP BY ct.type
+        ORDER BY total_uses DESC
+      `);
+      const toolStats = result.rows.map((r: any) => ({
+        tool: r.tool,
+        totalUses: r.total_uses,
+        uniqueUsers: r.unique_users,
+        totalCredits: r.total_credits,
+      }));
+      const allTools = toolStats.map((t: any) => t.tool);
+
+      const matrixResult = await pool.query(`
+        SELECT
+          ct.user_id,
+          u.name AS user_name,
+          ct.type AS tool,
+          COUNT(*)::int AS uses
+        FROM credit_transactions ct
+        JOIN users u ON u.id = ct.user_id
+        WHERE ct.amount < 0
+        GROUP BY ct.user_id, u.name, ct.type
+        ORDER BY u.name
+      `);
+
+      const userMap: Record<string, { userName: string; userId: string; tools: Record<string, number> }> = {};
+      for (const row of matrixResult.rows) {
+        if (!userMap[row.user_id]) {
+          userMap[row.user_id] = { userId: row.user_id, userName: row.user_name, tools: {} };
+        }
+        userMap[row.user_id].tools[row.tool] = row.uses;
+      }
+
+      return res.json({
+        toolStats,
+        allTools,
+        userToolMatrix: Object.values(userMap),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Admin: get all AI idea generation logs
+  app.get("/api/ai/idea-logs", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const logs = await storage.getAiIdeaLogs();
+      res.json(logs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Day Planner ──────────────────────────────────────────────────────
+  app.post("/api/ai/day-plan", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { goal, date } = req.body;
+      if (!goal?.trim()) return res.status(400).json({ message: "goal is required" });
+      const plan = await callGroq(
+        "You are a world-class productivity coach. Generate a structured, actionable daily plan. Be specific and practical.",
+        `Create a detailed day plan for: "${goal}" on ${date || "today"}.
+
+Format it clearly with these sections:
+📋 Day Plan — [date]
+Goal: "[goal]"
+
+🌅 Morning (6–9am)
+• [specific task]
+• [specific task]
+
+⚡ Midday (12–2pm)
+• [specific task]
+• [specific task]
+
+🌆 Evening (6–9pm)
+• [specific task]
+• [specific task]
+
+✅ Top 3 Must-Do Tasks:
+1. [most important task]
+2. [second task]
+3. [third task]
+
+Keep it concise, actionable, and directly tied to the goal.`,
+        800
+      );
+      return res.json({ plan });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "AI plan generation failed" });
+    }
+  });
+
+  // ── AI Content Ideas (Groq — fast) ───────────────────────────────────────
+  app.post("/api/ai/content-ideas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { platform, niche, contentType, goal, audience, additionalContext, profileHandle, existingPosts, scrapedPosts, hashtags } = req.body;
+      if (!platform || !niche) return res.status(400).json({ message: "Platform and niche are required" });
+
+      const _u = req.user as any;
+      if (_u.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u.id, 5, "ai_ideas", "AI Content Ideas generation", _u.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+
+      const platformMap: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", linkedin: "LinkedIn", twitter: "X/Twitter" };
+      const platformLabel = platformMap[platform] || platform;
+      const goalLabel = goal || "growth and engagement";
+      const audienceLabel = audience || "general audience";
+
+      const allContextPosts: IdeaContextPost[] = [
+        ...(Array.isArray(existingPosts) ? existingPosts : []),
+        ...(Array.isArray(scrapedPosts) ? scrapedPosts : []),
+      ];
+      const isYouTube = platform === "youtube";
+      const isLinkedIn = platform === "linkedin";
+      const isTwitter = platform === "twitter";
+      const strategyBrief = buildStrategyBrief({
+        platform,
+        niche,
+        goal,
+        audience,
+        contentType,
+        profileHandle,
+        contextPosts: allContextPosts,
+        scrapedPostsCount: Array.isArray(scrapedPosts) ? scrapedPosts.length : 0,
+        hashtags: Array.isArray(hashtags) ? hashtags : [],
+      });
+
+      const defaultContentType = isYouTube
+        ? "Mix of long-form videos, YouTube Shorts, and educational breakdowns"
+        : isLinkedIn
+          ? "Mix of thought leadership, story posts, and credibility-building takes"
+          : isTwitter
+            ? "Mix of threads, sharp opinions, and bookmark-worthy single posts"
+            : "Mix of reels, carousels, and trust-building posts";
+
+      const promptPayload = {
+        platform,
+        platformLabel,
+        niche,
+        contentType: contentType || defaultContentType,
+        goal: goalLabel,
+        audience: audienceLabel,
+        profileHandle: profileHandle || null,
+        additionalContext: additionalContext || null,
+        hashtags: Array.isArray(hashtags) ? hashtags : [],
+        strategyBrief,
+        contextPosts: allContextPosts.slice(0, 12).map((post) => ({
+          title: post.title || null,
+          contentType: post.contentType || null,
+          views: post.views || 0,
+          likes: post.likes || 0,
+          comments: post.comments || 0,
+          saves: post.saves || 0,
+          caption: (post.caption || post.description || "").slice(0, 220) || null,
+          duration: post.duration || null,
+        })),
+      };
+
+      const systemPrompt = `You are Oravini's elite content strategist. Your job is to turn creator context into a real content workflow, not generic brainstorms.
+
+Rules:
+1. Every idea must feel platform-native and niche-specific.
+2. Avoid weak generic titles like "How to grow", "3 tips", "Why you should". Be concrete.
+3. Use the strategy brief and context posts to build on what is working and fill what is missing.
+4. Spread ideas across Growth, Trust, and Conversion buckets.
+5. Include execution guidance, not just titles.
+6. If a platform has a native structure, use it:
+- Instagram: reels, carousels, stories, proof posts
+- YouTube: title packaging, thumbnail angle, intro hook, retention structure
+- LinkedIn: opener, belief shift, insight, proof, CTA
+- X/Twitter: opener tweet, thread shape, hot take, reply prompt
+7. Return only valid JSON.`;
+
+      const userPrompt = `Build a strategy-first content workflow for this creator context:
+
+${JSON.stringify(promptPayload, null, 2)}
+
+Return valid JSON in this exact shape:
+{
+  "strategyBrief": {
+    "positioning": "1-2 sentences",
+    "audienceSummary": "1 sentence",
+    "performanceSnapshot": "1 sentence",
+    "winningPatterns": ["...", "...", "..."],
+    "contentGaps": ["...", "...", "..."],
+    "opportunityLanes": ["...", "...", "..."],
+    "recommendedPillars": ["...", "...", "..."],
+    "workflowSteps": ["...", "...", "...", "..."],
+    "sources": ["...", "..."]
+  },
+  "ideaBuckets": [
+    { "key": "growth", "title": "Growth", "description": "What this bucket is for" },
+    { "key": "trust", "title": "Trust", "description": "What this bucket is for" },
+    { "key": "conversion", "title": "Conversion", "description": "What this bucket is for" }
+  ],
+  "ideas": [
+    {
+      "title": "specific hook/title",
+      "bucket": "growth|trust|conversion",
+      "angle": "what strategic angle this idea uses",
+      "concept": "2-3 sentence explanation",
+      "formatType": "exact platform-native format",
+      "whyItWorks": "why this should perform on the platform",
+      "captionStarter": "first line / hook / opener",
+      "cta": "specific CTA",
+      "sourceInsight": "what brief insight this idea is based on",
+      "confidenceScore": 1,
+      "productionNotes": ["...", "...", "..."],
+      "repurposeHook": "how to repurpose this idea for another platform",
+      "keyPoints": [],
+      "threadOutline": [],
+      "linkedinStructure": []
+    }
+  ],
+  "contentMix": {
+    "growth": 40,
+    "value": 40,
+    "conversion": 20,
+    "suggestion": "one sentence"
+  },
+  "workflow": {
+    "nextBestAction": "single next move",
+    "productionSequence": ["...", "...", "..."],
+    "repurposingNotes": ["...", "...", "..."]
+  }
+}
+
+Requirements:
+- Return 8 ideas total.
+- At least 2 ideas per bucket.
+- confidenceScore must be 1-10.
+- productionNotes must be specific execution notes, not fluff.
+- For YouTube, fill keyPoints when the idea implies a breakdown/list video.
+- For X/Twitter, fill threadOutline for thread ideas.
+- For LinkedIn, fill linkedinStructure for LinkedIn ideas.
+- For Instagram, make productionNotes useful for reels/carousels/captions.`;
+
+      const parsed = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 5000));
+      if (!parsed || !Array.isArray(parsed.ideas)) {
+        return res.status(500).json({ message: "Failed to build structured content workflow" });
+      }
+
+      parsed.strategyBrief = {
+        ...strategyBrief,
+        ...(parsed.strategyBrief || {}),
+        winningPatterns: Array.isArray(parsed.strategyBrief?.winningPatterns) ? parsed.strategyBrief.winningPatterns : strategyBrief.winningPatterns,
+        contentGaps: Array.isArray(parsed.strategyBrief?.contentGaps) ? parsed.strategyBrief.contentGaps : strategyBrief.contentGaps,
+        opportunityLanes: Array.isArray(parsed.strategyBrief?.opportunityLanes) ? parsed.strategyBrief.opportunityLanes : strategyBrief.opportunityLanes,
+        recommendedPillars: Array.isArray(parsed.strategyBrief?.recommendedPillars) ? parsed.strategyBrief.recommendedPillars : strategyBrief.recommendedPillars,
+        workflowSteps: Array.isArray(parsed.strategyBrief?.workflowSteps) ? parsed.strategyBrief.workflowSteps : strategyBrief.workflowSteps,
+        sources: Array.isArray(parsed.strategyBrief?.sources) ? parsed.strategyBrief.sources : strategyBrief.sources,
+      };
+
+      parsed.ideaBuckets = Array.isArray(parsed.ideaBuckets) && parsed.ideaBuckets.length > 0
+        ? parsed.ideaBuckets
+        : [
+          { key: "growth", title: "Growth", description: "Discovery-focused content designed to reach new people." },
+          { key: "trust", title: "Trust", description: "Authority and credibility content that makes the creator memorable." },
+          { key: "conversion", title: "Conversion", description: "Ideas built to turn attention into DMs, leads, or sales." },
+        ];
+
+      parsed.ideas = parsed.ideas.slice(0, 8).map((idea: any, index: number) => ({
+        title: idea.title || `Idea ${index + 1}`,
+        bucket: ["growth", "trust", "conversion"].includes(idea.bucket) ? idea.bucket : index < 3 ? "growth" : index < 6 ? "trust" : "conversion",
+        angle: idea.angle || "specific platform-native angle",
+        concept: idea.concept || "A sharper content idea built from the strategy brief.",
+        formatType: idea.formatType || (platform === "youtube" ? "Educational Breakdown" : platform === "linkedin" ? "Thought Leadership Post" : platform === "twitter" ? "Thread" : "Instagram Reel"),
+        whyItWorks: idea.whyItWorks || "This idea is aligned with the platform format and audience intent.",
+        captionStarter: idea.captionStarter || idea.title,
+        cta: idea.cta || (platform === "twitter" ? "Reply with your take." : platform === "linkedin" ? "Comment with your experience." : "Save this and follow for more."),
+        sourceInsight: idea.sourceInsight || parsed.strategyBrief?.winningPatterns?.[0] || "Built from the strategy brief.",
+        confidenceScore: Math.max(1, Math.min(10, Number(idea.confidenceScore) || 7)),
+        productionNotes: Array.isArray(idea.productionNotes) ? idea.productionNotes.slice(0, 4) : [],
+        repurposeHook: idea.repurposeHook || "Repurpose the same insight with a tighter hook for a second platform.",
+        keyPoints: Array.isArray(idea.keyPoints) ? idea.keyPoints.slice(0, 8) : [],
+        threadOutline: Array.isArray(idea.threadOutline) ? idea.threadOutline.slice(0, 5) : [],
+        linkedinStructure: Array.isArray(idea.linkedinStructure) ? idea.linkedinStructure.slice(0, 5) : [],
+      }));
+
+      parsed.contentMix = parsed.contentMix && typeof parsed.contentMix === "object"
+        ? {
+          growth: Number(parsed.contentMix.growth) || 40,
+          value: Number(parsed.contentMix.value) || 40,
+          conversion: Number(parsed.contentMix.conversion) || 20,
+          suggestion: parsed.contentMix.suggestion || `Balance discovery, trust-building, and conversion content around ${goalLabel}.`,
+        }
+        : {
+          growth: goalLabel.includes("viral") || goalLabel.includes("followers") ? 50 : 35,
+          value: goalLabel.includes("authority") || goalLabel.includes("educate") ? 45 : 40,
+          conversion: goalLabel.includes("sale") || goalLabel.includes("conversion") ? 30 : 20,
+          suggestion: `Use your strongest format to win attention, then rotate into trust and conversion posts with the same core themes.`,
+        };
+
+      parsed.workflow = parsed.workflow && typeof parsed.workflow === "object"
+        ? {
+          nextBestAction: parsed.workflow.nextBestAction || "Choose one Growth idea and one Trust idea to produce this week.",
+          productionSequence: Array.isArray(parsed.workflow.productionSequence) ? parsed.workflow.productionSequence.slice(0, 4) : strategyBrief.workflowSteps,
+          repurposingNotes: Array.isArray(parsed.workflow.repurposingNotes) ? parsed.workflow.repurposingNotes.slice(0, 4) : ["Turn the winning idea into a second platform-native variation."],
+        }
+        : {
+          nextBestAction: "Choose one Growth idea and turn it into a production-ready draft first.",
+          productionSequence: strategyBrief.workflowSteps,
+          repurposingNotes: ["Turn the best-performing concept into a second platform-native version within 24 hours."],
+        };
+
+      // Log this generation for admin visibility
+      try {
+        const user = req.user as any;
+        await storage.createAiIdeaLog({
+          clientId: user.id,
+          platform,
+          niche,
+          contentType: contentType || undefined,
+          goal: goal || undefined,
+          ideasCount: parsed.ideas?.length ?? 6,
+        });
+      } catch (_) { /* non-critical, don't fail the request */ }
+
+      res.json(parsed);
+    } catch (err: any) {
+      console.error("AI ideas error:", err);
+      res.status(500).json({ message: err.message || "AI generation failed" });
+    }
+  });
+
+  // ── AI Hashtag Suggestions ────────────────────────────────────────────────
+  app.post("/api/ai/hashtag-suggestions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche } = req.body;
+      if (!niche || niche.trim().length < 2) return res.json({ hashtags: [] });
+      const _uHt = req.user as any;
+      if (_uHt.role !== "admin") {
+        const htCredit = await storage.deductCredits(_uHt.id, 1, "hashtag_suggestions", "AI Hashtag Suggestions", _uHt.plan || "free");
+        if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
+      }
+
+      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      let lastErr: any;
+      for (const model of GROQ_MODELS) {
+        try {
+          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: JSON.stringify({
+              model,
+              max_tokens: 300,
+              temperature: 0.5,
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.",
+                },
+                {
+                  role: "user",
+                  content: `Give me 12 highly relevant Instagram hashtags for a creator in the "${niche}" niche. Mix of sizes: 4 large (1M+ posts), 4 medium (100k-1M posts), 4 small/niche (<100k posts). These must be actually used hashtags that perform well for this niche. Return JSON: { "hashtags": ["#tag1", "#tag2", ...] }`,
+                },
+              ],
+            }),
+          });
+          const json = await resp.json() as any;
+          const raw = json.choices?.[0]?.message?.content?.trim() || "";
+          const cleaned = raw.replace(/```json|```/g, "").trim();
+          const parsed = JSON.parse(cleaned);
+          if (Array.isArray(parsed.hashtags)) return res.json({ hashtags: parsed.hashtags.slice(0, 12) });
+          break;
+        } catch (e) { lastErr = e; }
+      }
+      res.json({ hashtags: [] });
+    } catch (err: any) {
+      res.json({ hashtags: [] });
+    }
+  });
+
+  // ── AI Full Script Generator ───────────────────────────────────────────────
+  app.post("/api/ai/full-script", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { title, concept, captionStarter, keyPoints, cta, platform, niche, goal, duration, formatType } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+
+      const _u2 = req.user as any;
+      if (_u2.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u2.id, 2, "ai_coach", "AI Script / Coach generation", _u2.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+
+      const isYt = platform === "youtube";
+      const fmt = (formatType || "").toLowerCase();
+      const isCarousel = fmt.includes("carousel");
+      const isStory = fmt.includes("stor");
+
+      // YouTube duration config
+      const ytDuration = parseInt(duration) || 5;
+      const ytWordRange = ytDuration <= 5 ? "700–900 words" : ytDuration <= 10 ? "1,500–2,000 words" : "2,500–3,000 words";
+      const ytSections = ytDuration <= 5 ? "3" : ytDuration <= 10 ? "5–6" : "7–8";
+      const ytTimeHint = ytDuration <= 5
+        ? "(0:00-0:15 hook, 0:15-0:40 intro, then 3 main sections, ending with CTA)"
+        : ytDuration <= 10
+          ? "(0:00-0:20 hook, 0:20-0:50 intro, then 5-6 detailed sections, mid-video engagement prompt, ending with CTA)"
+          : "(0:00-0:20 hook, 0:20-1:00 intro, then 7-8 deep sections with sub-points, multiple engagement prompts, storytelling segments, ending with CTA)";
+
+      let prompt: string;
+
+      if (isYt) {
+        prompt = `You are a world-class YouTube scriptwriter. Generate a complete, production-ready ${ytDuration}-minute YouTube video script.
+
+VIDEO IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow audience"}
+OPENING HOOK DIRECTION: ${captionStarter || ""}
+KEY POINTS TO COVER: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+TARGET LENGTH: ${ytDuration} minutes ${ytTimeHint}
+
+Write a FULL YouTube script with EXACTLY ${ytSections} body sections. Total word count: ${ytWordRange}. Structure:
+
+## HOOK (0:00 - 0:${ytDuration <= 5 ? "15" : "20"})
+[Write 3-5 attention-grabbing opening sentences. Pattern interrupt. Make them stop scrolling. Quote the exact words to say.]
+
+## INTRO (0:${ytDuration <= 5 ? "15" : "20"} - 0:${ytDuration <= 5 ? "40" : "50"})
+[Quick credibility, promise of the video, what they will learn, why it matters NOW]
+
+## BODY — MAIN CONTENT
+${ytDuration >= 10 ? "[Each section must have detailed sub-points, specific examples, data, stories, and exact dialogue. No vague placeholders.]" : "[Write exact words to say. Conversational. Punchy. Include B-roll suggestions in [brackets].]"}
+
+${Array.from({ length: parseInt(ytSections[0]) }, (_, i) => `### Section ${i + 1}: [Topic]
+[Full script with exact words, transitions, energy cues, and visual direction in brackets...]`).join("\n\n")}
+
+${ytDuration >= 10 ? `## ENGAGEMENT PROMPT (mid-video)
+[Ask viewers to comment with something specific — makes the algorithm push the video]
+
+` : ""}## CONCLUSION & CTA
+[Key takeaway recap. Strong CTA. What to watch next or do right now.]
+
+## END SCREEN (Final 20 seconds)
+[Exact words while end screen plays. Plug another video. Ask to subscribe.]
+
+Every word must sound natural when spoken aloud. Include delivery cues like (pause), (lean in), (slow down). Total: ${ytWordRange}.`;
+
+      } else if (isCarousel) {
+        prompt = `You are an expert Instagram carousel copywriter. Generate a complete, slide-by-slide carousel script.
+
+CAROUSEL IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow followers"}
+HOOK LINE: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write the EXACT TEXT for every slide. This is a carousel — each slide has limited space so text must be punchy and visual. Write 8-10 slides.
+
+## SLIDE 1 — HOOK / COVER
+Headline text (large, bold): [The hook line that makes them swipe]
+Subheading (small text, optional): [Supporting line]
+
+## SLIDE 2 — [Topic]
+Main text: [Exactly what goes on this slide — short, punchy]
+Supporting line: [Optional second line]
+
+## SLIDE 3 — [Topic]
+Main text: [...]
+Supporting line: [...]
+
+[Continue for slides 4-9 following the same format]
+
+## LAST SLIDE — CTA
+Main text: [Strong call-to-action — save, follow, DM, share]
+Sub text: [Handle or offer or next step]
+
+## CAPTION (for the post)
+[Full Instagram caption: hook line + 3-4 lines of value + CTA + 15-20 hashtags]
+
+Keep each slide text to maximum 15-20 words. The carousel should tell a complete story from hook to payoff.`;
+
+      } else if (isStory) {
+        prompt = `You are an Instagram Stories copywriter. Generate a complete story sequence with exact text for each frame.
+
+STORY IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "drive engagement"}
+HOOK: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write the EXACT TEXT for 6-8 story frames. Each frame is a single slide in Stories.
+
+## STORY FRAME 1 — HOOK
+Text on screen: [Bold hook text — max 10 words]
+Visual suggestion: [Background, color, style suggestion]
+Interactive element: [Poll / Question sticker / Swipe-up if relevant]
+
+## STORY FRAME 2 — [Topic/Problem]
+Text on screen: [Exact text]
+Visual suggestion: [...]
+Interactive element: [...]
+
+[Continue for frames 3-7]
+
+## STORY FRAME FINAL — CTA
+Text on screen: [Clear action — reply, DM, link, swipe]
+Visual suggestion: [...]
+Interactive element: [Link sticker / DM button / Poll]
+
+Each frame text must be short (max 10-15 words) and punchy. Stories disappear in seconds — every frame must earn the next tap.`;
+
+      } else {
+        // Default: Instagram Reel
+        prompt = `You are a world-class Instagram Reels / short-form video scriptwriter. Generate a complete, production-ready script.
+
+REEL IDEA: ${title}
+CONCEPT: ${concept || ""}
+NICHE: ${niche || "not specified"}
+GOAL: ${goal || "grow followers"}
+OPENING HOOK: ${captionStarter || ""}
+KEY POINTS: ${(keyPoints || []).join(", ")}
+CTA: ${cta || ""}
+
+Write a FULL Instagram Reel script in this exact format:
+
+## HOOK (First 1-3 seconds)
+[Write the EXACT opening line — the words they say or text on screen. Must stop the scroll instantly.]
+
+## PROBLEM / RELATABILITY (3-10 seconds)
+[Establish the pain point or situation. Viewers must nod and say "that's me"]
+
+## CONTENT BODY (10-40 seconds)
+Spoken words:
+[Exact script — short punchy sentences. Include visual direction in [brackets]. Use pattern interrupts every 5-7 seconds.]
+
+Visual notes:
+[Camera angles, text overlays, cuts, transitions]
+
+## HOOK CALLBACK / PAYOFF (40-50 seconds)
+[Reference back to the hook. Deliver the promised value or reveal.]
+
+## CTA (Last 3-5 seconds)
+[Exact CTA line. One clear action — comment, follow, save, share, or DM.]
+
+## CAPTION
+[Complete caption: hook + 3-5 lines of value + CTA + 15-20 relevant hashtags]
+
+## AUDIO SUGGESTION
+[Type of music or trending sound that fits this reel]
+
+Keep the entire reel script to 45-60 seconds when read aloud. Every single word must earn its place.`;
+      }
+
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
+
+      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      let script = "";
+
+      for (const model of models) {
+        try {
+          const gr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: prompt }],
+              max_tokens: isYt ? (ytDuration >= 15 ? 6000 : ytDuration >= 10 ? 4000 : 2500) : 2500,
+              temperature: 0.8,
+            }),
+          });
+          if (!gr.ok) continue;
+          const gd = await gr.json();
+          script = gd.choices?.[0]?.message?.content || "";
+          if (script.length > 200) break;
+        } catch { continue; }
+      }
+
+      if (!script) return res.status(500).json({ message: "Script generation failed" });
+      res.json({ script });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Script generation failed" });
+    }
+  });
+
+  // ── AI Carousel Text Generator ────────────────────────────────────────────
+  app.post("/api/carousel/generate-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, slideCount } = req.body;
+      if (!topic) return res.status(400).json({ message: "Topic is required" });
+      const count = Math.min(Math.max(Number(slideCount) || 6, 2), 10);
+      const toneStr = tone || "engaging and educational";
+
+      const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
+      const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
+Tone: ${toneStr}
+
+Return a JSON object with this EXACT structure:
+{
+  "slides": [
+    { "role": "Hook", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" },
+    { "role": "Problem", "headline": "...", "body": "..." },
+    ...more slides...
+    { "role": "CTA", "headline": "call to action headline", "body": "clear single action for audience to take" }
+  ]
+}
+
+Rules:
+- Slide 1 is always the HOOK — make it impossible to scroll past, use a bold claim or question
+- Middle slides = value/insight/steps — each self-contained
+- Last slide is always the CTA — one clear action (Follow, DM [word], Save this, etc.)
+- Headlines: max 8 words, punchy, no punctuation at end
+- Body: max 30 words, concrete not vague
+- Vary the roles: Hook → Problem → Insight → Solution/Steps → Benefit → CTA
+- Write for viral reach, not corporate speak`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 3, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Generation failed" });
+    }
+  });
+
+  // ── AI Carousel Image Generator (Google Imagen + Runware fallback) ────────
+  app.post("/api/carousel/generate-image", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompt } = req.body;
+      if (!prompt) return res.status(400).json({ message: "Prompt required" });
+      const _uImg = req.user as any;
+      if (_uImg?.role !== "admin") {
+        const imgCredit = await storage.deductCredits(_uImg.id, 3, "carousel_image", "Carousel AI image generation", _uImg.plan || "free");
+        if (!imgCredit.success) return res.status(402).json({ message: imgCredit.message, insufficientCredits: true, balance: imgCredit.balance });
+      }
+
+      // Keep legacy misspelled env var as fallback for backwards compatibility.
+      const gKey = process.env.GOOGLE_API_KEY_IMAGE || process.env.GOOGLE__API_KEYIMAGE;
+      let imageBase64: string | null = null;
+
+      if (gKey) {
+        try {
+          const gResp = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${gKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                instances: [{ prompt }],
+                parameters: { sampleCount: 1, aspectRatio: "1:1", safetySetting: "block_some", negativePrompt: "text overlay, watermarks, faces, people, logos, blurry" }
+              })
+            }
+          );
+          if (gResp.ok) {
+            const gData = await gResp.json();
+            const b64 = gData.predictions?.[0]?.bytesBase64Encoded;
+            if (b64) imageBase64 = `data:image/png;base64,${b64}`;
+          }
+        } catch { /* fall through to Runware */ }
+      }
+
+      if (!imageBase64) {
+        const runwareKey = process.env.RUNWARE_API_KEY;
+        if (!runwareKey) return res.status(500).json({ message: "No image generation service configured" });
+        const images = await runwareGenerate(runwareKey, [{
+          taskType: "imageInference", taskUUID: `carousel-${Date.now()}`,
+          positivePrompt: prompt, negativePrompt: "text overlay, watermarks, faces, blurry, low quality",
+          model: "runware:100@1", width: 1024, height: 1024, numberResults: 1, outputType: "URL", outputFormat: "WEBP"
+        }]);
+        if (images[0]?.url) return res.json({ url: images[0].url, provider: "runware" });
+        return res.status(500).json({ message: "Image generation failed" });
+      }
+
+      res.json({ imageBase64, provider: "google" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Image generation failed" });
+    }
+  });
+
+  // ── AI Text Refine (Groq — improve message quality) ───────────────────────
+  app.post("/api/ai/refine-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text || text.trim().length < 3) return res.status(400).json({ message: "Text too short" });
+      const systemPrompt = `You are an expert copywriter and communication coach. Rewrite the given message to be clearer, more professional, and more compelling — keeping the exact same meaning and intent. Do not add new information. Return ONLY the improved text, nothing else.`;
+      const userPrompt = `Improve this${context ? ` (context: ${context})` : ""}: "${text.trim()}"`;
+      const refined = await callGroq(systemPrompt, userPrompt, 500);
+      res.json({ refined: refined.trim().replace(/^["']|["']$/g, "") });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Refinement failed" });
+    }
+  });
+
+  // ── Regenerate single carousel slide ─────────────────────────────────────
+  app.post("/api/carousel/regenerate-slide", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, role, slideNum, totalSlides } = req.body;
+      if (!topic || !role) return res.status(400).json({ message: "Topic and role required" });
+
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Return ONLY valid JSON.`;
+      const userPrompt = `Regenerate slide ${slideNum} of ${totalSlides} for a carousel about: "${topic}"
+Tone: ${tone || "engaging"}
+This slide's role: "${role}"
+
+Return JSON:
+{ "headline": "short bold headline max 8 words", "body": "2-3 punchy lines max 30 words" }`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 400);
+      const parsed = JSON.parse(raw);
+      res.json({ headline: parsed.headline || "", body: parsed.body || "" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Regeneration failed" });
+    }
+  });
+
+  // ── Add more slides to an existing carousel ──────────────────────────────
+  app.post("/api/carousel/add-slides", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, addCount, existingRoles } = req.body;
+      if (!topic) return res.status(400).json({ message: "Topic is required" });
+      const count = Math.min(Math.max(Number(addCount) || 3, 1), 5);
+      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "Carousel add-slides", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate additional slides as valid JSON only. No markdown, no code fences.`;
+      const userPrompt = `Generate ${count} NEW slides for an existing carousel about: "${topic}"
+Tone: ${tone || "engaging and educational"}
+Existing slide roles already used: ${(existingRoles || []).join(", ")}
+These new slides should ADD more value — deeper insights, extra steps, or a stronger CTA.
+Available roles: Insight, Solution, Step, Benefit, Proof, Story, Tip, Deep Dive, Bonus, Recap
+
+Return JSON:
+{
+  "slides": [
+    { "role": "Insight", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" }
+  ]
+}`;
+      const raw = await callGroqJson(systemPrompt, userPrompt, 1200);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 2, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to add slides" });
+    }
+  });
+
+  // ── AI Refine: rewrite all slides from a prompt ───────────────────────────
+  app.post("/api/carousel/refine", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { topic, tone, slides, prompt } = req.body;
+      if (!slides || !Array.isArray(slides)) return res.status(400).json({ message: "Slides array required" });
+      const creditResult = await storage.deductCredits(u.id, 3, "carousel", "Carousel AI refine", u.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      const systemPrompt = `You are an expert Instagram carousel copywriter. Refine carousel slides as valid JSON only. No markdown, no code fences.`;
+      const userPrompt = `Refine the following ${slides.length} carousel slides about "${topic}".
+Tone: ${tone || "engaging and educational"}
+User instruction: "${prompt}"
+
+Current slides:
+${slides.map((s: any, i: number) => `Slide ${i + 1} (${s.role}): "${s.headline}" — ${s.body}`).join("\n")}
+
+Apply the user's instruction to improve, strengthen, or transform the slides. Keep the same roles and count.
+Return JSON:
+{
+  "slides": [
+    { "role": "same role as input", "headline": "improved headline", "body": "improved body" }
+  ]
+}`;
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
+      res.json({ slides: parsed.slides, creditsUsed: 2, balance: creditResult.balance });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Refinement failed" });
+    }
+  });
+
+  // ── AI Content Report (OpenRouter — smart reasoning) ─────────────────────
+  app.post("/api/ai/content-report", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { posts, platform } = req.body;
+      if (!posts || posts.length === 0) return res.status(400).json({ message: "No posts to analyze" });
+
+      const _u3 = req.user as any;
+      if (_u3.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u3.id, 8, "ai_report", "AI Content Report analysis", _u3.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+
+      const isYt = platform === "youtube";
+      const orderedPosts = [...posts].sort((a: any, b: any) => new Date(a.postDate).getTime() - new Date(b.postDate).getTime());
+      const totalViews = orderedPosts.reduce((s: number, p: any) => s + (p.views || 0), 0);
+      const totalLikes = orderedPosts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
+      const totalComments = orderedPosts.reduce((s: number, p: any) => s + (p.comments || 0), 0);
+      const totalSaves = orderedPosts.reduce((s: number, p: any) => s + (p.saves || 0), 0);
+      const totalFollowers = orderedPosts.reduce((s: number, p: any) => s + ((isYt ? p.subscribersGained : p.followersGained) || 0), 0);
+      const avgViews = Math.round(totalViews / orderedPosts.length);
+      const erValues = orderedPosts.map((p: any) => p.views > 0 ? ((p.likes + p.comments + p.saves) / p.views * 100) : 0).filter((v: number) => v > 0);
+      const avgEr = erValues.length > 0 ? (erValues.reduce((s: number, v: number) => s + v, 0) / erValues.length).toFixed(2) : "0.00";
+      const bestPost = [...orderedPosts].sort((a: any, b: any) => (b.views || 0) - (a.views || 0))[0];
+      const worstPost = [...orderedPosts].sort((a: any, b: any) => (a.views || 0) - (b.views || 0))[0];
+      const typeCounts: Record<string, number> = {};
+      orderedPosts.forEach((p: any) => { typeCounts[p.contentType] = (typeCounts[p.contentType] || 0) + 1; });
+      const allTypes = Object.entries(typeCounts).map(([type, count]) => `${type}: ${count}`).join(", ");
+
+      const byDay = new Map<string, { day: string; views: number; likes: number; comments: number; saves: number; posts: number }>();
+      for (const post of orderedPosts) {
+        const day = new Date(post.postDate).toISOString().slice(0, 10);
+        const existing = byDay.get(day) || { day, views: 0, likes: 0, comments: 0, saves: 0, posts: 0 };
+        existing.views += post.views || 0;
+        existing.likes += post.likes || 0;
+        existing.comments += post.comments || 0;
+        existing.saves += post.saves || 0;
+        existing.posts += 1;
+        byDay.set(day, existing);
+      }
+      const trendSeries = [...byDay.values()].map((row) => ({
+        day: row.day,
+        views: row.views,
+        posts: row.posts,
+        engagement: row.views > 0 ? +(((row.likes + row.comments + row.saves) / row.views) * 100).toFixed(2) : 0,
+      }));
+
+      const formatBreakdown = Object.entries(typeCounts).map(([name, count]) => ({
+        name,
+        label: name,
+        posts: count,
+        totalViews: orderedPosts.filter((p: any) => p.contentType === name).reduce((s: number, p: any) => s + (p.views || 0), 0),
+      }));
+
+      const performanceByType = Object.keys(typeCounts).map((name) => {
+        const typePosts = orderedPosts.filter((p: any) => p.contentType === name);
+        const views = typePosts.reduce((s: number, p: any) => s + (p.views || 0), 0);
+        const likes = typePosts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
+        const comments = typePosts.reduce((s: number, p: any) => s + (p.comments || 0), 0);
+        const saves = typePosts.reduce((s: number, p: any) => s + (p.saves || 0), 0);
+        return {
+          type: name,
+          avgViews: Math.round(views / Math.max(typePosts.length, 1)),
+          avgEngagement: views > 0 ? +(((likes + comments + saves) / views) * 100).toFixed(2) : 0,
+          posts: typePosts.length,
+        };
+      });
+
+      const topPosts = [...orderedPosts]
+        .sort((a: any, b: any) => (b.views || 0) - (a.views || 0))
+        .slice(0, 5)
+        .map((p: any) => ({
+          title: p.title || "Untitled",
+          views: p.views || 0,
+          likes: p.likes || 0,
+          comments: p.comments || 0,
+          saves: p.saves || 0,
+          contentType: p.contentType || "unknown",
+        }));
+
+      const weakPosts = [...orderedPosts]
+        .sort((a: any, b: any) => (a.views || 0) - (b.views || 0))
+        .slice(0, 3)
+        .map((p: any) => ({
+          title: p.title || "Untitled",
+          views: p.views || 0,
+          contentType: p.contentType || "unknown",
+          issueHint: p.views < avgViews * 0.5 ? "well below average reach" : "under average performance",
+        }));
+
+      const firstHalf = orderedPosts.slice(0, Math.max(1, Math.floor(orderedPosts.length / 2)));
+      const secondHalf = orderedPosts.slice(Math.max(1, Math.floor(orderedPosts.length / 2)));
+      const firstHalfAvg = Math.round(firstHalf.reduce((s: number, p: any) => s + (p.views || 0), 0) / Math.max(firstHalf.length, 1));
+      const secondHalfAvg = Math.round(secondHalf.reduce((s: number, p: any) => s + (p.views || 0), 0) / Math.max(secondHalf.length, 1));
+      const viewDeltaPct = firstHalfAvg > 0 ? ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100 : 0;
+      const growthTrend = viewDeltaPct > 12 ? "↑ Growing" : viewDeltaPct < -12 ? "↓ Declining" : "→ Stable";
+
+      const score = Math.max(35, Math.min(96,
+        Math.round(
+          45 +
+          Math.min(25, erValues.length > 0 ? Number(avgEr) * 4 : 0) +
+          Math.min(15, orderedPosts.length * 1.5) +
+          (growthTrend.startsWith("↑") ? 8 : growthTrend.startsWith("↓") ? -8 : 0)
+        ),
+      ));
+
+      const systemPrompt = `You are a world-class social media analyst and growth strategist. You provide deep, actionable insights based on real data. Your analysis is specific, not generic. You understand platform algorithms, content strategy, and audience psychology deeply.`;
+
+      const userPrompt = `Analyze this ${isYt ? "YouTube" : "Instagram"} content performance data and generate a comprehensive strategic report.
+
+PERFORMANCE DATA:
+- Total posts analyzed: ${orderedPosts.length}
+- Total views: ${totalViews.toLocaleString()}
+- Total likes: ${totalLikes.toLocaleString()}
+- Total comments: ${totalComments.toLocaleString()}
+${!isYt ? `- Total saves: ${totalSaves.toLocaleString()}` : ""}
+- Average views per post: ${avgViews.toLocaleString()}
+${!isYt ? `- Average engagement rate: ${avgEr}%` : ""}
+- ${isYt ? "Subscribers" : "Followers"} gained: ${totalFollowers.toLocaleString()}
+- Best post: "${bestPost?.title || "Untitled"}" — ${(bestPost?.views || 0).toLocaleString()} views
+- Worst post: "${worstPost?.title || "Untitled"}" — ${(worstPost?.views || 0).toLocaleString()} views
+- Content type breakdown: ${allTypes}
+- Date range: ${orderedPosts.length > 0 ? `${new Date(orderedPosts[0].postDate).toLocaleDateString()} to ${new Date(orderedPosts[orderedPosts.length - 1].postDate).toLocaleDateString()}` : "N/A"}
+- Trend signal from first half to second half: ${growthTrend} (${viewDeltaPct.toFixed(1)}%)
+
+Individual post data:
+${orderedPosts.slice(0, 15).map((p: any) => `- "${p.title || 'Untitled'}" | ${p.contentType} | ${(p.views || 0).toLocaleString()} views${!isYt ? ` | ${(p.likes || 0)} likes | ${(p.comments || 0)} comments | ${(p.saves || 0)} saves` : ""}`).join("\n")}
+
+Return ONLY a JSON object (no markdown, no text outside JSON):
+{
+  "summary": "2-3 sentence executive summary with specific numbers and honest assessment",
+  "insights": ["specific data-driven insight 1", "insight 2", "insight 3", "insight 4"],
+  "wins": ["what is clearly working 1", "what is clearly working 2", "what is clearly working 3"],
+  "weakSpots": ["what is underperforming 1", "what is underperforming 2", "what is underperforming 3"],
+  "topPost": { "title": "exact post title", "reason": "specific reason why it outperformed" },
+  "lowPerformer": { "title": "exact post title", "reason": "specific reason why it lagged" },
+  "recommendations": ["specific actionable recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"],
+  "nextActions": ["clear action for the next 7 days", "second action", "third action"],
+  "contentIdeas": ["next post idea 1", "next post idea 2", "next post idea 3"],
+  "avgEngagement": "${avgEr}",
+  "avgViews": ${avgViews},
+  "growthTrend": "↑ Growing | → Stable | ↓ Declining",
+  "contentMixAnalysis": "One sentence on their current content mix and whether it's balanced",
+  "scoreLabel": "string label like Momentum Building / Strong Foundation / Needs Reset"
+}`;
+
+      const text = await callOpenRouter(systemPrompt, userPrompt, 2500);
+
+      const jsonMatch = text.trim().match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return res.status(500).json({ message: "Failed to parse AI response" });
+      const parsed = JSON.parse(jsonMatch[0]);
+      res.json({
+        ...parsed,
+        score,
+        kpis: {
+          posts: orderedPosts.length,
+          totalViews,
+          totalLikes,
+          totalComments,
+          totalSaves,
+          totalFollowers,
+          avgViews,
+          avgEngagement: Number(avgEr),
+        },
+        trendSeries,
+        formatBreakdown,
+        performanceByType,
+        topPosts,
+        weakPosts,
+        dateRange: {
+          start: orderedPosts.length > 0 ? new Date(orderedPosts[0].postDate).toISOString() : null,
+          end: orderedPosts.length > 0 ? new Date(orderedPosts[orderedPosts.length - 1].postDate).toISOString() : null,
+        },
+      });
+    } catch (err: any) {
+      console.error("AI report error:", err);
+      res.status(500).json({ message: err.message || "AI report failed" });
+    }
+  });
+
+  // Call Bookings (Calendly integration)
+  app.get("/api/call-bookings", requireAdmin, async (_req, res) => {
+    const bookings = await storage.getAllCallBookings();
+    res.json(bookings);
+  });
+
+  app.get("/api/call-bookings/my", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const bookings = await storage.getCallBookingsByClient(user.id);
+    res.json(bookings);
+  });
+
+  app.post("/api/webhooks/calendly", async (req: Request, res: Response) => {
+    try {
+      const event = req.body;
+      const eventType = event?.event;
+      const payload = event?.payload;
+
+      if (!payload) return res.status(400).json({ message: "Invalid payload" });
+
+      const inviteeName = payload?.invitee?.name || "Unknown";
+      const inviteeEmail = payload?.invitee?.email || "";
+      const startTime = payload?.event?.start_time || payload?.scheduled_event?.start_time;
+      const endTime = payload?.event?.end_time || payload?.scheduled_event?.end_time;
+      const eventName = payload?.event_type?.name || "30 Min Call";
+      const calendlyEventUri = payload?.event?.uri || payload?.uri || "";
+      const status = eventType === "invitee.canceled" ? "canceled" : "scheduled";
+
+      if (!startTime || !endTime) return res.status(400).json({ message: "Missing time data" });
+
+      const client = inviteeEmail ? await storage.getUserByEmail(inviteeEmail) : null;
+
+      const existing = calendlyEventUri ? await storage.getCallBookingByCalendlyUri(calendlyEventUri) : null;
+
+      if (existing) {
+        await storage.updateCallBooking(existing.id, { status });
+      } else {
+        const booking = await storage.createCallBooking({
+          clientId: client?.id || null,
+          inviteeName,
+          inviteeEmail,
+          startTime: new Date(startTime),
+          endTime: new Date(endTime),
+          eventName,
+          status,
+          calendlyEventUri,
+        });
+
+        if (client) {
+          await storage.createNotification({
+            clientId: client.id,
+            message: `Your call has been booked for ${new Date(startTime).toLocaleDateString()} at ${new Date(startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+            type: "booking",
+          });
+        }
+      }
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Calendly webhook error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // All call feedback (admin)
+  app.get("/api/call-feedback/all", requireAdmin, async (_req, res) => {
+    const allClients = await storage.getAllClients();
+    const allFeedback: any[] = [];
+    for (const client of allClients) {
+      const fb = await storage.getCallFeedbackByClient(client.id);
+      allFeedback.push(...fb);
+    }
+    allFeedback.sort((a, b) => new Date(b.callDate).getTime() - new Date(a.callDate).getTime());
+    res.json(allFeedback);
+  });
+
+  // ── DM Tracker ────────────────────────────────────────────────────────────
+  app.get("/api/dm/leads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = req.query.clientId as string;
+      let leads;
+      if (user.role === "admin" && clientId) leads = await storage.getDmLeads(clientId);
+      else if (user.role === "admin") leads = await storage.getAllDmLeads();
+      else leads = await storage.getDmLeads(user.id);
+      return res.json(leads);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/leads", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = user.role === "admin" ? (req.body.clientId || user.id) : user.id;
+      const lead = await storage.createDmLead({ ...req.body, clientId });
+      return res.json(lead);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const lead = await storage.updateDmLead(p(req.params.id), req.body);
+      return res.json(lead);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/leads/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmLead(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/dm/quick-replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = (req.query.clientId as string) || user.id;
+      const replies = await storage.getDmQuickReplies(clientId);
+      return res.json(replies);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/quick-replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = user.role === "admin" ? (req.body.clientId || user.id) : user.id;
+      const reply = await storage.createDmQuickReply({ ...req.body, clientId });
+      return res.json(reply);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/quick-replies/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmQuickReply(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── DM Automation: Triggers ───────────────────────────────────────────────
+  app.get("/api/dm/triggers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
+      return res.json(await storage.getDmTriggers(userId));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/triggers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
+      const { name, keyword, matchType, replyMessage, isActive } = req.body;
+      if (!name?.trim() || !keyword?.trim() || !replyMessage?.trim()) return res.status(400).json({ message: "name, keyword and replyMessage are required" });
+      const trigger = await storage.createDmTrigger({ userId, name: name.trim(), keyword: keyword.trim(), matchType: matchType || "contains", replyMessage: replyMessage.trim(), isActive: isActive !== false });
+      return res.json(trigger);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/triggers/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const trigger = await storage.updateDmTrigger(p(req.params.id), req.body);
+      return res.json(trigger);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/triggers/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmTrigger(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── DM Automation: Sequences ──────────────────────────────────────────────
+  app.get("/api/dm/sequences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
+      const seqs = await storage.getDmSequences(userId);
+      // Attach steps + enrollment count to each sequence
+      const result = await Promise.all(seqs.map(async (s) => {
+        const steps = await storage.getDmSequenceSteps(s.id);
+        const enrollments = await storage.getDmSequenceEnrollments(s.id);
+        return { ...s, steps, enrollmentCount: enrollments.length };
+      }));
+      return res.json(result);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/sequences", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
+      const { name, description, steps } = req.body;
+      if (!name?.trim()) return res.status(400).json({ message: "name is required" });
+      const seq = await storage.createDmSequence({ userId, name: name.trim(), description: description?.trim() || null, isActive: true });
+      if (Array.isArray(steps) && steps.length > 0) {
+        await storage.upsertDmSequenceSteps(seq.id, steps);
+      }
+      const savedSteps = await storage.getDmSequenceSteps(seq.id);
+      return res.json({ ...seq, steps: savedSteps });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { steps, ...data } = req.body;
+      const seq = await storage.updateDmSequence(p(req.params.id), data);
+      if (Array.isArray(steps)) {
+        await storage.upsertDmSequenceSteps(p(req.params.id), steps);
+      }
+      const savedSteps = await storage.getDmSequenceSteps(p(req.params.id));
+      return res.json({ ...seq, steps: savedSteps });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmSequence(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Enroll a lead into a DM sequence
+  app.post("/api/dm/sequences/:id/enroll", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { leadId, recipientIgId } = req.body;
+      if (!leadId || !recipientIgId) return res.status(400).json({ message: "leadId and recipientIgId are required" });
+      const enrollment = await storage.enrollLeadInDmSequence(p(req.params.id), leadId, recipientIgId);
+      return res.json(enrollment);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Get enrollments for a sequence
+  app.get("/api/dm/sequences/:id/enrollments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const enrollments = await storage.getDmSequenceEnrollments(p(req.params.id));
+      return res.json(enrollments);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── DM Broadcast ──────────────────────────────────────────────────────────
+  app.post("/api/dm/broadcast", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { recipientIgIds, message } = req.body;
+      if (!Array.isArray(recipientIgIds) || recipientIgIds.length === 0) return res.status(400).json({ message: "recipientIgIds array is required" });
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      if (recipientIgIds.length > 50) return res.status(400).json({ message: "Max 50 recipients per broadcast" });
+
+      const results: { recipientId: string; success: boolean; error?: string }[] = [];
+      for (const recipientId of recipientIgIds) {
+        try {
+          await sendInstagramDM(recipientId, message.trim());
+          results.push({ recipientId, success: true });
+          // Small delay to avoid rate limiting
+          await new Promise(r => setTimeout(r, 300));
+        } catch (e: any) {
+          results.push({ recipientId, success: false, error: e.message });
+        }
+      }
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      return res.json({ sent, failed, results });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Competitor Analysis ────────────────────────────────────────────────────
+  function normalizeInstagramUrl(url: string): string {
+    if (!url || typeof url !== "string") return "";
+    let u = url.trim();
+    // Plain handle like "@username" or "username"
+    if (!u.includes("http") && !u.includes("instagram.com")) {
+      return `https://www.instagram.com/${u.replace(/^@/, "")}/`;
+    }
+    // Add https:// if missing
+    if (!u.startsWith("http")) u = "https://" + u;
+    try {
+      const parsed = new URL(u);
+      // Reject non-instagram domains
+      if (!parsed.hostname.includes("instagram.com")) return "";
+      // Extract handle from path (first segment only)
+      const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const handle = pathParts[0];
+      if (!handle) return "";
+      // Reject reel/post/explore URLs and reserved paths
+      const reservedPaths = ["reel", "reels", "p", "tv", "explore", "stories", "direct", "accounts", "emails", "help", "about", "blog", "developer", "api"];
+      if (reservedPaths.includes(handle.toLowerCase())) return "";
+      // Reconstruct clean profile URL — always in the format Apify expects
+      return `https://www.instagram.com/${handle}/`;
+    } catch {
+      return "";
+    }
+  }
+
+  function extractHandle(url: string): string | null {
+    const normalized = normalizeInstagramUrl(url);
+    if (!normalized) return null;
+    const m = normalized.match(/instagram\.com\/([^/?#]+)/);
+    return m ? `@${m[1].replace(/^@/, "")}` : null;
+  }
+
+  function processProfileMetrics(items: any[], handle: string) {
+    if (!items?.length) return null;
+    const posts = items.slice(0, 20);
+    const totalViews = posts.reduce((s: number, p: any) => s + (p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0), 0);
+    const totalLikes = posts.reduce((s: number, p: any) => s + (p.likesCount ?? 0), 0);
+    const totalComments = posts.reduce((s: number, p: any) => s + (p.commentsCount ?? 0), 0);
+    const totalSaves = posts.reduce((s: number, p: any) => s + (p.savesCount ?? 0), 0);
+    const avgViews = Math.round(totalViews / posts.length);
+    const avgLikes = Math.round(totalLikes / posts.length);
+    const avgComments = Math.round(totalComments / posts.length);
+    const avgER = avgViews > 0 ? +(((avgLikes + totalComments + totalSaves) / totalViews) * 100).toFixed(2) : 0;
+
+    const typeCount: Record<string, number> = {};
+    for (const p of posts) {
+      const t = p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post";
+      typeCount[t] = (typeCount[t] || 0) + 1;
+    }
+
+    const dates = posts.map((p: any) => new Date(p.timestamp)).filter((d: Date) => !isNaN(d.getTime())).sort((a: Date, b: Date) => a.getTime() - b.getTime());
+    let postsPerWeek = 0;
+    if (dates.length > 1) {
+      const weeks = (dates[dates.length - 1].getTime() - dates[0].getTime()) / (7 * 24 * 60 * 60 * 1000);
+      postsPerWeek = weeks > 0 ? +(posts.length / weeks).toFixed(1) : posts.length;
+    }
+
+    const topPost = posts.reduce((best: any, p: any) => {
+      const v = p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0;
+      return v > (best.videoPlayCount ?? best.videoViewCount ?? best.playsCount ?? 0) ? p : best;
+    }, posts[0]);
+
+    return {
+      handle,
+      totalPosts: posts.length,
+      avgViews,
+      avgLikes,
+      avgComments,
+      avgEngagementRate: avgER,
+      postsPerWeek,
+      contentTypes: typeCount,
+      topPost: {
+        caption: topPost?.caption ? topPost.caption.slice(0, 150) : "No caption",
+        views: topPost?.videoPlayCount ?? topPost?.videoViewCount ?? topPost?.playsCount ?? 0,
+      },
+    };
+  }
+
+  function buildPostList(items: any[]) {
+    return (items || []).slice(0, 20).map((p: any, i: number) => ({
+      rank: i + 1,
+      type: p.type === "Video" || p.type === "Reel" ? "Reel" : p.type === "Sidecar" ? "Carousel" : "Post",
+      views: p.videoPlayCount ?? p.videoViewCount ?? p.playsCount ?? 0,
+      likes: p.likesCount ?? 0,
+      comments: p.commentsCount ?? 0,
+      saves: p.savesCount ?? 0,
+      caption: p.caption ? p.caption.slice(0, 300) : "",
+      hashtags: Array.isArray(p.hashtags) ? p.hashtags.slice(0, 10).join(" ") : "",
+      timestamp: p.timestamp ?? null,
+      url: p.url ?? (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : null),
+    }));
+  }
+
+  app.post("/api/competitor/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { clientUrl: rawClientUrl, competitorUrl: rawCompetitorUrl, clientId } = req.body;
+      if (!rawClientUrl || !rawCompetitorUrl || !clientId) return res.status(400).json({ message: "clientUrl, competitorUrl, and clientId are required" });
+
+      const clientUrl = normalizeInstagramUrl(rawClientUrl);
+      const competitorUrl = normalizeInstagramUrl(rawCompetitorUrl);
+
+      if (!clientUrl) return res.status(400).json({ message: "Your Instagram URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/yourhandle), not a reel or post URL." });
+      if (!competitorUrl) return res.status(400).json({ message: "Competitor URL doesn't look like a profile link. Make sure you're using a profile URL (e.g. instagram.com/competitorhandle), not a reel or post URL." });
+
+      const _u4 = req.user as any;
+      if (_u4.role !== "admin") {
+        const creditResult = await storage.deductCredits(_u4.id, 12, "competitor", "Competitor Intelligence analysis", _u4.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+
+      const [clientItems, competitorItems] = await Promise.all([
+        apifyInstagram({ directUrls: [clientUrl], resultsType: "posts", resultsLimit: 30 }).catch((err: any) => { console.error("[competitor/analyze] client scrape failed:", err.message); return [] as any[]; }),
+        apifyInstagram({ directUrls: [competitorUrl], resultsType: "posts", resultsLimit: 30 }).catch((err: any) => { console.error("[competitor/analyze] competitor scrape failed:", err.message); return [] as any[]; }),
+      ]);
+
+      const clientHandle = extractHandle(clientUrl) ?? "@unknown";
+      const competitorHandle = extractHandle(competitorUrl) ?? "@unknown";
+
+      const clientData = processProfileMetrics(clientItems, clientHandle);
+      const competitorData = processProfileMetrics(competitorItems, competitorHandle);
+
+      if (!clientData && !competitorData) return res.status(404).json({ message: "Could not scrape either profile. Make sure they are public Instagram accounts." });
+
+      const clientPosts = buildPostList(clientItems);
+      const competitorPosts = buildPostList(competitorItems);
+
+      const systemPrompt = `You are an elite Instagram growth strategist, content analyst, and competitive intelligence expert. Analyze Instagram profiles in extreme depth. Always respond with valid JSON only — no markdown, no explanation outside the JSON.`;
+
+      const userPrompt = `Perform a DEEP competitor analysis between two Instagram accounts. Return ONLY a valid JSON object.
+
+YOUR CLIENT: ${clientHandle}
+Aggregate metrics: ${JSON.stringify(clientData)}
+Posts (newest first): ${JSON.stringify(clientPosts)}
+
+COMPETITOR: ${competitorHandle}
+Aggregate metrics: ${JSON.stringify(competitorData)}
+Posts (newest first): ${JSON.stringify(competitorPosts)}
+
+Return this EXACT JSON structure (all fields required):
+{
+  "overview": {
+    "assessment": "winning|competitive|losing",
+    "outperformingIn": ["area1", "area2"],
+    "summary": "2-3 sentence analysis of where client stands vs competitor"
+  },
+  "reelComparison": [
+    {
+      "userReel": { "rank": 1, "views": 0, "likes": 0, "comments": 0, "caption": "first 100 chars", "hook": "exact first line or sentence", "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "structure": "opening → middle → CTA breakdown", "retentionPotential": "Low|Medium|High|Very High", "emotion": "fear|curiosity|authority|relatability|aspiration|entertainment" },
+      "competitorReel": { "rank": 1, "views": 0, "likes": 0, "comments": 0, "caption": "first 100 chars", "hook": "exact first line or sentence", "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "structure": "opening → middle → CTA breakdown", "retentionPotential": "Low|Medium|High|Very High", "emotion": "fear|curiosity|authority|relatability|aspiration|entertainment" },
+      "verdict": "Detailed 2-3 sentence explanation of why competitor's performed better or worse and what content element drove that"
+    }
+  ],
+  "contentPerformance": {
+    "competitorWinsIn": ["metric1", "metric2"],
+    "clientWinsIn": ["metric1"],
+    "insights": "2-3 sentence insight about content performance patterns"
+  },
+  "contentPatterns": [
+    { "pattern": "Pattern name", "description": "How they use it", "frequency": "e.g. 70% of posts", "howToReplicate": "Specific actionable step to copy this" }
+  ],
+  "viralDNA": [
+    { "rank": 1, "views": 0, "hook": "exact hook text", "structure": "Opening hook → Core value → Pattern interrupt → CTA", "cta": "exact or paraphrased CTA used", "emotion": "primary emotion triggered", "winningFormula": "1-sentence repeatable formula the user can copy" }
+  ],
+  "gapAnalysis": {
+    "gaps": [
+      { "metric": "Gap name", "competitor": "what they do", "you": "what you do", "impact": "High|Medium|Low", "fix": "Specific action to close this gap" }
+    ],
+    "summary": "1-2 sentence summary of the biggest gap and its impact"
+  },
+  "hookLibrary": [
+    { "hook": "exact hook text extracted from their content", "type": "curiosity|storytelling|authority|controversy|pain-point|education", "whyItWorks": "1 sentence psychological explanation" }
+  ],
+  "postingStrategy": {
+    "competitorFrequency": "e.g. ~2 posts/day",
+    "clientFrequency": "e.g. ~3 posts/week",
+    "bestDays": ["Day1", "Day2"],
+    "bestTimes": ["Time1", "Time2"],
+    "formatMix": "description of their content format distribution",
+    "recommendation": "Specific schedule recommendation to copy their strategy"
+  },
+  "audienceInsights": {
+    "audienceLoves": ["thing1", "thing2", "thing3"],
+    "audienceHates": ["thing1"],
+    "painPoints": ["pain1", "pain2"],
+    "desires": ["desire1", "desire2"],
+    "insight": "1-2 sentence actionable insight about the audience"
+  },
+  "scorecard": {
+    "metrics": [
+      { "metric": "Engagement Rate", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Posting Consistency", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Hook Quality", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Content Variety", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "CTA Usage", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" },
+      { "metric": "Viral Potential", "yourScore": 0, "competitorScore": 0, "winner": "you|competitor|tie", "note": "brief explanation" }
+    ],
+    "youWin": 0,
+    "competitorWins": 0,
+    "ties": 0,
+    "summary": "You are [winning/losing] in X out of 6 categories"
+  }
+}
+
+Make reelComparison have 5-8 pairs. Make viralDNA have top 5 competitor posts. Make hookLibrary have 10-15 hooks. Make contentPatterns have 4-6 patterns. Make gapAnalysis.gaps have 5-8 gaps.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 6000);
+      let report: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
+      } catch {
+        report = { overview: { assessment: "competitive", summary: raw, outperformingIn: [] } };
+      }
+
+      report.clientMetrics = clientData;
+      report.competitorMetrics = competitorData;
+      report.clientPosts = clientPosts;
+      report.competitorPosts = competitorPosts;
+
+      const saved = await storage.createCompetitorAnalysis({
+        clientId,
+        clientUrl,
+        competitorUrl,
+        clientHandle,
+        competitorHandle,
+        report,
+      });
+
+      return res.json(saved);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Direct Reel vs Reel Comparison ────────────────────────────────────────
+  app.post("/api/competitor/compare-reels", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { myReelUrl, competitorReelUrl } = req.body;
+      if (!myReelUrl || !competitorReelUrl) return res.status(400).json({ message: "myReelUrl and competitorReelUrl are required" });
+      const _uCr = req.user as any;
+      if (_uCr.role !== "admin") {
+        const crCredit = await storage.deductCredits(_uCr.id, 5, "competitor_reels", "Reel vs Reel Comparison", _uCr.plan || "free");
+        if (!crCredit.success) return res.status(402).json({ message: crCredit.message, insufficientCredits: true });
+      }
+
+      // Scrape both reels in parallel using the shared instagram-scraper actor
+      const [myItems, compItems] = await Promise.all([
+        apifyInstagram({ directUrls: [myReelUrl], resultsType: "posts", resultsLimit: 1 }),
+        apifyInstagram({ directUrls: [competitorReelUrl], resultsType: "posts", resultsLimit: 1 }),
+      ]);
+
+      const myPost = myItems?.[0] ?? null;
+      const compPost = compItems?.[0] ?? null;
+
+      if (!myPost && !compPost) return res.status(404).json({ message: "Could not scrape either reel. Make sure the posts are public." });
+
+      const formatPost = (p: any) => ({
+        url: p?.url ?? p?.shortCode ? `https://instagram.com/p/${p.shortCode}` : "N/A",
+        caption: p?.caption ?? p?.alt ?? "",
+        views: p?.videoPlayCount ?? p?.videoViewCount ?? 0,
+        likes: p?.likesCount ?? p?.likes ?? 0,
+        comments: p?.commentsCount ?? p?.comments ?? 0,
+        saves: p?.savesCount ?? 0,
+        shares: p?.sharesCount ?? 0,
+        duration: p?.videoDuration ?? null,
+        timestamp: p?.timestamp ?? p?.takenAt ?? null,
+        ownerUsername: p?.ownerUsername ?? p?.owner?.username ?? "unknown",
+        hashtags: p?.hashtags ?? [],
+        type: p?.type ?? "Video",
+      });
+
+      const my = formatPost(myPost);
+      const comp = formatPost(compPost);
+
+      const myEr = my.views > 0 ? (((my.likes + my.comments) / my.views) * 100).toFixed(2) : "0";
+      const compEr = comp.views > 0 ? (((comp.likes + comp.comments) / comp.views) * 100).toFixed(2) : "0";
+
+      const rawAi = await callAnthropic(
+        "You are an elite Instagram content strategist. Analyse two Instagram reels and produce a deep comparison. Respond ONLY with valid JSON.",
+        `Compare these two Instagram reels in depth.
+
+MY REEL:
+Owner: @${my.ownerUsername}
+Caption: "${my.caption.slice(0, 600)}"
+Views: ${my.views.toLocaleString()} | Likes: ${my.likes.toLocaleString()} | Comments: ${my.comments.toLocaleString()} | ER: ${myEr}%
+Duration: ${my.duration ? my.duration + "s" : "unknown"} | Hashtags: ${my.hashtags.length}
+
+COMPETITOR REEL:
+Owner: @${comp.ownerUsername}
+Caption: "${comp.caption.slice(0, 600)}"
+Views: ${comp.views.toLocaleString()} | Likes: ${comp.likes.toLocaleString()} | Comments: ${comp.comments.toLocaleString()} | ER: ${compEr}%
+Duration: ${comp.duration ? comp.duration + "s" : "unknown"} | Hashtags: ${comp.hashtags.length}
+
+Return this EXACT JSON:
+{
+  "winner": "mine"|"competitor"|"tie",
+  "winnerReason": "2-3 sentence explanation of who wins and exactly why",
+  "scores": {
+    "mine": { "hook": 0-10, "caption": 0-10, "engagement": 0-10, "retention": 0-10, "hashtags": 0-10, "overall": 0-100 },
+    "competitor": { "hook": 0-10, "caption": 0-10, "engagement": 0-10, "retention": 0-10, "hashtags": 0-10, "overall": 0-100 }
+  },
+  "hookAnalysis": {
+    "mine": { "hook": "First line / hook of the caption", "type": "curiosity|storytelling|authority|pain-point|controversy|education", "strength": "what makes it strong or weak" },
+    "competitor": { "hook": "First line / hook of the caption", "type": "curiosity|storytelling|authority|pain-point|controversy|education", "strength": "what makes it strong or weak" }
+  },
+  "captionBreakdown": {
+    "mine": { "structure": "e.g. Hook → Story → Value → CTA", "cta": "the CTA used or none", "tone": "tone of voice", "readability": "simple|moderate|complex" },
+    "competitor": { "structure": "e.g. Hook → Value → CTA", "cta": "the CTA used or none", "tone": "tone of voice", "readability": "simple|moderate|complex" }
+  },
+  "whatCompetitorDoesBetter": ["specific point 1", "specific point 2", "specific point 3"],
+  "whatYouDoBetter": ["specific point 1", "specific point 2"],
+  "stealThese": ["Actionable thing to steal from competitor reel 1", "Actionable thing 2", "Actionable thing 3"],
+  "improvementPlan": "3-5 sentence concrete plan: exactly what to change in YOUR reel to beat competitor's performance",
+  "rewrittenHook": "A rewritten, stronger hook for MY reel based on what competitor does better",
+  "verdictTags": ["tag1", "tag2", "tag3"]
+}`
+      );
+      let ai: any = {};
+      try {
+        const jsonMatch = rawAi.match(/\{[\s\S]*\}/);
+        ai = JSON.parse(jsonMatch ? jsonMatch[0] : rawAi);
+      } catch { ai = {}; }
+
+      return res.json({
+        myReel: { ...my, er: myEr },
+        competitorReel: { ...comp, er: compEr },
+        ai,
+      });
+    } catch (err: any) {
+      console.error("compare-reels error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Steal Strategy: 30-day content plan ───────────────────────────────────
+  app.post("/api/competitor/steal-strategy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { analysisId } = req.body;
+      if (!analysisId) return res.status(400).json({ message: "analysisId required" });
+      const _uSs = req.user as any;
+      if (_uSs.role !== "admin") {
+        const ssCredit = await storage.deductCredits(_uSs.id, 10, "steal_strategy", "Steal Strategy 30-Day Plan", _uSs.plan || "free");
+        if (!ssCredit.success) return res.status(402).json({ message: ssCredit.message, insufficientCredits: true });
+      }
+
+      const analyses = await storage.getCompetitorAnalyses((req as any).user.id);
+      const analysis = analyses.find((a: any) => a.id === analysisId);
+      if (!analysis) return res.status(404).json({ message: "Analysis not found" });
+
+      const report = analysis.report as any;
+      const hooks = (report?.hookLibrary || []).slice(0, 10).map((h: any) => h.hook).join(", ");
+      const patterns = (report?.contentPatterns || []).map((p: any) => p.pattern).join(", ");
+      const gaps = (report?.gapAnalysis?.gaps || []).map((g: any) => `${g.metric}: ${g.fix}`).join("; ");
+      const strategy = report?.postingStrategy?.recommendation || "";
+
+      const systemPrompt = `You are an elite Instagram growth strategist. Generate a detailed, hyper-specific 30-day content action plan. Return ONLY valid JSON, no markdown.`;
+      const userPrompt = `Create a complete 30-day content strategy to help @${analysis.clientHandle} outperform @${analysis.competitorHandle} on Instagram.
+
+Context:
+- Competitor's top hooks: ${hooks}
+- Content patterns that work: ${patterns}
+- Key gaps to fix: ${gaps}
+- Posting strategy: ${strategy}
+- Competitor avg views: ${report?.competitorMetrics?.avgViews?.toLocaleString() ?? "N/A"}
+- Client avg views: ${report?.clientMetrics?.avgViews?.toLocaleString() ?? "N/A"}
+- Assessment: ${report?.overview?.assessment ?? "competitive"}
+
+Return this EXACT JSON:
+{
+  "contentPlan": [
+    { "day": 1, "format": "Reel|Carousel|Post", "topic": "Specific topic", "hook": "Exact hook to use", "structure": "Opening → Middle → CTA", "goal": "Views|Followers|Leads" }
+  ],
+  "hookSystem": [
+    { "hook": "exact hook text", "type": "curiosity|authority|pain-point|storytelling|controversy", "useFor": "which type of content" }
+  ],
+  "postingSchedule": {
+    "frequency": "X posts per day/week",
+    "days": ["Mon", "Wed", "Fri"],
+    "times": ["8 AM", "6 PM"],
+    "rationale": "Why this schedule works"
+  },
+  "reelIdeas": ["Specific reel idea 1", "idea 2", "idea 3", "idea 4", "idea 5", "idea 6", "idea 7", "idea 8", "idea 9", "idea 10"],
+  "carouselIdeas": ["Specific carousel idea 1", "idea 2", "idea 3", "idea 4", "idea 5"],
+  "ctaStrategy": {
+    "topCTAs": ["CTA 1", "CTA 2", "CTA 3"],
+    "whenToUse": "description of when and how to deploy CTAs",
+    "conversionFlow": "Viewer → Follower → Lead → Customer pathway"
+  },
+  "contentStyle": {
+    "tone": "description of tone to adopt",
+    "structure": "how to structure each post",
+    "storytellingFormat": "specific storytelling approach",
+    "visualStyle": "what visual/editing style to use"
+  },
+  "growthPlaybook": [
+    { "week": 1, "focus": "What to focus on this week", "tasks": ["Task 1", "Task 2", "Task 3"], "goal": "measurable goal for the week" },
+    { "week": 2, "focus": "...", "tasks": ["..."], "goal": "..." },
+    { "week": 3, "focus": "...", "tasks": ["..."], "goal": "..." },
+    { "week": 4, "focus": "...", "tasks": ["..."], "goal": "..." }
+  ],
+  "finalMessage": "Follow this plan for 30 days to outperform ${analysis.competitorHandle}"
+}
+
+Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas and carouselIdeas specific and actionable.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 6000);
+      let stealStrategy: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        stealStrategy = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid response. Please try again." });
+      }
+
+      // Save steal strategy into the analysis report
+      const updatedReport = { ...report, stealStrategy };
+      // We don't have an update method so we'll return it directly — frontend caches it
+      return res.json({ stealStrategy });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/competitor/analyses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const analyses = await storage.getCompetitorAnalyses(user.id);
+      return res.json(analyses);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/competitor/analyses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteCompetitorAnalysis(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Niche Intelligence Engine ──────────────────────────────────────────────
+
+  app.post("/api/niche/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, competitorUrls, clientId } = req.body;
+      if (!niche || !competitorUrls || !Array.isArray(competitorUrls) || competitorUrls.length === 0) {
+        return res.status(400).json({ message: "niche and at least one competitorUrl are required" });
+      }
+      const _uNa = req.user as any;
+      if (_uNa.role !== "admin") {
+        const naCredit = await storage.deductCredits(_uNa.id, 10, "niche_analysis", "Niche Intelligence Analysis", _uNa.plan || "free");
+        if (!naCredit.success) return res.status(402).json({ message: naCredit.message, insufficientCredits: true });
+      }
+      const urls = competitorUrls.slice(0, 5).map(normalizeInstagramUrl).filter(Boolean);
+      if (urls.length === 0) return res.status(400).json({ message: "None of the competitor URLs are valid Instagram profile links. Make sure you're using profile URLs (e.g. instagram.com/handle), not reels or posts." });
+
+      // Scrape all competitor profiles in parallel
+      const scrapedArrays = await Promise.all(
+        urls.map(url => apifyInstagram({ directUrls: [url], resultsType: "posts", resultsLimit: 25 }).catch(() => []))
+      );
+
+      const competitors = urls.map((url, i) => {
+        const handle = extractHandle(url) ?? "@unknown";
+        const items = scrapedArrays[i] || [];
+        const metrics = processProfileMetrics(items, handle);
+        const posts = buildPostList(items);
+        return { handle, metrics, posts };
+      }).filter(c => c.metrics || c.posts.length > 0);
+
+      const competitorHandles = competitors.map(c => c.handle);
+
+      const systemPrompt = `You are a world-class social media niche intelligence expert and data analyst. You analyze multiple competitor accounts within a niche and produce extremely detailed, actionable intelligence reports. You ONLY return valid JSON.`;
+
+      const userPrompt = `Analyze these ${competitors.length} Instagram competitor accounts in the "${niche}" niche and produce a comprehensive niche intelligence report. Return ONLY a valid JSON object.
+
+NICHE: ${niche}
+
+${competitors.map((c, i) => `
+--- COMPETITOR ${i + 1}: @${c.handle} ---
+Metrics: ${JSON.stringify(c.metrics)}
+Recent Posts (sample): ${JSON.stringify(c.posts.slice(0, 10))}
+`).join("\n")}
+
+Return this EXACT JSON structure:
+{
+  "nicheTrends": {
+    "dominantFormats": ["format1", "format2"],
+    "trendingTopics": ["topic1", "topic2", "topic3"],
+    "viralPatterns": ["pattern1", "pattern2"],
+    "summary": "2-3 sentence overview of what is actually working in this niche right now"
+  },
+  "topicClusters": [
+    { "theme": "mindset|tutorials|case studies|storytelling|controversy|education|entertainment", "avgViews": 0, "avgEngagement": 0, "topPerformers": ["competitor"], "description": "Why this topic cluster performs", "frequency": "how often used across all competitors" }
+  ],
+  "saturationAnalysis": {
+    "oversaturated": [{ "topic": "topic name", "whySaturated": "explanation", "howManyUseIt": "X/Y competitors" }],
+    "underserved": [{ "topic": "opportunity topic", "whyOpportunity": "explanation", "estimatedGrowthPotential": "High|Medium|Low" }],
+    "summary": "Overall saturation landscape of this niche"
+  },
+  "hookTrends": {
+    "mostUsedHooks": [{ "hookType": "curiosity|authority|storytelling|etc", "frequency": "% of posts", "avgPerformance": "how it performs" }],
+    "mostEffectiveHooks": [{ "hookType": "type", "avgViews": 0, "whyItWorks": "explanation", "example": "exact example hook line" }],
+    "hookInsight": "Key insight about hooks in this niche e.g. curiosity hooks outperform authority hooks by 40%"
+  },
+  "contentGaps": [
+    { "gap": "specific untapped opportunity", "description": "what NO competitor is doing", "howToCapitalize": "exact action to take", "estimatedImpact": "High|Medium|Low" }
+  ],
+  "audienceDesires": {
+    "wants": ["specific thing 1", "specific thing 2", "specific thing 3"],
+    "complaints": ["what they hate 1", "what they hate 2"],
+    "engagementTriggers": ["what drives comments and shares 1", "thing 2"],
+    "buyingTriggers": ["what makes them buy or follow 1", "thing 2"],
+    "summary": "Deep profile of what this niche audience actually cares about"
+  },
+  "formatBreakdown": {
+    "reels": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how reels perform in this niche" },
+    "carousels": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how carousels perform" },
+    "static": { "avgViews": 0, "avgEngagement": 0, "percentOfContent": 0, "verdict": "how static posts perform" },
+    "winner": "reels|carousels|static",
+    "insight": "Key insight about format strategy in this niche"
+  },
+  "growthPlaybook": {
+    "phase1": { "name": "Foundation (Days 1-10)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "phase2": { "name": "Growth (Days 11-20)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "phase3": { "name": "Scale (Days 21-30)", "focus": "what to focus on", "actions": ["action1", "action2", "action3"], "contentMix": "what to post" },
+    "keyPrinciples": ["principle 1", "principle 2", "principle 3"],
+    "summary": "How to grow in this niche in 30 days"
+  },
+  "contentLifecycle": {
+    "viralFirst": { "contentType": "what goes viral first", "whyItVirals": "explanation", "examples": ["example1", "example2"] },
+    "convertsLater": { "contentType": "what converts later", "whyItConverts": "explanation", "examples": ["example1", "example2"] },
+    "insight": "How content evolves from awareness to conversion in this niche"
+  },
+  "competitorPositioning": {
+    "map": [
+      { "handle": "@handle", "primaryPosition": "authority|entertainment|education|inspiration|motivation", "secondaryPosition": "string", "gapToTarget": "where you could position to stand out" }
+    ],
+    "recommendedPosition": "Where YOU should position yourself",
+    "positioningRationale": "Why this positioning wins in this niche",
+    "uniqueAngle": "The specific angle that would differentiate you"
+  },
+  "viralityScores": [
+    { "contentType": "type of content", "hookScore": 8, "retentionScore": 7, "engagementScore": 9, "overallScore": 8, "verdict": "why this scores high" }
+  ],
+  "contentAngles": [
+    { "angle": "specific unique angle", "whyUnique": "why no competitor is using it", "hookExample": "exact hook using this angle", "format": "reel|carousel|static" }
+  ],
+  "nicheInsight": {
+    "answer": "Comprehensive answer to: what should I post in this niche to grow fast?",
+    "topRecommendations": ["recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4", "recommendation 5"],
+    "avoidThese": ["mistake 1", "mistake 2", "mistake 3"],
+    "secretWeapon": "The one thing that would immediately differentiate this account"
+  }
+}
+
+Make contentAngles have exactly 20 items. Make everything extremely specific to the ${niche} niche. No generic advice.`;
+
+      const raw = await callOpenRouter(systemPrompt, userPrompt, 8000);
+      let report: any = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        report = JSON.parse(jsonMatch ? jsonMatch[0] : raw.replace(/```json|```/g, "").trim());
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid response. Please try again." });
+      }
+
+      const analysis = await storage.createNicheAnalysis({
+        clientId: clientId || (req.user as any).id,
+        niche,
+        competitorUrls: urls,
+        competitorHandles,
+        report,
+      });
+
+      return res.json(analysis);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche/analyses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const clientId = (req.query.clientId as string) || user.id;
+      const analyses = await storage.getNicheAnalyses(clientId);
+      return res.json(analyses);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/niche/analyses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteNicheAnalysis(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Methodology Engine ────────────────────────────────────────────────────
+  app.post("/api/methodology/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { profileUrl } = req.body;
+      if (!profileUrl) return res.status(400).json({ message: "profileUrl is required" });
+      const _uMa = req.user as any;
+      if (_uMa.role !== "admin") {
+        const maCredit = await storage.deductCredits(_uMa.id, 7, "methodology", "Content DNA Analysis", _uMa.plan || "free");
+        if (!maCredit.success) return res.status(402).json({ message: maCredit.message, insufficientCredits: true });
+      }
+
+      const normUrl = normalizeInstagramUrl(profileUrl);
+      if (!normUrl) return res.status(400).json({ message: "Invalid Instagram profile URL. Use a profile link (e.g. instagram.com/handle), not a reel or post." });
+
+      const items = await apifyInstagram({ directUrls: [normUrl], resultsType: "posts", resultsLimit: 30 });
+      if (!items || items.length === 0) return res.status(404).json({ message: "Could not scrape this profile. Make sure it's a public Instagram account." });
+
+      const handle = extractHandle(normUrl) ?? "@unknown";
+      const metrics = processProfileMetrics(items, handle);
+      const posts = buildPostList(items);
+
+      const systemPrompt = `You are an elite Instagram content strategist who specialises in reverse-engineering a creator's unique content methodology. Analyse their post data and build a precise "Content DNA Profile". Always respond with valid JSON only — no markdown, no explanation outside the JSON.`;
+
+      const userPrompt = `Analyse this Instagram creator's last ${posts.length} posts and extract their exact content methodology.
+
+Handle: ${handle}
+Aggregate metrics: ${JSON.stringify(metrics)}
+Posts: ${JSON.stringify(posts)}
+
+Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
+{
+  "handle": "${handle}",
+  "contentDNA": {
+    "hookStyle": "e.g. Authority-based — they open with stats, credentials, or bold claims",
+    "hookExamples": ["exact hook from post 1", "exact hook from post 2", "exact hook from post 3"],
+    "ctaStyle": "e.g. Soft CTA — they end with questions or 'save this', never hard sells",
+    "ctaExamples": ["exact CTA from post 1", "exact CTA from post 2"],
+    "contentStructure": "e.g. Problem → Solution → Proof → CTA",
+    "dominantFormat": "Reels|Carousels|Posts|Mixed",
+    "postingFrequency": "e.g. 4-5x per week",
+    "toneOfVoice": "e.g. Authoritative + relatable — speaks like a mentor, not a guru",
+    "topThemes": ["theme1", "theme2", "theme3"],
+    "engagementTriggers": ["trigger1", "trigger2"],
+    "weaknesses": ["weakness1", "weakness2"],
+    "fingerprint": "One-sentence summary like: 'You use authority-based hooks + educational structure + soft CTAs — a trust-building methodology designed for long-term audience growth'"
+  },
+  "topPosts": [
+    { "caption": "first 120 chars", "views": 0, "likes": 0, "hookType": "curiosity|storytelling|authority|controversy|pain-point|education", "whyItWorked": "1 sentence" }
+  ],
+  "scorecard": {
+    "hookStrength": 75,
+    "ctaEffectiveness": 60,
+    "contentConsistency": 80,
+    "engagementRate": 70,
+    "viralPotential": 55,
+    "overall": 68
+  },
+  "improvements": [
+    { "area": "Hooks", "issue": "specific issue", "fix": "specific actionable fix" },
+    { "area": "CTA", "issue": "specific issue", "fix": "specific actionable fix" },
+    { "area": "Structure", "issue": "specific issue", "fix": "specific actionable fix" }
+  ]
+}`;
+
+      const rawText = await callAnthropic(systemPrompt, userPrompt, 3000);
+      const cleaned = rawText.replace(/```json|```/g, "").trim();
+      const profile = JSON.parse(cleaned);
+      return res.json(profile);
+    } catch (err: any) {
+      console.error("Methodology analyze error:", err);
+      return res.status(500).json({ message: err.message || "Analysis failed" });
+    }
+  });
+
+  app.post("/api/methodology/scrape-reel", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { reelUrl } = req.body;
+      if (!reelUrl) return res.status(400).json({ message: "reelUrl is required" });
+
+      const shortcode = reelUrl.match(/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+      if (!shortcode) return res.status(400).json({ message: "Invalid Instagram reel URL" });
+
+      const items = await apifyInstagram({ directUrls: [reelUrl], resultsType: "posts", resultsLimit: 1 });
+      const post = items?.[0] ?? null;
+      if (!post) return res.json({ caption: null });
+
+      const caption = post.caption ?? post.alt ?? post.description ?? post.accessibility_caption ?? null;
+      return res.json({ caption, shortcode, timestamp: post.timestamp });
+    } catch (err: any) {
+      console.error("scrape-reel error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/methodology/improve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { content, dna, tool } = req.body;
+      if (!content || !tool) return res.status(400).json({ message: "content and tool are required" });
+      const _uMi = req.user as any;
+      if (_uMi.role !== "admin") {
+        const miCredit = await storage.deductCredits(_uMi.id, 2, "methodology", "Content Methodology Tool", _uMi.plan || "free");
+        if (!miCredit.success) return res.status(402).json({ message: miCredit.message, insufficientCredits: true });
+      }
+
+      const dnaContext = dna?.fingerprint
+        ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
+        : "";
+
+      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      let prompt = "";
+
+      if (tool === "improve") {
+        prompt = `You are an elite Instagram content strategist. Improve the following content (caption or script).${dnaContext}
+
+Original content:
+"${content}"
+
+Return ONLY this exact JSON:
+{
+  "improved": "The full improved version of the content",
+  "changes": [
+    { "element": "Hook", "original": "...", "improved": "...", "reason": "why this is better" },
+    { "element": "Structure", "original": "...", "improved": "...", "reason": "why this is better" },
+    { "element": "CTA", "original": "...", "improved": "...", "reason": "why this is better" }
+  ],
+  "whyItWillPerform": "2-3 sentences on why the improved version will get more reach and engagement",
+  "expectedLift": "e.g. 40-60% more engagement based on improved hook and CTA"
+}`;
+      } else if (tool === "hooks") {
+        prompt = `You are a viral hook specialist. Rewrite this hook into 4 different styles.${dnaContext}
+
+Original hook: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "hooks": [
+    { "style": "Curiosity", "text": "rewritten hook", "explanation": "why this drives curiosity" },
+    { "style": "Controversy", "text": "rewritten hook", "explanation": "why this sparks debate" },
+    { "style": "Storytelling", "text": "rewritten hook", "explanation": "why this pulls people in" },
+    { "style": "Authority", "text": "rewritten hook", "explanation": "why this builds instant credibility" }
+  ],
+  "bestPick": "Curiosity|Controversy|Storytelling|Authority",
+  "bestPickReason": "1 sentence on why this style will work best for this content"
+}`;
+      } else if (tool === "score") {
+        prompt = `You are an Instagram content quality analyst. Score this content.${dnaContext}
+
+Content: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "scores": {
+    "hook": { "score": 75, "feedback": "specific feedback" },
+    "engagement": { "score": 60, "feedback": "specific feedback" },
+    "clarity": { "score": 80, "feedback": "specific feedback" },
+    "retention": { "score": 55, "feedback": "specific feedback" },
+    "cta": { "score": 70, "feedback": "specific feedback" }
+  },
+  "overall": 68,
+  "verdict": "Strong|Needs Work|Weak",
+  "topIssue": "The single biggest problem with this content",
+  "quickFix": "The single most impactful change to make right now"
+}`;
+      } else if (tool === "abtest") {
+        prompt = `You are a conversion-focused content strategist. Generate A/B test variants.${dnaContext}
+
+Content idea or post concept: "${content}"
+
+Return ONLY this exact JSON:
+{
+  "hooks": [
+    { "variant": "A", "text": "hook variant A", "angle": "curiosity/authority/pain-point" },
+    { "variant": "B", "text": "hook variant B", "angle": "curiosity/authority/pain-point" },
+    { "variant": "C", "text": "hook variant C", "angle": "curiosity/authority/pain-point" }
+  ],
+  "captions": [
+    { "variant": "A", "text": "full caption variant A" },
+    { "variant": "B", "text": "full caption variant B" },
+    { "variant": "C", "text": "full caption variant C" }
+  ],
+  "ctas": [
+    { "variant": "A", "text": "CTA text", "type": "soft|hard|question" },
+    { "variant": "B", "text": "CTA text", "type": "soft|hard|question" }
+  ],
+  "recommendation": "Which combination to test first and why"
+}`;
+      } else {
+        return res.status(400).json({ message: "Invalid tool type" });
+      }
+
+      for (const model of GROQ_MODELS) {
+        try {
+          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: JSON.stringify({
+              model,
+              max_tokens: 2000,
+              temperature: 0.6,
+              messages: [
+                { role: "system", content: "You are an elite Instagram content strategist. Return ONLY valid JSON — no markdown, no extra text." },
+                { role: "user", content: prompt },
+              ],
+            }),
+          });
+          const json = await resp.json() as any;
+          const raw = json.choices?.[0]?.message?.content?.trim() || "";
+          const cleaned = raw.replace(/```json|```/g, "").trim();
+          return res.json(JSON.parse(cleaned));
+        } catch (e) { continue; }
+      }
+      return res.status(500).json({ message: "AI improvement failed" });
+    } catch (err: any) {
+      console.error("Methodology improve error:", err);
+      return res.status(500).json({ message: err.message || "Improvement failed" });
+    }
+  });
+
+  // ── Virality Tester ──────────────────────────────────────────────────────
+  app.post("/api/virality/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { mode, script, reelUrl, platform, audience } = req.body;
+      const _uVir = req.user as any;
+      if (_uVir?.role !== "admin") {
+        const virCredit = await storage.deductCredits(_uVir.id, 4, "virality", "Virality analysis", _uVir.plan || "free");
+        if (!virCredit.success) return res.status(402).json({ message: virCredit.message, insufficientCredits: true, balance: virCredit.balance });
+      }
+      let contentToAnalyze = script;
+
+      if (mode === "reel" && reelUrl) {
+        try {
+          const apifyToken = process.env.APIFY_TOKEN;
+          if (apifyToken) {
+            const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ directUrls: [reelUrl], resultsType: "posts", resultsLimit: 1 }),
+            });
+            if (apifyRes.ok) {
+              const posts = await apifyRes.json();
+              if (posts?.[0]) {
+                const p = posts[0];
+                contentToAnalyze = `REEL DATA:\nCaption: ${p.caption || p.text || ""}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nEngagement Rate: ${p.engagementRate || "unknown"}\nURL: ${reelUrl}`;
+              }
+            }
+          }
+        } catch { }
+        if (!contentToAnalyze) contentToAnalyze = `Reel URL: ${reelUrl}`;
+      }
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+
+      const prompt = `You are an elite content retention analyst and viral content strategist. Analyse the following ${mode === "reel" ? "reel" : "script/content idea"} for ${platformLabel} and return a detailed retention analysis as strict JSON.
+
+Content: ${contentToAnalyze}
+${audienceNote}
+${mode === "reel" ? "This is an EXISTING reel — analyse why it went viral or why it didn't go viral. Be specific about real engagement signals if metrics are provided." : ""}
+
+Return ONLY valid JSON matching this exact schema:
+{
+  "overallScore": number (0-100),
+  "confidence": number (0-100),
+  "label": string,
+  "viralPrediction": string (2-3 sentences: detailed verdict on virality/retention, be specific and surgical),
+  "retentionCurve": [
+    { "second": number, "retention": number (0-100), "label": string }
+  ],
+  "scores": {
+    "hook": number (0-10),
+    "pacing": number (0-10),
+    "emotion": number (0-10),
+    "clarity": number (0-10),
+    "dropRisk": number (0-10, higher = lower drop risk),
+    "payoff": number (0-10),
+    "rewatch": number (0-10)
+  },
+  "penalties": [
+    { "reason": string, "impact": number (negative, e.g. -15) }
+  ],
+  "dropoffs": [
+    { "second": number, "reason": string, "severity": "high"|"medium"|"low" }
+  ],
+  "hookAnalysis": {
+    "score": number (0-10),
+    "strengths": string[],
+    "weaknesses": string[],
+    "scrollStoppingScore": number (0-100)
+  },
+  "fixes": [
+    { "type": "cut"|"add"|"rewrite"|"move", "text": string, "priority": "high"|"medium"|"low" }
+  ],
+  "platformFit": {
+    "score": number (0-100),
+    "platform": string,
+    "notes": string
+  },
+  "audienceFit": {
+    "score": number (0-100),
+    "notes": string
+  },
+  "emotionCurve": [
+    { "phase": "Hook"|"Build"|"Value"|"Payoff", "emotion": string, "intensity": number (0-10) }
+  ],
+  "loopPotential": number (0-100),
+  "narrativeFlow": string,
+  "informationDensity": string
+}
+
+Scoring rules:
+- Apply penalty system: weak hook -15%, no payoff -20%, early confusion -10%, flat emotion -10%
+- Overall score = (hook×0.25 + pacing×0.20 + emotion×0.15 + dropRisk×0.15 + clarity×0.10 + payoff×0.10 + rewatch×0.05) × 10, then apply penalties
+- Be brutally honest and calibrated — scores MUST reflect actual quality using the full 0–100 range:
+  • 85–100: Exceptional viral content — strong hook, great pacing, high emotion, clear payoff. Rare.
+  • 70–84: Good content with minor issues — will likely perform well with small tweaks
+  • 50–69: Average content — some strengths but clear problems holding it back
+  • 30–49: Weak content — multiple structural problems, low retention expected
+  • 0–29: Poor content — fundamental issues, unlikely to retain viewers past 5 seconds
+- NEVER default to 70–75. If content is mediocre, score it 45–58. If it's excellent, score it 82–92.
+- Score each sub-metric independently on 0–10 — avoid clustering all scores at 7–8.
+- Provide 4-6 specific fixes, 2-4 drop-off points, 3-5 penalties if applicable
+- retentionCurve must have at least 5 data points showing realistic audience drop-off
+- Return ONLY the JSON object, no markdown, no explanation`;
+
+      const rawText = await callGroqJson(
+        "You are an elite content retention analyst and viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON.",
+        prompt,
+        3000
+      );
+      const cleaned = rawText.replace(/```json|```/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("[Virality Analyze] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed" });
+    }
+  });
+
+  app.post("/api/virality/hooks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, platform } = req.body;
+      const _uHooks = req.user as any;
+      if (_uHooks?.role !== "admin") {
+        const hooksCredit = await storage.deductCredits(_uHooks.id, 2, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
+        if (!hooksCredit.success) return res.status(402).json({ message: hooksCredit.message, insufficientCredits: true, balance: hooksCredit.balance });
+      }
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+
+      const prompt = `You are a viral content hook specialist. Based on this content, generate 5 powerful upgraded hooks for ${platformLabel}.
+
+Content context: ${script}
+
+Rules:
+- Each hook must be under 15 words
+- Use proven hook formulas: curiosity gap, pattern interrupt, bold claim, story start, controversy
+- Make them scroll-stopping and impossible to ignore
+- No generic hooks — be specific and punchy
+
+Return ONLY a JSON array of 5 strings:
+["hook 1", "hook 2", "hook 3", "hook 4", "hook 5"]`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 500,
+          temperature: 0.8,
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const raw = data.choices?.[0]?.message?.content || "[]";
+      const cleaned = raw.replace(/```json|```/g, "").trim();
+      const hooks = JSON.parse(cleaned);
+      return res.json({ hooks });
+    } catch (err: any) {
+      console.error("[Virality Hooks] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Hook generation failed" });
+    }
+  });
+
+  app.post("/api/virality/rewrite", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, platform, audience, score, fixes } = req.body;
+      const _uRew = req.user as any;
+      if (_uRew?.role !== "admin") {
+        const rewCredit = await storage.deductCredits(_uRew.id, 2, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
+        if (!rewCredit.success) return res.status(402).json({ message: rewCredit.message, insufficientCredits: true, balance: rewCredit.balance });
+      }
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const fixNote = fixes?.length ? `Apply these specific improvements: ${fixes.map((f: any) => f.text).join("; ")}` : "";
+
+      const prompt = `You are a viral content strategist. Rewrite this script for maximum retention and virality on ${platformLabel}.
+
+Original content: ${script}
+${audienceNote}
+${fixNote}
+Current retention score: ${score || "unknown"}/100
+
+Rules:
+- Start with an irresistible hook (first 3 seconds = everything)
+- Add pattern interrupts every 5-7 seconds
+- Build tension and deliver on the promise
+- Keep pacing tight — cut every unnecessary word
+- End with a strong payoff and optional loop/rewatch trigger
+- Match the platform format: ${platformLabel === "Instagram Reels" ? "15-60 seconds, punchy, visual cues" : platformLabel === "TikTok" ? "fast-paced, trend-aware, conversational" : "structured, value-forward, slightly longer"}
+- Label each section: [HOOK] [BUILD] [VALUE] [PAYOFF]
+
+Return ONLY the rewritten script, no explanation, no JSON.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 800,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const rewrittenScript = data.choices?.[0]?.message?.content || "";
+      return res.json({ script: rewrittenScript });
+    } catch (err: any) {
+      console.error("[Virality Rewrite] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Rewrite failed" });
+    }
+  });
+
+  // ── Viral Content Angles ───────────────────────────────────────────────────
+  app.post("/api/virality/angles", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { viralUrl, platform, whyViral, audience } = req.body;
+      const _uAng = req.user as any;
+      if (_uAng?.role !== "admin") {
+        const angCredit = await storage.deductCredits(_uAng.id, 3, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
+        if (!angCredit.success) return res.status(402).json({ message: angCredit.message, insufficientCredits: true, balance: angCredit.balance });
+      }
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const platformLabel = platform === "youtube" ? "YouTube" : "Instagram Reels";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const whyNote = whyViral ? `Why it went viral: ${whyViral}` : "";
+
+      const prompt = `You are an elite viral content strategist. A creator's ${platformLabel} post went viral. Based on the details below, generate exactly 10 fresh content angles they can use to post similar viral content.
+
+Viral post: ${viralUrl || "not specified"}
+${whyNote}
+${audienceNote}
+
+Generate 10 distinct content angles. Each angle must be a unique spin on the viral formula — different hook styles, formats, or sub-topics. Mix Instagram Reels and YouTube Shorts formats where relevant.
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "angles": [
+    {
+      "number": 1,
+      "title": "short punchy angle title",
+      "hook": "the exact first line / hook for this content",
+      "format": "e.g. Storytime, POV, Tutorial, Listicle, Hot Take, Before/After, Day In My Life, Q&A, Myth Bust, Transformation",
+      "platforms": ["Instagram", "YouTube"],
+      "brief": "2-3 sentence description of what this content covers and why it will perform",
+      "whyItWorks": "1 sentence — the psychological trigger that makes this angle viral"
+    }
+  ]
+}`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 2000,
+          temperature: 0.75,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      const raw = data.choices?.[0]?.message?.content || "{}";
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch { parsed = { angles: [] }; }
+      return res.json({ angles: parsed.angles || [] });
+    } catch (err: any) {
+      console.error("[Virality Angles] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Angles generation failed" });
+    }
+  });
+
+  // ── AI Content Coach ──────────────────────────────────────────────────────
+  const COACH_SYSTEM = `You are an AI Content Coach named "Coach" — a confident, sharp, strategic expert who helps creators and businesses optimize their web content, landing pages, product descriptions, social media scripts, and marketing copy so it drives more clicks, conversions, and engagement. You speak like a real mentor: casual, direct, slightly funny. Never robotic.
+
+Personality: Confident, direct, and strategic. Friendly but brutally honest. Use "yo", "okay", "bro" occasionally. Be encouraging but NEVER sugarcoat weak content. Always explain WHY something works or doesn't — never vague suggestions.
+
+## Coaching Flow
+
+When no content is provided yet: greet the user warmly and ask 2-3 targeted questions to understand their context:
+- What is this product/service and what problem does it solve?
+- Who is the target audience? (demographics, pain points, desires)
+- What is the goal? (sign-up, purchase, awareness, engagement)
+- What platform is this for? (homepage, landing page, email, ad, social media)
+- What tone should the brand have? (professional, playful, bold, etc.)
+
+When content IS provided: analyze it and return a JSON response with BOTH a conversational reply AND structured analysis. Identify what's working and why, what's weak, and what's missing entirely. Then rewrite or suggest improvements with a clear benefit-driven headline, compelling subheadline, concise trust-building body copy, and a strong specific CTA.
+
+Return ONLY this JSON format:
+{
+  "reply": "your conversational coach message (1-4 sentences, punchy, mentor-style — explain WHY something works or doesn't)",
+  "mood": "weak" | "decent" | "strong",
+  "analysis": {
+    "overallScore": <0-100>,
+    "scores": {
+      "clarity": <0-10>,
+      "persuasion": <0-10>,
+      "ctaStrength": <0-10>,
+      "brandVoice": <0-10>
+    },
+    "issues": [
+      { "line": "exact weak line or section", "problem": "why it's weak", "fix": "rewritten version", "severity": "high"|"medium"|"low" }
+    ],
+    "strengths": ["strength 1", "strength 2"],
+    "dropoffs": [
+      { "second": <number>, "reason": "where and why readers lose interest", "severity": "high"|"medium"|"low" }
+    ],
+    "verdict": "2-sentence verdict on conversion potential and the single most important thing to fix"
+  }
+}
+
+## Scoring Rules
+- **clarity** (25%): Is the value proposition immediately obvious? Does the reader instantly understand what's offered and why it matters?
+- **persuasion** (30%): Does the copy build desire, address pain points, and create urgency? Is there specificity, social proof, or emotional resonance?
+- **ctaStrength** (25%): Is there a clear, specific, benefit-driven call to action? Does it tell the reader exactly what to do and why now?
+- **brandVoice** (20%): Does the tone match the intended audience and brand personality? Is it consistent throughout?
+
+Apply penalties: unclear value prop (-15), missing or weak CTA (-20), generic filler language (-15), mismatched tone (-10). Be HONEST — don't inflate scores. Provide 1-4 issues max. End every analysis with an offer to iterate: adjust tone, shorten, make more aggressive, or target a different audience.
+
+Only include analysis when content is provided. Never produce generic filler content — tie every suggestion back to the user's specific product and audience.`;
+
+  app.post("/api/coach/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, script, mode, goal, history = [] } = req.body;
+      const _uc = req.user as any;
+      if (_uc.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uc.id, 2, "ai_coach", "AI Content Coach chat", _uc.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+      }
+      const content = script || message;
+      const hasScript = content && content.trim().length > 20;
+
+      const goalNote = goal ? `The user's goal is: ${goal} (optimize for this).` : "";
+      const modeNote = mode === "pre-post" ? "This is a Pre-Post check — be extra critical about retention risks." : mode === "live" ? "Give quick line-by-line feedback." : "";
+      const userPrompt = hasScript
+        ? `${goalNote} ${modeNote}\n\nContent to analyze:\n"${content}"\n\nAnalyze this content and respond with the full JSON format.`
+        : `The user says: "${message}". ${!hasScript ? "No script provided yet — greet them and ask what they want to work on. Return reply and mood only, set analysis to null." : ""}`;
+
+      const msgs: any[] = [
+        { role: "system", content: COACH_SYSTEM },
+        ...history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })),
+        { role: "user", content: userPrompt },
+      ];
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: msgs,
+          temperature: 0.75,
+          max_tokens: 2000,
+          response_format: { type: "json_object" },
+        }),
+      });
+      const data: any = await r.json();
+      if (data?.error) throw new Error(data.error.message);
+      const raw = data.choices?.[0]?.message?.content || "{}";
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error("[Coach Chat] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Coach failed" });
+    }
+  });
+
+  app.post("/api/coach/fix-line", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { line, context, goal } = req.body;
+      const prompt = `You are a viral content expert. Rewrite this weak line to be more scroll-stopping, emotional, and engaging.
+Goal: ${goal || "viral content"}
+Context: ${context || "Instagram Reel script"}
+Weak line: "${line}"
+
+Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrite 1", "rewrite 2", "rewrite 3"], "explanation": "why these work better" }`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/coach/improve-script", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, goal, issues } = req.body;
+      const issueList = issues?.map((i: any) => `- ${i.problem}: "${i.line}"`).join("\n") || "";
+      const prompt = `You are a viral content strategist. Rewrite this script for maximum retention on Instagram Reels.
+Goal: ${goal || "viral content"}
+${issueList ? `Known issues to fix:\n${issueList}` : ""}
+
+Original script:
+"${script}"
+
+Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
+      });
+      const data: any = await r.json();
+      return res.json({ script: data.choices?.[0]?.message?.content || "" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/coach/competitor", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "url required" });
+      const normUrl = normalizeInstagramUrl(url);
+      if (!normUrl) return res.status(400).json({ message: "Invalid Instagram profile URL. Use a profile link (e.g. instagram.com/handle), not a reel or post." });
+      const handle = extractHandle(normUrl) ?? "@unknown";
+      const items = await apifyInstagram({ directUrls: [normUrl], resultsType: "posts", resultsLimit: 15 });
+      if (!items?.length) return res.json({ reply: `Hmm, couldn't scrape @${handle} — make sure it's a public account 👀`, mood: "weak", profile: null });
+      const posts = items.slice(0, 10).map((p: any) => ({
+        caption: (p.caption || "").slice(0, 120),
+        views: p.videoViewCount || p.videoPlayCount || 0,
+        likes: p.likesCount || 0,
+        comments: p.commentsCount || 0,
+        type: p.type || "reel",
+      }));
+      const avgViews = Math.round(posts.reduce((s: number, p: any) => s + p.views, 0) / posts.length);
+      const avgLikes = Math.round(posts.reduce((s: number, p: any) => s + p.likes, 0) / posts.length);
+      const prompt = `You are an AI Content Coach. Analyze this Instagram competitor and give actionable insights.
+
+Handle: @${handle}
+Posts analyzed: ${posts.length}
+Avg views: ${avgViews}, Avg likes: ${avgLikes}
+Recent posts: ${JSON.stringify(posts)}
+
+Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)", "mood": "weak"|"decent"|"strong", "topPatterns": ["pattern 1", "pattern 2", "pattern 3"], "whatWorks": ["...", "..."], "gaps": ["opportunity 1", "opportunity 2"], "stealThis": "one specific tactic to steal from this account" }`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      return res.json({ ...parsed, profile: { handle, posts: posts.length, avgViews, avgLikes } });
+    } catch (err: any) {
+      console.error("[Coach Competitor] Error:", err.message);
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Coach: Tone Transform ─────────────────────────────────────────────────
+  app.post("/api/coach/tone", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, tone } = req.body;
+      if (!script || !tone) return res.status(400).json({ message: "script and tone required" });
+      const toneDescriptions: Record<string, string> = {
+        funny: "Add humor, wit, and comedy. Make it entertaining and shareable. Use unexpected twists.",
+        serious: "Make it authoritative, credible, and professional. Deep and impactful.",
+        educational: "Structure it as a clear lesson with steps, examples, and takeaways. Make the viewer smarter.",
+        sales: "Optimize for conversion. Create urgency, highlight pain points, and make the CTA irresistible.",
+        story: "Convert into a compelling narrative arc. Hook → struggle → turning point → resolution.",
+        emotional: "Inject raw emotion, vulnerability, and relatability. Make people feel something deeply.",
+      };
+      const prompt = `You are a viral content strategist. Rewrite the following script in ${tone} mode.
+${toneDescriptions[tone] || "Rewrite for maximum engagement."}
+
+Original script:
+"${script}"
+
+Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2 sentences explaining the key changes you made and why they work better" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Clarify ────────────────────────────────────────────────────────
+  app.post("/api/coach/clarify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are a clarity editor. Simplify this script — remove jargon, cut confusion, make every line instantly understandable to anyone.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Add Emotion ────────────────────────────────────────────────────
+  app.post("/api/coach/add-emotion", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are an emotional resonance expert. Inject curiosity, relatability, and emotional triggers into this script. Make people FEEL something.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Shorten ────────────────────────────────────────────────────────
+  app.post("/api/coach/shorten", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script } = req.body;
+      const prompt = `You are a content editor. Cut this script by 30-40%. Remove all fluff, filler words, and redundant lines. Keep only what makes people stay and share.
+
+Script: "${script}"
+
+Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: Personal Brand Builder ────────────────────────────────────────
+  app.post("/api/coach/brand", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, target, goal, currentBio, handle } = req.body;
+      const prompt = `You are a personal brand strategist for Instagram/social media creators. Build a complete brand strategy.
+
+Creator info:
+- Niche: ${niche}
+- Target audience: ${target}
+- Goal: ${goal}
+${currentBio ? `- Current bio: "${currentBio}"` : ""}
+${handle ? `- Handle: @${handle}` : ""}
+
+Return ONLY this JSON:
+{
+  "bioRewrite": "optimized Instagram bio (max 150 chars, punchy, keyword-rich)",
+  "usernameIdeas": ["idea1", "idea2", "idea3"],
+  "profilePicAdvice": "specific advice for their profile picture style",
+  "highlightStrategy": ["highlight name 1", "highlight name 2", "highlight name 3", "highlight name 4"],
+  "contentPillars": [
+    { "pillar": "pillar name", "description": "what to post", "example": "example post idea" }
+  ],
+  "toneAndVoice": "2-sentence description of their brand voice",
+  "audiencePsychology": "what their audience wants to feel/achieve",
+  "postingPlan": "how often and what mix of content types",
+  "uniqueAngle": "what makes them different from everyone else in this niche"
+}`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Coach: AI Roadmap ─────────────────────────────────────────────────────
+  app.post("/api/coach/roadmap", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, goal, currentFollowers, mainProblem } = req.body;
+      const prompt = `You are a growth mentor creating a personalized 30-day content roadmap.
+
+Creator profile:
+- Niche: ${niche}
+- Goal: ${goal}
+- Current followers: ${currentFollowers || "unknown"}
+- Main problem: ${mainProblem || "getting started"}
+
+Return ONLY this JSON:
+{
+  "overview": "2-sentence roadmap summary and expected outcome",
+  "weeks": [
+    {
+      "week": 1,
+      "theme": "week theme/focus",
+      "goal": "specific measurable goal",
+      "dailyTasks": ["task 1", "task 2", "task 3", "task 4", "task 5", "task 6", "task 7"],
+      "challenge": "one creative challenge for the week",
+      "metric": "what to track this week"
+    },
+    { "week": 2, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." },
+    { "week": 3, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." },
+    { "week": 4, "theme": "...", "goal": "...", "dailyTasks": ["...x7"], "challenge": "...", "metric": "..." }
+  ],
+  "keyHabits": ["habit 1", "habit 2", "habit 3"],
+  "commonMistakes": ["mistake 1", "mistake 2"],
+  "successMetrics": "how to know the roadmap is working"
+}`;
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
+      });
+      const data: any = await r.json();
+      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Meta / Instagram Webhook & Callbacks (required for Meta App Review) ───
+  // Webhook verification — Meta sends GET with hub.challenge to verify endpoint
+  app.get("/api/webhooks/meta", (req: Request, res: Response) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN || "brandverse_meta_verify_2024";
+    if (mode === "subscribe" && token === verifyToken) {
+      console.log("[Meta Webhook] Verified successfully");
+      return res.status(200).send(challenge);
+    }
+    console.warn("[Meta Webhook] Verification failed — token mismatch");
+    return res.status(403).json({ message: "Forbidden" });
+  });
+
+  // Webhook event receiver — Meta sends POST for Instagram events
+  app.post("/api/webhooks/meta", (req: Request, res: Response) => {
+    const body = req.body;
+    console.log("[Meta Webhook] Event received:", JSON.stringify(body, null, 2));
+    if (body.object === "instagram") {
+      body.entry?.forEach((entry: any) => {
+        const changes = entry.changes || [];
+        changes.forEach((change: any) => {
+          console.log(`[Meta Webhook] Change field: ${change.field}`, change.value);
+        });
+        const messaging = entry.messaging || [];
+        messaging.forEach((msg: any) => {
+          console.log("[Meta Webhook] Message event:", JSON.stringify(msg));
+        });
+      });
+    }
+    return res.status(200).json({ status: "EVENT_RECEIVED" });
+  });
+
+  // Deauthorize callback — required by Meta; called when user removes app access
+  app.post("/api/auth/meta/deauth", (req: Request, res: Response) => {
+    const signedRequest = req.body.signed_request;
+    console.log("[Meta Deauth] Deauthorize callback received:", signedRequest);
+    return res.status(200).json({ status: "ok" });
+  });
+
+  // Data deletion callback — required by Meta; called when user requests data deletion
+  app.post("/api/auth/meta/delete", (req: Request, res: Response) => {
+    const signedRequest = req.body.signed_request;
+    console.log("[Meta Data Deletion] Request received:", signedRequest);
+    const confirmationCode = `del_${Date.now()}`;
+    return res.status(200).json({
+      url: `${req.protocol}://${req.get("host")}/privacy`,
+      confirmation_code: confirmationCode,
+    });
+  });
+
+  // ── AI Video Editor (Groq-powered) ───────────────────────────────────────
+  async function callVideoGroq(prompt: string, maxTokens = 8192): Promise<any> {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) throw new Error("GROQ_API_KEY not configured");
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.75,
+        max_tokens: maxTokens,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!r.ok) {
+      const errText = await r.text();
+      if (r.status === 429) throw new Error("The AI is currently busy — please wait a moment and try again.");
+      if (r.status === 413) throw new Error("The request was too large — try a shorter script or concept.");
+      throw new Error(`AI API error ${r.status}: ${errText.substring(0, 200)}`);
+    }
+    const data = await r.json();
+    if (data.error) throw new Error(data.error.message || "AI generation failed");
+    const raw = data.choices?.[0]?.message?.content || "{}";
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
+  }
+
+  async function runwareGenerate(apiKey: string, tasks: any[]): Promise<{ url: string; taskUUID: string }[]> {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket("wss://ws.runware.ai/v1");
+      const images: { url: string; taskUUID: string }[] = [];
+      const timer = setTimeout(() => { ws.terminate(); reject(new Error("Runware timed out after 60s")); }, 60000);
+
+      ws.on("open", () => {
+        ws.send(JSON.stringify([{ taskType: "authentication", apiKey }]));
+      });
+
+      ws.on("message", (data: Buffer) => {
+        try {
+          const messages = JSON.parse(data.toString());
+          for (const msg of Array.isArray(messages) ? messages : [messages]) {
+            if (msg.taskType === "authentication") {
+              ws.send(JSON.stringify(tasks));
+            } else if (msg.taskType === "imageInference" && msg.imageURL) {
+              images.push({ url: msg.imageURL, taskUUID: msg.taskUUID });
+              if (images.length >= tasks.length) {
+                clearTimeout(timer);
+                ws.close();
+                resolve(images);
+              }
+            } else if (msg.taskType === "error") {
+              clearTimeout(timer);
+              ws.close();
+              reject(new Error(msg.errorMessage || "Runware image generation failed"));
+            }
+          }
+        } catch (e) { clearTimeout(timer); ws.close(); reject(e); }
+      });
+
+      ws.on("error", (err: Error) => { clearTimeout(timer); reject(err); });
+    });
+  }
+
+  async function fetchYouTubeTextContext(url: string): Promise<string> {
+    try {
+      const { extractYouTubeVideoId: extractId } = await import("./youtube");
+      const videoId = extractId(url);
+      if (!videoId) return `YouTube video URL: ${url}`;
+      const ytKey = process.env.YOUTUBE_API_KEY;
+      if (!ytKey) return `YouTube video URL: ${url}`;
+      const resp = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet,contentDetails&id=${videoId}&key=${ytKey}`);
+      if (!resp.ok) return `YouTube video URL: ${url}`;
+      const ytData = await resp.json();
+      const item = ytData.items?.[0];
+      if (!item) return `YouTube video URL: ${url}`;
+      const s = item.statistics || {};
+      const sn = item.snippet || {};
+      const desc = (sn.description || "").substring(0, 500);
+      return `YOUTUBE VIDEO CONTEXT:\nTitle: ${sn.title || "Unknown"}\nChannel: ${sn.channelTitle || "Unknown"}\nViews: ${parseInt(s.viewCount || "0").toLocaleString()} | Likes: ${parseInt(s.likeCount || "0").toLocaleString()} | Comments: ${parseInt(s.commentCount || "0").toLocaleString()}\nPublished: ${sn.publishedAt ? new Date(sn.publishedAt).toLocaleDateString() : "Unknown"}\nDescription: ${desc}\nTags: ${(sn.tags || []).slice(0, 15).join(", ")}\nURL: ${url}`;
+    } catch {
+      return `YouTube video URL: ${url}`;
+    }
+  }
+
+  const VID_MODE_MAP: Record<string, string> = {
+    viral: "VIRAL MODE: Fast cuts every 2-3s, bold captions, pattern interrupts, curiosity loops, high energy. Every second must earn its place.",
+    story: "STORY MODE: Narrative arc with emotional beats. Build tension, create connection, resolve with insight. Pacing follows emotional intensity.",
+    sales: "SALES MODE: Problem, Agitate, Solution, Proof, Urgency, CTA. Every element drives toward conversion. Include price anchor and social proof.",
+    funny: "FUNNY MODE: Timing is everything. Setup, pause, punchline. Use reaction cuts, callbacks, unexpected pivots. Caption every punchline.",
+    cinematic: "CINEMATIC MODE: Visual storytelling. B-roll heavy, dramatic pauses, music sync cuts. Quality over quantity.",
+    educational: "EDUCATIONAL MODE: Clear numbered structure. One concept per segment. Examples after each point. Recap at end. Clarity beats entertainment.",
+    personal_brand: "PERSONAL BRAND MODE: Authentic voice, personal story, direct camera address. Values-driven narrative that builds trust.",
+  };
+  const VID_GOAL_MAP: Record<string, string> = {
+    viral: "GOAL: GO VIRAL — Hook must be impossible to scroll past. Include rewatch trigger. Optimize for shares and saves.",
+    followers: "GOAL: GET FOLLOWERS — Build connection and trust. End with a compelling follow reason — make them feel they'd miss out.",
+    sales: "GOAL: SELL — Drive one clear decision. Include proof, urgency, and frictionless CTA.",
+    brand: "GOAL: BUILD BRAND — Establish a clear, memorable point of view. Be the only creator who says this, this way.",
+  };
+
+  app.post("/api/video/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { inputType, instagramUrl, script, description, mode, goal, audience, style, duration } = req.body;
+
+      const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
+      const goalDesc = VID_GOAL_MAP[goal] || VID_GOAL_MAP.viral;
+      const durationNote = duration ? `Video duration: ${duration} seconds.` : "Estimate timestamps for a 30-60s reel.";
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const styleNote = style ? `Style reference: "${style}" — channel this approach in all suggestions.` : "";
+
+      let contentInfo = "";
+
+      if (inputType === "url" && instagramUrl) {
+        const isYouTube = /youtube\.com|youtu\.be/.test(instagramUrl);
+        if (isYouTube) {
+          contentInfo = await fetchYouTubeTextContext(instagramUrl);
+        } else {
+          try {
+            const apifyToken = process.env.APIFY_TOKEN;
+            if (apifyToken) {
+              const apifyRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ directUrls: [instagramUrl], resultsType: "posts", resultsLimit: 1 }),
+              });
+              if (apifyRes.ok) {
+                const posts = await apifyRes.json();
+                if (posts?.[0]) {
+                  const p = posts[0];
+                  contentInfo = `INSTAGRAM REEL:\nCaption: ${p.caption || p.text || "N/A"}\nLikes: ${p.likesCount || 0}\nComments: ${p.commentsCount || 0}\nViews: ${p.videoViewCount || p.videoPlayCount || 0}\nURL: ${instagramUrl}`;
+                }
+              }
+            }
+          } catch { }
+          if (!contentInfo) contentInfo = `Video URL: ${instagramUrl} — optimize for social media editing.`;
+        }
+      } else if (inputType === "script" && script) {
+        contentInfo = `VIDEO SCRIPT:\n${script}`;
+      } else if (inputType === "describe" && description) {
+        contentInfo = `VIDEO CONCEPT:\n${description}`;
+      }
+
+      const editSchema = `{
+  "overallScore": number (0-100),
+  "modeApplied": string,
+  "summary": string (3-4 sentences, specific and surgical),
+  "timeline": [{ "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "KEEP"|"CUT"|"TRIM"|"ADD"|"REORDER", "note": string, "energyLevel": number }],
+  "cuts": [{ "timestamp": string, "reason": string, "severity": "high"|"medium"|"low", "fix": string }],
+  "hook": { "current": string, "score": number, "analysis": string, "improved": [string, string, string] },
+  "captions": { "onScreen": [string], "postCaption": string, "hashtags": [string] },
+  "ctas": [string, string, string],
+  "audio": [{ "name": string, "mood": string, "bpm": string, "why": string }],
+  "visuals": [{ "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }],
+  "checklist": [string],
+  "variations": [{ "name": string, "targetPlatform": string, "description": string, "changes": [string] }],
+  "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
+}`;
+
+      const prompt = `You are an elite AI video editing strategist. Produce the most specific, actionable video edit plan possible.
+
+CONTENT:
+${contentInfo}
+
+${modeDesc}
+${goalDesc}
+${audienceNote}
+${styleNote}
+${durationNote}
+
+Be surgically specific — name exact timestamps, exact words to cut, exact replacements. Reference the actual content. Think like a viral content director who has studied 10,000 successful reels.
+
+Return ONLY valid JSON matching this schema:
+${editSchema}`;
+
+      const result = await callVideoGroq(prompt);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Editor] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Video analysis failed" });
+    }
+  });
+
+  app.post("/api/video/idea-builder", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal, audience, style, platform, duration, competitorUrls } = req.body;
+      if (!concept?.trim()) return res.status(400).json({ message: "Video concept is required" });
+
+      const modeDesc = VID_MODE_MAP[mode] || VID_MODE_MAP.viral;
+      const goalDesc = VID_GOAL_MAP[goal] || VID_GOAL_MAP.viral;
+      const audienceNote = audience ? `Target audience: ${audience}.` : "";
+      const styleNote = style ? `Style reference: "${style}".` : "";
+      const platformLabel = platform === "tiktok" ? "TikTok" : platform === "youtube" ? "YouTube Shorts" : "Instagram Reels";
+      const durationLabel = duration ? `${duration} seconds` : "30-45 seconds";
+
+      // Scrape competitor/inspiration reels
+      let competitorContext = "";
+      const urls: string[] = Array.isArray(competitorUrls) ? competitorUrls.filter(Boolean) : [];
+      if (urls.length > 0) {
+        const scraped: string[] = [];
+        for (const url of urls.slice(0, 3)) {
+          try {
+            const isYT = /youtube\.com|youtu\.be/.test(url);
+            if (isYT) {
+              const ytContext = await fetchYouTubeTextContext(url);
+              scraped.push(`COMPETITOR YOUTUBE VIDEO:\n${ytContext}`);
+            } else {
+              const apifyToken = process.env.APIFY_TOKEN;
+              if (apifyToken) {
+                const r = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}`, {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ directUrls: [url], resultsType: "posts", resultsLimit: 1 }),
+                });
+                if (r.ok) {
+                  const posts = await r.json();
+                  if (posts?.[0]) {
+                    const p = posts[0];
+                    scraped.push(`Competitor reel: ${url}\n  Caption: ${(p.caption || p.text || "").substring(0, 200)}\n  Likes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0} | Views: ${p.videoViewCount || p.videoPlayCount || 0}\n  Hashtags: ${(p.hashtags || []).slice(0, 10).join(", ")}`);
+                  }
+                }
+              }
+              if (!scraped.some(s => s.includes(url))) scraped.push(`Competitor reel URL: ${url} — extract the visual style, hook pattern, pacing and caption approach`);
+            }
+          } catch { }
+        }
+        if (scraped.length > 0) {
+          competitorContext = `\nCOMPETITOR / INSPIRATION REELS TO STYLE-MATCH:
+${scraped.join("\n\n")}
+
+CRITICAL STYLE-MATCH INSTRUCTION: Study what makes these competitor reels successful — their hook type, pacing, cut frequency, caption style, energy level, and content structure. Create the new video concept in a similar style but with completely original content. Note in the script and shot list where you're applying competitor-inspired techniques.`;
+        }
+      }
+
+      const ideaSchema = `{
+  "title": string,
+  "overallScore": number (85-99),
+  "competitorInsights": string (if competitor URLs provided: 2-3 sentences on what patterns you borrowed from them and why they work; otherwise empty string),
+  "summary": string (3-4 sentences about what this video will achieve),
+  "fullScript": string (complete word-for-word voiceover script with [PAUSE] [ZOOM] [CUT] markers — at least 150 words, conversational and punchy),
+  "shotList": [{ "shot": number, "timestamp": string, "type": string, "description": string, "duration": string }],
+  "brollList": [string],
+  "timeline": [{ "id": number, "startLabel": string, "endLabel": string, "label": string, "type": "hook"|"body"|"payoff"|"cta"|"transition", "action": "ADD", "note": string, "energyLevel": number }],
+  "hook": { "current": string, "score": number, "analysis": string, "improved": [string, string, string] },
+  "captions": { "onScreen": [string], "postCaption": string, "hashtags": [string] },
+  "ctas": [string, string, string],
+  "audio": [{ "name": string, "mood": string, "bpm": string, "why": string }],
+  "visuals": [{ "timestamp": string, "type": "zoom"|"broll"|"text-overlay"|"transition"|"effect", "description": string }],
+  "checklist": [string],
+  "styleGuide": { "pacing": string, "captions": string, "energy": string, "colorGrading": string, "soundDesign": string, "typography": string }
+}`;
+
+      const prompt = `You are an elite viral content director. Transform this video concept into a complete, production-ready plan that will actually get views.
+
+VIDEO CONCEPT: "${concept}"
+Platform: ${platformLabel}
+Target duration: ${durationLabel}
+${modeDesc}
+${goalDesc}
+${audienceNote}
+${styleNote}
+${competitorContext}
+
+Write the actual word-for-word script they should record. Be creative, specific, and genuinely engaging. This creator is counting on you.
+
+Return ONLY valid JSON matching this schema:
+${ideaSchema}`;
+
+      const result = await callVideoGroq(prompt);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Idea Builder] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Idea builder failed" });
+    }
+  });
+
+  app.post("/api/video/suggest-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal } = req.body;
+      const templateIds = ["hook-reel", "story-arc", "sales-convert", "funny-timing", "cinematic-reveal", "educational-breakdown", "personal-brand"];
+      const prompt = `You are a viral content strategist. A creator has this video concept: "${concept || "general social media content"}". Their preferred mode is "${mode || "viral"}" and goal is "${goal || "viral"}".
+
+From these 7 template IDs: ${templateIds.join(", ")}
+
+Pick the TOP 2 or 3 that would work best for this concept. Be decisive and explain why.
+
+Return ONLY valid JSON:
+{
+  "recommendations": [
+    { "id": string (one of the template IDs above), "rank": number (1=best), "reason": string (1 sentence why this template fits perfectly), "customization": string (1 sentence on how to adapt it for this specific concept) }
+  ],
+  "avoidThese": [string] (1-2 template IDs that would NOT work well, with brief reason in format "id: reason")
+}`;
+
+      const result = await callVideoGroq(prompt);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Suggest Templates] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Template suggestion failed" });
+    }
+  });
+
+  // ── Runware AI Image Generation ─────────────────────────────────────────────
+  app.post("/api/video/generate-images", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { prompts, width = 1024, height = 576 } = req.body;
+      const runwareKey = process.env.RUNWARE_API_KEY;
+      if (!runwareKey) return res.status(500).json({ message: "RUNWARE_API_KEY not configured" });
+      if (!Array.isArray(prompts) || !prompts.length) return res.status(400).json({ message: "prompts array required" });
+
+      const tasks = prompts.slice(0, 6).map((prompt: string) => ({
+        taskType: "imageInference",
+        taskUUID: crypto.randomUUID(),
+        positivePrompt: String(prompt).slice(0, 900),
+        negativePrompt: "blurry, low quality, watermark, text overlay, ugly, deformed",
+        model: "runware:100@1",
+        width: Number(width) || 1024,
+        height: Number(height) || 576,
+        numberResults: 1,
+        outputType: ["URL"],
+        outputFormat: "WEBP",
+        steps: 4,
+        CFGScale: 1,
+      }));
+
+      const images = await runwareGenerate(runwareKey, tasks);
+      return res.json({ images });
+    } catch (err: any) {
+      console.error("[Runware] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Image generation failed" });
+    }
+  });
+
+  // ── Chat-Based Video Editing ────────────────────────────────────────────────
+  app.post("/api/video/chat-edit", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { userMessage, context } = req.body;
+      if (!userMessage?.trim()) return res.status(400).json({ message: "Message required" });
+      const _uVe = req.user as any;
+      if (_uVe.role !== "admin") {
+        const veCredit = await storage.deductCredits(_uVe.id, 2, "video_editor", "AI Video Editor chat", _uVe.plan || "free");
+        if (!veCredit.success) return res.status(402).json({ message: veCredit.message, insufficientCredits: true });
+      }
+      const prompt = `You are a world-class AI video editor and creative director. You are sitting in the edit bay with this creator, making frame-level decisions. Be extremely specific, action-oriented, and fill in ALL gaps you see.
+
+CURRENT VIDEO CONTEXT:
+- Title: "${context?.title || "Untitled"}"
+- Platform: "${context?.platform || "Instagram Reels / YouTube Shorts"}"
+- Duration: ${context?.duration || 30} seconds
+- Mode: "${context?.mode || "viral"}"
+- Goal: "${context?.goal || "engagement"}"
+${context?.summary ? `- Summary: "${context.summary}"` : ""}
+${context?.fullScript ? `- Full Script:\n"${String(context.fullScript).slice(0, 1000)}"` : ""}
+${context?.timeline?.length ? `- Timeline cuts:\n${context.timeline.slice(0, 8).map((c: any, i: number) => `  [${i + 1}] ${c.startSec ?? "?"}s-${c.endSec ?? "?"}s: ${c.text || c.action || c.description || JSON.stringify(c)}`).join("\n")}` : ""}
+${context?.hook?.current ? `- Current hook: "${context.hook.current}"` : ""}
+${context?.currentHooks?.length ? `- Hook options: ${context.currentHooks.slice(0, 2).join(" | ")}` : ""}
+${context?.currentTab ? `- Creator is on the "${context.currentTab}" tab right now` : ""}
+
+USER REQUEST: "${userMessage}"
+
+As an expert creative director, give a powerful, specific response. Fill in any gaps in the script or timeline. Suggest real, frame-level edits. Think like a professional editor who has watched this video 20 times.
+
+Return ONLY valid JSON (no markdown, no code fences):
+{
+  "reply": "Direct, specific, energetic coaching response (2-4 sentences, creator-to-creator tone — reference specific timestamps or lines from the script if you can)",
+  "suggestion": "Exact new text/script content if they asked for a rewrite — provide the COMPLETE rewritten version, not a summary (null if not applicable)",
+  "suggestionType": "hook | script | title | caption | structure | pacing | b-roll | null",
+  "actionLabel": "Short CTA label like 'Apply this hook' or 'Replace opening' or null",
+  "edits": [
+    {
+      "id": 1,
+      "type": "cut | b-roll | text-overlay | transition | hook | script | caption | pacing | audio | gap-fill",
+      "timestamp": "e.g. '0:00-0:03' or 'sec 12-15' or 'opening' or 'closing 5 sec'",
+      "action": "One specific thing to do — verb-first (Cut here, Add, Replace, Insert, Remove)",
+      "content": "Exact text to use, or specific description of what to film/show/add",
+      "impact": "Why this specific edit will improve performance"
+    }
+  ]
+}
+
+Generate 4-7 specific, diverse edits covering different parts of the video. Include at least one gap-fill edit if the script has missing pieces.`;
+      const result = await callVideoGroq(prompt, 1800);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Chat Edit] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Chat edit failed" });
+    }
+  });
+
+  // ── AI Audio Suggestions ────────────────────────────────────────────────────
+  app.post("/api/video/suggest-audio", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { concept, mode, goal, platform, title } = req.body;
+      const prompt = `You are a music and audio trend expert for social media content. Based on this video concept, suggest the perfect audio tracks and sounds.
+
+VIDEO DETAILS:
+- Concept: "${concept || title || "general content"}"
+- Style: "${mode || "viral"}"
+- Goal: "${goal || "engagement"}"
+- Platform: "${platform || "instagram"}"
+
+Generate 6 diverse audio suggestions that would make this video perform better. Mix trending sounds with timeless picks.
+
+Return ONLY valid JSON:
+{
+  "suggestions": [
+    {
+      "name": "Track/Sound name",
+      "artist": "Artist or source",
+      "mood": "One word mood: hype | calm | emotional | funny | cinematic | energetic",
+      "bpm": number (approximate BPM),
+      "why": "One sentence explaining why this audio fits perfectly",
+      "trendScore": number (1-100, how trending right now),
+      "bestFor": "Best moment in the video to use this",
+      "genre": "Genre tag"
+    }
+  ],
+  "tip": "One golden tip about audio strategy for this type of content"
+}`;
+      const result = await callVideoGroq(prompt, 1200);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Audio] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Audio suggestion failed" });
+    }
+  });
+
+  // ── Caption Generation ──────────────────────────────────────────────────────
+  app.post("/api/video/generate-captions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { script, title, duration = 30 } = req.body;
+      if (!script?.trim()) return res.status(400).json({ message: "script required" });
+      const prompt = `You are a professional caption writer for viral social media videos. Generate perfectly timed caption segments from this script.
+
+TITLE: "${title || "Untitled"}"
+SCRIPT: "${String(script).slice(0, 1400)}"
+TARGET DURATION: ~${duration} seconds
+
+Create 8-10 caption segments covering the full script. Distribute times across ${duration} seconds. For each segment, generate 4 text variations with different energy levels.
+
+Return ONLY valid JSON:
+{
+  "segments": [
+    {
+      "id": 1,
+      "startSec": 0,
+      "endSec": 3,
+      "original": "Exact phrase from the script",
+      "engaging": "More expressive and dynamic version of the same phrase",
+      "viral": "Maximum energy TikTok-style — bold word choices, exclamation energy, punchy",
+      "punchy": "3-5 words absolute maximum — distilled essence only"
+    }
+  ]
+}`;
+      const result = await callVideoGroq(prompt, 2000);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Video Captions] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Caption generation failed" });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // VIDEO RESOURCE LIBRARY
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/video-resources — list all (any auth)
+  app.get("/api/video-resources", requireAuth, async (_req: Request, res: Response) => {
+    try {
+      const items = await storage.getVideoResources();
+      return res.json(items);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── YouTube Clip Finder ────────────────────────────────────────────────────
+  function fmtSecs(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? "0" : ""}${sec}`;
+  }
+
+  // ── YouTube transcript via Apify actor (reliable, no bot detection) ─────────
+  async function fetchYouTubeTranscript(videoId: string): Promise<{ title: string; segments: { start: number; duration: number; text: string }[] }> {
+    try {
+      const { YoutubeTranscript } = await import("youtube-transcript");
+      const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+      if (!transcriptItems || transcriptItems.length === 0) {
+        const err: any = new Error("NO_TRANSCRIPT");
+        err.noTranscript = true;
+        throw err;
+      }
+      const segments = transcriptItems.map((s: any) => ({
+        start: parseFloat(s.offset) / 1000 || 0,
+        duration: parseFloat(s.duration) / 1000 || 3,
+        text: (s.text || "").replace(/\n/g, " ").trim(),
+      })).filter((s: any) => s.text.length > 1);
+      return { title: "YouTube Video", segments };
+    } catch (e: any) {
+      if (e.noTranscript) throw e;
+      // fallback to Apify
+      const APIFY_TOKEN = process.env.APIFY_TOKEN;
+      if (!APIFY_TOKEN) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const apifyRes = await fetch(
+        `https://api.apify.com/v2/acts/Uwpce1RSXlrzF6WBA/run-sync-get-dataset-items?token=${APIFY_TOKEN}&timeout=120`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ youtube_url: videoUrl, include_transcript_text: true }) }
+      );
+      if (!apifyRes.ok) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const items: any[] = await apifyRes.json();
+      const item = items?.[0];
+      if (!item || item.status !== "success") { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const rawSegments: any[] = item.transcript || [];
+      if (!rawSegments.length) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
+      const segments = rawSegments.map((s: any) => ({ start: parseFloat(s.start) || 0, duration: parseFloat(s.duration) || 3, text: (s.text || "").replace(/\n/g, " ").trim() })).filter((s) => s.text.length > 1);
+      return { title: item.title || "YouTube Video", segments };
+    }
+  }
+
+  app.post("/api/clip-finder", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ message: "YouTube URL is required" });
+      const _uCf = req.user as any;
+      if (_uCf.role !== "admin") {
+        const cfCredit = await storage.deductCredits(_uCf.id, 5, "clip_finder", "Clip Finder YouTube analysis", _uCf.plan || "free");
+        if (!cfCredit.success) return res.status(402).json({ message: cfCredit.message, insufficientCredits: true });
+      }
+      const videoId = extractYouTubeVideoId(url);
+      if (!videoId) return res.status(400).json({ message: "Could not extract video ID — paste a valid YouTube URL" });
+
+      console.log("[clip-finder] Fetching transcript for videoId:", videoId);
+      let title = "YouTube Video";
+      let segments: { start: number; duration: number; text: string }[] = [];
+
+      try {
+        const result = await fetchYouTubeTranscript(videoId);
+        title = result.title;
+        segments = result.segments;
+      } catch (transcriptErr: any) {
+        if (transcriptErr.noTranscript || transcriptErr.message === "NO_TRANSCRIPT") {
+          return res.status(422).json({
+            message: "This video has no captions or auto-subtitles. Download the video and use the Upload tab — Whisper AI will transcribe it automatically.",
+            noTranscript: true,
+          });
+        }
+        throw transcriptErr;
+      }
+
+      if (!segments.length) {
+        return res.status(422).json({
+          message: "No transcript found for this video. Try the Upload tab instead.",
+          noTranscript: true,
+        });
+      }
+
+      const videoDuration = Math.round(segments[segments.length - 1].start + segments[segments.length - 1].duration);
+
+      const transcriptText = segments
+        .map((s) => `[${fmtSecs(s.start)}–${fmtSecs(s.start + s.duration)}] ${s.text}`)
+        .join("\n")
+        .slice(0, 8000);
+
+      // AI analysis
+      const systemPrompt = `You are an elite viral content strategist who has studied thousands of viral videos. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Clips can range from 15 seconds to 3 minutes depending on the content — prioritize complete, self-contained moments. Return ONLY valid JSON.`;
+      const userPrompt = `Video: "${title}" (${Math.floor(videoDuration / 60)}m ${videoDuration % 60}s)
+
+Transcript:
+${transcriptText}
+
+Identify 8–12 of the best viral clip moments. Include a mix of short punchy clips (15-45s) AND longer powerful moments (1-3 mins). Pick moments with strong hooks, emotion, humour, quotability, surprising facts, storytelling peaks, or high-value insights.
+
+Return JSON:
+{
+  "clips": [
+    {
+      "startSeconds": number,
+      "endSeconds": number,
+      "title": "short punchy clip title",
+      "hook": "scroll-stopping opening hook for the caption (make it compelling)",
+      "whyViral": "2-3 sentences explaining exactly why this moment will go viral — mention the emotional trigger, what makes it shareable, and why people will watch till the end",
+      "viralityScore": number (0-100),
+      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling|controversial",
+      "platform": "reels|tiktok|shorts|all",
+      "emotionalTrigger": "curiosity|shock|inspiration|humour|relatability|anger|joy|fear",
+      "retentionPrediction": "high|medium|low",
+      "suggestedCaption": "full ready-to-post caption with hook + value + CTA"
+    }
+  ]
+}`;
+
+      const rawJson = await callGroqJson(systemPrompt, userPrompt, 5000);
+      let parsed: any;
+      try { parsed = JSON.parse(rawJson); } catch { throw new Error("AI response parse error"); }
+      const rawClips: any[] = parsed?.clips || [];
+
+      const clips = rawClips.map((clip: any, i: number) => {
+        const start = Math.max(0, Number(clip.startSeconds) || 0);
+        const end = Math.min(videoDuration || 99999, Number(clip.endSeconds) || start + 45);
+        return {
+          id: i + 1,
+          title: String(clip.title || `Clip ${i + 1}`),
+          startSeconds: start,
+          endSeconds: end,
+          startLabel: fmtSecs(start),
+          endLabel: fmtSecs(end),
+          durationLabel: `${Math.round(Math.abs(end - start))}s`,
+          hook: String(clip.hook || ""),
+          whyViral: String(clip.whyViral || ""),
+          viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
+          category: String(clip.category || "engaging"),
+          platform: String(clip.platform || "all"),
+          emotionalTrigger: String(clip.emotionalTrigger || ""),
+          retentionPrediction: String(clip.retentionPrediction || "medium"),
+          suggestedCaption: String(clip.suggestedCaption || ""),
+        };
+      });
+
+      return res.json({ videoId, title, duration: videoDuration, clips });
+    } catch (err: any) {
+      console.log("[clip-finder] error:", err.message);
+      return res.status(500).json({ message: err.message || "Clip analysis failed" });
+    }
+  });
+
+  // ── Clip Finder — file upload (Whisper transcribe + AI clip analysis) ──────
+  app.post("/api/clip-finder/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    try {
+      const _uCfu = req.user as any;
+      if (_uCfu.role !== "admin") {
+        const cfuCredit = await storage.deductCredits(_uCfu.id, 5, "clip_finder", "Clip Finder video upload analysis", _uCfu.plan || "free");
+        if (!cfuCredit.success) {
+          try { fs.unlinkSync(req.file.path); } catch { }
+          return res.status(402).json({ message: cfuCredit.message, insufficientCredits: true });
+        }
+      }
+      const fileStat = fs.statSync(req.file.path);
+      const MAX_WHISPER = 25 * 1024 * 1024;
+      if (fileStat.size > MAX_WHISPER) {
+        try { fs.unlinkSync(req.file.path); } catch { }
+        return res.status(413).json({ message: "File too large — Whisper supports up to 25MB. Compress your video or export audio-only first." });
+      }
+
+      // 1. Transcribe with Groq Whisper (word-level timestamps)
+      const FormDataLib = (await import("form-data")).default;
+      const formData = new FormDataLib();
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+        ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v",
+        ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav",
+      };
+      formData.append("file", fileBuffer, { filename: req.file.originalname || "video.mp4", contentType: mimeMap[ext] || "video/mp4" });
+      formData.append("model", "whisper-large-v3");
+      formData.append("response_format", "verbose_json");
+      formData.append("timestamp_granularities[]", "word");
+      const formBuffer = formData.getBuffer();
+
+      const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
+        body: formBuffer,
+      });
+      if (!whisperRes.ok) throw new Error(`Transcription failed: ${await whisperRes.text()}`);
+      const transcriptData = await whisperRes.json() as any;
+
+      const words: any[] = transcriptData.words || [];
+      const duration = words.length > 0 ? words[words.length - 1].end : (transcriptData.duration || 0);
+      const videoTitle = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+
+      // 2. Build timestamped transcript chunks for AI
+      const CHUNK = 20;
+      const chunks: string[] = [];
+      for (let i = 0; i < words.length; i += CHUNK) {
+        const slice = words.slice(i, i + CHUNK);
+        const text = slice.map((w: any) => w.word).join(" ").trim();
+        if (text) chunks.push(`[${fmtSecs(slice[0].start)}–${fmtSecs(slice[slice.length - 1].end)}] ${text}`);
+      }
+      const transcriptText = chunks.join("\n").slice(0, 8000);
+      if (!transcriptText) throw new Error("Could not extract transcript — ensure the video has clear speech");
+
+      // 3. AI clip analysis
+      const sysPrompt = `You are an elite viral content strategist who has studied thousands of viral videos. Analyze video transcripts with timestamps and identify the best moments to clip for TikTok, Instagram Reels, and YouTube Shorts. Clips can range from 15 seconds to 3 minutes — prioritize complete self-contained moments. Return ONLY valid JSON.`;
+      const userPrompt = `Video: "${videoTitle}" (${Math.floor(duration / 60)}m ${Math.floor(duration % 60)}s)\n\nTranscript:\n${transcriptText}\n\nIdentify 8-12 of the best viral clip moments. Include a mix of short punchy clips (15-45s) AND longer powerful moments (1-3 mins). Pick moments with strong hooks, emotion, humour, quotability, surprising facts, storytelling peaks, or high-value insights.\n\nReturn JSON:\n{\n  "clips": [\n    {\n      "startSeconds": number,\n      "endSeconds": number,\n      "title": "punchy clip title",\n      "hook": "scroll-stopping opening hook for the caption",\n      "whyViral": "2-3 sentences on exactly why this will go viral — emotional trigger, shareability, retention",\n      "viralityScore": number (0-100),\n      "category": "emotional|funny|quotable|educational|shocking|inspiring|storytelling|controversial",\n      "platform": "reels|tiktok|shorts|all",\n      "emotionalTrigger": "curiosity|shock|inspiration|humour|relatability|anger|joy|fear",\n      "retentionPrediction": "high|medium|low",\n      "suggestedCaption": "full ready-to-post caption with hook + value + CTA"\n    }\n  ]\n}`;
+
+      const rawJson = await callGroqJson(sysPrompt, userPrompt, 3500);
+      let parsed: any;
+      try { parsed = JSON.parse(rawJson); } catch { throw new Error("AI response parse error"); }
+      const rawClips: any[] = parsed?.clips || [];
+
+      const clips = rawClips.map((clip: any, i: number) => {
+        const start = Math.max(0, Number(clip.startSeconds) || 0);
+        const end = Math.min(duration || 9999, Number(clip.endSeconds) || start + 45);
+        return {
+          id: i + 1,
+          title: String(clip.title || `Clip ${i + 1}`),
+          startSeconds: start,
+          endSeconds: end,
+          startLabel: fmtSecs(start),
+          endLabel: fmtSecs(end),
+          durationLabel: `${Math.round(Math.abs(end - start))}s`,
+          hook: String(clip.hook || ""),
+          whyViral: String(clip.whyViral || ""),
+          viralityScore: Math.min(100, Math.max(0, Number(clip.viralityScore) || 70)),
+          category: String(clip.category || "engaging"),
+          platform: String(clip.platform || "all"),
+          emotionalTrigger: String(clip.emotionalTrigger || ""),
+          retentionPrediction: String(clip.retentionPrediction || "medium"),
+          suggestedCaption: String(clip.suggestedCaption || ""),
+        };
+      });
+
+      return res.json({ videoId: null, title: videoTitle, duration, clips, isUpload: true });
+    } catch (err: any) {
+      console.log("[clip-finder/upload] error:", err.message);
+      return res.status(500).json({ message: err.message || "Processing failed" });
+    } finally {
+      try { if (req.file) fs.unlinkSync(req.file.path); } catch { }
+    }
+  });
+
+  // ── Clip Finder — cut & download a clip using yt-dlp + ffmpeg ──────────────
+  app.post("/api/clip-finder/cut", requireAuth, async (req: Request, res: Response) => {
+    const { videoId, startSeconds, endSeconds, title } = req.body;
+    if (!videoId || startSeconds == null || endSeconds == null) {
+      return res.status(400).json({ message: "videoId, startSeconds and endSeconds are required" });
+    }
+    const duration = Math.round(endSeconds - startSeconds);
+    if (duration <= 0 || duration > 180) {
+      return res.status(400).json({ message: "Clip duration must be between 1 and 180 seconds" });
+    }
+    const tmpDir = path.join(process.cwd(), "uploads");
+    const rawFile = path.join(tmpDir, `raw_${Date.now()}.mp4`);
+    const outFile = path.join(tmpDir, `clip_${Date.now()}.mp4`);
+    const { spawn } = await import("child_process");
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+    try {
+      // 1. Download full video with yt-dlp
+      await new Promise<void>((resolve, reject) => {
+        const dl = spawn("yt-dlp", [
+          "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          "--merge-output-format", "mp4",
+          "-o", rawFile,
+          "--no-playlist",
+          videoUrl,
+        ]);
+        let stderr = "";
+        dl.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+        dl.on("close", (code) => code === 0 ? resolve() : reject(new Error(`yt-dlp failed: ${stderr.slice(-300)}`)));
+        dl.on("error", reject);
+      });
+
+      // 2. Cut the clip with ffmpeg
+      await new Promise<void>((resolve, reject) => {
+        const ff = spawn("ffmpeg", [
+          "-ss", String(startSeconds),
+          "-i", rawFile,
+          "-t", String(duration),
+          "-c:v", "libx264",
+          "-c:a", "aac",
+          "-movflags", "faststart",
+          "-y",
+          outFile,
+        ]);
+        let stderr = "";
+        ff.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+        ff.on("close", (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg failed: ${stderr.slice(-300)}`)));
+        ff.on("error", reject);
+      });
+
+      // 3. Stream clip back to client
+      const safeTitle = (title || "clip").replace(/[^a-z0-9]/gi, "_").slice(0, 40);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}.mp4"`);
+      res.setHeader("Content-Type", "video/mp4");
+      const readStream = fs.createReadStream(outFile);
+      readStream.pipe(res);
+      readStream.on("end", () => {
+        try { fs.unlinkSync(rawFile); } catch { }
+        try { fs.unlinkSync(outFile); } catch { }
+      });
+    } catch (err: any) {
+      try { fs.unlinkSync(rawFile); } catch { }
+      try { fs.unlinkSync(outFile); } catch { }
+      console.log("[clip-finder/cut] error:", err.message);
+      return res.status(500).json({ message: err.message || "Failed to cut clip" });
+    }
+  });
+
+  // POST /api/video-resources — admin create
+  app.post("/api/video-resources", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, description, url, category, platform, thumbnailUrl } = req.body;
+      if (!title || !url) return res.status(400).json({ message: "title and url are required" });
+      const item = await storage.createVideoResource({ title, description, url, category: category || "General", platform, thumbnailUrl, addedBy: user.id });
+      return res.status(201).json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/video-resources/:id — admin update
+  app.patch("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { title, description, url, category, platform, thumbnailUrl } = req.body;
+      const item = await storage.updateVideoResource(p(req.params.id), { title, description, url, category, platform, thumbnailUrl });
+      if (!item) return res.status(404).json({ message: "Not found" });
+      return res.json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/video-resources/:id — admin delete
+  app.delete("/api/video-resources/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoResource(p(req.params.id));
+      return res.json({ message: "Deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // CANVA CONNECT API
+  // OAuth 2.0 with PKCE + design/asset creation
+  // ══════════════════════════════════════════════════════════════════════════════
+  const CANVA_CLIENT_ID = process.env.CANVA_CLIENT_ID!;
+  const CANVA_CLIENT_SECRET = process.env.CANVA_CLIENT_SECRET!;
+  const CANVA_BASE = "https://api.canva.com/rest/v1";
+  const CANVA_AUTH_URL = "https://www.canva.com/api/oauth/authorize";
+  const CANVA_TOKEN_URL = "https://api.canva.com/rest/v1/oauth/token";
+  const CANVA_SCOPES = [
+    "design:content:read",
+    "design:content:write",
+    "design:meta:read",
+    "asset:read",
+    "asset:write",
+    "folder:read",
+    "profile:read",
+  ].join(" ");
+
+  // Helper: get fresh access token (refresh if expired)
+  async function getCanvaAccessToken(userId: string): Promise<string | null> {
+    const token = await storage.getCanvaToken(userId);
+    if (!token) return null;
+    if (new Date() < new Date(token.expiresAt)) return token.accessToken;
+    // Refresh
+    if (!token.refreshToken) { await storage.deleteCanvaToken(userId); return null; }
+    try {
+      const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+      const r = await fetch(CANVA_TOKEN_URL, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: token.refreshToken }),
+      });
+      if (!r.ok) { await storage.deleteCanvaToken(userId); return null; }
+      const data = await r.json() as any;
+      await storage.upsertCanvaToken({
+        userId,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token || token.refreshToken,
+        expiresAt: new Date(Date.now() + (data.expires_in || 14400) * 1000),
+        scope: data.scope || token.scope,
+      });
+      return data.access_token;
+    } catch { await storage.deleteCanvaToken(userId); return null; }
+  }
+
+  // Helper: call Canva REST API
+  async function canvaFetch(userId: string, path: string, options: RequestInit = {}): Promise<any> {
+    const token = await getCanvaAccessToken(userId);
+    if (!token) throw new Error("Canva account not connected. Please connect your Canva account first.");
+    const res = await fetch(`${CANVA_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+    const body = await res.json() as any;
+    if (!res.ok) throw new Error(body?.message || body?.error?.message || `Canva API error ${res.status}`);
+    return body;
+  }
+
+  // ── OAuth: Start ────────────────────────────────────────────────────────────
+  app.get("/api/canva/oauth/start", requireAuth, (req: Request, res: Response) => {
+    const { crypto } = globalThis;
+    const codeVerifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+    const state = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
+    // Store in session
+    (req.session as any).canvaCodeVerifier = codeVerifier;
+    (req.session as any).canvaState = state;
+    // Build code challenge (S256)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(codeVerifier);
+    crypto.subtle.digest("SHA-256", data).then(hash => {
+      const challenge = Buffer.from(hash).toString("base64url");
+      const redirectUri = `https://${req.get("host")}/api/canva/oauth/callback`;
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: CANVA_CLIENT_ID,
+        redirect_uri: redirectUri,
+        scope: CANVA_SCOPES,
+        state,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+      });
+      return res.redirect(`${CANVA_AUTH_URL}?${params}`);
+    }).catch(err => res.status(500).json({ message: err.message }));
+  });
+
+  // ── OAuth: Callback ─────────────────────────────────────────────────────────
+  app.get("/api/canva/oauth/callback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { code, state, error } = req.query as any;
+      if (error) return res.redirect("/?canva=error&reason=" + encodeURIComponent(error));
+      const storedState = (req.session as any).canvaState;
+      const codeVerifier = (req.session as any).canvaCodeVerifier;
+      if (!storedState || state !== storedState) return res.redirect("/?canva=error&reason=state_mismatch");
+      delete (req.session as any).canvaState;
+      delete (req.session as any).canvaCodeVerifier;
+      const redirectUri = `https://${req.get("host")}/api/canva/oauth/callback`;
+      const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+      const tokenRes = await fetch(CANVA_TOKEN_URL, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: codeVerifier, redirect_uri: redirectUri }),
+      });
+      const tokenData = await tokenRes.json() as any;
+      if (!tokenRes.ok) return res.redirect("/?canva=error&reason=" + encodeURIComponent(tokenData.error || "token_failed"));
+      const user = req.user as any;
+      await storage.upsertCanvaToken({
+        userId: user.id,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: new Date(Date.now() + (tokenData.expires_in || 14400) * 1000),
+        scope: tokenData.scope,
+      });
+      return res.redirect("/video-editor?canva=connected");
+    } catch (err: any) {
+      console.error("[Canva OAuth callback]", err.message);
+      return res.redirect("/?canva=error&reason=server_error");
+    }
+  });
+
+  // ── OAuth: Status ───────────────────────────────────────────────────────────
+  app.get("/api/canva/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const token = await storage.getCanvaToken(user.id);
+      if (!token) return res.json({ connected: false });
+      const isExpired = new Date() >= new Date(token.expiresAt);
+      const canRefresh = !isExpired || !!token.refreshToken;
+      return res.json({ connected: true, expired: isExpired, canRefresh, scope: token.scope });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── OAuth: Disconnect ───────────────────────────────────────────────────────
+  app.delete("/api/canva/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const token = await storage.getCanvaToken(user.id);
+      if (token?.accessToken) {
+        const basic = Buffer.from(`${CANVA_CLIENT_ID}:${CANVA_CLIENT_SECRET}`).toString("base64");
+        await fetch("https://api.canva.com/rest/v1/oauth/revoke", {
+          method: "POST",
+          headers: { "Authorization": `Basic ${basic}`, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: token.accessToken }),
+        }).catch(() => { });
+      }
+      await storage.deleteCanvaToken(user.id);
+      return res.json({ message: "Canva disconnected" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── List Designs ────────────────────────────────────────────────────────────
+  app.get("/api/canva/designs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { limit = "10", query } = req.query as any;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (query) params.set("query", query);
+      const data = await canvaFetch(user.id, `/designs?${params}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Create Design ───────────────────────────────────────────────────────────
+  app.post("/api/canva/designs", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { designType = "instagram-reel", title, assetId } = req.body;
+      const body: any = {
+        design_type: { type: "preset", name: designType },
+        title: title || "Brandverse Design",
+      };
+      if (assetId) body.asset_id = assetId;
+      const data = await canvaFetch(user.id, "/designs", { method: "POST", body: JSON.stringify(body) });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Upload Asset from URL ───────────────────────────────────────────────────
+  app.post("/api/canva/assets/upload-url", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { url, name } = req.body;
+      if (!url) return res.status(400).json({ message: "url required" });
+      const data = await canvaFetch(user.id, "/asset-uploads", {
+        method: "POST",
+        body: JSON.stringify({ url, name: name || "Brandverse Asset" }),
+      });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Get Asset ───────────────────────────────────────────────────────────────
+  app.get("/api/canva/assets/:assetId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const data = await canvaFetch(user.id, `/assets/${p(req.params.assetId)}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── List Brand Templates ────────────────────────────────────────────────────
+  app.get("/api/canva/brand-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { limit = "20", query } = req.query as any;
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (query) params.set("query", query);
+      const data = await canvaFetch(user.id, `/brand-templates?${params}`);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Get User Profile ────────────────────────────────────────────────────────
+  app.get("/api/canva/profile", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const data = await canvaFetch(user.id, "/users/me");
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Create Design from AI video context (Thumbnail / Reel Cover) ────────────
+  app.post("/api/canva/create-from-video", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, concept, platform = "instagram-reel", designType } = req.body;
+      const canvaDesignType = designType || (
+        platform === "youtube" ? "youtube-thumbnail" :
+          platform === "tiktok" ? "tiktok-video" :
+            "instagram-reel"
+      );
+      const cleanTitle = String(title || concept || "My Video").slice(0, 80);
+      const data = await canvaFetch(user.id, "/designs", {
+        method: "POST",
+        body: JSON.stringify({
+          design_type: { type: "preset", name: canvaDesignType },
+          title: cleanTitle,
+        }),
+      });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(400).json({ message: err.message });
+    }
+  });
+
+  // ── Manual trigger for auto-sync (admin only) ──────────────────────────────
+  app.post("/api/admin/auto-sync", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const { runAutoSync } = await import("./cron");
+      runAutoSync();
+      return res.json({ message: "Auto-sync started in background" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Credits System ──────────────────────────────────────────────────────────
+  const FEATURE_COSTS: Record<string, number> = {
+    ai_ideas: 2,
+    ai_coach: 2,
+    ai_report: 5,
+    competitor: 5,
+    virality: 2,
+    hashtag: 1,
+  };
+
+  // GET /api/credits — get current user's credit balance
+  app.get("/api/credits", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const balance = await storage.upsertCreditBalance(user.id, user.plan || "free");
+      const transactions = await storage.getCreditTransactions(user.id, 100);
+      return res.json({
+        balance,
+        transactions,
+        featureCosts: FEATURE_COSTS,
+        planAllowance: ({ free: 20, starter: 100, growth: 250, pro: 500, elite: 99999 } as Record<string, number>)[user.plan as string] ?? 20,
+        total: balance.monthlyCredits + balance.bonusCredits,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/activity/summary — user's activity tracking for dashboard
+  app.get("/api/activity/summary", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+
+      // Fetch last 30 days of transactions (only deductions = tool usage)
+      const rows = await pool.query(
+        `SELECT amount, type, created_at FROM credit_transactions
+         WHERE user_id = $1 AND amount < 0
+         ORDER BY created_at DESC
+         LIMIT 200`,
+        [userId]
+      );
+      const txns: { amount: number; type: string; created_at: Date }[] = rows.rows;
+
+      const now = new Date();
+      const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+
+      // Today stats
+      const todayTxns = txns.filter(t => new Date(t.created_at) >= todayStart);
+      const todayCreditsUsed = todayTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const todayToolTypes = [...new Set(todayTxns.map(t => t.type))];
+
+      // 7-day history
+      const weekHistory = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const dayTxns = txns.filter(t => { const d = new Date(t.created_at); return d >= dayStart && d < dayEnd; });
+        weekHistory.push({
+          date: dayStart.toISOString().split("T")[0],
+          creditsUsed: dayTxns.reduce((s, t) => s + Math.abs(t.amount), 0),
+          actions: dayTxns.length,
+        });
+      }
+
+      // Streak: consecutive days with at least one tool use (starting from today going back)
+      let streak = 0;
+      for (let i = 0; i < 30; i++) {
+        const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+        const hasActivity = txns.some(t => { const d = new Date(t.created_at); return d >= dayStart && d < dayEnd; });
+        if (hasActivity) { streak++; }
+        else if (i > 0) break; // today with no activity doesn't break streak yet
+      }
+
+      // Monthly stats
+      const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const monthTxns = txns.filter(t => new Date(t.created_at) >= monthStart);
+      const monthCreditsUsed = monthTxns.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const uniqueMonthTools = new Set(monthTxns.map(t => t.type)).size;
+
+      // Lifetime stats
+      const lifetimeRow = await pool.query(
+        `SELECT COUNT(*)::int AS total_actions FROM credit_transactions WHERE user_id = $1 AND amount < 0`,
+        [userId]
+      );
+      const lifetimeTotalActions: number = lifetimeRow.rows[0]?.total_actions ?? 0;
+
+      return res.json({
+        today: { creditsUsed: todayCreditsUsed, toolsUsed: todayToolTypes.length, toolNames: todayToolTypes },
+        weekHistory,
+        streak,
+        thisMonth: { creditsUsed: monthCreditsUsed, uniqueTools: uniqueMonthTools, totalActions: monthTxns.length },
+        lifetime: { totalActions: lifetimeTotalActions },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/credits/all — admin: all users' balances
+  app.get("/api/credits/all", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const balances = await storage.getAllCreditBalances();
+      return res.json(balances);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/credits/grant — admin grant bonus credits to a user
+  app.post("/api/credits/grant", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, amount, description } = req.body;
+      if (!userId || !amount || amount <= 0) return res.status(400).json({ message: "userId and positive amount required" });
+      const balance = await storage.addBonusCredits(userId, amount, description || `Admin grant: ${amount} credits`);
+      return res.json(balance);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Landing Leads & CRM ────────────────────────────────────────────────────
+
+  // POST /api/leads/capture — public: capture email + name for lead magnet
+  app.post("/api/leads/capture", async (req: Request, res: Response) => {
+    try {
+      const { name, email } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const existing = await storage.getLandingLeadByEmail(email);
+      if (existing) return res.json({ message: "already_captured", lead: existing });
+      const lead = await storage.createLandingLead({ name, email, source: "email_capture" });
+      syncToOraviniCRM({ email, name, source: "email_capture" });
+      return res.json({ message: "captured", lead });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/leads/quiz — public: submit quiz answers + generate AI monetization report
+  app.post("/api/leads/quiz", async (req: Request, res: Response) => {
+    try {
+      const { name, email, creatorType, platform, biggestChallenge, postFrequency, monetizationGoal } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+
+      const quizAnswers = { creatorType, platform, biggestChallenge, postFrequency, monetizationGoal };
+
+      const sysPrompt = `You are a social media monetization expert. Generate a personalized monetization audit as a JSON object with these exact fields:
+{ "headline": "punchy title", "score": <0-100>, "scoreLabel": "Early Stage|Growth Ready|Monetization Ready", "topOpportunity": "one sentence", "quickWins": ["win1","win2","win3"], "roadmap": [{"phase":"Phase 1 (Now)","action":"...","timeframe":"0-30 days"},{"phase":"Phase 2 (Next)","action":"...","timeframe":"30-90 days"},{"phase":"Phase 3 (Later)","action":"...","timeframe":"90+ days"}], "platformTip": "one platform tip", "estimatedMonthlyRevenue": "e.g. $500-2K/mo" }`;
+      const userMsg = `Creator: stage=${creatorType}, platform=${platform}, challenge=${biggestChallenge}, frequency=${postFrequency}, goal=${monetizationGoal}. Be specific and actionable.`;
+
+      let reportData: any = null;
+      try {
+        const raw = await callGroqJson(sysPrompt, userMsg, 800);
+        reportData = JSON.parse(raw);
+      } catch (aiErr) {
+        reportData = {
+          headline: `${platform} Monetization Blueprint`,
+          score: 62,
+          scoreLabel: "Growth Ready",
+          topOpportunity: `Leverage your ${platform} presence to create digital products around ${monetizationGoal}`,
+          quickWins: ["Post consistently 4-5x/week", "Add a clear CTA to every post", "Build your email list with a lead magnet"],
+          roadmap: [
+            { phase: "Phase 1 (Now)", action: "Define your niche and create a content calendar", timeframe: "0-30 days" },
+            { phase: "Phase 2 (Next)", action: "Launch your first paid offer or lead magnet", timeframe: "30-90 days" },
+            { phase: "Phase 3 (Later)", action: "Scale with automation and multiple revenue streams", timeframe: "90+ days" },
+          ],
+          platformTip: `On ${platform}, consistency and hooks in the first 3 seconds are your biggest growth levers`,
+          estimatedMonthlyRevenue: "$500-2K/mo within 90 days",
+        };
+      }
+
+      // Upsert lead
+      const existing = await storage.getLandingLeadByEmail(email);
+      let lead;
+      if (existing) {
+        lead = await storage.updateLandingLead(existing.id, { name, creatorType, platform, biggestChallenge, postFrequency, monetizationGoal, quizAnswers, monetizationReport: reportData, source: "quiz" });
+      } else {
+        lead = await storage.createLandingLead({ name, email, source: "quiz", creatorType, platform, biggestChallenge, postFrequency, monetizationGoal, quizAnswers, monetizationReport: reportData });
+      }
+
+      syncToOraviniCRM({ email, name, source: "quiz", platform, creatorType, monetizationGoal });
+      return res.json({ report: reportData, lead });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/leads/audit — public: full audit funnel submission with Instagram analysis
+  app.post("/api/leads/audit", async (req: Request, res: Response) => {
+    try {
+      const {
+        name, email,
+        niche, contentTypes, contentType,
+        targetAudience,
+        struggles, biggestChallenge,
+        goals,
+        instagramUrl,
+        igProfileData: frontendIgData,
+      } = req.body;
+
+      // Normalise arrays vs strings (backwards compat)
+      const contentTypesArr: string[] = Array.isArray(contentTypes) ? contentTypes : contentType ? [contentType] : [];
+      const strugglesArr: string[] = Array.isArray(struggles) ? struggles : biggestChallenge ? [biggestChallenge] : [];
+      const goalsArr: string[] = Array.isArray(goals) ? goals : goals ? [goals] : [];
+      const safeNiche = niche || "content creation";
+
+      // Extract Instagram username
+      let igUsername = "";
+      if (instagramUrl) {
+        const match = instagramUrl.replace(/\/$/, "").match(/(?:instagram\.com\/)([A-Za-z0-9_.]+)/);
+        igUsername = match ? match[1] : instagramUrl.replace(/^@/, "");
+      }
+
+      // Use frontend-provided scan data first, then re-fetch if needed
+      let igProfileData: any = frontendIgData?.found ? frontendIgData : null;
+      if (!igProfileData && igUsername) {
+        const apifyToken = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+        if (apifyToken) {
+          try {
+            const apifyRes = await fetch(
+              `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ usernames: [igUsername] }),
+                signal: AbortSignal.timeout(70000),
+              }
+            );
+            if (apifyRes.ok) {
+              const d = await apifyRes.json();
+              if (Array.isArray(d) && d.length > 0) igProfileData = d[0];
+            }
+          } catch (e) {
+            console.warn("[audit] Apify re-fetch failed:", e);
+          }
+        }
+      }
+
+      // Normalise IG data (handle both scan-ig shape and Apify shape)
+      const ig = igProfileData ? {
+        username: igProfileData.username || igUsername,
+        fullName: igProfileData.fullName || igProfileData.full_name || "",
+        followers: igProfileData.followers ?? igProfileData.followersCount ?? 0,
+        following: igProfileData.following ?? igProfileData.followsCount ?? 0,
+        posts: igProfileData.posts ?? igProfileData.postsCount ?? 0,
+        bio: igProfileData.bio || igProfileData.biography || "",
+        verified: igProfileData.verified ?? false,
+        isPrivate: igProfileData.isPrivate ?? false,
+      } : null;
+
+      // Build detailed IG context string
+      let igContext = "";
+      if (ig && ig.followers > 0) {
+        const ratio = ig.following > 0 ? (ig.followers / ig.following).toFixed(2) : "N/A";
+        const engTier = ig.followers < 1000 ? "nano (<1K)"
+          : ig.followers < 10000 ? "micro (1K–10K)"
+            : ig.followers < 100000 ? "mid-tier (10K–100K)"
+              : ig.followers < 1000000 ? "macro (100K–1M)"
+                : "mega (1M+)";
+        const postsPerWeekEst = ig.posts > 0 ? (ig.posts / 52).toFixed(1) : "unknown"; // rough estimate
+        const bioScore = ig.bio.length === 0 ? "empty (critical issue)"
+          : ig.bio.length < 50 ? "very short (needs work)"
+            : ig.bio.length < 120 ? "decent"
+              : "detailed";
+
+        igContext = `
+REAL INSTAGRAM PROFILE DATA (use these EXACT numbers in your analysis):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Account: @${ig.username}${ig.fullName ? ` (${ig.fullName})` : ""}
+Verified: ${ig.verified ? "Yes ✓" : "No"}
+Private: ${ig.isPrivate ? "Yes" : "No"}
+
+METRICS:
+• Followers: ${ig.followers.toLocaleString()} (${engTier} creator)
+• Following: ${ig.following.toLocaleString()}
+• Posts: ${ig.posts.toLocaleString()}
+• Follower/Following ratio: ${ratio} — ${parseFloat(ratio) >= 2 ? "good authority signal" : parseFloat(ratio) >= 1 ? "neutral" : "following too many — hurts credibility"}
+• Estimated weekly post rate: ~${postsPerWeekEst} posts/week (based on total posts)
+
+BIO:
+"${ig.bio || "(empty)"}"
+Bio quality: ${bioScore}
+
+ANALYSIS NOTES:
+${ig.followers < 1000 ? "- Early stage account — foundation and consistency are priority #1" : ""}
+${ig.followers >= 1000 && ig.followers < 10000 ? "- Micro creator stage — engagement quality matters more than follower count" : ""}
+${ig.followers >= 10000 ? "- Established presence — monetisation and brand partnerships are realistic now" : ""}
+${ig.following > ig.followers ? "- CRITICAL: Following more than followers — this tanks credibility and algorithm ranking" : ""}
+${ig.bio.length < 50 ? "- CRITICAL: Bio is too short/empty — visitors don't know who you are or why to follow" : ""}
+${ig.posts < 20 ? "- Very few posts — consistency has been a major issue" : ""}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+      } else if (igUsername) {
+        igContext = `Instagram: @${igUsername} — profile data unavailable (private or network issue). Generate audit from form answers only.`;
+      } else {
+        igContext = `No Instagram profile provided. Generate audit purely from form answers.`;
+      }
+
+      const sysPrompt = `You are a world-class Instagram growth strategist. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
+
+Generate a JSON audit with these EXACT fields (no extras, no missing):
+{
+  "overallScore": <integer 0-100, based on their actual metrics and goals>,
+  "scoreLabel": <"Early Stage" | "Building Momentum" | "Established" | "Monetisation Ready">,
+  "headline": <punchy personalised headline referencing their niche and actual situation, max 12 words>,
+  "topInsight": <the single most critical insight about their account, 2-3 sentences, MUST reference their real numbers if available>,
+  "profileAnalysis": [
+    <3-4 specific observations about their REAL profile data — follower count, ratio, bio, posting frequency, mention exact numbers>,
+  ],
+  "strengths": [<3 specific strengths, referencing their data where possible>],
+  "growthOpportunities": [
+    <3 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers>
+  ],
+  "contentStrategy": <2-3 sentences specific to their content types and niche>,
+  "monetisationPath": <2-3 sentences on their best monetisation route given their goals and follower tier>,
+  "90DayRoadmap": [
+    {"phase": "Days 1–30", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 31–60", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 61–90", "focus": "...", "keyAction": "..."}
+  ],
+  "revenueEstimate": <realistic monthly revenue range achievable in 90 days, based on their current size>,
+  "revenueContext": <one sentence explaining why this is achievable for their tier>,
+  "upgradeTeaser": <1-2 sentences on what the full Oravini platform gives them that they can't do alone>
+}
+
+CRITICAL RULES:
+- If profile data is available, every section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
+- profileAnalysis must be data-driven observations, not opinions
+- growthOpportunities are NOT "quick wins" — they are strategic moves based on their specific gaps
+- Be honest about weaknesses but constructive
+- revenueEstimate must be calibrated to their actual follower count tier`;
+
+      const userMsg = `CREATOR PROFILE:
+Niche: ${safeNiche}
+Content Types: ${contentTypesArr.join(", ") || "Mixed"}
+Target Audience: ${targetAudience || "general audience"}
+Biggest Struggles: ${strugglesArr.join(", ") || "general growth"}
+Goals: ${goalsArr.join(", ") || "grow audience"}
+
+${igContext}
+
+Generate their personalised Instagram growth audit now. Be specific, honest, and reference their real numbers.`;
+
+      let auditReport: any = null;
+      try {
+        const raw = await callGroqJson(sysPrompt, userMsg, 1400);
+        auditReport = JSON.parse(raw);
+      } catch {
+        const followerStr = ig ? `${ig.followers.toLocaleString()} followers` : "your niche";
+        auditReport = {
+          overallScore: ig ? (ig.followers > 10000 ? 68 : ig.followers > 1000 ? 52 : 38) : 50,
+          scoreLabel: ig ? (ig.followers > 10000 ? "Established" : ig.followers > 1000 ? "Building Momentum" : "Early Stage") : "Building Momentum",
+          headline: `Growth Audit: ${safeNiche} Creator`,
+          topInsight: `Your biggest opportunity is building a structured content system around your ${safeNiche} niche with consistent posting and clear monetisation hooks.`,
+          profileAnalysis: ig ? [
+            `Your account has ${ig.followers.toLocaleString()} followers and ${ig.posts} posts.`,
+            ig.following > ig.followers ? `You're following ${ig.following.toLocaleString()} accounts while having ${ig.followers.toLocaleString()} followers — this ratio hurts your credibility.` : `Your follower-to-following ratio of ${(ig.followers / Math.max(ig.following, 1)).toFixed(1)}x is a good authority signal.`,
+            ig.bio.length < 50 ? "Your bio needs significant work — visitors can't tell who you are or why they should follow." : "Your bio provides decent context for new visitors.",
+          ] : ["Audit generated from your answers — add your Instagram next time for a deeper analysis."],
+          strengths: ["Clear niche focus", "Motivated to grow", `Active on ${contentTypesArr[0] || "social media"}`],
+          growthOpportunities: [
+            `Focus on posting ${contentTypesArr.includes("Reels & Short Videos") ? "Reels" : contentTypesArr[0] || "content"} consistently 4-5x per week — the algorithm rewards consistency over perfection.`,
+            `Optimise your bio to clearly state who you help and how — this alone can increase follow rate by 20-40%.`,
+            `Build one solid content pillar around your strongest topic in ${safeNiche} and go deep on it before diversifying.`,
+          ],
+          contentStrategy: `Focus on ${safeNiche}-native content that educates or entertains your target audience. Lead with strong hooks in the first 3 seconds.`,
+          monetisationPath: `Given your goals, start by building an engaged audience first, then launch a digital product or service offer once you hit consistent 3-5% engagement rate.`,
+          "90DayRoadmap": [
+            { phase: "Days 1–30", focus: "Foundation & Consistency", keyAction: "Post 4-5x/week, optimise bio, define 3 content pillars" },
+            { phase: "Days 31–60", focus: "Audience Growth", keyAction: "Launch lead magnet, engage with niche accounts daily, analyse top posts" },
+            { phase: "Days 61–90", focus: "Monetisation", keyAction: "Launch first paid offer or brand pitch to warm audience" },
+          ],
+          revenueEstimate: ig?.followers > 10000 ? "$1,500–5,000/mo" : ig?.followers > 1000 ? "$500–2,000/mo" : "$100–800/mo",
+          revenueContext: "Based on your current follower tier and the monetisation path available to you.",
+          upgradeTeaser: "Oravini gives you AI-generated content ideas, competitor analysis, brand deal tracking, and a full 90-day execution system — everything you need to hit these numbers faster.",
+        };
+      }
+
+      const quizAnswers = { contentTypes: contentTypesArr, niche: safeNiche, targetAudience, struggles: strugglesArr, goals: goalsArr, instagramUrl };
+
+      // Save lead if email provided (optional now)
+      if (email) {
+        try {
+          const existing = await storage.getLandingLeadByEmail(email);
+          if (existing) {
+            await storage.updateLandingLead(existing.id, {
+              name: name || "Guest", platform: "Instagram", niche: safeNiche,
+              quizAnswers, auditData: { igProfile: ig, report: auditReport }, source: "audit",
+            } as any);
+          } else {
+            await storage.createLandingLead({
+              name: name || "Guest", email, source: "audit", platform: "Instagram",
+              niche: safeNiche, quizAnswers, auditData: { igProfile: ig, report: auditReport },
+            } as any);
+          }
+          syncToOraviniCRM({ email, name: name || "Guest", source: "audit", platform: "Instagram", niche: safeNiche, goals: goalsArr.join(", "), instagramUrl, auditScore: auditReport.overallScore });
+        } catch (leadErr) {
+          console.warn("[audit] Lead save failed (non-critical):", leadErr);
+        }
+      }
+
+      // Return partial report
+      const partialReport = {
+        overallScore: auditReport.overallScore,
+        scoreLabel: auditReport.scoreLabel,
+        headline: auditReport.headline,
+        topInsight: auditReport.topInsight,
+        profileAnalysis: auditReport.profileAnalysis,
+        strengths: auditReport.strengths,
+        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 3),
+        revenueEstimate: auditReport.revenueEstimate,
+        revenueContext: auditReport.revenueContext,
+        upgradeTeaser: auditReport.upgradeTeaser,
+        locked: ["contentStrategy", "monetisationPath", "90DayRoadmap", "competitiveEdge"],
+      };
+
+      return res.json({ report: partialReport });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/leads/scan-ig — public: quick Instagram profile scan (pre-audit)
+  app.post("/api/leads/scan-ig", async (req: Request, res: Response) => {
+    try {
+      const { username } = req.body;
+      if (!username?.trim()) return res.status(400).json({ message: "Username required" });
+      const normalized = normalizeInstagramProfileInput(String(username));
+      if (!normalized) return res.status(400).json({ message: "Enter a valid Instagram username or profile URL" });
+      const clean = normalized.username;
+      const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+      if (!token) return res.json({ found: false, username: clean });
+      try {
+        const r = await fetch(
+          `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=45`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usernames: [clean] }), signal: AbortSignal.timeout(50000) }
+        );
+        if (!r.ok) return res.json({ found: false, username: clean });
+        const data = await r.json();
+        if (!Array.isArray(data) || data.length === 0) return res.json({ found: false, username: clean });
+        const p = data[0];
+        return res.json({
+          found: true,
+          username: p.username || clean,
+          fullName: p.fullName || null,
+          followers: p.followersCount || 0,
+          following: p.followsCount || 0,
+          posts: p.postsCount || 0,
+          bio: p.biography || null,
+          profilePic: p.profilePicUrl || null,
+          verified: p.verified || false,
+          isPrivate: p.isPrivate || false,
+        });
+      } catch { return res.json({ found: false, username: clean }); }
+    } catch (e: any) { return res.status(500).json({ message: e.message }); }
+  });
+
+  // POST /api/admin/crm/sync — admin: bulk push all leads + clients to Oravini CRM
+  app.post("/api/admin/crm/sync", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [clients, leads] = await Promise.all([storage.getAllClients(), storage.getAllLandingLeads()]);
+      let synced = 0;
+      await Promise.allSettled([
+        ...leads.map((l: any) => syncToOraviniCRM({ email: l.email, name: l.name, source: l.source || "lead", platform: l.platform, niche: l.niche })),
+        ...clients.map((c: any) => syncToOraviniCRM({ email: c.email, name: c.name, source: "client", plan: c.plan, role: c.role })),
+      ]);
+      synced = leads.length + clients.length;
+      return res.json({ synced, message: `${synced} records pushed to Oravini CRM` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/crm — admin: full CRM data
+  app.get("/api/admin/crm", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [clients, leads, creditBals] = await Promise.all([
+        storage.getAllClients(),
+        storage.getAllLandingLeads(),
+        storage.getAllCreditBalances(),
+      ]);
+      const creditMap = Object.fromEntries(creditBals.map((b: any) => [b.userId, b]));
+      const clientsWithCredits = clients.map((c: any) => ({
+        ...c,
+        credits: creditMap[c.id] || null,
+      }));
+      return res.json({ clients: clientsWithCredits, leads });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Sessions Hub ────────────────────────────────────────────────────────────
+  const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2 };
+
+  // GET /api/sessions — all published sessions the user's plan can see
+  app.get("/api/sessions", async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const plan = user?.plan ?? "free";
+      const role = user?.role;
+      if (role === "admin") {
+        // admins see everything
+        const all = await storage.getSessions();
+        return res.json(all);
+      }
+      const allowedTiers = Object.keys(TIER_ORDER).filter(t => TIER_ORDER[t] <= TIER_ORDER[plan]);
+      const list = await storage.getSessions(allowedTiers);
+      return res.json(list);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/sessions/all — admin: all sessions (published + drafts)
+  app.get("/api/sessions/all", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const all = await storage.getSessions();
+      return res.json(all);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/sessions/:id
+  app.get("/api/sessions/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getSession(p(req.params.id));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const user = req.user as any;
+      if (user.role !== "admin") {
+        const plan = user.plan ?? "free";
+        if (TIER_ORDER[session.tierRequired] > TIER_ORDER[plan]) {
+          return res.status(403).json({ message: "Upgrade required" });
+        }
+      }
+      return res.json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/sessions — admin create
+  app.post("/api/sessions", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const session = await storage.createSession({ ...req.body, createdBy: user.id });
+      return res.status(201).json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/sessions/:id — admin update
+  app.patch("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const session = await storage.updateSession(p(req.params.id), req.body);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      return res.json(session);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/sessions/:id — admin delete
+  app.delete("/api/sessions/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteSession(p(req.params.id));
+      return res.json({ message: "Deleted" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // PATCH /api/admin/users/:id/plan — admin update user plan
+  app.patch("/api/admin/users/:id/plan", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { plan } = req.body;
+      if (!["free", "starter", "growth", "pro", "elite"].includes(plan)) {
+        return res.status(400).json({ message: "Invalid plan" });
+      }
+      const existing = await storage.getUser(p(req.params.id));
+      const user = await storage.updateUser(p(req.params.id), { plan } as any);
+      // Sync upgrade event to Oravini CRM
+      if (existing && existing.plan !== plan) {
+        const tierNames: Record<string, string> = { free: "Tier 1 (Free)", starter: "Tier 2 ($29)", growth: "Tier 3 ($59)", pro: "Tier 4 ($79)", elite: "Tier 5 (Elite)" };
+        syncToOraviniCRM({ email: user.email, name: user.name, source: "plan_upgrade", previousPlan: existing.plan, newPlan: plan, tierLabel: tierNames[plan] || plan, event: "upgraded" });
+      }
+      return res.json(user);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/admin/settings/jarvis-key — returns whether key is saved (not the value)
+  app.get("/api/admin/settings/jarvis-key", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const key = await storage.getAppSetting("jarvis_groq_key");
+      return res.json({ configured: !!key, masked: key ? `${key.slice(0, 8)}${"•".repeat(20)}` : null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/admin/settings/jarvis-key — save Groq API key for Jarvis
+  app.post("/api/admin/settings/jarvis-key", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { key } = req.body;
+      if (!key?.trim()) return res.status(400).json({ message: "API key is required" });
+      if (!key.trim().startsWith("gsk_")) return res.status(400).json({ message: "Invalid Groq key — must start with gsk_" });
+      await storage.setAppSetting("jarvis_groq_key", key.trim());
+      return res.json({ configured: true, masked: `${key.trim().slice(0, 8)}${"•".repeat(20)}` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // DELETE /api/admin/settings/jarvis-key — remove saved Groq key
+  app.delete("/api/admin/settings/jarvis-key", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      await storage.setAppSetting("jarvis_groq_key", "");
+      return res.json({ configured: false });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/sessions/free-ai — free tier AI content ideas (3/day limit)
+  app.post("/api/sessions/free-ai", async (req: Request, res: Response) => {
+    try {
+      const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress || "unknown";
+      const user = req.user as any;
+      const identifier = user?.id || ip;
+      const today = new Date().toISOString().split("T")[0];
+      const FREE_DAILY_LIMIT = 3;
+      const usage = await storage.getFreeAiUsage(identifier, today);
+      if (usage >= FREE_DAILY_LIMIT) {
+        return res.status(429).json({ message: "Daily limit reached", limit: FREE_DAILY_LIMIT, used: usage });
+      }
+      const { niche, platform } = req.body;
+      if (!niche) return res.status(400).json({ message: "Niche is required" });
+
+      const groqApiKey = process.env.GROQ_API_KEY;
+      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
+      const prompt = `Generate 3 creative content ideas for a ${platform || "social media"} creator in the ${niche} niche. For each idea give: a punchy title, a one-line hook, and the content format (reel, carousel, etc.). Keep it actionable and viral-focused. Format as JSON array: [{title, hook, format}]`;
+      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
+      });
+      const groqData = await groqResp.json() as any;
+      const text = groqData.choices?.[0]?.message?.content || "[]";
+      let ideas: any[] = [];
+      try { ideas = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { ideas = []; }
+      const newCount = await storage.incrementFreeAiUsage(identifier, today);
+      return res.json({ ideas, used: newCount, limit: FREE_DAILY_LIMIT, remaining: FREE_DAILY_LIMIT - newCount });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Session History ───────────────────────────────────────────────────────
+  app.get("/api/ai/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const tool = (req.query.tool as string) || "ideas";
+      const history = await storage.getAiHistory(userId, tool);
+      return res.json(history);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/ai/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { tool, title, inputs, output } = req.body;
+      if (!tool) return res.status(400).json({ message: "tool is required" });
+      const entry = await storage.saveAiHistory({ userId, tool, title, inputs, output });
+      return res.json(entry);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/ai/history/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteAiHistory(p(req.params.id), (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── LinkedIn Integration ─────────────────────────────────────────────────────
+  const LINKEDIN_CALLBACK = `${getConfiguredAppBase()}/api/linkedin/callback`;
+
+  function encodeLinkedinState(userId: string): string {
+    const nonce = Math.random().toString(36).slice(2, 10);
+    return Buffer.from(`${userId}:${nonce}`).toString("base64url");
+  }
+
+  function decodeLinkedinState(state: string): string | null {
+    try {
+      const decoded = Buffer.from(state, "base64url").toString("utf8");
+      const [userId] = decoded.split(":");
+      return userId || null;
+    } catch { return null; }
+  }
+
+  function linkedinAuthUrl(state: string): string {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: process.env.LINKEDIN_CLIENT_ID!,
+      redirect_uri: LINKEDIN_CALLBACK,
+      scope: "openid profile email w_member_social",
+      state,
+    });
+    return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
+  }
+
+  async function linkedinExchangeCode(code: string): Promise<{ access_token: string; expires_in: number; refresh_token?: string }> {
+    const resp = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: LINKEDIN_CALLBACK,
+        client_id: process.env.LINKEDIN_CLIENT_ID!,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+      }),
+    });
+    if (!resp.ok) throw new Error(`LinkedIn token exchange failed: ${await resp.text()}`);
+    return resp.json();
+  }
+
+  async function linkedinMe(accessToken: string): Promise<{ sub: string; name: string; email?: string }> {
+    const resp = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!resp.ok) throw new Error("Failed to fetch LinkedIn profile");
+    return resp.json();
+  }
+
+  async function linkedinPost(accessToken: string, linkedinUserId: string, content: string): Promise<string> {
+    const body = {
+      author: `urn:li:person:${linkedinUserId}`,
+      lifecycleState: "PUBLISHED",
+      specificContent: {
+        "com.linkedin.ugc.ShareContent": {
+          shareCommentary: { text: content },
+          shareMediaCategory: "NONE",
+        },
+      },
+      visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+    };
+    const resp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`LinkedIn post failed: ${await resp.text()}`);
+    const data: any = await resp.json();
+    return data.id ?? "";
+  }
+
+  app.get("/api/linkedin/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const token = await storage.getLinkedinToken(userId);
+      return res.json({ connected: !!token, name: token?.linkedinName ?? null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/connect", requireAuth, (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const state = encodeLinkedinState(userId);
+      return res.redirect(linkedinAuthUrl(state));
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/callback", async (req: Request, res: Response) => {
+    const base = getConfiguredAppBase();
+    try {
+      const { code, state, error, error_description } = req.query as {
+        code?: string; state?: string; error?: string; error_description?: string;
+      };
+      if (error) {
+        console.log(`[linkedin] OAuth denied: ${error} — ${error_description}`);
+        return res.redirect(`${base}/linkedin-scheduler?error=${encodeURIComponent(error_description || error)}`);
+      }
+      if (!code || !state) return res.redirect(`${base}/linkedin-scheduler?error=missing_params`);
+      const userId = decodeLinkedinState(state);
+      if (!userId) return res.redirect(`${base}/linkedin-scheduler?error=invalid_state`);
+      const tokens = await linkedinExchangeCode(code);
+      const profile = await linkedinMe(tokens.access_token);
+      const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
+      await storage.upsertLinkedinToken(userId, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt,
+        linkedinUserId: profile.sub,
+        linkedinName: profile.name,
+      });
+      return res.redirect("/linkedin-scheduler?connected=1");
+    } catch (err: any) {
+      console.log(`[linkedin] Callback error: ${err.message}`);
+      return res.redirect(`/linkedin-scheduler?error=${encodeURIComponent(err.message || "Authentication failed")}`);
+    }
+  });
+
+  app.delete("/api/linkedin/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteLinkedinToken((req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/linkedin/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Post content is required" });
+      const token = await storage.getLinkedinToken(userId);
+      if (!token) return res.status(400).json({ message: "LinkedIn not connected" });
+      const postId = await linkedinPost(token.accessToken, token.linkedinUserId!, content.trim());
+      return res.json({ success: true, postId });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/linkedin/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const posts = await storage.getScheduledLinkedinPosts((req.user as any).id);
+      return res.json(posts);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/linkedin/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content, scheduledFor } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Post content is required" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const post = await storage.createScheduledLinkedinPost({ userId, content: content.trim(), scheduledFor: schedDate, status: "pending" });
+      return res.json(post);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/linkedin/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduledLinkedinPost(p(req.params.id), (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Twitter / X Integration ──────────────────────────────────────────────────
+  const { TwitterApi } = await import("twitter-api-v2");
+
+  function getTwitterClient() {
+    return new TwitterApi({
+      clientId: process.env.TWITTER_CLIENT_ID!,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+    });
+  }
+
+  async function getAuthedTwitterClient(userId: string) {
+    const token = await storage.getTwitterToken(userId);
+    if (!token) throw new Error("Twitter not connected");
+    const client = getTwitterClient();
+    if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
+      if (!token.refreshToken) throw new Error("Twitter token expired, please reconnect");
+      const { accessToken, refreshToken, expiresIn } = await client.refreshOAuth2Token(token.refreshToken);
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      await storage.upsertTwitterToken(userId, {
+        accessToken,
+        refreshToken: refreshToken ?? token.refreshToken,
+        expiresAt,
+        twitterUserId: token.twitterUserId,
+        twitterHandle: token.twitterHandle,
+      });
+      return new TwitterApi(accessToken);
+    }
+    return new TwitterApi(token.accessToken);
+  }
+
+  const TWITTER_CALLBACK = `${getConfiguredAppBase()}/api/twitter/callback`;
+
+  const twitterCodeVerifiers = new Map<string, { codeVerifier: string; userId: string }>();
+
+  app.get("/api/twitter/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const token = await storage.getTwitterToken(userId);
+      return res.json({ connected: !!token, handle: token?.twitterHandle ?? null });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/connect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const client = getTwitterClient();
+      const { url, codeVerifier, state } = client.generateOAuth2AuthLink(TWITTER_CALLBACK, {
+        scope: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+      });
+      twitterCodeVerifiers.set(state, { codeVerifier, userId });
+      return res.json({ url });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query as { code: string; state: string };
+      const stored = twitterCodeVerifiers.get(state);
+      if (!stored) return res.status(400).send("Invalid state — please try connecting again.");
+      twitterCodeVerifiers.delete(state);
+
+      const client = getTwitterClient();
+      const { client: authedClient, accessToken, refreshToken, expiresIn } = await client.loginWithOAuth2({
+        code,
+        codeVerifier: stored.codeVerifier,
+        redirectUri: TWITTER_CALLBACK,
+      });
+
+      const me = await authedClient.v2.me();
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      await storage.upsertTwitterToken(stored.userId, {
+        accessToken,
+        refreshToken: refreshToken ?? null,
+        expiresAt,
+        twitterUserId: me.data.id,
+        twitterHandle: me.data.username,
+      });
+
+      return res.redirect("/twitter-scheduler?connected=1");
+    } catch (err: any) {
+      return res.redirect("/twitter-scheduler?error=auth_failed");
+    }
+  });
+
+  app.delete("/api/twitter/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteTwitterToken(userId);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/twitter/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Tweet content is required" });
+      if (content.length > 280) return res.status(400).json({ message: "Tweet exceeds 280 characters" });
+      const client = await getAuthedTwitterClient(userId);
+      const tweet = await client.v2.tweet(content.trim());
+      return res.json({ success: true, tweetId: tweet.data.id });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/twitter/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const tweets = await storage.getScheduledTweets(userId);
+      return res.json(tweets);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/twitter/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { content, scheduledFor } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Tweet content is required" });
+      if (content.length > 280) return res.status(400).json({ message: "Tweet exceeds 280 characters" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const tweet = await storage.createScheduledTweet({ userId, content: content.trim(), scheduledFor: schedDate, status: "pending" });
+      return res.json(tweet);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/twitter/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteScheduledTweet(p(req.params.id), userId);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── YouTube Integration ───────────────────────────────────────────────────────
+  const { google } = await import("googleapis");
+
+  function getSiteBase() {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+    if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+    return `http://localhost:${process.env.PORT || "5000"}`;
+  }
+
+  function getYoutubeCallbackUrl() {
+    return `${getSiteBase()}/api/auth/youtube/callback`;
+  }
+
+  function getYoutubeOAuth2Client() {
+    return new google.auth.OAuth2(
+      process.env.YOUTUBE_CLIENT_ID,
+      process.env.YOUTUBE_CLIENT_SECRET,
+      getYoutubeCallbackUrl(),
+    );
+  }
+
+  app.get("/api/auth/youtube", requireAuth, (req: Request, res: Response) => {
+    if (!process.env.YOUTUBE_CLIENT_ID || !process.env.YOUTUBE_CLIENT_SECRET) {
+      return res.status(500).json({ message: "YouTube credentials not configured" });
+    }
+    const oauth2Client = getYoutubeOAuth2Client();
+    const callbackUrl = getYoutubeCallbackUrl();
+    console.log(`[youtube] OAuth starting, callback=${callbackUrl}`);
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.readonly",
+      ],
+      prompt: "consent",
+      state: (req.user as any).id,
+    });
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/youtube/callback", async (req: Request, res: Response) => {
+    const base = getSiteBase();
+    try {
+      const { code, state: userId, error, error_description } = req.query as {
+        code?: string; state?: string; error?: string; error_description?: string;
+      };
+
+      if (error) {
+        console.log(`[youtube] OAuth denied: ${error} — ${error_description}`);
+        return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(error_description || error)}`);
+      }
+
+      if (!code || !userId) {
+        console.log("[youtube] OAuth callback: missing code or state");
+        return res.redirect(`${base}/youtube-scheduler?yt_error=missing_code`);
+      }
+
+      const oauth2Client = getYoutubeOAuth2Client();
+      const { tokens } = await oauth2Client.getToken(code);
+      oauth2Client.setCredentials(tokens);
+
+      if (!tokens.access_token) throw new Error("No access token received from Google");
+
+      const yt = google.youtube({ version: "v3", auth: oauth2Client });
+      const channelRes = await yt.channels.list({ part: ["snippet"], mine: true });
+      const channel = channelRes.data.items?.[0];
+
+      await storage.upsertYoutubeToken(userId, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        channelId: channel?.id ?? null,
+        channelTitle: channel?.snippet?.title ?? null,
+        channelThumbnail: channel?.snippet?.thumbnails?.default?.url ?? null,
+      });
+
+      console.log(`[youtube] Connected: channel=${channel?.snippet?.title} user=${userId}`);
+      return res.redirect(`${base}/youtube-scheduler?yt_connected=1`);
+    } catch (err: any) {
+      console.log(`[youtube] Callback error: ${err.message}`);
+      return res.redirect(`${base}/youtube-scheduler?yt_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  app.get("/api/youtube/status", requireAuth, async (req: Request, res: Response) => {
+    const token = await storage.getYoutubeToken((req.user as any).id);
+    if (!token) return res.json({ connected: false });
+    return res.json({
+      connected: true,
+      channelId: token.channelId,
+      channelTitle: token.channelTitle,
+      channelThumbnail: token.channelThumbnail,
+    });
+  });
+
+  app.delete("/api/youtube/disconnect", requireAuth, async (req: Request, res: Response) => {
+    await storage.deleteYoutubeToken((req.user as any).id);
+    return res.json({ success: true });
+  });
+
+  async function getAuthedYoutubeClient(userId: string) {
+    const token = await storage.getYoutubeToken(userId);
+    if (!token) throw new Error("YouTube not connected");
+    const oauth2Client = getYoutubeOAuth2Client();
+    if (token.expiresAt && new Date(token.expiresAt) < new Date()) {
+      if (!token.refreshToken) throw new Error("YouTube token expired, please reconnect");
+      oauth2Client.setCredentials({ refresh_token: token.refreshToken });
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      await storage.upsertYoutubeToken(userId, {
+        accessToken: credentials.access_token!,
+        refreshToken: credentials.refresh_token ?? token.refreshToken,
+        expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+        channelId: token.channelId,
+        channelTitle: token.channelTitle,
+        channelThumbnail: token.channelThumbnail,
+      });
+      oauth2Client.setCredentials(credentials);
+    } else {
+      oauth2Client.setCredentials({ access_token: token.accessToken, refresh_token: token.refreshToken ?? undefined });
+    }
+    return google.youtube({ version: "v3", auth: oauth2Client });
+  }
+
+  async function uploadVideoFromUrl(yt: any, videoUrl: string, title: string, description: string, tags: string[], category: string, privacyStatus: string) {
+    const videoResp = await fetch(videoUrl);
+    if (!videoResp.ok) throw new Error(`Failed to fetch video: ${videoResp.statusText}`);
+    const videoBuffer = await videoResp.arrayBuffer();
+    const { Readable } = await import("stream");
+    const stream = Readable.from(Buffer.from(videoBuffer));
+    const res = await yt.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: { title, description, tags, categoryId: category },
+        status: { privacyStatus },
+      },
+      media: { mimeType: "video/*", body: stream },
+    });
+    return res.data;
+  }
+
+  app.post("/api/youtube/post", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, description = "", tags = [], category = "22", privacyStatus = "public", videoUrl } = req.body;
+      if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+      if (!videoUrl?.trim()) return res.status(400).json({ message: "Video URL is required" });
+      const yt = await getAuthedYoutubeClient(userId);
+      const result = await uploadVideoFromUrl(yt, videoUrl, title, description, tags, category, privacyStatus);
+      return res.json({ success: true, videoId: result.id, url: `https://youtube.com/watch?v=${result.id}` });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/youtube/schedule", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { title, description, tags, category, privacyStatus, videoUrl, thumbnailUrl, scheduledFor } = req.body;
+      if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+      if (!videoUrl?.trim()) return res.status(400).json({ message: "Video URL is required" });
+      if (!scheduledFor) return res.status(400).json({ message: "Schedule time is required" });
+      const schedDate = new Date(scheduledFor);
+      if (schedDate <= new Date()) return res.status(400).json({ message: "Schedule time must be in the future" });
+      const post = await storage.createScheduledYoutubePost({
+        userId, title: title.trim(), description: description ?? "", tags: tags ?? [], category: category ?? "22",
+        privacyStatus: privacyStatus ?? "public", videoUrl: videoUrl.trim(), thumbnailUrl: thumbnailUrl ?? null,
+        scheduledFor: schedDate,
+      });
+      return res.json(post);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/youtube/scheduled", requireAuth, async (req: Request, res: Response) => {
+    const posts = await storage.getScheduledYoutubePosts((req.user as any).id);
+    return res.json(posts);
+  });
+
+  app.delete("/api/youtube/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteScheduledYoutubePost(p(req.params.id), (req.user as any).id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Lead Magnet Generator ─────────────────────────────────────────────────
+  app.post("/api/ai/lead-magnet/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, type, topic, audience, goal, ctaType, calendlyUrl, referenceUrl, pageCount = 8 } = req.body;
+      if (!topic?.trim()) return res.status(400).json({ message: "Topic is required" });
+      const _uLm = req.user as any;
+      if (_uLm?.role !== "admin") {
+        const lmCredit = await storage.deductCredits(_uLm.id, 6, "lead_magnet", "Lead Magnet generation", _uLm.plan || "free");
+        if (!lmCredit.success) return res.status(402).json({ message: lmCredit.message, insufficientCredits: true, balance: lmCredit.balance });
+      }
+
+      const targetPages = Math.min(Math.max(Number(pageCount) || 8, 5), 25);
+      const contentPages = Math.max(targetPages - 4, 1); // cover + problem + content(s) + cta
+
+      const systemPrompt = `You are an expert lead magnet strategist and copywriter. You create high-converting, premium-quality lead magnets with detailed, actionable content. Always respond with valid JSON only — no markdown, no code fences.`;
+
+      const ctaInstruction = ctaType === "book-call"
+        ? `CTA: Book a discovery call${calendlyUrl ? ` — Calendly: ${calendlyUrl}` : ""}`
+        : ctaType === "email-list" ? "CTA: Join the email list / newsletter"
+          : ctaType === "follow-instagram" ? "CTA: Follow on Instagram"
+            : ctaType === "buy-product" ? "CTA: Buy the product/course"
+              : `CTA goal: ${goal || "Generate leads"}`;
+
+      const userPrompt = `Create a complete, detailed lead magnet with the following details:
+NICHE: ${niche || "Business / Marketing"}
+TYPE: ${type || "Guide"}
+TOPIC: ${topic}
+AUDIENCE: ${audience || "Entrepreneurs and small business owners"}
+GOAL: ${goal || "Grow their audience and generate leads"}
+${ctaInstruction}
+${referenceUrl ? `REFERENCE: ${referenceUrl}` : ""}
+
+Return a JSON object with EXACTLY this structure:
+{
+  "titleOptions": [5 compelling, curiosity-driven title variations as strings],
+  "selectedTitle": "the best title from the 5 options",
+  "hookLine": "a short powerful hook sentence for page 1",
+  "pages": [
+    {
+      "id": "page-0",
+      "type": "cover",
+      "title": "main title text",
+      "subtitle": "compelling subtitle",
+      "hook": "one punchy hook line"
+    },
+    {
+      "id": "page-1",
+      "type": "problem",
+      "heading": "The Problem",
+      "body": "3-4 sentences describing the painful problem the audience faces. Be specific.",
+      "emphasis": "one bold key insight or stat"
+    },
+    {
+      "id": "page-2",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed, actionable sentences",
+      "bullets": ["specific actionable point 1", "specific actionable point 2", "specific actionable point 3", "specific actionable point 4"]
+    },
+    {
+      "id": "page-3",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed, actionable sentences",
+      "bullets": ["point 1", "point 2", "point 3", "point 4"]
+    },
+    {
+      "id": "page-4",
+      "type": "checklist",
+      "heading": "Your Action Checklist",
+      "items": ["at least 6 specific, actionable checklist items"]
+    },
+    {
+      "id": "page-5",
+      "type": "content",
+      "heading": "Section heading",
+      "body": "3-4 detailed sentences",
+      "bullets": ["point 1", "point 2", "point 3"]
+    },
+    {
+      "id": "page-6",
+      "type": "tips",
+      "heading": "Pro Tips",
+      "tips": [
+        {"number": "01", "title": "tip title", "body": "2 sentence tip explanation"},
+        {"number": "02", "title": "tip title", "body": "2 sentence tip explanation"},
+        {"number": "03", "title": "tip title", "body": "2 sentence tip explanation"}
+      ]
+    },
+    {
+      "id": "page-7",
+      "type": "cta",
+      "headline": "compelling CTA headline",
+      "body": "2-3 sentences reinforcing value and next step",
+      "cta": "specific action CTA (e.g. DM me GROWTH, Book a free call, etc.)"
+    }
+  ],
+  "ctas": [
+    "CTA variation 1 — action-focused",
+    "CTA variation 2 — urgency-focused",
+    "CTA variation 3 — value-focused"
+  ],
+  "repurpose": {
+    "carousel": ["slide 1 text (hook)", "slide 2 text", "slide 3 text", "slide 4 text", "slide 5 text (CTA)"],
+    "linkedin": "full LinkedIn post (150-200 words) based on the lead magnet content",
+    "caption": "Instagram caption with hashtags"
+  }
+}
+
+Make the content specific, detailed, and actionable — not generic. Tailor it precisely to the niche and audience.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 8000);
+      let result: any;
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("Failed to parse AI response");
+        result = JSON.parse(match[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — improve a single text field with AI
+  app.post("/api/ai/lead-magnet/improve-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text?.trim()) return res.status(400).json({ message: "Text required" });
+      const improved = await callGroq(
+        "You improve marketing copy for lead magnets. Return ONLY the improved text — no quotes, no commentary, no extra words. Keep a similar length.",
+        `Improve this text to be more clear, engaging and persuasive:\n\nContext: ${context || "lead magnet page"}\n\nText:\n${text}`,
+        400,
+      );
+      return res.json({ text: improved.trim() });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — rearrange a page's content with AI
+  app.post("/api/ai/lead-magnet/rearrange", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { page, niche, goal } = req.body;
+      if (!page) return res.status(400).json({ message: "Page data required" });
+      const raw = await callGroqJson(
+        "You are an expert lead magnet designer. Improve and restructure page content. Return only valid JSON with the same shape as the input.",
+        `Improve this lead magnet page. Make it more structured and scannable. Add useful detail where needed. Return JSON with EXACTLY the same keys as input.\n\nNiche: ${niche || "general"}\nGoal: ${goal || "generate leads"}\n\nPage:\n${JSON.stringify(page)}`,
+        800,
+      );
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : page;
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — AI chat assistant (auto-applies slide changes)
+  app.post("/api/ai/lead-magnet/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, pages, niche, goal, topic } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "Message required" });
+
+      const pagesJson = JSON.stringify((pages || []).map((p: any, i: number) => ({ index: i, ...p })));
+
+      const systemPrompt = `You are an AI lead magnet editor that AUTOMATICALLY applies changes to slides. 
+
+When the user mentions a slide/page number (e.g., "slide 3", "page 2", "slide 4"), you MUST update that slide's content and return it in pageUpdates.
+
+Always return valid JSON in this exact format:
+{
+  "response": "brief description of what you did",
+  "pageUpdates": [
+    { "index": 2, "page": { ...complete updated page object with all fields... } }
+  ]
+}
+
+Rules:
+- "slide 3" = index 2 (0-based), "page 1" = index 0, etc.
+- When updating a page, copy its FULL structure and improve only the requested fields
+- If no specific slide is mentioned but changes make sense (e.g., "improve all CTAs"), update relevant pages
+- pageUpdates can be empty [] if only giving advice
+- Return ONLY the JSON, no markdown`;
+
+      const raw = await callGroqJson(systemPrompt,
+        `User request: "${message}"\n\nNiche: ${niche}\nGoal: ${goal}\nTopic: ${topic}\n\nAll pages:\n${pagesJson}`,
+        2000,
+      );
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : { response: raw, pageUpdates: [] };
+      }
+      if (!result.pageUpdates) result.pageUpdates = [];
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Brand Kit — improve text field ────────────────────────────────────────
+  app.post("/api/ai/brand-kit/improve-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, field } = req.body;
+      if (!text?.trim()) return res.status(400).json({ message: "text required" });
+      const instructions: Record<string, string> = {
+        businessDescription: "Rewrite this brand/business description to be more specific, compelling, and strategic. Keep it in first person. Make it 2–3 sentences that clearly communicate what the brand does, who it serves, and why it's unique.",
+        targetAudience: "Rewrite this target audience description to be more detailed and specific — include demographics, psychographics, pain points, desires, and online behaviour. 2–3 sentences.",
+      };
+      const instruction = instructions[field] || "Rewrite this text to be clearer, more specific, and more compelling. Keep the same intent.";
+      const result = await callGroq(
+        "You are a brand strategist. Improve the given text. Return ONLY the improved text — no quotes, no explanation.",
+        `Original text: "${text}"\n\nInstruction: ${instruction}`,
+        400,
+      );
+      return res.json({ text: result.trim().replace(/^["']|["']$/g, "") });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Brand Kit Builder ─────────────────────────────────────────────────────
+  app.post("/api/ai/brand-kit/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessDescription, targetAudience, platforms, platformUrls, style, goal, industry, revenueModel, contentFrequency, mainCompetitor, brandHero, existingBrandColors } = req.body;
+      if (!businessDescription?.trim()) return res.status(400).json({ message: "businessDescription required" });
+      const _uBk = req.user as any;
+      if (_uBk?.role !== "admin") {
+        const bkCredit = await storage.deductCredits(_uBk.id, 6, "brand_kit", "Brand Kit generation", _uBk.plan || "free");
+        if (!bkCredit.success) return res.status(402).json({ message: bkCredit.message, insufficientCredits: true, balance: bkCredit.balance });
+      }
+
+      const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms : ["Instagram"];
+      const urlsText = platformUrls && typeof platformUrls === "object"
+        ? Object.entries(platformUrls).filter(([, u]) => u).map(([p, u]) => `  - ${p}: ${u}`).join("\n")
+        : "";
+
+      const systemPrompt = `You are an expert brand strategist, visual designer, and marketing consultant. You create complete, premium brand identity systems. Return ONLY valid JSON — no markdown, no explanation, just the JSON object.`;
+
+      const userPrompt = `Create a complete brand kit for this brand:
+
+Business/Brand: ${businessDescription}
+Target Audience: ${targetAudience || "Not specified"}
+Industry / Niche: ${industry || "Not specified"}
+Revenue Model: ${revenueModel || "Not specified"}
+Platform Focus: ${platformList.join(", ")}${urlsText ? `\nPlatform URLs:\n${urlsText}` : ""}
+Style Preference: ${style || "Minimal & Clean"}
+Goal: ${goal || "Grow Audience"}
+Content Frequency: ${contentFrequency || "Not specified"}
+Main Competitor: ${mainCompetitor || "Not specified"}
+Brand Hero / Inspiration: ${brandHero || "Not specified"}
+Existing Brand Colours: ${existingBrandColors || "None — generate fresh colours"}
+
+${existingBrandColors ? `IMPORTANT: The user has existing brand colours (${existingBrandColors}). Build the palette around or complementary to these — do NOT ignore them.` : ""}
+
+Return this exact JSON structure:
+{
+  "brandCore": {
+    "positioning": { "standFor": "string", "uniqueAngle": "string" },
+    "personality": { "traits": ["trait1","trait2","trait3","trait4"], "contentExpression": "string" },
+    "toneOfVoice": { "style": "string", "example": "string (a sample sentence in this brand voice)" }
+  },
+  "visualIdentity": {
+    "colorPalette": {
+      "primary": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "secondary": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "accent": { "name": "color name", "hex": "#hexcode", "why": "why this color" },
+      "background": { "name": "color name", "hex": "#hexcode" },
+      "emotionalImpact": "string explaining the emotional effect of this palette"
+    },
+    "typography": {
+      "heading": { "style": "font description", "usage": "when to use" },
+      "body": { "style": "font description", "usage": "when to use" },
+      "accent": { "style": "font description", "usage": "when to use" }
+    },
+    "designStyle": {
+      "aesthetic": "string",
+      "layout": "string",
+      "visualElements": "string"
+    }
+  },
+  "socialMedia": {
+    "postStyle": { "look": "string", "textPlacement": "string", "colorsSpacing": "string" },
+    "carouselStyle": { "structure": "string", "fontHierarchy": "string", "visualFlow": "string" },
+    "storyStyle": { "textDensity": "string", "interaction": "string", "tone": "string" }
+  },
+  "contentStrategy": {
+    "pillars": [
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" },
+      { "title": "string", "description": "string" }
+    ],
+    "hooks": ["hook1","hook2","hook3","hook4","hook5"],
+    "ctas": { "style": "string", "examples": ["cta1","cta2","cta3"] }
+  },
+  "leadMagnet": {
+    "types": ["type1","type2","type3"],
+    "designStyle": "string",
+    "tone": "string"
+  },
+  "brandRules": {
+    "dos": ["do1","do2","do3","do4","do5"],
+    "donts": ["dont1","dont2","dont3","dont4","dont5"]
+  },
+  "summary": ["bullet1","bullet2","bullet3","bullet4","bullet5"]
+}
+
+Make it specific, strategic, and cohesive — not generic. Optimise for modern social media growth.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/);
+        if (!m) throw new Error("Failed to parse brand kit JSON");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — expand existing slide with deeper AI content
+  app.post("/api/ai/lead-magnet/expand-slide", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { page, niche, goal, topic, context } = req.body;
+      if (!page) return res.status(400).json({ message: "page required" });
+
+      const instrMap: Record<string, string> = {
+        content: "Add 2–3 more detailed bullet points and make the body paragraph richer with a specific example or statistic. Keep all existing content.",
+        checklist: "Add 3–5 more specific, actionable checklist items that are distinct from the existing ones.",
+        tips: "Add 2–3 more expert tips, each with a clear number, title, and body. Keep all existing tips.",
+        problem: "Deepen the body text with a relatable real-world example. Make the emphasis field more specific, striking, and impactful.",
+        cover: "Write a stronger, more emotionally resonant hook quote. Enrich the subtitle to highlight a key benefit.",
+        cta: "Strengthen the headline with urgency. Make the body copy more persuasive and benefit-driven. Improve the CTA button text to be action-oriented.",
+      };
+      const instrText = instrMap[page.type] || "Add more depth, examples, and value to every text field in this slide.";
+
+      const raw = await callGroqJson(
+        `You are an expert lead magnet copywriter. Expand and enrich the given slide. Return ONLY valid JSON matching the exact same shape — same 'id', same 'type'. NEVER remove existing content, only improve and add.`,
+        `Expand this slide:\n${JSON.stringify(page)}\n\nNiche: ${niche}\nGoal: ${goal}\nTopic: ${topic}\nExtra context: ${context || "none"}\n\nInstruction: ${instrText}\n\nReturn the complete updated slide as JSON.`,
+        1400,
+      );
+
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse failed");
+        result = JSON.parse(m[0]);
+      }
+      result.id = page.id;
+      result.type = page.type;
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Lead Magnet — fill/expand an empty page
+  app.post("/api/ai/lead-magnet/fill-page", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { pageType, niche, goal, topic, pageIndex } = req.body;
+      const raw = await callGroqJson(
+        "You generate lead magnet page content. Return valid JSON only — no markdown.",
+        `Generate content for a "${pageType}" page in a lead magnet.\nTopic: ${topic}\nNiche: ${niche}\nGoal: ${goal}\nPage number: ${pageIndex + 1}\n\nReturn JSON matching this shape based on type:\n- cover: {type, id, title, subtitle, hook}\n- content: {type, id, heading, body, bullets:[]}\n- checklist: {type, id, heading, items:[]}\n- tips: {type, id, heading, tips:[{number,title,body}]}\n- cta: {type, id, headline, body, cta}`,
+        600,
+      );
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse failed");
+        result = JSON.parse(m[0]);
+      }
+      result.id = `page-${pageIndex}`;
+      result.type = pageType;
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Instagram Story Generator
+  app.post("/api/ai/story/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style, tone, hookStyle, contentDepth } = req.body;
+      const _uSt = req.user as any;
+      if (_uSt?.role !== "admin") {
+        const stCredit = await storage.deductCredits(_uSt.id, 2, "story", "Instagram Story sequence generation", _uSt.plan || "free");
+        if (!stCredit.success) return res.status(402).json({ message: stCredit.message, insufficientCredits: true, balance: stCredit.balance });
+      }
+      const hookStyleMap: Record<string, string> = {
+        "curiosity": "Start with a powerful curiosity question that makes them want to keep tapping (e.g. 'What if I told you...' / 'Have you ever wondered why...')",
+        "bold-stat": "Open with a surprising, specific statistic or data point that challenges assumptions",
+        "story": "Begin with a personal story opening — set the scene with vivid first-person detail",
+        "challenge": "Throw down a challenge that creates urgency or competitive instinct",
+        "bold-claim": "Lead with a bold, contrarian claim that challenges conventional wisdom",
+        "relatable": "Start with a deeply relatable observation or shared experience",
+      };
+      const depthMap: Record<string, string> = {
+        "quick": "Keep slides SHORT and punchy — 1-3 words headline, single concept per slide, fast pace. Optimise for speed and impact.",
+        "balanced": "Mix quick-hitting slides with deeper insight slides. Balance brevity with substance.",
+        "deep-dive": "Go deep on each slide — more detailed explanations, richer context, educational depth. Users who want the full picture.",
+      };
+      const systemPrompt = `You are an expert Instagram Story strategist. Generate high-converting story sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.`;
+      const userPrompt = `Generate a HIGH-CONVERTING Instagram Story Sequence as JSON.
+
+User Inputs:
+- Goal: ${goal}
+- Topic: ${topic}
+- Niche: ${niche}
+- Target Audience: ${targetAudience}
+- Instagram Profile: ${instagramUrl || "not provided"}
+- Call To Action: ${ctaType}
+- Number of Slides: ${slidesCount}
+- Visual Style: ${style}
+- Tone of Voice: ${tone || "inspirational"} — Every slide must feel ${tone || "inspirational"}. The language, word choice, and energy should consistently reflect this tone.
+- Hook Style: ${hookStyleMap[hookStyle] || hookStyleMap["curiosity"]}
+- Content Depth: ${depthMap[contentDepth] || depthMap["balanced"]}
+
+Rules:
+- Each slide must feel like a REAL Instagram story (short, punchy, visual)
+- STRICTLY apply the requested tone of voice throughout — it must be felt in every slide
+- The FIRST slide hook must use the specified hook style
+- Apply the content depth level consistently across all slides
+- Focus on flow: each slide should naturally lead to the next
+- Use curiosity, emotion, or value to keep users tapping
+- Balance text + visuals (don't overload text)
+
+Return this EXACT JSON structure (no other output):
+{
+  "flowStrategy": {
+    "sequenceType": "educational / storytelling / sales / engagement",
+    "whyItWorks": "2-3 sentence explanation of why this works for the selected goal"
+  },
+  "slides": [
+    {
+      "slideNumber": 1,
+      "slideType": "Hook",
+      "headline": "Short punchy headline (5-8 words max)",
+      "subtext": "One supporting line (or empty string)",
+      "textContent": "Full text for this slide (1-2 lines)",
+      "visualDirection": "How to design/style this slide visually",
+      "designNotes": {
+        "fontStyle": "Bold / Light / Script",
+        "textSizeEmphasis": "Headline dominant, subtext small",
+        "colorUsage": "Dark bg with gold headline text"
+      },
+      "interaction": {
+        "type": "Poll",
+        "content": "The poll question or prompt text"
+      }
+    }
+  ],
+  "ctaSlide": {
+    "variations": ["CTA variation 1", "CTA variation 2", "CTA variation 3"],
+    "instruction": "Exact action instruction for viewers"
+  },
+  "designSystem": {
+    "headingFont": "Font name and weight",
+    "bodyFont": "Font name and weight",
+    "primaryColor": "#hex",
+    "accentColor": "#hex",
+    "layoutStyle": "How to lay out slides — centered / asymmetric / split"
+  },
+  "imageUsagePlan": {
+    "slidesWithImages": [1, 3, 5],
+    "textHeavySlides": [2, 4],
+    "balanceNotes": "How to balance uploaded images with text overlays"
+  },
+  "variations": [
+    {
+      "hook": "Alternative hook text for variation 1",
+      "tone": "casual / bold / inspirational",
+      "description": "How this variation differs and why it works"
+    },
+    {
+      "hook": "Alternative hook for variation 2",
+      "tone": "emotional / direct / humorous",
+      "description": "How this angle differs and who it resonates with"
+    }
+  ]
+}
+
+CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: Hook → Problem/Value → Value → Proof/Engagement → CTA. The last slide must be of type "CTA". For interaction, use one of: "Poll", "Question", "Slider", "Tap" — or null if not applicable. Make it feel native to Instagram.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse story response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Write better with AI ─────────────────────────────────────────────────────
+  app.post("/api/ai/enhance-text", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, context } = req.body;
+      if (!text?.trim()) return res.status(400).json({ error: "text required" });
+      const _uEnh = req.user as any;
+      if (_uEnh?.role !== "admin") {
+        const enhCredit = await storage.deductCredits(_uEnh.id, 1, "enhance_text", "Write With AI text enhancement", _uEnh.plan || "free");
+        if (!enhCredit.success) return res.status(402).json({ error: enhCredit.message, insufficientCredits: true });
+      }
+      const systemPrompt = `You are an elite copywriter. Rewrite the user's text to be clearer, more compelling, more specific and more persuasive — while keeping their core meaning and voice. ${context ? `Context: ${context}` : ""} Return ONLY the improved text. No explanations, no quotation marks wrapping the whole response.`;
+      const enhanced = await callGroq(systemPrompt, text, 600);
+      return res.json({ enhanced: enhanced.trim() });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── SOP / Content System Builder ─────────────────────────────────────────────
+  app.post("/api/ai/sop/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessType, niche, platform, contentType, experienceLevel, teamSetup, goal, postingFrequency, biggestStruggle } = req.body;
+      const _uSop = req.user as any;
+      if (_uSop?.role !== "admin") {
+        const sopCredit = await storage.deductCredits(_uSop.id, 7, "sop", "Content System SOP generation", _uSop.plan || "free");
+        if (!sopCredit.success) return res.status(402).json({ message: sopCredit.message, insufficientCredits: true, balance: sopCredit.balance });
+      }
+      const systemPrompt = `You are an elite operations architect and systems designer who builds premium, agency-level SOPs for creators, personal brands, and online businesses. Your SOPs are extremely structured, step-by-step actionable, and immediately implementable. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Build a complete, hyper-detailed Content System SOP for this creator/business.
+
+USER CONTEXT:
+- Business Type: ${businessType}
+- Niche: ${niche}
+- Primary Platform: ${platform}
+- Content Type: ${contentType}
+- Experience Level: ${experienceLevel}
+- Team Setup: ${teamSetup}
+- Primary Goal: ${goal}
+- Posting Frequency: ${postingFrequency}
+- Biggest Struggle: ${biggestStruggle}
+
+CUSTOMIZATION RULES:
+- If Beginner → simplify steps, add more clarity and decision rules
+- If Advanced → include optimization and scaling systems
+- If Solo → focus on efficiency, batching, and automation
+- If team → include delegation workflows, roles and handoffs
+- Tailor EVERYTHING specifically to their niche and platform
+
+Return EXACTLY this JSON structure:
+{
+  "sopName": "Custom name for this SOP — make it powerful and specific to their niche/goal",
+  "tagline": "One-sentence description of what this SOP achieves — outcome-driven",
+  "overview": {
+    "objective": "Clear, specific objective of this SOP",
+    "outcome": "Measurable result they will achieve — be specific with numbers/timeframes where possible",
+    "whoExecutes": "Who is responsible for executing this — their role description",
+    "toolsRequired": ["Tool 1 with specific use case", "Tool 2", "Tool 3", "Tool 4", "Tool 5", "Tool 6"],
+    "timeInvestment": "Total estimated time per week to execute this system",
+    "difficultyLevel": "${experienceLevel}-calibrated",
+    "proTip": "One powerful pro tip specific to their situation"
+  },
+  "workflowStages": [
+    { "name": "Stage 1 Name", "description": "What happens in this stage and why it matters", "duration": "X min/hrs", "who": "Who executes this", "output": "What gets produced" },
+    { "name": "Stage 2", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 3", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 4", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 5", "description": "...", "duration": "...", "who": "...", "output": "..." },
+    { "name": "Stage 6", "description": "...", "duration": "...", "who": "...", "output": "..." }
+  ],
+  "executionSteps": [
+    {
+      "stage": "Stage 1 Name",
+      "steps": [
+        { "number": 1, "action": "Specific action to take", "microActions": ["Micro-action 1", "Micro-action 2", "Micro-action 3"], "timeEstimate": "X minutes", "tools": ["Tool name"], "decisionRule": "If X → do Y, else do Z", "qualityStandard": "What good looks like here" },
+        { "number": 2, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..." },
+        { "number": 3, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..." }
+      ]
+    },
+    { "stage": "Stage 2", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 3", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 4", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 5", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] },
+    { "stage": "Stage 6", "steps": [{"number": 1, "action": "...", "microActions": ["..."], "timeEstimate": "...", "tools": ["..."], "decisionRule": "...", "qualityStandard": "..."}] }
+  ],
+  "qualityControl": {
+    "prePublishChecklist": ["Checklist item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7", "Item 8"],
+    "whatGoodLooksLike": "Specific description of what a high-quality ${contentType} looks like for their niche",
+    "commonMistakes": ["Mistake 1 with why it kills results", "Mistake 2", "Mistake 3", "Mistake 4", "Mistake 5"],
+    "avoidThis": "The single biggest mistake people in this niche make that tanks their ${goal}",
+    "qualityBenchmarks": { "engagement": "Target engagement rate", "reach": "Expected reach per post", "consistency": "Minimum posting consistency", "retention": "Hook retention benchmark if applicable" }
+  },
+  "automation": {
+    "whatToAutomate": ["Task 1 — Tool to use", "Task 2 — Tool", "Task 3 — Tool", "Task 4", "Task 5"],
+    "whatToBatch": ["Batch task 1 — when and how often", "Batch task 2", "Batch task 3", "Batch task 4"],
+    "aiUsagePoints": ["Where to use AI: specific step — tool recommendation", "AI point 2", "AI point 3", "AI point 4", "AI point 5"],
+    "timeReductionTips": ["Tip to cut time on X by Y%", "Tip 2", "Tip 3"],
+    "speedHack": "The single most powerful speed hack for their specific setup (${teamSetup}, ${experienceLevel})"
+  },
+  "optimizationLoop": {
+    "metricsToTrack": [
+      { "metric": "Metric name", "why": "Why this matters", "target": "Target benchmark", "frequency": "How often to check" },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." },
+      { "metric": "...", "why": "...", "target": "...", "frequency": "..." }
+    ],
+    "weeklyReviewSystem": "Exact weekly review process — step by step",
+    "improvementLoop": "How to take data → insight → action → test → repeat",
+    "monthlyResetProtocol": "What to do every month to reset, refine and level up the system"
+  },
+  "repurposingSystem": {
+    "coreToFive": "How to turn one ${contentType} into 5 pieces of content — be specific",
+    "platformAdaptations": [
+      { "platform": "Platform name", "format": "Content format", "adaptation": "How to adapt it specifically", "uniqueAngle": "What angle works best here" },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." },
+      { "platform": "...", "format": "...", "adaptation": "...", "uniqueAngle": "..." }
+    ],
+    "repurposingSchedule": "How to spread the content across the week/month"
+  },
+  "scalingSystem": {
+    "roles": [
+      { "role": "Role title", "responsibilities": ["Responsibility 1", "Responsibility 2", "Responsibility 3"], "hireWhen": "When to hire this role" },
+      { "role": "...", "responsibilities": ["..."], "hireWhen": "..." }
+    ],
+    "handoffProcess": "How to hand off tasks without losing quality or consistency",
+    "communicationStructure": "How the team communicates — tools, cadence, structure",
+    "consistencySystem": "How to maintain brand voice and quality as team grows",
+    "applicableNote": "${teamSetup === "Solo" ? "This section is for when you scale. Review it when you hire your first VA." : "Implement these systems now to build a scalable operation."}"
+  },
+  "executionSummary": {
+    "simplifiedSystem": "The entire SOP distilled into 5 simple steps anyone can follow",
+    "keyRules": ["Rule 1 — non-negotiable for success", "Rule 2", "Rule 3", "Rule 4", "Rule 5", "Rule 6"],
+    "consistencyTips": ["Tip 1 specific to beating their struggle (${biggestStruggle})", "Tip 2", "Tip 3", "Tip 4", "Tip 5"],
+    "firstWeekPlan": "Exactly what to do in the first 7 days to get this system running",
+    "motivationalClose": "A powerful closing statement that makes them feel equipped and confident"
+  }
+}
+
+CRITICAL: Make every step hyper-specific to their niche (${niche}), platform (${platform}), and goal (${goal}). Avoid generic advice entirely. Every tool recommendation, time estimate, and decision rule must feel tailored and immediately actionable.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 6000);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse SOP response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── ICP Builder ──────────────────────────────────────────────────────────────
+  app.post("/api/ai/icp/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessName, whatYouSell, targetAudience, coreTransformation, priceRange } = req.body;
+      const _uIcp = req.user as any;
+      if (_uIcp?.role !== "admin") {
+        const icpCredit = await storage.deductCredits(_uIcp.id, 6, "icp", "Ideal Customer Profile generation", _uIcp.plan || "free");
+        if (!icpCredit.success) return res.status(402).json({ message: icpCredit.message, insufficientCredits: true, balance: icpCredit.balance });
+      }
+      const systemPrompt = `You are a world-class customer research strategist, behavioral psychologist, and direct response marketer. Build deeply researched Ideal Customer Profiles with extreme precision and real-world applicability. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Build a complete, deeply researched Ideal Customer Profile (ICP) for this business.
+
+BUSINESS CONTEXT:
+- Business Name: ${businessName || "Not specified"}
+- What They Sell: ${whatYouSell}
+- Who They Think Their Audience Is: ${targetAudience}
+- Core Transformation / Outcome: ${coreTransformation || "Not specified"}
+- Price Range: ${priceRange}
+
+Go extremely deep. Be hyper-specific. Use real-world, human language. Avoid generic advice. Think like a world-class strategist who deeply understands human behaviour, emotional drivers, and buying psychology. Every section should feel like you truly know this person.
+
+Return EXACTLY this JSON structure:
+{
+  "businessSummary": {
+    "sharperDescription": "A sharper, more compelling version of what they sell — 2-3 sentences, outcome-driven and specific",
+    "refinedTargetAudience": "The most specific and valuable target audience segment — avoid being broad, name the exact type of person",
+    "coreTransformation": "The core transformation in a powerful, vivid, outcome-driven way — before state vs after state",
+    "positioningStatement": "A strong, differentiated positioning statement — 1-2 sentences that makes this business impossible to ignore",
+    "unfairAdvantage": "What unique advantage does this business have that competitors cannot easily copy",
+    "marketSophistication": "How aware and sophisticated is this market? What level of proof/credibility do they need?"
+  },
+  "demographics": {
+    "ageRange": "Specific age range with peak demographic",
+    "gender": "Gender breakdown with percentages if relevant",
+    "location": "Primary locations/markets — countries, regions, urban vs rural",
+    "incomeLevel": "Specific income level range with spending capacity notes",
+    "profession": "Specific profession, industry and seniority level",
+    "educationLevel": "Education level and how it affects their decision-making",
+    "deviceUsage": "Primary devices and platforms they use daily",
+    "purchasingBehaviour": "How they typically research, evaluate and buy — online vs offline, impulse vs deliberate"
+  },
+  "psychographics": {
+    "beliefs": "Their core beliefs about money, success, growth and opportunity — be specific and emotionally real",
+    "coreValues": "What they deeply value in life, business and relationships — their non-negotiables",
+    "aspirations": "Who they want to become in the next 1-3 years — make it vivid, emotional and personal",
+    "deepFears": "What they are secretly afraid of becoming or failing at — their darkest concern",
+    "worldview": "How they see the world, their industry, and their role in it — their operating lens",
+    "selfPerception": "How they see themselves right now — their internal narrative and identity"
+  },
+  "currentSituation": {
+    "dailyLife": "What their day actually looks like — specific, realistic and relatable",
+    "alreadyTried": ["Specific thing they tried", "Another failed attempt", "Third approach that disappointed them", "A tool or program that overpromised"],
+    "whyFailed": "Why those attempts failed — specific root cause, not surface-level",
+    "repeatedFrustrations": "What frustrates them every single week — make it visceral and specific",
+    "currentWorkarounds": "What are they doing right now to cope — their imperfect solution",
+    "informationSources": "Where do they currently learn and research — YouTube, podcasts, Instagram, forums, courses?"
+  },
+  "painPoints": [
+    {
+      "title": "Short, punchy pain point title",
+      "situation": "Describe the specific situation that triggers this pain in vivid detail — set the scene",
+      "emotionalFeel": "Exactly how this feels emotionally — write in first person as if they are feeling it right now",
+      "cost": "What this pain costs them in time, money, identity, confidence, relationships or opportunity",
+      "severity": 9,
+      "urgency": 8,
+      "frequency": 7
+    },
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 8, "urgency": 7, "frequency": 9},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 7, "urgency": 8, "frequency": 6},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 8, "urgency": 6, "frequency": 8},
+    {"title": "...", "situation": "...", "emotionalFeel": "...", "cost": "...", "severity": 6, "urgency": 7, "frequency": 7}
+  ],
+  "desiredOutcomes": {
+    "dreamOutcome": "Their dream outcome — specific, vivid and emotionally charged — what does winning look like?",
+    "shortTermDesires": "What they want in the next 30-90 days — the quick wins they're after",
+    "longTermDesires": "What they want in 1-3 years — the deeper transformation",
+    "successDefinition": "What 'success' looks like in their mind — socially, financially, personally, and emotionally",
+    "lifeAfterSolution": "What their life looks like after your offer works — paint a vivid picture of the after state"
+  },
+  "buyingTriggers": {
+    "momentOfDecision": "The specific moment or event that pushes them from consideration to buying",
+    "emotionalDrivers": ["Primary emotional driver", "Secondary driver", "Third driver"],
+    "logicalJustifications": ["How they justify the purchase logically to themselves", "Second justification", "Third"],
+    "socialProofType": "What type of social proof converts them — testimonials, case studies, follower counts, expert authority?",
+    "priceAnchoring": "How they think about price — what makes it feel worth it or too expensive?"
+  },
+  "insights": {
+    "marketAwarenessScore": 6,
+    "painIntensity": 8,
+    "buyingReadiness": 5,
+    "desireStrength": 7,
+    "trustDeficit": 6,
+    "priceResistance": 5,
+    "insightNotes": "Brief explanation of the above scores and what they mean for marketing strategy"
+  }
+}
+
+CRITICAL: Return exactly 5 pain points with real severity/urgency/frequency scores (1-10). Be hyper-specific — this should read like a deep dossier on a real person, not a generic persona. Every insight should be actionable.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse ICP response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Audience Psychology Map ──────────────────────────────────────────────────
+  app.post("/api/ai/audience-psychology/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { businessDescription, targetAudienceDescription, icpSummary } = req.body;
+      const _uApm = req.user as any;
+      if (_uApm?.role !== "admin") {
+        const apmCredit = await storage.deductCredits(_uApm.id, 6, "audience_psychology", "Audience Psychology Map generation", _uApm.plan || "free");
+        if (!apmCredit.success) return res.status(402).json({ message: apmCredit.message, insufficientCredits: true, balance: apmCredit.balance });
+      }
+      const systemPrompt = `You are a world-class behavioral psychologist, direct response marketer, and audience strategist. Map audience psychology with extreme depth — buying behaviour, identity, emotions, beliefs, messaging, and content strategy. Return ONLY valid JSON — no markdown, no code fences, no extra text.`;
+      const userPrompt = `Generate a complete Audience Psychology Map for this business.
+
+BUSINESS CONTEXT:
+- Business Description: ${businessDescription}
+- Target Audience: ${targetAudienceDescription || "Not specified — infer from business description"}
+- ICP Summary (if provided): ${icpSummary || "Not provided"}
+
+Go to the deepest level of psychology, emotions, and behaviour. Use real human language. Make every insight feel like you truly understand this person. Be specific, actionable, and emotionally intelligent.
+
+Return EXACTLY this JSON structure:
+{
+  "buyerClarity": {
+    "awarenessStage": "Are they problem-aware, solution-aware, or product-aware? Explain their current state in detail and what that means for marketing",
+    "triggerToSearch": "What specific event, moment or breaking point triggers them to actively search for a solution?",
+    "whatMakesThemSayYes": "What specifically makes them say yes — be precise about the combination of factors",
+    "trustBuilders": "What builds trust for this specific audience — authority, relatability, social proof, simplicity, certifications?",
+    "proofNeeded": "What kind of proof converts them — case studies, before/after, testimonials, logical breakdown, credentials?",
+    "decisionTimeline": "How long does it typically take them to make a buying decision and what happens during that time?",
+    "objections": [
+      {"title": "Objection title", "type": "visible", "description": "Detailed explanation of this objection, how they express it, and what fear drives it"},
+      {"title": "...", "type": "visible", "description": "..."},
+      {"title": "...", "type": "hidden", "description": "Hidden objection they won't say out loud — their deep internal resistance"},
+      {"title": "...", "type": "hidden", "description": "..."},
+      {"title": "...", "type": "visible", "description": "..."},
+      {"title": "...", "type": "hidden", "description": "..."}
+    ],
+    "internalDialogue": "Write their exact internal dialogue before buying — the thoughts running through their head. Write it as real thoughts, first person, stream of consciousness.",
+    "emotionalTriggers": ["fear", "ambition", "status", "relief", "urgency", "identity", "belonging"],
+    "externalTriggers": ["deadline", "pain spike", "competitor success", "social proof moment", "opportunity window", "life event"]
+  },
+  "psychologyMap": {
+    "currentSelfImage": "How they see themselves right now — their honest internal narrative and self-assessment",
+    "desiredPublicImage": "How they want to be seen by others — their social identity aspiration and personal brand",
+    "identityShiftNeeded": "The exact identity shift they need to make — make this powerful and transformational",
+    "coreEmotions": ["frustrated", "overwhelmed", "stuck", "hopeful", "uncertain", "embarrassed", "determined"],
+    "emotionalHighs": "What makes them feel excited, confident and motivated — when do they feel on top of the world?",
+    "emotionalLows": "What brings them down — their darkest moments, their shame and their deepest doubts",
+    "whatKeepsThemStuck": "The psychological patterns, habits, thought loops and environment that prevent them from moving forward",
+    "limitingBeliefs": ["Specific limiting belief they hold", "Another deeply held belief blocking them", "Third belief keeping them small", "Fourth false belief about the market or themselves", "Fifth belief about their own capability"],
+    "empoweringBeliefs": ["Empowering belief after transformation", "Second empowering belief", "Third", "Fourth", "Fifth"],
+    "falseAssumptions": ["False assumption about what success requires", "False assumption about the market", "False assumption about themselves", "False assumption about timing", "False assumption about the solution"],
+    "exactPhrases": ["Exact phrase they say or think", "Second phrase", "Third", "Fourth", "Fifth", "Sixth"],
+    "frustrationExpressions": ["Frustration expression 1", "Expression 2", "Expression 3", "Expression 4", "Expression 5"],
+    "emotionalKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8"]
+  },
+  "messagingInsights": {
+    "resonantAngles": ["Angle 1 that deeply resonates", "Angle 2", "Angle 3", "Angle 4", "Angle 5", "Angle 6", "Angle 7"],
+    "immediateAttentionAngle": "The single angle that would stop their scroll and grab their full attention immediately",
+    "doNotSay": ["Phrase or positioning that turns them off and why", "Second repellent phrase", "Third", "Fourth"],
+    "mostCompellingPromise": "The most compelling, specific promise you can make — visceral, real, and undeniable",
+    "headlineFormulas": ["Headline formula 1 that would convert for this audience", "Formula 2", "Formula 3"],
+    "ctaApproach": "What type of CTA works best for this audience — soft, hard, curiosity-based, value-first?"
+  },
+  "contentDirection": {
+    "contentIdeas": ["Specific content idea 1 tailored to their exact psychology", "Idea 2", "Idea 3", "Idea 4", "Idea 5", "Idea 6", "Idea 7", "Idea 8", "Idea 9", "Idea 10"],
+    "offerAngles": ["Offer angle that would convert for this audience", "Angle 2", "Angle 3", "Angle 4", "Angle 5"],
+    "scrollStoppingHooks": ["Hook 1", "Hook 2", "Hook 3", "Hook 4", "Hook 5", "Hook 6", "Hook 7", "Hook 8"],
+    "positioningSuggestions": ["Positioning suggestion 1", "Suggestion 2", "Suggestion 3", "Suggestion 4"],
+    "platformStrategy": "Which platforms are best for this audience and what type of content performs on each?"
+  },
+  "scores": {
+    "buyerReadiness": 5,
+    "emotionalIntensity": 8,
+    "resistanceLevel": 6,
+    "identityGapSize": 7,
+    "messagingResonance": 6,
+    "purchaseUrgency": 5,
+    "trustRequired": 7,
+    "scoreNotes": "Brief explanation of these scores and what they mean for the marketing approach"
+  }
+}
+
+CRITICAL: Be hyper-specific and deeply human. Avoid generic advice entirely. Write as if you have studied this person for years and understand them better than they understand themselves. Every insight must be immediately actionable.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse psychology map response");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Content Planner — Generate weekly plan ──────────────────────────────
+  app.post("/api/ai/content-planner/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, targetAudience, goal, platforms, postingFrequency, contentStyle, brandVoice, contentPillars, biggestChallenge, weeklyFocus } = req.body;
+      if (!niche?.trim()) return res.status(400).json({ message: "niche required" });
+      const _uCp = req.user as any;
+      if (_uCp?.role !== "admin") {
+        const cpCredit = await storage.deductCredits(_uCp.id, 7, "content_planner", "AI Content Planner weekly plan", _uCp.plan || "free");
+        if (!cpCredit.success) return res.status(402).json({ message: cpCredit.message, insufficientCredits: true, balance: cpCredit.balance });
+      }
+
+      const platformList = Array.isArray(platforms) && platforms.length > 0 ? platforms.join(", ") : "Instagram";
+      const freqMap: Record<string, number> = { daily: 7, frequent: 6, moderate: 4, light: 2 };
+      const numDays = freqMap[postingFrequency] ?? 5;
+
+      const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].slice(0, numDays);
+
+      const systemPrompt = `You are an elite content strategist and growth operator embedded in a high-performance SaaS platform.
+
+Your task is to generate a highly strategic, performance-driven weekly content calendar. This is NOT about filling dates — it is about creating a system that drives growth, engagement, and consistency.
+
+CORE THINKING RULES:
+1. DO NOT generate random or generic ideas — every post must have a purpose
+2. THINK IN CONTENT TYPES — balance across: Authority (build trust), Engagement (drive interaction), Virality (reach new people), Conversion (drive action), Value (educate)
+3. THINK IN SYSTEMS, NOT POSTS — each post connects to a larger weekly strategy
+4. OPTIMIZE FOR EXECUTION — ideas must be simple, clear, and easy to create
+5. AVOID REPETITION — ensure variety in format, topic, and angle
+
+PLANNING LOGIC:
+- Step 1: Define weekly objective and theme based on user's goal
+- Step 2: Assign content roles across the week (at minimum: 1 Virality, 2 Authority, 1 Engagement, 1 Conversion)
+- Step 3: Map content to platform behavior (short-form = hook heavy, long-form = depth + value)
+- Step 4: Generate specific, non-generic content ideas
+- Step 5: Craft a scroll-stopping hook for EVERY idea
+- Step 6: Assign the right format (Reel, Carousel, Tweet, Story, Video, LinkedIn post)
+
+OUTPUT: Return ONLY valid JSON in this exact structure:
+{
+  "weekObjective": "One clear sentence describing what this week's content will achieve",
+  "weekTheme": "A unifying theme that connects all posts this week",
+  "contentMix": {
+    "virality": 1,
+    "authority": 2,
+    "engagement": 1,
+    "conversion": 1,
+    "value": 1
+  },
+  "days": [
+    {
+      "day": "Monday",
+      "role": "Virality",
+      "contentIdea": "Specific, non-generic content idea in 1-2 sentences",
+      "hook": "The exact first line/sentence that stops the scroll — must be compelling",
+      "format": "Reel",
+      "goal": "Why this post exists and what result it drives",
+      "tip": "One execution tip to make this post better"
+    }
+  ],
+  "executionNote": "Strategic note on how to execute this week for maximum results",
+  "repurposingOpportunity": "One high-value piece of content that can be repurposed across multiple formats"
+}`;
+
+      const userPrompt = `Generate a ${numDays}-day content plan for:
+
+Niche: ${niche}
+Target Audience: ${targetAudience || "Not specified"}
+Primary Goal: ${goal}
+Platforms: ${platformList}
+Posting Frequency: ${postingFrequency}
+Content Style: ${contentStyle}
+Brand Voice: ${brandVoice}
+Content Pillars: ${contentPillars || "Not specified"}
+Biggest Challenge: ${biggestChallenge || "Not specified"}
+Weekly Focus / Campaign: ${weeklyFocus || "General brand building"}
+
+Days to plan: ${dayNames.join(", ")}
+
+Make every content idea SPECIFIC and ACTIONABLE. Do not use generic advice. The hook for each post must be so good it stops someone mid-scroll. Match the format to the platform (${platformList}).`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3500);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Failed to parse content plan");
+        result = JSON.parse(m[0]);
+      }
+      if (!Array.isArray(result.days)) throw new Error("Invalid response structure");
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Content Planner — Regenerate single day ─────────────────────────────
+  app.post("/api/ai/content-planner/regenerate-day", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { dayName, role, niche, goal, platforms, contentStyle, brandVoice, contentPillars } = req.body;
+      if (!dayName || !niche) return res.status(400).json({ message: "dayName and niche required" });
+      const _uRd = req.user as any;
+      if (_uRd?.role !== "admin") {
+        const rdCredit = await storage.deductCredits(_uRd.id, 3, "content_planner", "Content Planner day regeneration", _uRd.plan || "free");
+        if (!rdCredit.success) return res.status(402).json({ message: rdCredit.message, insufficientCredits: true, balance: rdCredit.balance });
+      }
+
+      const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
+      const systemPrompt = `You are an elite content strategist. Regenerate a SINGLE content day with a fresh, specific idea. Return ONLY valid JSON with this structure:
+{
+  "day": {
+    "day": "${dayName}",
+    "role": "${role}",
+    "contentIdea": "Fresh, specific content idea",
+    "hook": "Scroll-stopping first line",
+    "format": "Reel/Carousel/Tweet/etc",
+    "goal": "Why this post exists",
+    "tip": "One execution tip"
+  }
+}`;
+      const userPrompt = `New ${role} content for ${dayName}. Niche: ${niche}. Goal: ${goal}. Platform: ${platformList}. Style: ${contentStyle}. Voice: ${brandVoice}. Pillars: ${contentPillars || "general"}. Make it different from a typical post — be specific and punchy.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 700);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse error");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Content Planner — Make it viral ────────────────────────────────────
+  app.post("/api/ai/content-planner/make-viral", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { dayName, currentIdea, niche, platforms, targetAudience } = req.body;
+      if (!dayName || !currentIdea) return res.status(400).json({ message: "dayName and currentIdea required" });
+      const _uMv = req.user as any;
+      if (_uMv?.role !== "admin") {
+        const mvCredit = await storage.deductCredits(_uMv.id, 3, "content_planner", "Content Planner make-viral", _uMv.plan || "free");
+        if (!mvCredit.success) return res.status(402).json({ message: mvCredit.message, insufficientCredits: true, balance: mvCredit.balance });
+      }
+
+      const platformList = Array.isArray(platforms) ? platforms.join(", ") : "Instagram";
+      const systemPrompt = `You are an elite viral content strategist. Your ONLY job is to rewrite a content idea to maximize reach, shares, and new audience growth. Make it controversial-enough-to-share, emotionally charged, and platform-optimized. Return ONLY valid JSON:
+{
+  "day": {
+    "day": "${dayName}",
+    "role": "Virality",
+    "contentIdea": "Viral-optimized version of the idea — more provocative, shareable, emotionally charged",
+    "hook": "The most scroll-stopping, pattern-disrupting first line possible",
+    "format": "Best format for virality on this platform",
+    "goal": "Maximize reach and new follower acquisition",
+    "tip": "One specific virality tip for executing this post"
+  }
+}`;
+      const userPrompt = `Make this viral for ${platformList} in the ${niche} niche. Original idea: "${currentIdea}". Target: ${targetAudience || "general audience"}. Rewrite it to be more provocative, emotionally engaging, and shareable — without being dishonest.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 600);
+      let result: any;
+      try { result = JSON.parse(raw); } catch {
+        const m = raw.match(/\{[\s\S]*\}/); if (!m) throw new Error("Parse error");
+        result = JSON.parse(m[0]);
+      }
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Razorpay Payments ────────────────────────────────────────────────────────
+  const CREDIT_PACKAGES_MAP: Record<string, { credits: number; amountPaise: number; label: string }> = {
+    starter: { credits: 25, amountPaise: 74900, label: "Starter Pack – 25 Credits" },
+    growth: { credits: 75, amountPaise: 199900, label: "Growth Pack – 75 Credits" },
+    power: { credits: 200, amountPaise: 499900, label: "Power Pack – 200 Credits" },
+  };
+
+  app.post("/api/payment/create-order", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { packageId } = req.body;
+      const pkg = CREDIT_PACKAGES_MAP[packageId];
+      if (!pkg) return res.status(400).json({ message: "Invalid package" });
+
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+
+      const order = await rzp.orders.create({
+        amount: pkg.amountPaise,
+        currency: "INR",
+        receipt: `credits_${userId}_${Date.now()}`,
+        notes: { userId, packageId, credits: String(pkg.credits) },
+      });
+
+      return res.json({
+        orderId: order.id,
+        amount: pkg.amountPaise,
+        currency: "INR",
+        keyId: process.env.RAZORPAY_KEY_ID,
+        packageLabel: pkg.label,
+        credits: pkg.credits,
+      });
+    } catch (err: any) {
+      console.log("[razorpay create-order] error:", JSON.stringify(err));
+      return res.status(500).json({ message: (err as any)?.error?.description || err?.message || "Failed to create order" });
+    }
+  });
+
+  app.post("/api/payment/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, packageId } = req.body;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !packageId) {
+        return res.status(400).json({ message: "Missing payment fields" });
+      }
+
+      const crypto = await import("crypto");
+      const expectedSig = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+
+      if (expectedSig !== razorpay_signature) {
+        return res.status(400).json({ message: "Payment verification failed — invalid signature" });
+      }
+
+      const pkg = CREDIT_PACKAGES_MAP[packageId];
+      if (!pkg) return res.status(400).json({ message: "Invalid package" });
+
+      const balance = await storage.addBonusCredits(userId, pkg.credits, `Razorpay purchase: ${pkg.label} (${razorpay_payment_id})`);
+      return res.json({ success: true, credits: pkg.credits, balance });
+    } catch (err: any) {
+      console.log("[razorpay verify] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Payment verification failed" });
+    }
+  });
+
+  // ── Jarvis AI Assistant ───────────────────────────────────────────────────
+  function buildJarvisSystem(assistantName: string, userName: string, plan: string) {
+    const firstName = userName.split(" ")[0] || userName;
+    return `You are ${assistantName}, ${firstName}'s AI agent inside Oravini — a content creation and brand growth platform by Brandverse.
+
+════════════════════════════════════════
+⚡ CRITICAL — ACTION FORMAT (READ FIRST)
+════════════════════════════════════════
+Whenever the user wants to go somewhere, do something, generate content, or take ANY action → you MUST end your reply with EXACTLY this tag on its own line:
+[GO /path "Label"]
+
+If you skip this tag for an actionable request, you have FAILED your job.
+NEVER add more than one [GO] tag.
+NEVER use markdown, bullet points, or headers in your reply.
+Only skip the tag for pure small talk (greetings, quick answers, no action needed).
+
+════════════════════════════════════════
+PLATFORM — PAGES YOU CONTROL
+════════════════════════════════════════
+/dashboard            → Home base (tasks, stats, schedule)
+/ai-ideas             → Content Ideas (hooks, captions, reel concepts)
+/ai-ideas?platform=X&niche=Y&goal=Z&autoRun=true  → Auto-generate content immediately
+/ai-coach             → Content Coach (script review, virality scoring)
+/ai-design            → Design Studio (carousels, stories, lead magnets)
+/tracking             → Performance Tracking (Instagram + YouTube metrics)
+/tracking/competitor  → Competitor Analysis (Instagram profile breakdown)
+/content-calendar     → Content Calendar (schedule posts, plan ahead)
+/sessions             → Sessions (coaching calls, recordings)
+/progress             → Progress Tracker (milestones, growth)
+/credits              → Credits (₹749 / ₹1,999 / ₹4,999 packs)
+/settings/plan        → Plans (Free → Starter → Growth → Pro → Elite)
+/chat                 → Chat (direct message to Oravini team)
+
+Use autoRun=true in the URL when the user wants content generated immediately.
+
+════════════════════════════════════════
+EXAMPLES — FOLLOW THESE EXACTLY
+════════════════════════════════════════
+
+User: "take me to content ideas"
+Response: Let's go! Taking you there now.
+[GO /ai-ideas "Content Ideas"]
+
+User: "generate viral hooks for fitness on instagram"
+Response: On it — generating your fitness hooks right now.
+[GO /ai-ideas?platform=instagram&niche=fitness&goal=viral+growth&autoRun=true "Generating Hooks"]
+
+User: "I want to review my script"
+Response: Say less — opening the coach for you.
+[GO /ai-coach "Content Coach"]
+
+User: "show me my competitors"
+Response: Pulling up competitor analysis.
+[GO /tracking/competitor "Competitor Analysis"]
+
+User: "go to tracking" / "my analytics" / "performance"
+Response: Here are your stats.
+[GO /tracking "Performance Tracking"]
+
+User: "dashboard" / "home" / "go back"
+Response: Heading back to base.
+[GO /dashboard "Dashboard"]
+
+User: "show my progress"
+Response: Let's see how far you've come.
+[GO /progress "Progress"]
+
+User: "open content calendar" / "schedule my posts"
+Response: Opening your content calendar.
+[GO /content-calendar "Content Calendar"]
+
+User: "top up credits" / "buy credits"
+Response: Taking you to credits now.
+[GO /credits "Credits"]
+
+User: "upgrade my plan"
+Response: Let's get you to the plans page.
+[GO /settings/plan "Plans"]
+
+User: "message the team" / "contact support"
+Response: Opening chat for you.
+[GO /chat "Chat"]
+
+User: "what can you do?"
+Response: I can navigate the entire platform, generate content, review scripts, analyse competitors, and inject text into any field — I'm your full-stack operator. What do you need?
+
+User: "how are you?"
+Response: Locked in and ready ${firstName}. What are we building?
+
+════════════════════════════════════════
+PERSONALITY
+════════════════════════════════════════
+- Talk like a real best friend: warm, direct, no corporate speak
+- Keep replies to 1–2 lines max — you act, you don't lecture
+- NEVER say "Certainly!", "Of course!", "Absolutely!" — that's robot talk
+- When ${firstName} is stuck → give one clear next step
+- When ${firstName} wins → hype them hard
+
+Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
+  }
+
+  app.post("/api/jarvis/chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, history = [], assistantName = "Jarvis" } = req.body;
+      const u = req.user as any;
+      if (!message?.trim()) return res.status(400).json({ message: "Message is required" });
+
+      // ── Text injection patterns (no LLM call, no credits) ────────────────────
+      const writeVerb = /(?:write|paste|put|add|type|dictate|input|insert|inject|send|copy|fill(?:\s+in)?|enter)/i;
+      const writePrep = /(?:\s+this)?(?:\s+(?:in(?:to)?|to|for|on|at))?\s+(?:the\s+)?/i;
+      const wvp = writeVerb.source + writePrep.source;
+      const firstName = (u.name || "").split(" ")[0] || "friend";
+
+      // Content Coach / Script
+      const coachScriptMatch = message.match(new RegExp(wvp + "(?:content\\s*coach|coach|script\\s*(?:area|box)?|ai\\s*coach)[:\\s,]+(.+)", "is"));
+      if (coachScriptMatch) {
+        const scriptContent = coachScriptMatch[1].trim();
+        return res.json({
+          reply: `On it, ${firstName}! Pasting your script into the Content Coach right now.`,
+          action: { url: `/ai-coach?script=${encodeURIComponent(scriptContent)}`, label: "Content Coach" },
+          inject: { testId: "textarea-script", content: scriptContent },
+          creditCost: 0,
+        });
+      }
+
+      // Chat / Support message
+      const chatMatch = message.match(new RegExp(wvp + "(?:chat|message(?:\\s*box)?|support(?:\\s*chat)?|chat\\s*input)[:\\s,]+(.+)", "is"));
+      if (chatMatch) {
+        const chatContent = chatMatch[1].trim();
+        return res.json({
+          reply: `Got it, ${firstName}! Writing that message in the chat now.`,
+          action: { url: "/chat", label: "Chat" },
+          inject: { testId: "input-message", content: chatContent },
+          creditCost: 0,
+        });
+      }
+
+      // Competitor URL / handle
+      const competitorMatch = message.match(new RegExp(wvp + "(?:competitor(?:\\s*url|\\s*handle|\\s*link|\\s*field)?|competitor\\s*(?:analysis|study|box)?)[:\\s,]+(.+)", "is"));
+      if (competitorMatch) {
+        const competitorContent = competitorMatch[1].trim();
+        return res.json({
+          reply: `Sure, ${firstName}! Entering the competitor URL in the Content Coach now.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-competitor-url", content: competitorContent },
+          creditCost: 0,
+        });
+      }
+
+      // Brand niche field
+      const nicheMatch = message.match(new RegExp(wvp + "(?:niche(?:\\s*field|\\s*box)?|brand\\s*niche)[:\\s,]+(.+)", "is"));
+      if (nicheMatch) {
+        const nicheContent = nicheMatch[1].trim();
+        return res.json({
+          reply: `Done, ${firstName}! Writing your niche in the Content Coach.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-brand-niche", content: nicheContent },
+          creditCost: 0,
+        });
+      }
+
+      // Brand target audience field
+      const targetMatch = message.match(new RegExp(wvp + "(?:target(?:\\s*audience|\\s*field)?|audience(?:\\s*field)?)[:\\s,]+(.+)", "is"));
+      if (targetMatch) {
+        const targetContent = targetMatch[1].trim();
+        return res.json({
+          reply: `Got it, ${firstName}! Filling your target audience in the Content Coach.`,
+          action: { url: "/ai-coach", label: "Content Coach" },
+          inject: { testId: "input-brand-target", content: targetContent },
+          creditCost: 0,
+        });
+      }
+
+      const FREE_PLANS = ["growth", "pro", "elite"];
+      const creditCost = FREE_PLANS.includes(u.plan) ? 0 : 2;
+
+      if (u.role !== "admin" && creditCost > 0) {
+        const creditResult = await storage.deductCredits(u.id, creditCost, "jarvis", `${assistantName} AI assistant message`, u.plan || "free");
+        if (!creditResult.success) {
+          return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        }
+      }
+
+      const systemPrompt = buildJarvisSystem(
+        String(assistantName).trim() || "Jarvis",
+        u.name || u.email || "friend",
+        u.plan || "free"
+      );
+
+      const msgs: any[] = [
+        { role: "system", content: systemPrompt },
+        ...history.slice(-12).map((h: any) => ({ role: h.role, content: String(h.content) })),
+        { role: "user", content: message },
+      ];
+
+      const jarvisKey = (await storage.getAppSetting("jarvis_groq_key")) || process.env.GROQ_API_KEY;
+      if (!jarvisKey) throw new Error("Jarvis AI key not configured — add it in Admin → Settings");
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: msgs,
+          temperature: 0.55,
+          max_tokens: 400,
+        }),
+      });
+      const data: any = await r.json();
+      if (data?.error) throw new Error(data.error.message);
+      const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response. Try again!";
+
+      // Parse action tag — flexible regex handles extra whitespace, newlines, or quote variants
+      // Matches: [GO /path "Label"] or [GO /path 'Label'] anywhere in the response
+      const actionMatch = rawReply.match(/\[GO\s+([\S]+)\s+["']([^"']+)["']\]/i);
+      const reply = rawReply.replace(actionMatch?.[0] || "", "").trim();
+      const action = actionMatch ? { url: actionMatch[1], label: actionMatch[2] } : null;
+      console.log(`[Jarvis] raw="${rawReply.slice(0, 120)}" action=${JSON.stringify(action)}`);
+
+      return res.json({ reply, action, creditCost });
+    } catch (err: any) {
+      console.error("[Jarvis Chat] Error:", err.message);
+      return res.status(500).json({ message: err.message || "Jarvis failed to respond" });
+    }
+  });
+
+  // ── Content Analyser ──────────────────────────────────────────────────────
+  // YouTube transcript extractor (no external package needed)
+  async function extractYouTubeTranscript(videoId: string): Promise<Array<{ time: number, dur: number, text: string }>> {
+    // Method 1: Parse caption tracks from video page
+    try {
+      const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36", "Accept-Language": "en-US,en;q=0.9" }
+      });
+      const html = await pageRes.text();
+      const captionMatch = html.match(/"captionTracks":(\[.*?\])(?=,|\})/);
+      if (captionMatch) {
+        let tracks: any[] = [];
+        try { tracks = JSON.parse(captionMatch[1]); } catch { }
+        const track = tracks.find((t: any) => t.languageCode === "en") || tracks.find((t: any) => t.languageCode?.startsWith("en")) || tracks[0];
+        if (track?.baseUrl) {
+          // Try JSON3 format
+          const cRes = await fetch(track.baseUrl + "&fmt=json3");
+          if (cRes.ok) {
+            try {
+              const d = await cRes.json();
+              const result = (d.events || []).filter((e: any) => e.segs && e.tStartMs != null).map((e: any) => ({
+                time: Math.round(e.tStartMs / 1000),
+                dur: Math.round((e.dDurationMs || 3000) / 1000),
+                text: e.segs.map((s: any) => s.utf8 || "").join("").replace(/\n/g, " ").trim()
+              })).filter((t: any) => t.text.length > 1);
+              if (result.length > 5) return result;
+            } catch { }
+          }
+          // Fallback: XML format
+          const xRes = await fetch(track.baseUrl);
+          if (xRes.ok) {
+            const xml = await xRes.text();
+            const matches = [...xml.matchAll(/<text start="([\d.]+)" dur="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g)];
+            return matches.map(m => ({
+              time: Math.round(parseFloat(m[1])),
+              dur: Math.round(parseFloat(m[2])),
+              text: m[3].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/<[^>]+>/g, "").trim()
+            })).filter(t => t.text.length > 1);
+          }
+        }
+      }
+    } catch (e: any) { console.error("[Transcript Page]", e.message); }
+    return [];
+  }
+
+  function fmtTime(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  app.post("/api/analyse/youtube", requireAuth, async (req: Request, res: Response) => {
+    const { url } = req.body;
+    if (!url?.trim()) return res.status(400).json({ message: "YouTube URL required" });
+    const u = req.user as any;
+    if (u.role !== "admin") {
+      const cr = await storage.deductCredits(u.id, 3, "analyse", "YouTube Content Analysis", u.plan || "free");
+      if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
+    }
+    try {
+      // Extract video ID
+      const vidMatch = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+      const videoId = vidMatch?.[1];
+
+      // Step 1: oEmbed (fast, always works)
+      let videoData: any = {};
+      try {
+        const oe = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+        if (oe.ok) { const d = await oe.json(); videoData = { title: d.title, channel: d.author_name, thumbnail: d.thumbnail_url, videoId }; }
+      } catch { }
+
+      // Use higher-res thumbnail if we have videoId
+      if (videoId && !videoData.thumbnail) videoData.thumbnail = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      if (videoId && videoData.thumbnail) videoData.thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+
+      // Step 2: Apify for metadata (parallel with transcript extraction)
+      const apifyToken = process.env.APIFY_TOKEN;
+      const [apifyResult, transcriptData] = await Promise.allSettled([
+        (async () => {
+          if (!apifyToken) return null;
+          const aRes = await fetch(`https://api.apify.com/v2/acts/bernardo~youtube-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=50`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ startUrls: [{ url }], maxResults: 1 }),
+          });
+          if (!aRes.ok) return null;
+          const items = await aRes.json();
+          return Array.isArray(items) ? items[0] : null;
+        })(),
+        videoId ? extractYouTubeTranscript(videoId) : Promise.resolve([]),
+      ]);
+
+      // Merge Apify metadata
+      if (apifyResult.status === "fulfilled" && apifyResult.value) {
+        const item = apifyResult.value;
+        videoData = { ...videoData, title: item.title || videoData.title, channel: item.channelName || item.channelTitle || videoData.channel, thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` || item.thumbnailUrl || videoData.thumbnail, views: item.viewCount, likes: item.likes, duration: item.duration, description: item.description?.slice(0, 3000), uploadDate: item.date, tags: item.hashtags?.slice(0, 12).join(", ") };
+      }
+
+      if (!videoData.title) return res.status(404).json({ message: "Could not fetch video data. Please check the URL." });
+
+      // Build full transcript — group into 2-minute chunks for better AI comprehension
+      const transcript: Array<{ time: number, dur: number, text: string }> = transcriptData.status === "fulfilled" ? transcriptData.value : [];
+      const hasTranscript = transcript.length > 5;
+      let transcriptStr = "";
+      if (hasTranscript) {
+        // Group transcript into 90-second chunks with timestamps
+        const CHUNK_SECS = 90;
+        const chunks: { startTime: number; lines: string[] }[] = [];
+        let currentChunk: { startTime: number; lines: string[] } | null = null;
+        for (const t of transcript) {
+          const chunkIdx = Math.floor(t.time / CHUNK_SECS);
+          if (!currentChunk || Math.floor(currentChunk.startTime / CHUNK_SECS) !== chunkIdx) {
+            currentChunk = { startTime: t.time, lines: [] };
+            chunks.push(currentChunk);
+          }
+          currentChunk.lines.push(t.text);
+        }
+        transcriptStr = chunks.map(c => `\n=== [${fmtTime(c.startTime)}] ===\n${c.lines.join(" ")}`).join("\n");
+        if (transcriptStr.length > 22000) transcriptStr = transcriptStr.slice(0, 22000) + "\n\n[transcript continues — ensure you cover the above in full]";
+      }
+
+      // Step 3: Comprehensive AI Analysis
+      const videoContext = `Title: ${videoData.title}\nChannel: ${videoData.channel}\nViews: ${videoData.views || "N/A"}\nLikes: ${videoData.likes || "N/A"}\nDuration: ${videoData.duration || "N/A"}\nDescription: ${videoData.description || "(not available)"}\nTags: ${videoData.tags || "N/A"}`;
+
+      const strictRules = `CRITICAL RULES — FOLLOW EXACTLY:
+1. Do NOT write generic advice. Write WHAT THE SPEAKER ACTUALLY SAYS in this specific transcript.
+2. Quote their exact words when relevant (use "quotes"). Use phrases like "The speaker reveals...", "They explain that...", "The example given is...", "They specifically say..."
+3. Every bullet must contain SPECIFIC information pulled from that timestamp — not advice that could apply to any video.
+4. Include specific: numbers, percentages, names, frameworks, stories, examples, strategies the speaker names.
+5. If you write something generic like "the speaker discusses the importance of X" — that is WRONG. Instead write WHAT they actually say about X, HOW they explain it, WHAT example they use.
+6. The mindmap nodes must reflect SPECIFIC concepts from THIS video — named frameworks, specific strategies, exact topics discussed.`;
+
+      const bulletFmt = `Bullets are plain strings. EACH BULLET must be a full, detailed sentence of at least 15 words — not a fragment. Use **bold** around KEY TERMS, framework names, and specific concepts. For complex points use sub-bullets: "Main point explaining what the speaker says in detail:\\n- specific sub-point quoting or paraphrasing the speaker\\n- another specific detail with context\\n- third detail with example". Write 5-7 bullets per segment. Every bullet must add unique, specific information not covered by other bullets. NO GENERIC STATEMENTS — every bullet must be traceable to what the speaker actually says in this specific time segment.`;
+
+      const userPrompt = hasTranscript
+        ? `You are a world-class content analyst. You have the COMPLETE TRANSCRIPT of this YouTube video — analyze EVERY SECTION thoroughly.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (grouped by 90-second blocks):\n${transcriptStr}\n\nReturn ONLY a valid JSON object — no markdown, no commentary:\n{\n  "overallSummary": "5-6 rich, specific paragraphs summarizing this video. First paragraph: what the video is fundamentally about and who the speaker is/their credibility. Second paragraph: the main argument or thesis. Third paragraph: the specific strategies/frameworks/methods discussed. Fourth paragraph: the concrete examples, stories, or case studies used. Fifth paragraph: the conclusion and call to action.",\n  "keyTakeaways": ["7 highly specific, actionable takeaways — each a full sentence quoting or closely paraphrasing what the speaker actually taught. No generic advice.", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title (what actually happens here):", "bullets": ["Specific detail from transcript with **bold key term**", "What speaker says here and why it matters:\\n- exact point 1\\n- exact point 2\\n- exact point 3"]}\n  ],\n  "speakerScript": "Full first-person script reconstruction — minimum 700 words. Write as if you ARE the speaker, using their exact phrases and examples from the transcript. Every paragraph must contain specific details from the video.",\n  "mindmap": {\n    "center": "Video Core Topic (5-7 words)",\n    "branches": [\n      {"label": "Specific Branch Theme", "emoji": "🎯", "nodes": ["Exact concept/strategy from video", "Named framework or method used", "Specific example mentioned", "Key quote or insight", "Actionable technique revealed"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create ONE segment per 90-second block in the transcript (use the === timestamps). Cover the ENTIRE transcript — do not skip any section. ${bulletFmt}\nFor mindmap: 5-6 branches using SPECIFIC themes from this video. 5-6 nodes per branch — all specific to this content.\nFor overallSummary and speakerScript: reference specific quotes, examples, and moments from the video — not general summaries.`
+        : `You are a world-class content analyst. Analyze this YouTube video based on its metadata and description.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "5-6 paragraphs analyzing this specific video's likely content, argument, and approach based on the title, description, and tags.",\n  "keyTakeaways": ["7 specific takeaways likely from this video based on the title and description", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and specific detail", "Detail with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Detailed mock script of what the speaker likely says — minimum 500 words. Specific and realistic to the topic.",\n  "mindmap": {"center": "Core Topic (5-7 words)", "branches": [{"label": "Theme", "emoji": "🎯", "nodes": ["specific node 1","specific node 2","specific node 3","specific node 4","specific node 5"]}]}\n}\n\nFor minuteByMinute: 8-10 estimated segments. ${bulletFmt}\nFor mindmap: 5-6 branches, 5 nodes each.`;
+
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
+        }),
+      });
+      console.log("[YouTube Analyse] Groq HTTP status:", aiRes.status);
+      const aiData: any = await aiRes.json();
+      if (!aiRes.ok || aiData?.error) {
+        console.error("[YouTube Analyse] Groq error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
+      }
+      const rawContent = aiData.choices?.[0]?.message?.content || "{}";
+      console.log("[YouTube Analyse] AI response length:", rawContent.length);
+      let analysis: any = {};
+      try {
+        analysis = JSON.parse(rawContent);
+      } catch (parseErr: any) {
+        console.error("[YouTube Analyse] JSON parse error:", parseErr.message, "Content start:", rawContent.slice(0, 200));
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+
+      return res.json({ video: videoData, hasTranscript, transcriptSegments: transcript.length, ...analysis });
+    } catch (err: any) {
+      console.error("[YouTube Analyse] FULL ERROR:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed. Please try again." });
+    }
+  });
+
+  app.post("/api/analyse/instagram", requireAuth, async (req: Request, res: Response) => {
+    const { urls } = req.body;
+    if (!urls?.length) return res.status(400).json({ message: "At least one Instagram URL required" });
+    const u = req.user as any;
+    if (u.role !== "admin") {
+      const cr = await storage.deductCredits(u.id, 4, "analyse", "Instagram Content Analysis", u.plan || "free");
+      if (!cr.success) return res.status(402).json({ message: cr.message, insufficientCredits: true, balance: cr.balance });
+    }
+    try {
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (!apifyToken) return res.status(500).json({ message: "Apify not configured" });
+      const aRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${apifyToken}&timeout=60`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ directUrls: urls.slice(0, 6), resultsType: "posts", resultsLimit: 6 }),
+      });
+      const items = await aRes.json();
+      if (!Array.isArray(items) || !items.length) return res.status(404).json({ message: "Could not fetch Instagram data. Make sure the posts/profiles are public." });
+      const postsContext = items.slice(0, 6).map((p: any, i: number) =>
+        `POST ${i + 1} (${p.type || "post"}):\nCaption (full): ${p.caption || "(none)"}\nLikes: ${p.likesCount || 0} | Comments: ${p.commentsCount || 0} | Video Views: ${p.videoViewCount || "N/A"}\nHashtags: ${p.hashtags?.join(" ") || "none"}\nMentions: ${p.mentions?.join(" ") || "none"}\nPosted: ${p.timestamp ? new Date(p.timestamp).toLocaleDateString() : "unknown"}`
+      ).join("\n\n---\n\n");
+
+      const igStrictRules = `CRITICAL RULES — FOLLOW EXACTLY:
+1. Every insight must be grounded in the ACTUAL CAPTION TEXT provided. Quote specific words, phrases, hooks from the captions.
+2. Do NOT write generic social media advice. Write what THIS specific creator does in these specific posts.
+3. For engagement insights: use the actual like/comment numbers provided. Reference specific ratios.
+4. For hook analysis: quote the ACTUAL opening lines of the captions — the exact words they use.
+5. For keyPoints in each post: cite specific techniques observable in that exact post's data.
+6. Mindmap nodes must reflect specific strategies, themes, or patterns actually seen in these posts.`;
+
+      const igPrompt = `You are a world-class Instagram content strategist and analyst with deep expertise in viral content, engagement psychology, and creator strategy.
+
+${igStrictRules}
+
+POSTS TO ANALYZE (${items.length} posts):
+${postsContext}
+
+Return ONLY raw JSON — no markdown code blocks, no backticks, no text before or after. Start directly with {:
+
+{
+  "overallSummary": "6-7 paragraph DEEP analysis. Para 1: Who is this creator and what is their niche/positioning based on these posts? Para 2: What specific content themes and topics dominate — and what exact language/vocabulary do they use? Para 3: What is the storytelling structure across these posts — how do they open, develop, and close? Para 4: What emotional triggers and psychological hooks are they deploying, with specific examples from captions? Para 5: How does their engagement (actual like/comment numbers) compare across post types and why? Para 6: What gaps or weaknesses are observable from the caption data? Para 7: What specific opportunities exist for this creator to scale?",
+
+  "keyTakeaways": [
+    "Specific insight 1 grounded in actual caption data from these posts",
+    "Specific insight 2 about engagement patterns with actual numbers",
+    "Specific insight 3 about the hook strategy with quoted examples",
+    "Specific insight 4 about content structure observable in multiple posts",
+    "Specific insight 5 about audience psychology being exploited",
+    "Specific insight 6 about positioning and brand voice patterns",
+    "Specific insight 7 about the biggest opportunity or risk visible in this content set"
+  ],
+
+  "postByPost": [
+    {
+      "postNumber": 1,
+      "title": "The core theme or hook of this post in 6-8 words",
+      "captionAnalysis": "3-4 sentence deep-dive: What is the hook (quote it exactly)? What storytelling structure is used? What emotional trigger? What CTA or implied next step? How does the caption length and formatting serve the content type?",
+      "engagementInsight": "2-3 sentences: Given the actual like and comment numbers for this post, why did it perform this way? What specific elements drove or limited engagement? Compare to the other posts in this set.",
+      "contentType": "Educational / Entertaining / Inspirational / Promotional / Personal story / Controversial / etc",
+      "keyPoints": [
+        "Specific strength or technique used in this exact post",
+        "What the caption structure reveals about the creator's strategy",
+        "One concrete thing that could make this post perform better"
+      ]
+    }
+  ],
+
+  "contentStrategy": "5-6 paragraph comprehensive strategy analysis. Para 1: The core content pillars this creator operates in, and how consistently they execute. Para 2: The posting cadence and content mix patterns visible across these posts. Para 3: The brand voice — tone, vocabulary, personality, and how they talk to their audience. Para 4: The audience targeting strategy — who are they trying to reach and what pain points/desires are they addressing? Para 5: How their strategy compares to best practices in this niche — what they're doing right and what elite creators do that this creator doesn't. Para 6: Three specific strategic shifts that would significantly increase their performance.",
+
+  "hookAnalysis": "4-5 paragraph deep hook analysis. Para 1: What types of hooks are used across these posts — question hooks, statement hooks, number hooks, story hooks? Quote specific opening lines. Para 2: Which hooks generated the best engagement and why — analyze the psychology. Para 3: What patterns emerge in how they open their content — what's their 'hook formula'? Para 4: What makes their best hooks work or fail — specific linguistic and psychological elements. Para 5: Three specific hook templates they should adopt based on what's working in their niche.",
+
+  "mindmap": {
+    "center": "Core Content Theme (5-7 words max)",
+    "branches": [
+      {"label": "Content Pillars", "emoji": "📌", "nodes": ["specific pillar from posts", "another theme", "recurring topic", "content category", "format used"]},
+      {"label": "Hook Strategies", "emoji": "🪝", "nodes": ["specific hook type used", "opening pattern observed", "psychological trigger", "hook formula", "what to test next"]},
+      {"label": "Engagement Drivers", "emoji": "⚡", "nodes": ["specific driver from data", "engagement pattern", "comment trigger", "save-worthy element", "share mechanic"]},
+      {"label": "Brand Voice", "emoji": "🎙", "nodes": ["tone descriptor", "vocabulary pattern", "personality trait", "communication style", "audience relationship"]},
+      {"label": "Growth Opportunities", "emoji": "🚀", "nodes": ["content gap to fill", "format to test", "topic to explore", "strategy to adopt", "audience segment to target"]}
+    ]
+  }
+}
+
+For postByPost: include ALL ${items.length} posts — do not skip any.
+For every field: be SPECIFIC to these actual posts. Quote captions. Use actual numbers. Name specific techniques.`;
+
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
+            { role: "user", content: igPrompt },
+          ],
+          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
+        }),
+      });
+      console.log("[Instagram Analyse] Groq HTTP status:", aiRes.status);
+      const aiData: any = await aiRes.json();
+      if (!aiRes.ok || aiData?.error) {
+        console.error("[Instagram Analyse] Groq error:", JSON.stringify(aiData));
+        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
+      }
+      const rawIgContent = aiData.choices?.[0]?.message?.content || "{}";
+      console.log("[Instagram Analyse] AI response length:", rawIgContent.length);
+      const cleanIgContent = rawIgContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      let analysis: any = {};
+      try {
+        analysis = JSON.parse(cleanIgContent);
+      } catch (parseErr: any) {
+        console.error("[Instagram Analyse] JSON parse error:", parseErr.message, "Content start:", cleanIgContent.slice(0, 200));
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+      const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, views: p.videoViewCount, type: p.type || "post", url: p.url, hashtags: p.hashtags?.slice(0, 5), timestamp: p.timestamp }));
+      return res.json({ posts, ...analysis });
+    } catch (err: any) {
+      console.error("[Instagram Analyse] FULL ERROR:", err.message);
+      return res.status(500).json({ message: err.message || "Analysis failed. Please try again." });
+    }
+  });
+
+  // ── Razorpay Plan Purchases ────────────────────────────────────────────────
+  const PLAN_PACKAGES_MAP: Record<string, { amountPaise: number; label: string }> = {
+    starter: { amountPaise: 249900, label: "Tier 2 – Starter Plan" },
+    growth: { amountPaise: 499900, label: "Tier 3 – Growth Plan" },
+    pro: { amountPaise: 649900, label: "Tier 4 – Pro Plan" },
+  };
+
+  app.post("/api/payment/create-plan-order", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { planSlug } = req.body;
+      const plan = PLAN_PACKAGES_MAP[planSlug];
+      if (!plan) return res.status(400).json({ message: "Invalid plan" });
+
+      const Razorpay = (await import("razorpay")).default;
+      const rzp = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID!,
+        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      });
+
+      const order = await rzp.orders.create({
+        amount: plan.amountPaise,
+        currency: "INR",
+        receipt: `plan_${userId}_${Date.now()}`,
+        notes: { userId, planSlug },
+      });
+
+      return res.json({
+        orderId: order.id,
+        amount: plan.amountPaise,
+        currency: "INR",
+        keyId: process.env.RAZORPAY_KEY_ID,
+        planLabel: plan.label,
+        planSlug,
+      });
+    } catch (err: any) {
+      console.log("[razorpay create-plan-order] error:", JSON.stringify(err));
+      return res.status(500).json({ message: (err as any)?.error?.description || err?.message || "Failed to create plan order" });
+    }
+  });
+
+  app.post("/api/payment/verify-plan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planSlug } = req.body;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !planSlug) {
+        return res.status(400).json({ message: "Missing payment fields" });
+      }
+
+      const crypto = await import("crypto");
+      const expectedSig = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+
+      if (expectedSig !== razorpay_signature) {
+        return res.status(400).json({ message: "Payment verification failed — invalid signature" });
+      }
+
+      if (!PLAN_PACKAGES_MAP[planSlug]) return res.status(400).json({ message: "Invalid plan" });
+
+      const updated = await storage.updateUser(userId, { plan: planSlug });
+      return res.json({ success: true, plan: planSlug, user: updated });
+    } catch (err: any) {
+      console.log("[razorpay verify-plan] error:", err?.message);
+      return res.status(500).json({ message: err?.message || "Plan verification failed" });
+    }
+  });
+
+  // ── Forms / Quiz / Survey ────────────────────────────────────────────────
+  function generateSlug(length = 8): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
+
+  // List user's forms
+  app.get("/api/forms", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const list = await storage.getForms(userId);
+    res.json(list);
+  });
+
+  // Create form
+  app.post("/api/forms", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, description, type } = req.body;
+    if (!title) return res.status(400).json({ message: "Title is required" });
+    let slug = generateSlug(8);
+    // Ensure uniqueness
+    let existing = await storage.getFormBySlug(slug);
+    while (existing) { slug = generateSlug(8); existing = await storage.getFormBySlug(slug); }
+    const form = await storage.createForm({ userId, title, description: description || null, type: type || "form", status: "draft", slug, settings: null });
+    res.json(form);
+  });
+
+  // Get single form (must be owner)
+  app.get("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(p(req.params.id));
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    res.json(form);
+  });
+
+  // Update form
+  app.patch("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const updated = await storage.updateForm(p(req.params.id), userId, req.body);
+    if (!updated) return res.status(404).json({ message: "Not found" });
+    res.json(updated);
+  });
+
+  // Delete form
+  app.delete("/api/forms/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteForm(p(req.params.id), userId);
+    res.json({ success: true });
+  });
+
+  // Get form questions
+  app.get("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(p(req.params.id));
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const questions = await storage.getFormQuestions(p(req.params.id));
+    res.json(questions);
+  });
+
+  // Save (replace) all questions
+  app.put("/api/forms/:id/questions", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(p(req.params.id));
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const { questions } = req.body;
+    if (!Array.isArray(questions)) return res.status(400).json({ message: "questions must be an array" });
+    const saved = await storage.saveFormQuestions(p(req.params.id), questions);
+    res.json(saved);
+  });
+
+  // AI-generate form questions
+  app.post("/api/forms/ai-generate", requireAuth, async (req: Request, res: Response) => {
+    const { prompt, formType } = req.body;
+    if (!prompt) return res.status(400).json({ message: "Prompt is required" });
+    const systemPrompt = `You are an expert form/quiz/survey designer. Based on the user's request, generate a complete set of form questions.
+Return ONLY a valid JSON object with this exact structure (no markdown, no code fences):
+{
+  "title": "Form title (5-8 words)",
+  "description": "One sentence description",
+  "questions": [
+    {
+      "type": "mcq|text|long_text|email|name|rating|yes_no|number|phone",
+      "question": "The question text",
+      "options": ["Option A", "Option B", "Option C"],
+      "required": true
+    }
+  ]
+}
+Rules:
+- For 'mcq' type: always include 3-5 options array
+- For all other types: omit the options field
+- Types: mcq (multiple choice), text (short answer), long_text (paragraph), email (email input), name (full name), rating (1-5 stars), yes_no (yes/no buttons), number (numeric), phone (phone number)
+- Generate 5-10 questions appropriate for a ${formType || "form"}
+- Make the questions highly relevant and specific to the user's request
+- Mix question types thoughtfully`;
+    try {
+      const raw = await callGroq(systemPrompt, prompt, 2000);
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      res.json(parsed);
+    } catch (err: any) {
+      console.log("[forms/ai-generate] error:", err?.message);
+      res.status(500).json({ message: "AI generation failed. Please try again." });
+    }
+  });
+
+  // Get responses + analytics (owner only)
+  app.get("/api/forms/:id/responses", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const form = await storage.getForm(p(req.params.id));
+    if (!form || form.userId !== userId) return res.status(404).json({ message: "Not found" });
+    const [submissions, questions, analytics] = await Promise.all([
+      storage.getFormSubmissions(p(req.params.id)),
+      storage.getFormQuestions(p(req.params.id)),
+      storage.getFormAnalytics(p(req.params.id)),
+    ]);
+    res.json({ submissions, questions, analytics });
+  });
+
+  // ── Public form routes (no auth required) ─────────────────────────────────
+  app.get("/api/public/forms/:slug", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(p(req.params.slug));
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
+    const questions = await storage.getFormQuestions(form.id);
+    res.json({ form, questions });
+  });
+
+  app.post("/api/public/forms/:slug/view", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(p(req.params.slug));
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Not found" });
+    await storage.trackFormView(form.id, { userAgent: req.headers["user-agent"], ip: req.ip });
+    res.json({ success: true });
+  });
+
+  app.post("/api/public/forms/:slug/submit", async (req: Request, res: Response) => {
+    const form = await storage.getFormBySlug(p(req.params.slug));
+    if (!form || form.status !== "published") return res.status(404).json({ message: "Form not found or not published" });
+    const { respondentName, respondentEmail, answers } = req.body;
+    if (!Array.isArray(answers)) return res.status(400).json({ message: "answers is required" });
+    const sub = await storage.createFormSubmission(form.id, { respondentName, respondentEmail, metadata: { userAgent: req.headers["user-agent"] } }, answers);
+    res.json({ success: true, submissionId: sub.id });
+  });
+
+  // ── Meetings Notetaker ─────────────────────────────────────────────────────
+
+  app.get("/api/meetings", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const list = await storage.getMeetings(userId);
+    res.json(list);
+  });
+
+  app.get("/api/meetings/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const meeting = await storage.getMeeting(Number(p(req.params.id)), userId);
+    if (!meeting) return res.status(404).json({ message: "Not found" });
+    res.json(meeting);
+  });
+
+  app.delete("/api/meetings/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteMeeting(Number(p(req.params.id)), userId);
+    res.json({ success: true });
+  });
+
+  // Create meeting from pasted transcript
+  app.post("/api/meetings/transcript", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, transcript, participants, meetingDate } = req.body;
+    if (!title || !transcript) return res.status(400).json({ message: "title and transcript are required" });
+
+    const meeting = await storage.createMeeting({
+      userId,
+      title,
+      rawTranscript: transcript,
+      participants: participants || null,
+      meetingDate: meetingDate ? new Date(meetingDate) : null,
+      status: "processing",
+    });
+
+    // Process async
+    (async () => {
+      try {
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("No Groq key");
+
+        const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
+- summary: a concise 3-5 sentence summary of the meeting
+- actionItems: array of strings, each a clear action item with owner if mentioned (e.g. "John to send proposal by Friday")
+- keyMoments: array of objects with {text: string} for the most important discussion points or decisions made`;
+
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
+            ],
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data = await r.json() as any;
+        const parsed = JSON.parse(data.choices[0].message.content);
+        await storage.updateMeeting(meeting.id, userId, {
+          summary: parsed.summary || null,
+          actionItems: parsed.actionItems || [],
+          keyMoments: parsed.keyMoments || [],
+          status: "ready",
+        });
+      } catch (e) {
+        console.log("[meetings] processing error:", e);
+        await storage.updateMeeting(meeting.id, userId, { status: "failed" });
+      }
+    })();
+
+    res.json(meeting);
+  });
+
+  // Create meeting from audio upload
+  app.post("/api/meetings/upload", requireAuth, upload.single("audio"), async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, participants, meetingDate } = req.body;
+    if (!title) return res.status(400).json({ message: "title is required" });
+    if (!req.file) return res.status(400).json({ message: "audio file is required" });
+
+    const meeting = await storage.createMeeting({
+      userId,
+      title,
+      participants: participants || null,
+      meetingDate: meetingDate ? new Date(meetingDate) : null,
+      status: "processing",
+    });
+
+    // Transcribe + process async
+    (async () => {
+      const filePath = req.file!.path;
+      try {
+        const apiKey = process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("No Groq key");
+
+        // Transcribe with Groq Whisper
+        const { default: FormData } = await import("form-data");
+        const formData = new FormData();
+        formData.append("file", fs.createReadStream(filePath), { filename: req.file!.originalname || "audio.mp3" });
+        formData.append("model", "whisper-large-v3");
+        formData.append("response_format", "text");
+
+        const transcribeRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, ...formData.getHeaders() },
+          body: formData as any,
+        });
+
+        if (!transcribeRes.ok) throw new Error(`Transcription failed: ${transcribeRes.status}`);
+        const transcript = await transcribeRes.text();
+
+        await storage.updateMeeting(meeting.id, userId, { rawTranscript: transcript });
+
+        // Generate AI notes
+        const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
+- summary: a concise 3-5 sentence summary of the meeting
+- actionItems: array of strings, each a clear action item with owner if mentioned
+- keyMoments: array of objects with {text: string} for the most important discussion points or decisions`;
+
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
+            ],
+            max_tokens: 2000,
+            response_format: { type: "json_object" },
+          }),
+        });
+        const data = await r.json() as any;
+        const parsed = JSON.parse(data.choices[0].message.content);
+        await storage.updateMeeting(meeting.id, userId, {
+          summary: parsed.summary || null,
+          actionItems: parsed.actionItems || [],
+          keyMoments: parsed.keyMoments || [],
+          status: "ready",
+        });
+      } catch (e) {
+        console.log("[meetings] upload/transcribe error:", e);
+        await storage.updateMeeting(meeting.id, userId, { status: "failed" });
+      } finally {
+        try { fs.unlinkSync(filePath); } catch { }
+      }
+    })();
+
+    res.json(meeting);
+  });
+
+  // ── Video Studio ────────────────────────────────────────────────────────────
+  const SHOTSTACK_KEY = process.env.SHOTSTACK_API_KEY || "";
+  const SHOTSTACK_BASE = "https://api.shotstack.io/stage";
+
+  function detectSilences(words: any[], threshold = 0.5) {
+    const silences: { start: number; end: number; duration: number }[] = [];
+    for (let i = 1; i < words.length; i++) {
+      const gap = words[i].start - words[i - 1].end;
+      if (gap >= threshold) silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
+    }
+    return silences;
+  }
+
+  function buildShotstackTimeline(videoUrl: string, transcript: any, settings: any) {
+    const words: any[] = transcript?.words || [];
+    const rawDuration = words.length > 0 ? words[words.length - 1].end + 0.5 : 60;
+    const speed = parseFloat(settings.speed || "1");
+    const filterMap: Record<string, string> = { cinematic: "contrast", warm: "boost", cool: "muted", bright: "lighten" };
+    const shotstackFilter = settings.colorGrade && settings.colorGrade !== "none" ? filterMap[settings.colorGrade] : undefined;
+    const captionStyleMap: Record<string, string> = { bold: "blockbuster", netflix: "chunk", minimal: "minimal", karaoke: "minimal" };
+    const captionStyle = captionStyleMap[settings.captionStyle] || "minimal";
+    const captionColor = settings.captionStyle === "karaoke" ? "#ffff00" : "#ffffff";
+
+    type Segment = { start: number; end: number };
+    let segments: Segment[] = [];
+    let condensedSegStarts: number[] = [];
+    let totalCondensed = 0;
+
+    if (settings.removeSilences && words.length > 0) {
+      const threshold = parseFloat(settings.silenceThreshold || "0.5");
+      let segStart = words[0].start;
+      let prevEnd = words[0].end;
+      for (let i = 1; i < words.length; i++) {
+        if (words[i].start - prevEnd >= threshold) {
+          segments.push({ start: segStart, end: prevEnd });
+          segStart = words[i].start;
+        }
+        prevEnd = words[i].end;
+      }
+      segments.push({ start: segStart, end: prevEnd + 0.3 });
+    } else {
+      segments = [{ start: 0, end: rawDuration }];
+    }
+
+    const videoClips: any[] = [];
+    for (const seg of segments) {
+      condensedSegStarts.push(totalCondensed);
+      const segLen = (seg.end - seg.start) / speed;
+      const clip: any = { asset: { type: "video", src: videoUrl, trim: seg.start }, start: totalCondensed, length: seg.end - seg.start };
+      if (shotstackFilter) clip.filter = shotstackFilter;
+      if (speed !== 1) clip.speed = speed;
+      videoClips.push(clip);
+      totalCondensed += segLen;
+    }
+
+    const captionClips: any[] = [];
+    if (settings.addCaptions && words.length > 0) {
+      const SIZE = 5;
+      for (let i = 0; i < words.length; i += SIZE) {
+        const chunk = words.slice(i, Math.min(i + SIZE, words.length));
+        const text = chunk.map((w: any) => w.word).join(" ").trim();
+        const wOrigStart = chunk[0].start;
+        const wOrigEnd = chunk[chunk.length - 1].end;
+        let condensedStart = wOrigStart / speed;
+        for (let j = segments.length - 1; j >= 0; j--) {
+          if (wOrigStart >= segments[j].start && wOrigStart <= segments[j].end) {
+            condensedStart = condensedSegStarts[j] + (wOrigStart - segments[j].start) / speed;
+            break;
+          }
+        }
+        const wLen = Math.max((wOrigEnd - wOrigStart) / speed, 0.5);
+        captionClips.push({ asset: { type: "title", text, style: captionStyle, color: captionColor, size: "medium" }, start: Math.max(condensedStart, 0), length: wLen, position: "bottom", offset: { x: 0, y: -0.1 } });
+      }
+    }
+
+    const tracks: any[] = [{ clips: videoClips }];
+    if (captionClips.length > 0) tracks.push({ clips: captionClips });
+    return { timeline: { background: "#000000", tracks }, output: { format: "mp4", resolution: "hd", fps: 25 } };
+  }
+
+  app.get("/api/video-studio", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edits = await storage.getVideoEdits(userId);
+    res.json(edits);
+  });
+
+  app.get("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    res.json(edit);
+  });
+
+  app.delete("/api/video-studio/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (edit?.filePath) try { fs.unlinkSync(edit.filePath); } catch { }
+    await storage.deleteVideoEdit(Number(p(req.params.id)), userId);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/video-studio/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const userId = (req.user as any).id;
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+    const edit = await storage.createVideoEdit({ userId, title, originalFilename: req.file.originalname, filePath: req.file.path, fileUrl, status: "transcribing" });
+    res.json(edit);
+
+    (async () => {
+      try {
+        const fileStat = fs.statSync(req.file!.path);
+        const MAX_WHISPER_BYTES = 25 * 1024 * 1024; // 25MB Groq limit
+        if (fileStat.size > MAX_WHISPER_BYTES) {
+          await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+          console.log("[video-studio] file too large for Whisper:", fileStat.size, "bytes");
+          return;
+        }
+        const FormDataLib = (await import("form-data")).default;
+        const formData = new FormDataLib();
+        const fileBuffer = fs.readFileSync(req.file!.path);
+        const ext = path.extname(req.file!.originalname).toLowerCase();
+        const mimeMap: Record<string, string> = { ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska", ".m4v": "video/x-m4v", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav" };
+        const contentType = mimeMap[ext] || "video/mp4";
+        formData.append("file", fileBuffer, { filename: req.file!.originalname || "video.mp4", contentType });
+        formData.append("model", "whisper-large-v3");
+        formData.append("response_format", "verbose_json");
+        formData.append("timestamp_granularities[]", "word");
+        const formBuffer = formData.getBuffer();
+        const formHeaders = formData.getHeaders();
+        const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
+          body: formBuffer,
+        });
+        if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
+        const transcriptData = await whisperRes.json() as any;
+        const words = transcriptData.words || [];
+        const duration = words.length > 0 ? words[words.length - 1].end : transcriptData.duration || 0;
+        const silences = detectSilences(words);
+        const publicVideoUrl = `${getRequestAwareBase(req)}${fileUrl}`;
+        await storage.updateVideoEdit(edit.id, userId, { transcript: { text: transcriptData.text, words, duration: transcriptData.duration }, silences, duration, fileUrl: publicVideoUrl, status: "transcribed" });
+      } catch (e: any) {
+        console.log("[video-studio] transcription error:", e.message);
+        await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+      }
+    })();
+  });
+
+  app.post("/api/video-studio/:id/render", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    if (!edit.fileUrl) return res.status(400).json({ message: "Video not yet transcribed" });
+    const settings = req.body.settings || {};
+    const timeline = buildShotstackTimeline(edit.fileUrl, edit.transcript, settings);
+    const renderRes = await fetch(`${SHOTSTACK_BASE}/render`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": SHOTSTACK_KEY },
+      body: JSON.stringify(timeline),
+    });
+    const renderData = await renderRes.json() as any;
+    if (!renderRes.ok || !renderData.response?.id) {
+      console.log("[video-studio] shotstack error:", JSON.stringify(renderData));
+      return res.status(502).json({ message: renderData.message || "Shotstack error", detail: renderData });
+    }
+    const renderId = renderData.response.id;
+    await storage.updateVideoEdit(edit.id, userId, { status: "rendering", shotstackRenderId: renderId, settings });
+    res.json({ ok: true, renderId });
+  });
+
+  app.get("/api/video-studio/:id/status", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const edit = await storage.getVideoEdit(Number(p(req.params.id)), userId);
+    if (!edit) return res.status(404).json({ message: "Not found" });
+    if (!edit.shotstackRenderId) return res.json(edit);
+    if (edit.status === "done" || edit.status === "failed") return res.json(edit);
+    const statusRes = await fetch(`${SHOTSTACK_BASE}/render/${edit.shotstackRenderId}`, { headers: { "x-api-key": SHOTSTACK_KEY } });
+    const statusData = await statusRes.json() as any;
+    const ssStatus = statusData.response?.status;
+    if (ssStatus === "done") {
+      const outputUrl = statusData.response?.url;
+      await storage.updateVideoEdit(edit.id, userId, { status: "done", outputUrl });
+      return res.json({ ...edit, status: "done", outputUrl });
+    } else if (ssStatus === "failed") {
+      await storage.updateVideoEdit(edit.id, userId, { status: "failed" });
+      return res.json({ ...edit, status: "failed" });
+    }
+    res.json({ ...edit, status: "rendering" });
+  });
+
+  // ── B-Roll Library ──────────────────────────────────────────────────────────
+  app.get("/api/broll", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const clips = await storage.getBrollClips(userId);
+    res.json(clips);
+  });
+
+  app.post("/api/broll", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const { title, description, category, videoUrl, notes } = req.body;
+    if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+    const clip = await storage.createBrollClip({ userId, title: title.trim(), description: description || null, category: category || "General", videoUrl: videoUrl || null, notes: notes || null });
+    res.json(clip);
+  });
+
+  app.delete("/api/broll/:id", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    await storage.deleteBrollClip(Number(req.params.id), userId);
+    res.json({ ok: true });
+  });
+
+  // ── Instagram Growth Tracker ───────────────────────────────────────────────
+  async function scanIgProfile(username: string): Promise<{ followersCount: number; followsCount: number; fullName: string; profilePic: string; igUserId: string } | null> {
+    const normalized = normalizeInstagramProfileInput(username);
+    if (!normalized) throw new Error("Enter a valid Instagram username or profile URL");
+    const items = await apifyInstagram(
+      { usernames: [normalized.username] },
+      { endpoint: "profile-scraper", timeoutMs: 90000 },
+    );
+    const item = items?.[0];
+    if (!item) return null;
+    return {
+      followersCount: item.followersCount ?? 0,
+      followsCount: item.followsCount ?? 0,
+      fullName: item.fullName ?? item.userFullName ?? normalized.username,
+      profilePic: item.profilePicUrl ?? item.profilePic ?? "",
+      igUserId: item.userId ?? "",
+    };
+  }
+
+  app.get("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      res.json(profiles);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/ig-tracker", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.body.clientId) ? String(req.body.clientId) : user.id;
+      let { username } = req.body;
+      if (!username?.trim()) return res.status(400).json({ message: "Username is required" });
+      username = username.trim().replace(/^@/, "").toLowerCase();
+
+      const scanned = await scanIgProfile(username);
+      if (!scanned) return res.status(404).json({ message: `Could not find Instagram profile @${username}` });
+
+      const profile = await storage.addIgTrackedProfile({
+        userId, username,
+        fullName: scanned.fullName,
+        profilePic: scanned.profilePic,
+        igUserId: scanned.igUserId,
+      });
+      await storage.addIgFollowerSnapshot({ profileId: profile.id, followersCount: scanned.followersCount, followsCount: scanned.followsCount });
+      res.json({ ...profile, latestSnapshot: { followersCount: scanned.followersCount, followsCount: scanned.followsCount, scannedAt: new Date() }, prevSnapshot: null });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/ig-tracker/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
+      await storage.deleteIgTrackedProfile(Number(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/ig-tracker/:id/scan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== "admin") {
+        const igCredit = await storage.deductCredits(user.id, 1, "ig_tracker", "IG Growth Tracker scan", user.plan || "free");
+        if (!igCredit.success) return res.status(402).json({ message: igCredit.message, insufficientCredits: true });
+      }
+      const userId = (user.role === "admin" && req.body.clientId) ? String(req.body.clientId) : user.id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      const profile = profiles.find(p => p.id === Number(req.params.id));
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      const scanned = await scanIgProfile(profile.username);
+      if (!scanned) return res.status(422).json({ message: "Could not reach Instagram profile" });
+
+      await storage.updateIgTrackedProfile(profile.id, { fullName: scanned.fullName, profilePic: scanned.profilePic });
+      const snapshot = await storage.addIgFollowerSnapshot({ profileId: profile.id, followersCount: scanned.followersCount, followsCount: scanned.followsCount });
+      res.json(snapshot);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/ig-tracker/:id/history", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = (user.role === "admin" && req.query.clientId) ? String(req.query.clientId) : user.id;
+      const profiles = await storage.getIgTrackedProfiles(userId);
+      const profile = profiles.find(p => p.id === Number(req.params.id));
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+      const snapshots = await storage.getIgFollowerSnapshots(profile.id);
+      res.json(snapshots);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ── Instagram Comment Bot ──────────────────────────────────────────────────
+  app.get("/api/ig-bot/cookies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const row = await storage.getIgBotCookies(userId);
+      if (!row) return res.json({ configured: false });
+      res.json({ configured: true, updatedAt: row.updatedAt });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/cookies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { cookiesJson } = req.body;
+      if (!cookiesJson) return res.status(400).json({ message: "cookiesJson required" });
+      JSON.parse(cookiesJson); // validate JSON
+      const row = await storage.upsertIgBotCookies(userId, cookiesJson);
+      res.json({ ok: true, updatedAt: row.updatedAt });
+    } catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.get("/api/ig-bot/campaigns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const rows = await storage.getIgBotCampaigns(userId);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/campaigns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const { name, postUrls, comments } = req.body;
+      if (!name || !postUrls?.length || !comments?.length) return res.status(400).json({ message: "name, postUrls, and comments are required" });
+      const row = await storage.createIgBotCampaign({ userId, name, postUrls, comments });
+      res.json(row);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/ig-bot/campaigns/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await storage.deleteIgBotCampaign(Number(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/ig-bot/campaigns/:id/run", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const campaignId = Number(req.params.id);
+    try {
+      const cookiesRow = await storage.getIgBotCookies(userId);
+      if (!cookiesRow) return res.status(400).json({ message: "No Instagram cookies saved. Add your cookies first." });
+
+      const campaigns = await storage.getIgBotCampaigns(userId);
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (!campaign) return res.status(404).json({ message: "Campaign not found" });
+
+      await storage.updateIgBotCampaign(campaignId, userId, { status: "running", errorMsg: null });
+
+      const cookies = JSON.parse(cookiesRow.cookiesJson);
+      const token = process.env.APIFY_COMMENT_TOKEN || process.env.APIFY_TOKEN;
+      const apifyInput = {
+        cookies,
+        comments: campaign.comments,
+        post_urls: campaign.postUrls,
+      };
+
+      const runRes = await fetch(`https://api.apify.com/v2/acts/RIhCsGmzYl4GvRjbY/runs?token=${token}&waitForFinish=120`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apifyInput),
+      });
+
+      if (!runRes.ok) {
+        const errTxt = await runRes.text();
+        await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: errTxt });
+        return res.status(500).json({ message: `Apify error: ${errTxt}` });
+      }
+
+      const runData = await runRes.json();
+      const datasetId = runData?.data?.defaultDatasetId;
+      let resultCount = 0;
+
+      if (datasetId) {
+        const dsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}`);
+        if (dsRes.ok) {
+          const items = await dsRes.json();
+          resultCount = Array.isArray(items) ? items.length : 0;
+        }
+      }
+
+      await storage.updateIgBotCampaign(campaignId, userId, {
+        status: "done",
+        resultCount,
+        lastRunAt: new Date(),
+        errorMsg: null,
+      });
+
+      res.json({ ok: true, resultCount });
+    } catch (e: any) {
+      await storage.updateIgBotCampaign(campaignId, userId, { status: "failed", errorMsg: e.message }).catch(() => { });
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── Community Routes ────────────────────────────────────────────────────────
+
+  // GET /api/community/posts?channel=wins — fetch posts for a channel
+  app.get("/api/community/posts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const channel = (req.query.channel as string) || "general";
+      const result = await pool.query(
+        `SELECT cp.*, u.name as author_name, u.email as author_email, u.plan as author_plan,
+                (SELECT COUNT(*) FROM community_likes cl WHERE cl.post_id = cp.id) as like_count,
+                EXISTS(SELECT 1 FROM community_likes cl2 WHERE cl2.post_id = cp.id AND cl2.user_id = $2) as liked_by_me
+         FROM community_posts cp
+         LEFT JOIN users u ON cp.user_id = u.id
+         WHERE cp.channel = $1 AND cp.parent_id IS NULL
+         ORDER BY cp.is_pinned DESC, cp.created_at DESC
+         LIMIT 100`,
+        [channel, (req.user as any).id]
+      );
+      res.json(result.rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/community/posts/:id/replies — fetch replies for a post
+  app.get("/api/community/posts/:id/replies", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(p(req.params.id));
+      const result = await pool.query(
+        `SELECT cp.*, u.name as author_name, u.email as author_email, u.plan as author_plan,
+                (SELECT COUNT(*) FROM community_likes cl WHERE cl.post_id = cp.id) as like_count,
+                EXISTS(SELECT 1 FROM community_likes cl2 WHERE cl2.post_id = cp.id AND cl2.user_id = $2) as liked_by_me
+         FROM community_posts cp
+         LEFT JOIN users u ON cp.user_id = u.id
+         WHERE cp.parent_id = $1
+         ORDER BY cp.created_at ASC`,
+        [postId, (req.user as any).id]
+      );
+      res.json(result.rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/community/posts — create a post or reply
+  app.post("/api/community/posts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { channel = "general", content, parent_id } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "Content is required" });
+      const result = await pool.query(
+        `INSERT INTO community_posts (user_id, channel, content, parent_id)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [(req.user as any).id, channel, content.trim(), parent_id ?? null]
+      );
+      res.json(result.rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/community/posts/:id/like — toggle like on a post
+  app.post("/api/community/posts/:id/like", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(p(req.params.id));
+      const userId = (req.user as any).id;
+      const existing = await pool.query(
+        "SELECT 1 FROM community_likes WHERE post_id = $1 AND user_id = $2",
+        [postId, userId]
+      );
+      if (existing.rows.length > 0) {
+        await pool.query("DELETE FROM community_likes WHERE post_id = $1 AND user_id = $2", [postId, userId]);
+        res.json({ liked: false });
+      } else {
+        await pool.query("INSERT INTO community_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [postId, userId]);
+        res.json({ liked: true });
+      }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // DELETE /api/community/posts/:id — delete own post (or admin any)
+  app.delete("/api/community/posts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const postId = parseInt(p(req.params.id));
+      const userId = (req.user as any).id;
+      const isAdmin = (req.user as any)?.role === "admin";
+      const check = await pool.query("SELECT user_id FROM community_posts WHERE id = $1", [postId]);
+      if (!check.rows.length) return res.status(404).json({ message: "Post not found" });
+      if (!isAdmin && check.rows[0].user_id !== userId) return res.status(403).json({ message: "Not allowed" });
+      await pool.query("DELETE FROM community_posts WHERE id = $1", [postId]);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // PATCH /api/community/posts/:id/pin — admin: toggle pin
+  app.patch("/api/community/posts/:id/pin", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if ((req.user as any)?.role !== "admin") return res.status(403).json({ message: "Admin only" });
+      const postId = parseInt(p(req.params.id));
+      const result = await pool.query(
+        "UPDATE community_posts SET is_pinned = NOT is_pinned WHERE id = $1 RETURNING is_pinned",
+        [postId]
+      );
+      res.json({ pinned: result.rows[0]?.is_pinned });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ── Scheduling System ────────────────────────────────────────────────────────
+
+  const schedulingTransporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
+
+  async function sendBookingEmail(to: string, subject: string, html: string) {
+    try {
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+      await schedulingTransporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html });
+    } catch (e: any) {
+      console.error("[scheduling] email error:", e.message);
+    }
+  }
+
+  function bookingEmailHtml(params: { title: string; clientName: string; startTime: Date; endTime: Date; location?: string | null; notes?: string | null; isAdmin?: boolean; meetLink?: string }) {
+    const fmt = (d: Date) => d.toLocaleString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+    const duration = Math.round((params.endTime.getTime() - params.startTime.getTime()) / 60000);
+    const notesFormatted = params.notes ? params.notes.replace(/\n/g, "<br>") : null;
+    return `
+      <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto">
+        <h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2>
+        <p style="color:#aaa;margin-bottom:24px;font-size:13px">Scheduling System</p>
+        <h3 style="color:#fff;margin-bottom:16px">${params.isAdmin ? "📅 New Booking" : "✅ Booking Confirmed"}: ${params.title}</h3>
+        <div style="background:#222;border:1px solid #333;border-radius:8px;padding:20px;margin-bottom:20px">
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Who:</strong> ${params.clientName}</p>
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(params.startTime)}</p>
+          <p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Duration:</strong> ${duration} minutes</p>
+          ${params.location && !params.meetLink ? `<p style="margin:0 0 10px;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${params.location}</p>` : ""}
+          ${notesFormatted ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Notes:</strong><br>${notesFormatted}</p>` : ""}
+        </div>
+        ${params.meetLink ? `
+        <div style="text-align:center;margin-bottom:24px">
+          <a href="${params.meetLink}" style="display:inline-block;background:#d4b461;color:#000;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.3px">
+            🎥 Join Google Meet
+          </a>
+          <p style="color:#888;font-size:11px;margin-top:8px">${params.meetLink}</p>
+        </div>` : ""}
+        <p style="color:#666;font-size:12px">If you need to cancel or reschedule, please reach out directly.</p>
+      </div>`;
+  }
+
+  // Admin CRUD — Meeting Types
+  app.get("/api/admin/meeting-types", requireAdmin, async (_req, res) => {
+    const types = await storage.getMeetingTypes();
+    res.json(types);
+  });
+
+  app.post("/api/admin/meeting-types", requireAdmin, async (req, res) => {
+    try {
+      const { insertMeetingTypeSchema } = await import("@shared/schema");
+      const parsed = insertMeetingTypeSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+      const mt = await storage.createMeetingType(parsed.data);
+      res.json(mt);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.patch("/api/admin/meeting-types/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateMeetingType(p(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/meeting-types/:id", requireAdmin, async (req, res) => {
+    await storage.deleteMeetingType(p(req.params.id));
+    res.json({ message: "Deleted" });
+  });
+
+  // Admin — Availability Rules
+  app.get("/api/admin/meeting-types/:id/availability", requireAdmin, async (req, res) => {
+    const rules = await storage.getAvailabilityRules(p(req.params.id));
+    res.json(rules);
+  });
+
+  app.put("/api/admin/meeting-types/:id/availability", requireAdmin, async (req, res) => {
+    try {
+      const rules = await storage.upsertAvailabilityRules(p(req.params.id), req.body);
+      res.json(rules);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — All Bookings
+  app.get("/api/admin/scheduled-bookings", requireAdmin, async (_req, res) => {
+    const bookings = await storage.getScheduledBookings();
+    res.json(bookings);
+  });
+
+  app.patch("/api/admin/scheduled-bookings/:id", requireAdmin, async (req, res) => {
+    try {
+      const updated = await storage.updateScheduledBooking(p(req.params.id), req.body);
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Scheduling timezone helpers ───────────────────────────────────────────
+
+  // Convert a local calendar date + HH:MM time in the given IANA timezone to UTC.
+  function toUTCFromLocalTime(dateStr: string, timeStr: string, timezone: string): Date {
+    const [y, mo, d] = dateStr.split("-").map(Number);
+    const [h, mi] = timeStr.split(":").map(Number);
+    // Start with an approximation: treat the calendar date/time as UTC
+    let approxUtc = new Date(Date.UTC(y, mo - 1, d, h, mi, 0));
+    // Iterate to converge on the correct UTC instant (handles DST, sub-hour offsets)
+    for (let i = 0; i < 4; i++) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        year: "numeric", month: "numeric", day: "numeric",
+        hour: "numeric", minute: "numeric", hour12: false,
+      }).formatToParts(approxUtc);
+      const pmap: Record<string, number> = {};
+      for (const p of parts) if (p.type !== "literal") pmap[p.type] = parseInt(p.value) || 0;
+      const localMs = Date.UTC(pmap.year, pmap.month - 1, pmap.day, pmap.hour % 24, pmap.minute);
+      const targetMs = Date.UTC(y, mo - 1, d, h, mi);
+      const diff = targetMs - localMs;
+      if (Math.abs(diff) < 60000) break;
+      approxUtc = new Date(approxUtc.getTime() + diff);
+    }
+    return approxUtc;
+  }
+
+  // Return day-of-week (0=Sun…6=Sat) for a YYYY-MM-DD date in the given IANA timezone.
+  function getDayOfWeekInTimezone(dateStr: string, timezone: string): number {
+    const [y, mo, d] = dateStr.split("-").map(Number);
+    const refDate = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)); // noon UTC to avoid edge cases
+    const dayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(refDate);
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dayName);
+  }
+
+  // Return YYYY-MM-DD string for a UTC Date in the given timezone.
+  function getLocalDateStr(utcDate: Date, timezone: string): string {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(utcDate);
+  }
+
+  // Public — Get available slots for a meeting type (per-day)
+  app.get("/api/book/:slug/slots", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+
+      const { date } = req.query; // date as YYYY-MM-DD (interpreted in mt.timezone)
+      if (!date || typeof date !== "string") return res.status(400).json({ message: "date required (YYYY-MM-DD)" });
+
+      const tz = mt.timezone || "UTC";
+      const dayOfWeek = getDayOfWeekInTimezone(date, tz);
+      const rules = await storage.getAvailabilityRules(mt.id);
+      const rule = rules.find(r => r.dayOfWeek === dayOfWeek && r.isEnabled);
+      if (!rule) return res.json({ slots: [] });
+
+      // Compute window start/end in UTC
+      const windowStart = toUTCFromLocalTime(date, rule.startTime, tz);
+      const windowEnd = toUTCFromLocalTime(date, rule.endTime, tz);
+
+      // Fetch bookings for this meeting type and filter to this day's window
+      const existingBookings = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const dayBookings = existingBookings.filter(b =>
+        b.status !== "cancelled" &&
+        new Date(b.startTime) < windowEnd &&
+        new Date(b.endTime) > windowStart
+      );
+
+      // Generate slots in UTC
+      const slots: string[] = [];
+      const now = new Date();
+      const slotInterval = mt.duration + mt.bufferTime;
+      let curMs = windowStart.getTime();
+
+      while (curMs + mt.duration * 60000 <= windowEnd.getTime()) {
+        const slotStart = new Date(curMs);
+        const slotEnd = new Date(curMs + mt.duration * 60000);
+
+        if (slotStart > now) {
+          const conflict = dayBookings.some(b => {
+            const bStart = new Date(b.startTime).getTime();
+            const bEnd = new Date(b.endTime).getTime();
+            return slotStart.getTime() < bEnd && slotEnd.getTime() > bStart;
+          });
+          if (!conflict) slots.push(slotStart.toISOString());
+        }
+        curMs += slotInterval * 60000;
+      }
+      res.json({ slots, meetingType: mt });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Public — Get available calendar dates for a month (for calendar highlighting)
+  // Only returns dates that have at least one genuinely free slot.
+  app.get("/api/book/:slug/available-dates", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+
+      const { year, month } = req.query;
+      if (!year || !month) return res.status(400).json({ message: "year and month required" });
+
+      const y = parseInt(year as string);
+      const mo = parseInt(month as string); // 1-based
+      const tz = mt.timezone || "UTC";
+      const rules = await storage.getAvailabilityRules(mt.id);
+
+      // Fetch all non-cancelled bookings for this meeting type once
+      const allBookings = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const activeBookings = allBookings.filter(b => b.status !== "cancelled");
+
+      const daysInMonth = new Date(y, mo, 0).getDate();
+      const now = new Date();
+      const availableDates: string[] = [];
+      const slotInterval = mt.duration + mt.bufferTime;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const dow = getDayOfWeekInTimezone(dateStr, tz);
+        const rule = rules.find(r => r.dayOfWeek === dow && r.isEnabled);
+        if (!rule) continue;
+
+        const windowStart = toUTCFromLocalTime(dateStr, rule.startTime, tz);
+        const windowEnd = toUTCFromLocalTime(dateStr, rule.endTime, tz);
+        if (windowEnd <= now) continue;
+
+        // Filter bookings that overlap this day's window
+        const dayBookings = activeBookings.filter(b =>
+          new Date(b.startTime) < windowEnd && new Date(b.endTime) > windowStart
+        );
+
+        // Check if at least one slot is free
+        let hasFreeSlot = false;
+        let curMs = Math.max(windowStart.getTime(), now.getTime());
+        // Round up to the next slot boundary
+        if (curMs > windowStart.getTime()) {
+          const elapsed = curMs - windowStart.getTime();
+          const intervalMs = slotInterval * 60000;
+          curMs = windowStart.getTime() + Math.ceil(elapsed / intervalMs) * intervalMs;
+        }
+        while (curMs + mt.duration * 60000 <= windowEnd.getTime()) {
+          const slotStart = new Date(curMs);
+          const slotEnd = new Date(curMs + mt.duration * 60000);
+          const conflict = dayBookings.some(b =>
+            slotStart.getTime() < new Date(b.endTime).getTime() && slotEnd.getTime() > new Date(b.startTime).getTime()
+          );
+          if (!conflict) { hasFreeSlot = true; break; }
+          curMs += slotInterval * 60000;
+        }
+
+        if (hasFreeSlot) availableDates.push(dateStr);
+      }
+
+      res.json({ availableDates });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Google Calendar OAuth ─────────────────────────────────────────────────
+
+  function getAppBase() {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+    if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+    return `http://localhost:${process.env.PORT || "5000"}`;
+  }
+
+  function getCalendarCallbackUrl() {
+    return `${getAppBase()}/api/auth/google-calendar/callback`;
+  }
+
+  function getCalendarOAuth2Client() {
+    const { google } = require("googleapis");
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getCalendarCallbackUrl(),
+    );
+  }
+
+  app.get("/api/admin/google-calendar/status", requireAdmin, async (req, res) => {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) return res.json({ connected: false });
+      const token = await storage.getGoogleCalendarToken(admin.id);
+      res.json({ connected: !!token, email: token?.connectedEmail ?? null });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/auth/google-calendar", requireAdmin, (req: Request, res: Response) => {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(500).json({ message: "Google credentials not configured" });
+    }
+    const oauth2Client = getCalendarOAuth2Client();
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: ["https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/userinfo.email"],
+      prompt: "consent",
+      state: (req.user as any).id,
+    });
+    return res.redirect(url);
+  });
+
+  app.get("/api/auth/google-calendar/callback", async (req: Request, res: Response) => {
+    const base = getAppBase();
+    try {
+      const { code, state: userId, error } = req.query as { code?: string; state?: string; error?: string };
+      if (error) {
+        console.log(`[google-calendar] OAuth denied: ${error}`);
+        return res.redirect(`${base}/admin/scheduling?cal_error=${encodeURIComponent(error)}`);
+      }
+      if (!code || !userId) return res.redirect(`${base}/admin/scheduling?cal_error=missing_code`);
+
+      const oauth2Client = getCalendarOAuth2Client();
+      const { tokens } = await oauth2Client.getToken(code as string);
+      oauth2Client.setCredentials(tokens);
+
+      if (!tokens.access_token) throw new Error("No access token received");
+
+      // Get connected email
+      const { google } = await import("googleapis");
+      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+      const connectedEmail = userInfo.data.email ?? null;
+
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) throw new Error("Admin not found");
+
+      await storage.upsertGoogleCalendarToken(admin.id, {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        connectedEmail,
+      });
+
+      console.log(`[google-calendar] Connected: ${connectedEmail}`);
+      return res.redirect(`${base}/admin/scheduling?cal_connected=1`);
+    } catch (err: any) {
+      console.log(`[google-calendar] Callback error: ${err.message}`);
+      return res.redirect(`${base}/admin/scheduling?cal_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  app.delete("/api/admin/google-calendar/disconnect", requireAdmin, async (req, res) => {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (admin) await storage.deleteGoogleCalendarToken(admin.id);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Helper: create Google Calendar event with Meet link ──────────────────
+  async function createGoogleMeetEvent(booking: { id: string; clientName: string; clientEmail: string; startTime: Date; endTime: Date }, meetingTitle: string, location?: string | null): Promise<string | null> {
+    try {
+      const admin = await storage.getUserByEmail("admin@brandverse.com");
+      if (!admin) return null;
+      const calToken = await storage.getGoogleCalendarToken(admin.id);
+      if (!calToken) return null;
+
+      const { google } = await import("googleapis");
+      const oauth2Client = getCalendarOAuth2Client();
+      oauth2Client.setCredentials({
+        access_token: calToken.accessToken,
+        refresh_token: calToken.refreshToken,
+        expiry_date: calToken.expiresAt?.getTime(),
+      });
+
+      // Auto-refresh token if expired
+      oauth2Client.on("tokens", async (newTokens: any) => {
+        if (newTokens.access_token && admin) {
+          await storage.upsertGoogleCalendarToken(admin.id, {
+            accessToken: newTokens.access_token,
+            refreshToken: newTokens.refresh_token ?? calToken.refreshToken,
+            expiresAt: newTokens.expiry_date ? new Date(newTokens.expiry_date) : calToken.expiresAt,
+            connectedEmail: calToken.connectedEmail,
+          });
+        }
+      });
+
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      const event = await calendar.events.insert({
+        calendarId: "primary",
+        conferenceDataVersion: 1,
+        sendUpdates: "all",
+        requestBody: {
+          summary: `${meetingTitle} with ${booking.clientName}`,
+          description: location ? `Meeting link: ${location}` : undefined,
+          start: { dateTime: booking.startTime.toISOString() },
+          end: { dateTime: booking.endTime.toISOString() },
+          attendees: [
+            { email: booking.clientEmail, displayName: booking.clientName },
+          ],
+          conferenceData: {
+            createRequest: {
+              requestId: `oravini-${booking.id}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        },
+      });
+
+      const meetLink = event.data.hangoutLink ?? event.data.conferenceData?.entryPoints?.[0]?.uri ?? null;
+      console.log(`[google-calendar] Event created: ${meetLink}`);
+      return meetLink;
+    } catch (err: any) {
+      console.log(`[google-calendar] Failed to create event: ${err.message}`);
+      return null;
+    }
+  }
+
+  // Public — Get meeting type info
+  app.get("/api/book/:slug", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Not found" });
+      res.json(mt);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Public — Create booking (with full server-side availability validation)
+  app.post("/api/book/:slug", async (req, res) => {
+    try {
+      const mt = await storage.getMeetingTypeBySlug(p(req.params.slug));
+      if (!mt || !mt.isActive) return res.status(404).json({ message: "Meeting type not found" });
+
+      const { clientName, clientEmail, startTime, notes, customAnswers } = req.body;
+      if (!clientName || !clientEmail || !startTime) {
+        return res.status(400).json({ message: "clientName, clientEmail, startTime required" });
+      }
+
+      const start = new Date(startTime);
+      if (isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+      if (start <= new Date()) return res.status(400).json({ message: "Cannot book a slot in the past" });
+
+      const end = new Date(start.getTime() + mt.duration * 60000);
+      const tz = mt.timezone || "UTC";
+
+      // Determine the local calendar date in the meeting type's timezone
+      const localDateStr = getLocalDateStr(start, tz);
+      const dayOfWeek = getDayOfWeekInTimezone(localDateStr, tz);
+
+      // Validate against availability rules
+      const rules = await storage.getAvailabilityRules(mt.id);
+      const rule = rules.find(r => r.dayOfWeek === dayOfWeek && r.isEnabled);
+      if (!rule) {
+        return res.status(400).json({ message: "No availability configured for that day" });
+      }
+
+      // Compute the allowed UTC window for that day
+      const windowStart = toUTCFromLocalTime(localDateStr, rule.startTime, tz);
+      const windowEnd = toUTCFromLocalTime(localDateStr, rule.endTime, tz);
+
+      if (start < windowStart || end > windowEnd) {
+        return res.status(400).json({ message: "Requested time is outside configured availability" });
+      }
+
+      // Validate duration aligns with slot interval
+      const durationMs = end.getTime() - start.getTime();
+      if (durationMs !== mt.duration * 60000) {
+        return res.status(400).json({ message: "Slot duration does not match meeting type" });
+      }
+
+      // Check for booking conflicts
+      const existing = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const conflict = existing.some(b => {
+        if (b.status === "cancelled") return false;
+        const bStart = new Date(b.startTime).getTime();
+        const bEnd = new Date(b.endTime).getTime();
+        return start.getTime() < bEnd && end.getTime() > bStart;
+      });
+      if (conflict) return res.status(409).json({ message: "This time slot is no longer available" });
+
+      // Format custom question answers to include in notes
+      let customAnswersText = "";
+      if (customAnswers && typeof customAnswers === "object") {
+        try {
+          const questions: { id: string; label: string }[] = JSON.parse((mt as any).customQuestions ?? "[]");
+          const lines = questions
+            .filter(q => customAnswers[q.id]?.trim())
+            .map(q => `${q.label}: ${customAnswers[q.id].trim()}`);
+          if (lines.length) customAnswersText = lines.join("\n");
+        } catch { /* ignore */ }
+      }
+      const fullNotes = [customAnswersText, notes].filter(Boolean).join("\n\n") || null;
+
+      // Create booking first so we have an ID for the Meet event
+      const booking = await storage.createScheduledBooking({
+        meetingTypeId: mt.id, clientName, clientEmail,
+        startTime: start, endTime: end, status: "scheduled", notes: fullNotes,
+      });
+
+      // Auto-create Google Meet link if Calendar is connected
+      const meetLink = await createGoogleMeetEvent(
+        { id: booking.id, clientName, clientEmail, startTime: start, endTime: end },
+        mt.title,
+        mt.location,
+      );
+
+      // Store Meet link on booking if generated
+      if (meetLink) {
+        await storage.updateScheduledBooking(booking.id, { meetLink });
+      }
+
+      const effectiveLocation = meetLink ?? mt.location ?? null;
+
+      // Send confirmation emails
+      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, meetLink: meetLink ?? undefined });
+      sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
+      const adminEmail = process.env.EMAIL_USER;
+      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, isAdmin: true, meetLink: meetLink ?? undefined }));
+
+      res.json({ ...booking, meetLink });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Email Marketing ────────────────────────────────────────────────────────
+
+  function emailMarketingTemplate(name: string, content: string, unsubUrl: string): string {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Oravini</title></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<div style="max-width:580px;margin:0 auto;padding:40px 24px;">
+  <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.08);">
+    <span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span>
+  </div>
+  ${content}
+  <div style="margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.07);">
+    <p style="color:rgba(255,255,255,0.22);font-size:11px;line-height:1.7;margin:0;">
+      You're receiving this because you joined Oravini.<br>
+      <a href="${unsubUrl}" style="color:#d4b461;text-decoration:none;">Unsubscribe</a> &nbsp;·&nbsp; <a href="https://oravini.com" style="color:rgba(255,255,255,0.35);text-decoration:none;">Visit Oravini</a>
+    </p>
+  </div>
+</div>
+</body></html>`;
+  }
+
+  function applyEmailVars(html: string, vars: Record<string, string>): string {
+    return html.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+  }
+
+  async function sendMarketingEmail(to: string, name: string, subject: string, bodyHtml: string, logData: { sequenceEmailId?: string; broadcastId?: string }) {
+    const transporter = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
+    if (await storage.isEmailUnsubscribed(to)) return;
+    const log = await storage.logEmail({ toEmail: to, toName: name, subject, ...logData });
+    const appBase = process.env.APP_URL || "https://oravini.com";
+    const openPixel = `<img src="${appBase}/api/email/open/${log.id}.gif" width="1" height="1" style="display:none" alt="" />`;
+    const unsubUrl = `${appBase}/api/email/unsubscribe?email=${encodeURIComponent(to)}`;
+    const filledHtml = applyEmailVars(bodyHtml, { name, email: to });
+    const fullHtml = emailMarketingTemplate(name, filledHtml + openPixel, unsubUrl);
+    await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html: fullHtml });
+  }
+
+  // Open tracking pixel
+  app.get("/api/email/open/:logId.gif", async (req, res) => {
+    const { logId } = req.params;
+    await storage.markEmailOpened(logId).catch(() => { });
+    const gif1x1 = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+    res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store" });
+    res.send(gif1x1);
+  });
+
+  // Unsubscribe
+  app.get("/api/email/unsubscribe", async (req, res) => {
+    const { email } = req.query as { email?: string };
+    if (email) await storage.addEmailUnsubscribe(email).catch(() => { });
+    res.send(`<!DOCTYPE html><html><body style="background:#0a0a0a;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;padding:40px;"><p style="color:#d4b461;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 16px">ORAVINI</p><h2 style="margin:0 0 12px;font-size:24px;">You've been unsubscribed</h2><p style="color:rgba(255,255,255,0.4);margin:0;">You won't receive marketing emails from us anymore.</p></div></body></html>`);
+  });
+
+  // Sequences — list
+  app.get("/api/admin/email/sequences", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getEmailSequences();
+    const result = await Promise.all(seqs.map(async s => {
+      const emails = await storage.getSequenceEmails(s.id);
+      return { ...s, emailCount: emails.length };
+    }));
+    res.json(result);
+  });
+
+  // Sequences — create
+  app.post("/api/admin/email/sequences", requireAdmin, async (req, res) => {
+    const { name, description, trigger } = req.body;
+    if (!name || !trigger) return res.status(400).json({ message: "name and trigger required" });
+    const seq = await storage.createEmailSequence({ name, description, trigger, active: true });
+    res.json(seq);
+  });
+
+  // Sequences — update
+  app.patch("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
+    const seq = await storage.updateEmailSequence(p(req.params.id), req.body);
+    res.json(seq);
+  });
+
+  // Sequences — delete
+  app.delete("/api/admin/email/sequences/:id", requireAdmin, async (req, res) => {
+    await storage.deleteEmailSequence(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // Sequence emails — list
+  app.get("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
+    const emails = await storage.getSequenceEmails(p(req.params.id));
+    res.json(emails);
+  });
+
+  // Sequence emails — create
+  app.post("/api/admin/email/sequences/:id/emails", requireAdmin, async (req, res) => {
+    const { subject, bodyHtml, delayDays, sortOrder } = req.body;
+    if (!subject || !bodyHtml) return res.status(400).json({ message: "subject and bodyHtml required" });
+    const email = await storage.createSequenceEmail({ sequenceId: p(req.params.id), subject, bodyHtml, delayDays: delayDays ?? 0, sortOrder: sortOrder ?? 0 });
+    res.json(email);
+  });
+
+  // Sequence emails — update
+  app.patch("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
+    const email = await storage.updateSequenceEmail(p(req.params.id), req.body);
+    res.json(email);
+  });
+
+  // Sequence emails — delete
+  app.delete("/api/admin/email/sequence-emails/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSequenceEmail(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // Stats + recent logs
+  app.get("/api/admin/email/stats", requireAdmin, async (_req, res) => {
+    const stats = await storage.getEmailStats();
+    const logs = await storage.getEmailLogs(30);
+    res.json({ stats, logs });
+  });
+
+  // Broadcasts — list
+  app.get("/api/admin/email/broadcasts", requireAdmin, async (_req, res) => {
+    res.json(await storage.getEmailBroadcasts());
+  });
+
+  // Broadcasts — send
+  app.post("/api/admin/email/broadcast", requireAdmin, async (req, res) => {
+    const { name, subject, bodyHtml, segment } = req.body;
+    if (!name || !subject || !bodyHtml) return res.status(400).json({ message: "name, subject, bodyHtml required" });
+    const broadcast = await storage.createEmailBroadcast({ name, subject, bodyHtml, segment: segment || "all" });
+    const allClients = await storage.getAllClients();
+    const targets = allClients.filter(c => {
+      if (segment === "all" || !segment) return true;
+      return c.plan === segment;
+    });
+    let sent = 0;
+    for (const client of targets) {
+      try {
+        await sendMarketingEmail(client.email, client.name, subject, bodyHtml, { broadcastId: broadcast.id });
+        sent++;
+      } catch { /* skip failed */ }
+    }
+    await storage.updateEmailBroadcast(broadcast.id, { sentAt: new Date(), recipientsCount: sent });
+    res.json({ ok: true, sent, broadcastId: broadcast.id });
+  });
+
+  // Manual enroll — admin can enroll all users in a trigger
+  app.post("/api/admin/email/enroll-trigger", requireAdmin, async (req, res) => {
+    const { trigger } = req.body;
+    if (!trigger) return res.status(400).json({ message: "trigger required" });
+    const sequences = await storage.getEmailSequences();
+    const matching = sequences.filter(s => s.trigger === trigger && s.active);
+    if (!matching.length) return res.status(404).json({ message: "No active sequences for that trigger" });
+    const clients = await storage.getAllClients();
+    let enrolled = 0;
+    for (const seq of matching) {
+      for (const client of clients) {
+        const e = await storage.enrollUserInSequence(client.id, seq.id);
+        if (e) enrolled++;
+      }
+    }
+    res.json({ ok: true, enrolled });
+  });
+
+  // Manual: run sequence sending immediately (for testing / admin triggers)
+  app.post("/api/admin/email/run-sequences", requireAdmin, async (_req, res) => {
+    try {
+      const { processEmailSequences } = await import("./cron");
+      await processEmailSequences();
+      res.json({ ok: true, message: "Sequence processing complete" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Enrollments breakdown per sequence
+  app.get("/api/admin/email/enrollments", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getEmailSequences();
+    const enrollmentsRes = await pool.query("SELECT * FROM email_enrollments");
+    const enrollments = enrollmentsRes.rows;
+    const result = seqs.map(s => ({
+      sequenceId: s.id,
+      sequenceName: s.name,
+      trigger: s.trigger,
+      active: s.active,
+      totalEnrolled: enrollments.filter((e: any) => e.sequence_id === s.id).length,
+      pending: enrollments.filter((e: any) => e.sequence_id === s.id && !e.completed && !e.unsubscribed).length,
+      completed: enrollments.filter((e: any) => e.sequence_id === s.id && e.completed).length,
+      unsubscribed: enrollments.filter((e: any) => e.sequence_id === s.id && e.unsubscribed).length,
+    }));
+    res.json(result);
+  });
+
+  // Seed pre-built sequences
+  app.post("/api/admin/email/seed-sequences", requireAdmin, async (_req, res) => {
+    const existing = await storage.getEmailSequences();
+    if (existing.length > 0) return res.json({ message: "Sequences already seeded", count: existing.length });
+
+    const welcomeSeq = await storage.createEmailSequence({ name: "Welcome Sequence", description: "Automatically sent when a new member joins. Nurtures them toward Starter (Tier 2).", trigger: "join", active: true });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "You're in, {{name}} 👋", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Welcome to Oravini, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You just made a decision most creators never make — you invested in your growth. That counts for something.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Here's what to do in the next 10 minutes:</p><ol style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;"><li>Log in to your dashboard and complete your profile</li><li>Check out the <strong style="color:#fff;">Content Ideas generator</strong> — drop in your niche and see what comes out</li><li>Set up your Instagram tracker — this alone will change how you think about your content</li></ol><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:20px 0 24px;">We'll be in touch with more. But for now — log in and explore.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Go to Dashboard →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "3 moves that will change your content game", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Hey {{name}} — 3 things to shift right now.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Most creators grind for months without seeing results because they're optimising the wrong things. Here's what actually moves the needle:</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">01 — Track everything</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You can't improve what you don't measure. Log every post. Even the flops — especially the flops. The pattern will show itself in 30 days.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">02 — Study one competitor obsessively</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Pick one creator in your niche who is 6–12 months ahead of you. Use the Competitor Study tool to analyse their content. Reverse-engineer what's working.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">03 — Batch your content ideas</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Spend 30 minutes once a week generating ideas with the AI tools. You'll never stare at a blank page again.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Open Your Tools →</a>`, delayDays: 2, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "The #1 mistake creators make at your stage", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">{{name}}, I see this all the time.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Creators spend 80% of their time making content and 20% understanding why it worked or didn't. The ones who grow fast flip that ratio.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">They spend time understanding their audience, their hooks, their patterns — and then content creation becomes fast because they know exactly what to make.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">The Audience Psychology Map tool inside your dashboard will help you build a detailed profile of your ideal viewer — what they fear, what they want, what they scroll past. Use it before you write your next piece of content.</p><a href="https://oravini.com/audience-psychology-map" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Try It Now →</a>`, delayDays: 5, sortOrder: 3 });
+    await storage.createSequenceEmail({ sequenceId: welcomeSeq.id, subject: "Unlock your full creator toolkit 🔓", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You're leaving tools on the table, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You've been using Oravini for a week now. You've seen what the free tools can do. But here's what you're missing:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 20px;"><li><strong style="color:#fff;">150 AI credits/month</strong> — generate scripts, hooks, captions at scale</li><li><strong style="color:#fff;">AI Content Coach</strong> — personalised strategy feedback on your content</li><li><strong style="color:#fff;">Full Brand Kit Builder</strong> — lock in your visual identity</li><li><strong style="color:#fff;">SOP Generator</strong> — document your content process so you can delegate</li></ul><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">The Starter plan is $29/month. Less than a coffee a day. And it compounds — every month you're using it, you're building an advantage over creators who aren't.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Upgrade to Starter — $29/mo →</a>`, delayDays: 10, sortOrder: 4 });
+
+    const upgradeSeq = await storage.createEmailSequence({ name: "Upgrade Sequence", description: "Triggered when a member upgrades their plan. Celebrates the move and upsells to the next tier.", trigger: "upgrade", active: true });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Level up confirmed 🔥", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You just levelled up, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Your upgrade is live. Your new tools are waiting. This is the part where the serious creators separate from the ones who just talk about it.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Log in now and explore everything that's just unlocked for you. The AI credits have already been added to your account — don't let them sit.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Explore Your New Tools →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Here's exactly how to use your new tools", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Make the most of your plan, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">Three things to do this week with your upgraded access:</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">1 — Use your AI credits on hooks first</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">The hook is 80% of the result. Use the AI Ideas and Content Coach tools to generate 10 hook variations for your next piece. Pick the sharpest one.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">2 — Set up your content calendar</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 16px;">Map out the next 30 days of content. Use the Calendar tool and the AI Planner to batch everything in one session.</p><p style="color:#d4b461;font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px;">3 — Build your ICP</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Use the ICP Builder to lock in exactly who you're making content for. Everything gets easier when you know your audience precisely.</p><a href="https://oravini.com/dashboard" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Open Your Dashboard →</a>`, delayDays: 3, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "What our top members do differently", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">The pattern we've noticed, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The members who grow the fastest with Oravini all do a few things in common:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 20px;"><li>They log their content performance every week — obsessively</li><li>They use the AI tools to save 5+ hours a week, and reinvest that time into distribution</li><li>They study one competitor every fortnight and document what they're seeing</li><li>They engage with the Community to stay sharp and accountable</li></ul><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Which of these are you doing? Start with the tracking if you haven't already — that's the foundation everything else is built on.</p><a href="https://oravini.com/tracking" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">View Your Tracking →</a>`, delayDays: 7, sortOrder: 3 });
+    await storage.createSequenceEmail({ sequenceId: upgradeSeq.id, subject: "Ready for the next level? 🚀", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">One more tier to go, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You've been using your current plan for two weeks. If you've been consistent, you should already be seeing the compound effects — better ideas, faster content, clearer strategy.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The next tier unlocks the full toolkit: more AI credits, advanced video editing, the complete AI Content Coach, and the SOP Generator to document and delegate your process.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">Creators who move through tiers consistently are the ones who build sustainable businesses — not just viral moments. When you're ready, we're here.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Explore Next Tier →</a>`, delayDays: 14, sortOrder: 4 });
+
+    const likedSeq = await storage.createEmailSequence({ name: "Re-engagement Sequence", description: "For members showing strong engagement. Deepens relationship and upsells.", trigger: "liked", active: true });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "{{name}}, we love having you here", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">You're one of the good ones, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">We track engagement across the platform. And you're one of the members who actually shows up, does the work, and takes this seriously.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">That's rare. And it's the thing that separates the creators who get to where they want to go from the ones who stay stuck.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">We wanted to reach out personally and let you know — if there's anything you need, we're here. And keep watching your dashboard, because we're always adding new tools based on what our most engaged members ask for.</p><a href="https://oravini.com/community" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Join the Community →</a>`, delayDays: 0, sortOrder: 1 });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "Your biggest untapped growth lever", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">Most creators miss this, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Distribution. Not content quality. Not posting frequency. Distribution is the single biggest lever most creators aren't pulling.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">You can have the best content in your niche, but if you're not getting it in front of the right eyes consistently, you'll stay stuck. The algorithms reward accounts that already have momentum — so you have to build it intentionally.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">Here's what's working right now for creators in our community:</p><ul style="color:rgba(255,255,255,0.7);font-size:15px;line-height:2;padding-left:20px;margin:0 0 24px;"><li>Cross-posting the same content across 2–3 platforms with minor tweaks</li><li>Replying to every comment in the first hour after posting</li><li>Collaborating with 1 creator in an adjacent niche every month</li></ul><a href="https://oravini.com/ai-ideas" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Generate Content Ideas →</a>`, delayDays: 3, sortOrder: 2 });
+    await storage.createSequenceEmail({ sequenceId: likedSeq.id, subject: "This is why your top competitors are pulling ahead", bodyHtml: `<h2 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 16px;">The gap is widening, {{name}}.</h2><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The creators in your niche who are growing the fastest right now are using better tools, faster feedback loops, and systems you probably don't have yet.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">The good news: you're already on Oravini. The gap between what you have access to on your current plan and what's waiting on the next tier is significant.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 20px;">More AI credits. Full content coach. Advanced analytics. Video editing at scale. The creators using these tools are building moats that are hard to catch up to.</p><p style="color:rgba(255,255,255,0.7);font-size:15px;line-height:1.8;margin:0 0 24px;">You're doing the work. Make sure your tools match your ambition.</p><a href="https://oravini.com/select-plan" style="display:inline-block;background:#d4b461;color:#000;text-decoration:none;font-size:14px;font-weight:800;padding:12px 28px;border-radius:8px;">Upgrade Your Plan →</a>`, delayDays: 7, sortOrder: 3 });
+
+    res.json({ seeded: true, sequences: 3 });
+  });
+
+  // ── Everyday Read (Admin) ─────────────────────────────────────────────────
+  app.get("/api/admin/reading-materials", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT rm.*, u.name as user_name, u.email as user_email
+         FROM reading_materials rm
+         LEFT JOIN users u ON u.id = rm.user_id
+         ORDER BY rm.created_at DESC`
+      );
+      res.json(result.rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/reading-materials", requireAdmin, async (req, res) => {
+    try {
+      const { title, author, source, category, summary, keyTakeaways, actionableLessons, tags, difficulty, readTimeMinutes, priority, status, fileUrl, fileType } = req.body;
+      if (!title) return res.status(400).json({ message: "Title is required" });
+      const admin = req.user as any;
+      const material = await storage.createReadingMaterial({
+        userId: admin.id,
+        title, author, source, category: category || "Books",
+        summary, keyTakeaways: keyTakeaways || [], actionableLessons: actionableLessons || [],
+        tags: tags || [], difficulty: difficulty || "intermediate", readTimeMinutes: readTimeMinutes || 10,
+        priority: priority || "medium", status: status || "unread", fileUrl, fileType,
+      });
+      res.json(material);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/admin/reading-materials/:id", requireAdmin, async (req, res) => {
+    try {
+      const material = await storage.updateReadingMaterial(p(req.params.id), req.body);
+      res.json(material);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/reading-materials/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteReadingMaterial(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/admin/daily-readings", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT dr.*, u.name as user_name, u.email as user_email
+         FROM daily_readings dr
+         LEFT JOIN users u ON u.id = dr.user_id
+         ORDER BY dr.date DESC`
+      );
+      res.json(result.rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/daily-readings", requireAdmin, async (req, res) => {
+    try {
+      const { userId, date, mode, quickReadTitle, quickReadContent, quickReadSource, focusReadTitle, focusReadContent, focusReadSource, deepReadTitle, deepReadContent, deepReadSource, mentalModel, mentalModelExplanation, framework, frameworkExplanation, quote, quoteAuthor, executionTask, reflectionQuestion, challenge, implementation, whyToday, sources, knowledgeScore } = req.body;
+      const reading = await storage.createDailyReading({
+        userId, date: date ? new Date(date) : new Date(), mode: mode || "15min",
+        quickReadTitle, quickReadContent, quickReadSource,
+        focusReadTitle, focusReadContent, focusReadSource,
+        deepReadTitle, deepReadContent, deepReadSource,
+        mentalModel, mentalModelExplanation, framework, frameworkExplanation,
+        quote, quoteAuthor, executionTask, reflectionQuestion, challenge, implementation, whyToday,
+        sources: sources || [], knowledgeScore: knowledgeScore || 0,
+      });
+      res.json(reading);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/admin/daily-readings/:id", requireAdmin, async (req, res) => {
+    try {
+      const reading = await storage.updateDailyReading(p(req.params.id), req.body);
+      res.json(reading);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/daily-readings/:id", requireAdmin, async (req, res) => {
+    try {
+      await pool.query("DELETE FROM daily_readings WHERE id = $1", [p(req.params.id)]);
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Marketing / Webinars ───────────────────────────────────────────
+  function generateMeetingCode(): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return code;
+  }
+
+  // Webinars
+  // IMPORTANT: public route MUST be declared before "/api/webinars/:id"
+  // so Express doesn't treat "public" as an :id param.
+  app.get("/api/webinars/public", async (_req, res) => {
+    try {
+      const limit = 20;
+      const rows = await storage.getPublicWebinars(limit);
+      res.json(rows);
+    } catch (err: any) {
+      // Gracefully handle missing table (pre-migration): return empty list
+      // so the public landing page still renders with its demo fallback.
+      if (err?.code === "42P01") {
+        console.warn("[webinars/public] webinars table missing — returning []");
+        return res.json([]);
+      }
+      console.error("[webinars/public]", err);
+      res.status(500).json({ message: "Failed to fetch public webinars" });
+    }
+  });
+
+  app.get("/api/webinars", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const status = req.query.status as "completed" | "live" | "cancelled" | "upcoming" | undefined;
+    const webinars = await storage.getWebinars(user.id, status);
+    res.json(webinars);
+  });
+
+  app.post("/api/webinars", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic, webinarType, replayVideoUrl, presenterName, videoQuality } = req.body;
+      if (!title || !scheduledAt) return res.status(400).json({ message: "Title and scheduledAt required" });
+
+      let meetingCode = generateMeetingCode();
+      let attempts = 0;
+      while (attempts < 5) {
+        const existing = await storage.getWebinars(user.id);
+        if (!existing.find((w: any) => w.meetingCode === meetingCode)) break;
+        meetingCode = generateMeetingCode();
+        attempts++;
+      }
+
+      const webinar = await storage.createWebinar({
+        userId: user.id, title, description: description || null,
+        scheduledAt: new Date(scheduledAt), durationMinutes: durationMinutes || 60,
+        maxAttendees: maxAttendees || null, meetingCode,
+        chatChannels: chatChannels || ["General"], offerUrl: offerUrl || null,
+        offerTitle: offerTitle || null, thumbnailUrl: thumbnailUrl || null,
+        isPublic: isPublic ?? false,
+        webinarType: webinarType || "live",
+        replayVideoUrl: replayVideoUrl || null,
+        presenterName: presenterName || null,
+        videoQuality: videoQuality || "1080p",
+      });
+      res.status(201).json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.getWebinar(p(req.params.id));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/webinars/public/:code", async (req, res) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(req.params.code);
+      if (!webinar) return res.status(404).json({ message: "Not found" });
+      res.json({
+        id: webinar.id, title: webinar.title, description: webinar.description,
+        scheduledAt: webinar.scheduledAt, durationMinutes: webinar.durationMinutes,
+        status: webinar.status,
+        webinarType:    (webinar as any).webinarType    ?? "live",
+        replayVideoUrl: (webinar as any).replayVideoUrl ?? null,
+        presenterName:  (webinar as any).presenterName  ?? null,
+        offerUrl: webinar.offerUrl, offerTitle: webinar.offerTitle,
+        meetingCode: webinar.meetingCode,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      const webinar = await storage.updateWebinar(p(req.params.id), req.body);
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinars/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinar(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/start", requireAuth, async (req, res) => {
+    try {
+      const id = p(req.params.id);
+      const webinar = await storage.updateWebinar(id, { status: "live", startedAt: new Date() } as any);
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
+    try {
+      const id = p(req.params.id);
+      const webinar = await storage.updateWebinar(id, { status: "completed", endedAt: new Date() } as any);
+      res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar Registrations
+  app.get("/api/webinars/:id/registrations", requireAuth, async (req, res) => {
+    try {
+      const regs = await storage.getWebinarRegistrations(p(req.params.id));
+      res.json(regs);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/registrations", async (req, res) => {
+    try {
+      const { name, email, phone } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const reg = await storage.createWebinarRegistration({
+        webinarId: p(req.params.id), name, email, phone: phone || null,
+      });
+      res.status(201).json(reg);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Video Events
+  app.get("/api/video-events", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const videos = await storage.getVideoEvents(user.id);
+    res.json(videos);
+  });
+
+  app.post("/api/video-events", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { title, description, videoUrl, thumbnailUrl, duration, category, tags, isPublic, allowDownload } = req.body;
+      if (!title || !videoUrl) return res.status(400).json({ message: "Title and videoUrl required" });
+      const video = await storage.createVideoEvent({
+        userId: user.id, title, description: description || null, videoUrl,
+        thumbnailUrl: thumbnailUrl || null, duration: duration || null,
+        category: category || "General", tags: tags || [], isPublic: isPublic ?? false,
+        allowDownload: allowDownload ?? false,
+      });
+      res.status(201).json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-events/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteVideoEvent(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Webinar Recordings
+  app.get("/api/recordings", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const recordings = await storage.getWebinarRecordings(user.id);
+    res.json(recordings);
+  });
+
+  app.post("/api/recordings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { webinarId, title, recordingUrl, thumbnailUrl, duration, fileSize, isPublic } = req.body;
+      if (!title || !recordingUrl) return res.status(400).json({ message: "Title and recordingUrl required" });
+      const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const rec = await storage.createWebinarRecording({
+        webinarId: webinarId || null, userId: user.id, title, recordingUrl,
+        thumbnailUrl: thumbnailUrl || null, duration: duration || null,
+        fileSize: fileSize || null, shareToken, isPublic: isPublic ?? false,
+      });
+      res.status(201).json(rec);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/recordings/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinarRecording(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Recording upload from host's MediaRecorder ────────────────────────────
+  const recordingUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        const dir = path.resolve("uploads/recordings");
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (_req, file, cb) => {
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `${unique}${path.extname(file.originalname) || ".webm"}`);
+      },
+    }),
+    limits: { fileSize: 500 * 1024 * 1024 },
+  });
+
+  app.post("/api/webinars/:id/recording/upload", requireAuth, recordingUpload.single("file"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const webinarId = p(req.params.id);
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const recordingUrl = `/uploads/recordings/${req.file.filename}`;
+      const duration = req.body.duration ? Math.round(Number(req.body.duration)) : null;
+      const title = req.body.title || "Webinar Recording";
+      const fileSize = `${(req.file.size / 1024 / 1024).toFixed(1)} MB`;
+      const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const rec = await storage.createWebinarRecording({
+        webinarId, userId: user.id, title, recordingUrl,
+        thumbnailUrl: null, duration, fileSize, shareToken, isPublic: false,
+      });
+      await storage.updateWebinar(webinarId, { replayVideoUrl: recordingUrl });
+      res.status(201).json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Webinar Analytics ─────────────────────────────────────────────────────
+  app.get("/api/webinars/:id/analytics", requireAuth, async (req, res) => {
+    try {
+      const webinarId = p(req.params.id);
+      const [webinar, registrations, events, recordings] = await Promise.all([
+        storage.getWebinar(webinarId),
+        storage.getWebinarRegistrations(webinarId),
+        storage.getWebinarEvents(webinarId),
+        storage.getWebinarRecordingsByWebinarId(webinarId),
+      ]);
+      if (!webinar) return res.status(404).json({ message: "Not found" });
+
+      const joins     = events.filter(e => e.eventType === "viewer_join");
+      const chats     = events.filter(e => e.eventType === "chat");
+      const qas       = events.filter(e => e.eventType === "qa");
+      const reactions = events.filter(e => e.eventType === "reaction");
+      const hands     = events.filter(e => e.eventType === "raise_hand");
+      const uniqueIds = [...new Set(joins.map(e => e.viewerId).filter(Boolean))];
+      const attended  = uniqueIds.length;
+
+      const attendeeMap = new Map<string, { id: string; name: string | null; joinTime: Date | null; chatCount: number; qaCount: number }>();
+      joins.forEach(e => {
+        if (e.viewerId && !attendeeMap.has(e.viewerId))
+          attendeeMap.set(e.viewerId, { id: e.viewerId, name: e.viewerName, joinTime: e.ts, chatCount: 0, qaCount: 0 });
+      });
+      chats.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.chatCount++; });
+      qas.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.qaCount++; });
+
+      // ── Timeline: per-minute dropout curve ───────────────────────────────
+      const ctaLaunchEvts = events.filter(e => e.eventType === "cta_launched");
+      const ctaClickEvts  = events.filter(e => e.eventType === "cta_click");
+      const wStart  = (webinar as any).startedAt ? new Date((webinar as any).startedAt).getTime() : null;
+      const wEnd    = (webinar as any).endedAt   ? new Date((webinar as any).endedAt).getTime()   : null;
+      const durMs   = wStart && wEnd ? wEnd - wStart : null;
+      const durMins = durMs ? Math.min(Math.ceil(durMs / 60000), 180) : 0;
+
+      const timeline: { minute: number; viewers: number; chats: number; reactions: number; ctaClicks: number }[] = [];
+      if (wStart && durMins > 0) {
+        const sessions = new Map<string, { joinMs: number; leaveMs: number }>();
+        events.filter(e => e.eventType === "viewer_join"  && e.viewerId && e.ts).forEach(ev => {
+          const ms = new Date(ev.ts!).getTime() - wStart;
+          if (ms >= 0) sessions.set(ev.viewerId!, { joinMs: ms, leaveMs: durMs! });
+        });
+        events.filter(e => e.eventType === "viewer_leave" && e.viewerId && e.ts).forEach(ev => {
+          const ms = new Date(ev.ts!).getTime() - wStart;
+          if (ms > 0 && sessions.has(ev.viewerId!)) sessions.get(ev.viewerId!)!.leaveMs = ms;
+        });
+        const getMin = (ev: any) => ev.ts ? Math.max(0, Math.floor((new Date(ev.ts).getTime() - wStart) / 60000)) : -1;
+        for (let m = 0; m <= durMins; m++) {
+          const msAt = m * 60000;
+          timeline.push({
+            minute:    m,
+            viewers:   [...sessions.values()].filter(s => s.joinMs <= msAt && s.leaveMs > msAt).length,
+            chats:     chats.filter(e => getMin(e) === m).length,
+            reactions: reactions.filter(e => getMin(e) === m).length,
+            ctaClicks: ctaClickEvts.filter(e => getMin(e) === m).length,
+          });
+        }
+      }
+
+      const ctaStats = {
+        launches: ctaLaunchEvts.length,
+        clicks:   ctaClickEvts.length,
+        convRate: ctaClickEvts.length > 0 && attended > 0
+          ? Math.round((ctaClickEvts.length / attended) * 100)
+          : 0,
+      };
+
+      res.json({
+        webinar,
+        registrations: registrations.length,
+        attended,
+        peakViewers: (webinar as any).peakViewers || attended,
+        chatMessages: chats.length,
+        qaQuestions: qas.length,
+        totalReactions: reactions.length,
+        raisedHands: hands.length,
+        attendeeList: Array.from(attendeeMap.values()),
+        chatTranscript: chats.map(e => ({ name: e.viewerName, text: (e.data as any)?.text, ts: e.ts })),
+        qaLog: qas.map(e => ({ name: e.viewerName, question: (e.data as any)?.text, ts: e.ts })),
+        recordings,
+        timeline,
+        ctaStats,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Webinar Landing Pages
+  app.get("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const lp = await storage.getWebinarLandingPage(p(req.params.id));
+      res.json(lp || null);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { slug, headline, subheadline, bodyContent, heroImageUrl, presenterName, presenterTitle, presenterAvatarUrl, ctaText, accentColor } = req.body;
+      if (!slug || !headline) return res.status(400).json({ message: "Slug and headline required" });
+      const lp = await storage.createWebinarLandingPage({
+        webinarId: p(req.params.id), userId: user.id, slug, headline,
+        subheadline: subheadline || null, bodyContent: bodyContent || null,
+        heroImageUrl: heroImageUrl || null, presenterName: presenterName || null,
+        presenterTitle: presenterTitle || null, presenterAvatarUrl: presenterAvatarUrl || null,
+        ctaText: ctaText || "Register Now", accentColor: accentColor || "#d4b461",
+      });
+      res.status(201).json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinars/:id/landing-page", requireAuth, async (req, res) => {
+    try {
+      const existing = await storage.getWebinarLandingPage(p(req.params.id));
+      if (!existing) return res.status(404).json({ message: "Landing page not found" });
+      const lp = await storage.updateWebinarLandingPage(existing.id, req.body);
+      res.json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: view landing page
+  app.get("/api/public/landing-page/:slug", async (req, res) => {
+    try {
+      const lp = await storage.getWebinarLandingPageBySlug(req.params.slug);
+      if (!lp) return res.status(404).json({ message: "Landing page not found" });
+      res.json(lp);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+
+  // ── Video Marketing: Public Routes ────────────────────────────────────────
+  // Public: Get landing page by slug (no auth required)
+  app.get("/api/webinar-landing-pages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const pages = await storage.getWebinarLandingPagesByUser(user.id);
+      res.json(pages);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/lp/:slug", async (req: Request, res: Response) => {
+    try {
+      const result = await storage.getWebinarLandingPageWithWebinar(p(req.params.slug));
+      if (!result) return res.status(404).json({ message: "Landing page not found" });
+      if (!result.landingPage.published) return res.status(404).json({ message: "Landing page not published" });
+      await storage.trackLandingPageView(result.landingPage.id);
+      res.json({
+        landingPage: result.landingPage,
+        webinar: {
+          id: result.webinar.id,
+          title: result.webinar.title,
+          description: result.webinar.description,
+          scheduledAt: result.webinar.scheduledAt,
+          durationMinutes: result.webinar.durationMinutes,
+          status: result.webinar.status,
+          meetingCode: result.webinar.meetingCode,
+          thumbnailUrl: result.webinar.thumbnailUrl,
+          presenterName: result.landingPage.presenterName,
+          presenterTitle: result.landingPage.presenterTitle,
+          presenterAvatarUrl: result.landingPage.presenterAvatarUrl,
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Public: Register for webinar by meeting code (no auth required)
+  app.post("/api/register/:code", async (req: Request, res: Response) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(p(req.params.code));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      const { name, email, phone } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const reg = await storage.createWebinarRegistration({
+        webinarId: webinar.id,
+        name,
+        email,
+        phone: phone || null,
+      });
+      try {
+        await storage.createWebinarContact({
+          userId: webinar.userId,
+          name,
+          email,
+          phone: phone || null,
+          source: "webinar_registration",
+          segment: "webinar",
+          stage: "lead",
+          webinarCode: webinar.meetingCode,
+        });
+      } catch (_) { }
+      const lp = await storage.getWebinarLandingPage(webinar.id);
+      if (lp) {
+        await storage.incrementLandingPageRegistration(lp.id);
+      }
+      res.status(201).json({ success: true, registration: reg });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Public: Track video analytics event (no auth required)
+  app.post("/api/video-analytics", async (req: Request, res: Response) => {
+    try {
+      const { videoId, sessionId, eventType, position, metadata } = req.body;
+      if (!videoId || !sessionId || !eventType) return res.status(400).json({ message: "videoId, sessionId, and eventType required" });
+      const event = await storage.createVideoAnalyticsEvent({
+        videoId,
+        sessionId,
+        eventType,
+        position: position || 0,
+        metadata: metadata || {},
+      });
+      res.status(201).json(event);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Video Marketing: Contacts / CRM
+  app.get("/api/webinar-contacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const contacts = await storage.getWebinarContacts(user.id);
+      res.json(contacts);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/webinar-contacts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const contact = await storage.createWebinarContact({ ...req.body, userId: user.id });
+      res.status(201).json(contact);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/webinar-contacts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const contact = await storage.updateWebinarContact(p(req.params.id), req.body);
+      res.json(contact);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/webinar-contacts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarContact(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Video Marketing: Analytics (auth)
+  app.get("/api/video-analytics/:videoId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const events = await storage.getVideoAnalyticsEvents(p(req.params.videoId));
+      const summary = await storage.getVideoAnalyticsSummary(p(req.params.videoId));
+      res.json({ events, summary });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Webinar Recordings
+  app.get("/api/webinar-recordings", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const recordings = await storage.getWebinarRecordings(user.id);
+    res.json(recordings);
+  });
+
+  app.post("/api/webinar-recordings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { webinarId, title, recordingUrl, thumbnailUrl, duration, fileSize, isPublic } = req.body;
+      if (!title || !recordingUrl) return res.status(400).json({ message: "Title and recordingUrl required" });
+      const rec = await storage.createWebinarRecording({
+        webinarId: webinarId || null,
+        userId: user.id,
+        title,
+        recordingUrl,
+        thumbnailUrl: thumbnailUrl || null,
+        duration: duration || null,
+        fileSize: fileSize || null,
+        shareToken: Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10),
+        isPublic: isPublic || false,
+      });
+      res.status(201).json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const rec = await storage.getWebinarRecording(p(req.params.id));
+      if (!rec) return res.status(404).json({ message: "Recording not found" });
+      res.json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const rec = await storage.updateWebinarRecording(p(req.params.id), req.body);
+      res.json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/webinar-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinarRecording(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── User Feedback ──────────────────────────────────────────────────────────
+  app.post("/api/feedback", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      // Zod .optional() rejects null — strip nulls to undefined before parsing
+      const cleaned = Object.fromEntries(
+        Object.entries(req.body).map(([k, v]) => [k, v === null ? undefined : v])
+      );
+      const parsed = insertUserFeedbackSchema.safeParse({ ...cleaned, userId });
+      if (!parsed.success) {
+        console.error("Feedback validation error:", parsed.error.errors);
+        return res.status(400).json({ message: "Invalid feedback data", errors: parsed.error.errors });
+      }
+      const feedback = await storage.createUserFeedback(parsed.data);
+      res.status(201).json(feedback);
+    } catch (err: any) {
+      console.error("Feedback insert error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/feedback/my", requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const feedback = await storage.getUserFeedback(userId);
+      res.json(feedback);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/feedback", requireAdmin, async (req, res) => {
+    try {
+      const feedback = await storage.getAllUserFeedback();
+      res.json(feedback);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Instagram scheduled posts (caption reminders) ─────────────────────────
+  app.get("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      const posts = await storage.getScheduledInstagramPosts(userId);
+      res.json(posts);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      const parsed = insertScheduledInstagramPostSchema.safeParse({ ...req.body, userId });
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid input" });
+      const post = await storage.createScheduledInstagramPost(parsed.data);
+      res.json(post);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { status } = req.body;
+      if (!["posted"].includes(status)) return res.status(400).json({ message: "Invalid status" });
+      await storage.updateScheduledInstagramPost(p(req.params.id), { status });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      await storage.deleteScheduledInstagramPost(p(req.params.id), userId);
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTENT INTELLIGENCE ENGINE
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Brand Voice Analyzer ───────────────────────────────────────────────────
+  app.post("/api/brand-voice/analyze", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const existingPosts = await storage.getContentPostsByClient(user.id);
+      
+      if (existingPosts.length < 5) {
+        return res.status(400).json({ message: "Need at least 5 posts to analyze brand voice. Add more content first." });
+      }
+
+      const voiceProfile = await analyzeBrandVoice(user.id, existingPosts);
+      const saved = await storage.upsertBrandVoiceProfile({
+        userId: user.id,
+        ...voiceProfile,
+      });
+      
+      return res.json(saved);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/brand-voice", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const profile = await storage.getBrandVoiceProfile(user.id);
+      return res.json(profile || null);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Performance Feedback (Learning Loop) ───────────────────────────────────
+  app.post("/api/content/:id/performance-feedback", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { views, likes, comments, saves, niche } = req.body;
+      
+      if (!niche) return res.status(400).json({ message: "niche is required" });
+      
+      await processPerformanceFeedback(
+        user.id,
+        p(req.params.id),
+        views || 0,
+        likes || 0,
+        comments || 0,
+        saves || 0,
+        niche
+      );
+      
+      return res.json({ message: "Performance logged. AI will learn from this." });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Winning Patterns ───────────────────────────────────────────────────────
+  app.get("/api/winning-patterns", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { platform, funnelStage } = req.query;
+      const patterns = await storage.getWinningPatterns(user.id, {
+        platform: platform as string,
+        funnelStage: funnelStage as string,
+        limit: 20,
+      });
+      return res.json(patterns);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Hook Library ───────────────────────────────────────────────────────────
+  app.get("/api/hook-library", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { platform, niche, hookType } = req.query;
+      const hooks = await storage.getHookLibrary({
+        platform: platform as string,
+        niche: niche as string,
+        hookType: hookType as string,
+        limit: 50,
+      });
+      return res.json(hooks);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── TRAINED CONTENT CALENDAR GENERATOR ─────────────────────────────────────
+  app.post("/api/content-calendar/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { month, niche, platform, goal, days } = req.body;
+      
+      if (!month || !niche || !platform || !goal) {
+        return res.status(400).json({ message: "month, niche, platform, and goal are required" });
+      }
+
+      const daysToGenerate = Math.min(Math.max(parseInt(days) || 30, 7), 30);
+      const creditCost = Math.ceil(daysToGenerate / 3); // 3 days = 1 credit
+      
+      if (user.role !== "admin") {
+        const creditResult = await storage.deductCredits(user.id, creditCost, "content_calendar", `${daysToGenerate}-day Content Calendar`, user.plan || "free");
+        if (!creditResult.success) {
+          return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
+        }
+      }
+
+      // Get user's existing posts for context
+      const existingPosts = await storage.getContentPostsByClient(user.id);
+      
+      // Build training prompt with ALL the intelligence
+      const trainingPrompt = await buildTrainingPrompt(user.id, platform, niche, "top");
+      
+      // Build strategy brief
+      const contextPosts = existingPosts.slice(0, 30).map(p => ({
+        title: p.title || "",
+        contentType: p.contentType,
+        views: p.views,
+        likes: p.likes,
+        comments: p.comments,
+        saves: p.saves,
+      }));
+
+      const systemPrompt = trainingPrompt + `\n\nYou are generating a ${daysToGenerate}-day content calendar. Every piece of content MUST use proven patterns from the training data above.`;
+      
+      const userPrompt = `Generate a ${daysToGenerate}-day content calendar for ${month}.\n\nPlatform: ${platform}\nNiche: ${niche}\nGoal: ${goal}\n\nContext: User has ${existingPosts.length} existing posts tracked.\n\nReturn ONLY valid JSON (no markdown):\n{\n  "strategy": {\n    "tofuPercent": 40,\n    "mofuPercent": 40,\n    "bofuPercent": 20,\n    "postingFrequency": "daily",\n    "contentMix": { "reels": 50, "carousels": 30, "posts": 20 },\n    "keyThemes": ["theme1", "theme2", "theme3"]\n  },\n  "posts": [\n    {\n      "day": 1,\n      "date": "2025-10-01",\n      "funnelStage": "top",\n      "contentType": "reel",\n      "title": "Hook-driven title using proven pattern",\n      "hook": "Exact opening line",\n      "hookType": "curiosity",\n      "body": "Main content structure",\n      "cta": "Specific call to action",\n      "hashtags": ["#tag1", "#tag2"],\n      "notes": "Production notes",\n      "whyItWorks": "Why this will perform based on training data"\n    }\n  ]\n}\n\nGenerate exactly ${daysToGenerate} posts. Use ONLY proven hook patterns. Match the brand voice. Follow platform-specific structure.`;
+
+      const calendar = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 8000));
+      
+      // Validate and ensure we have the right number of posts
+      if (!calendar.posts || calendar.posts.length < daysToGenerate) {
+        return res.status(500).json({ message: "AI failed to generate complete calendar. Please try again." });
+      }
+
+      // Save to database
+      const saved = await storage.createContentCalendar({
+        userId: user.id,
+        month,
+        niche,
+        platform: platform as any,
+        goal,
+        strategy: calendar.strategy,
+        posts: calendar.posts,
+        status: "active",
+      });
+
+      return res.json({ ...saved, creditsUsed: creditCost });
+    } catch (err: any) {
+      console.error("[content-calendar/generate] error:", err);
+      return res.status(500).json({ message: err.message || "Calendar generation failed" });
+    }
+  });
+
+  // ── Get Content Calendars ──────────────────────────────────────────────────
+  app.get("/api/content-calendar", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const calendars = await storage.getContentCalendars(user.id);
+      return res.json(calendars);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const calendar = await storage.getContentCalendar(p(req.params.id));
+      if (!calendar) return res.status(404).json({ message: "Calendar not found" });
+      return res.json(calendar);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateContentCalendar(p(req.params.id), req.body);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteContentCalendar(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Content Templates ──────────────────────────────────────────────────────
+  app.get("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const templates = await storage.getContentTemplates(user.id);
+      const publicTemplates = await storage.getPublicContentTemplates();
+      return res.json({ userTemplates: templates, publicTemplates });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const template = await storage.createContentTemplate({ ...req.body, userId: user.id });
+      return res.json(template);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateContentTemplate(p(req.params.id), req.body);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteContentTemplate(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Admin: Seed Training Data ──────────────────────────────────────────────
+  app.post("/api/admin/seed-training-data", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      // Seed some initial platform training data for Instagram Reels
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "reel" as any,
+        pattern: "Hook in first 3 seconds",
+        category: "hook_rules",
+        description: "First 3 seconds must stop the scroll. Use text overlay + visual pattern interrupt.",
+        examples: null,
+        effectiveness: 9.5,
+        source: "admin_curated",
+      });
+
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "reel" as any,
+        pattern: "Jump cuts every 2-3 seconds",
+        category: "retention_tricks",
+        description: "Fast cuts keep attention. Never let a shot run longer than 3 seconds.",
+        examples: null,
+        effectiveness: 8.5,
+        source: "admin_curated",
+      });
+
+      await storage.createPlatformTrainingData({
+        platform: "instagram" as any,
+        contentType: "carousel" as any,
+        pattern: "Max 15 words per slide",
+        category: "structure",
+        description: "Each slide should have one clear idea. Bold headline + supporting line.",
+        examples: null,
+        effectiveness: 9.0,
+        source: "admin_curated",
+      });
+
+      return res.json({ message: "Training data seeded successfully" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
+  app.use(contentWorkflowRoutes);
+
+  // ── Custom Domains ────────────────────────────────────────────────────────
+  app.get("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const domains = await storage.getWebinarDomains(user.id);
+      res.json(domains);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { domain, targetSlug } = req.body;
+      if (!domain) return res.status(400).json({ message: "Domain is required" });
+      const cleaned = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const verifyToken = `oravini-verify-${user.id.slice(0, 8)}-${Math.random().toString(36).slice(2, 10)}`;
+      const existing = await storage.getWebinarDomainByDomain(cleaned);
+      if (existing) return res.status(409).json({ message: "Domain already registered" });
+      const d = await storage.createWebinarDomain({ userId: user.id, domain: cleaned, status: "pending", targetSlug: targetSlug || null, verifyToken });
+      res.status(201).json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarDomain(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateWebinarDomain(p(req.params.id), req.body);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains/:id/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domains = await storage.getWebinarDomains((req.user as any).id);
+      const domain = domains.find(d => d.id === p(req.params.id));
+      if (!domain) return res.status(404).json({ message: "Domain not found" });
+
+      let verified = false;
+      try {
+        const txtRecords = await dns.promises.resolveTxt(domain.domain);
+        const flat = txtRecords.flat();
+        verified = flat.some(r => r.includes(domain.verifyToken || ""));
+        if (!verified) {
+          // Also try _oravini-challenge subdomain
+          try {
+            const chalRecords = await dns.promises.resolveTxt(`_oravini-challenge.${domain.domain}`);
+            const chalFlat = chalRecords.flat();
+            verified = chalFlat.some(r => r.includes(domain.verifyToken || ""));
+          } catch {}
+        }
+      } catch {}
+
+      if (verified) {
+        const updated = await storage.updateWebinarDomain(domain.id, { status: "active", verifiedAt: new Date() });
+        return res.json({ success: true, domain: updated });
+      } else {
+        await storage.updateWebinarDomain(domain.id, { status: "pending" });
+        return res.status(400).json({ success: false, message: "DNS TXT record not found yet. DNS changes can take up to 48 hours to propagate." });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Public: Domain Config (for custom domain SPA routing) ────────────────
+  app.get("/api/domain-config", async (req: Request, res: Response) => {
+    try {
+      const host = (req.query.domain as string) || req.hostname;
+      if (!host || host.includes("localhost") || host.includes("replit")) return res.json({ slug: null });
+      const domain = await storage.getWebinarDomainByDomain(host);
+      if (!domain || domain.status !== "active" || !domain.targetSlug) return res.json({ slug: null });
+      res.json({ slug: domain.targetSlug, domain: domain.domain });
+    } catch { res.json({ slug: null }); }
+  });
+
+  // ── Video Marketing Settings (Livekit) ───────────────────────────────────
+  app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      // Never return the secret to the client
+      if (!settings) return res.json({ livekitUrl: "", livekitKey: "", hasSecret: false });
+      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { livekitUrl, livekitKey, livekitSecret } = req.body;
+      const data: any = {};
+      if (livekitUrl !== undefined) data.livekitUrl = livekitUrl;
+      if (livekitKey !== undefined) data.livekitKey = livekitKey;
+      if (livekitSecret !== undefined) data.livekitSecret = livekitSecret;
+      const settings = await storage.upsertVideoMarketingSettings(user.id, data);
+      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Livekit Room Tokens ───────────────────────────────────────────────────
+  app.post("/api/webinars/:id/livekit-token", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const webinarId = p(req.params.id);
+      const webinar = await storage.getWebinar(webinarId);
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      if (webinar.userId !== user.id) return res.status(403).json({ message: "Not authorized" });
+
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
+        return res.status(400).json({ message: "Livekit not configured. Add your API key, secret, and URL in Settings." });
+      }
+
+      const { AccessToken } = await import("livekit-server-sdk");
+      const roomName = `webinar_${webinarId}`;
+      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
+        identity: `host_${user.id}`,
+        name: user.name || "Host",
+        ttl: "4h",
+      });
+      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, roomCreate: true });
+      const token = await at.toJwt();
+
+      // Store room name on webinar
+      await storage.updateWebinar(webinarId, { livekitRoomName: roomName } as any);
+      res.json({ token, roomName, livekitUrl: settings.livekitUrl });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: viewer token (no auth required — identity is anonymous)
+  app.get("/api/webinars/:id/viewer-token", async (req: Request, res: Response) => {
+    try {
+      const webinarId = p(req.params.id);
+      const webinar = await storage.getWebinar(webinarId);
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      if (!webinar.livekitRoomName) return res.status(404).json({ message: "No Livekit room configured for this webinar" });
+
+      const settings = await storage.getVideoMarketingSettings(webinar.userId);
+      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
+        return res.status(404).json({ message: "Livekit not configured" });
+      }
+
+      const viewerName = (req.query.name as string) || "Viewer";
+      const viewerId = `viewer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const { AccessToken } = await import("livekit-server-sdk");
+      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
+        identity: viewerId,
+        name: viewerName,
+        ttl: "6h",
+      });
+      at.addGrant({ roomJoin: true, room: webinar.livekitRoomName, canPublish: false, canSubscribe: true });
+      const token = await at.toJwt();
+      res.json({ token, roomName: webinar.livekitRoomName, livekitUrl: settings.livekitUrl });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Modular route registrations ──────────────────────────────────────────────
+  // Routes split into server/routes/ for maintainability
+  registerWebinarPollRoutes(app, requireAuth);
+  registerWebinarSeriesRoutes(app, requireAuth);
+  registerVideoHostingRoutes(app, requireAuth);
+
+  return httpServer;
+}
+

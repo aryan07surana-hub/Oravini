@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oravani — AI-Powered Content Growth Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   RESET & VARIABLES
+================================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#06060a;--dark:#0e0e14;--gold:#FFD700;--gold2:#FFC200;
+  --white:#ffffff;--gray:rgba(255,255,255,0.45);--border:rgba(255,215,0,0.13);
+  --easing:cubic-bezier(0.16,1,0.3,1);
+}
+html{scroll-behavior:smooth;overflow-x:hidden}
+body{font-family:'Poppins',sans-serif;background:var(--black);color:var(--white);overflow-x:hidden;cursor:none}
+
+/* ================================================================
+   GLOBAL PARTICLE CANVAS (covers full page)
+================================================================ */
+#global-canvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:0;opacity:.55;
+}
+
+/* ================================================================
+   CURSOR TRAIL CANVAS
+================================================================ */
+#trail-canvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:99996;
+}
+
+/* ================================================================
+   CURSOR DOT + RING
+================================================================ */
+#cur-dot{
+  position:fixed;width:8px;height:8px;background:var(--gold);
+  border-radius:50%;pointer-events:none;z-index:99999;
+  transform:translate(-50%,-50%);transition:transform .15s,width .25s,height .25s;
+  mix-blend-mode:screen;box-shadow:0 0 10px rgba(255,215,0,.7);
+}
+#cur-ring{
+  position:fixed;width:32px;height:32px;border:1.5px solid rgba(255,215,0,.45);
+  border-radius:50%;pointer-events:none;z-index:99998;
+  transform:translate(-50%,-50%);
+  transition:width .3s,height .3s,border-color .3s;
+}
+.cur-grow #cur-dot{transform:translate(-50%,-50%) scale(2.8)}
+.cur-grow #cur-ring{width:56px;height:56px;border-color:rgba(255,215,0,.7)}
+
+/* ================================================================
+   PRELOADER
+================================================================ */
+#preloader{
+  position:fixed;inset:0;background:var(--black);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  z-index:9999;transition:opacity .9s ease,visibility .9s ease;
+}
+#preloader.bye{opacity:0;visibility:hidden}
+.pl-logo{display:flex;gap:.08em;font-size:clamp(2.5rem,8vw,6rem);font-weight:900;letter-spacing:.14em;color:var(--gold);text-shadow:0 0 60px rgba(255,215,0,.35)}
+.pl-logo span{display:inline-block;opacity:0;transform:translateY(44px);animation:lIn .65s var(--easing) forwards}
+@keyframes lIn{to{opacity:1;transform:translateY(0)}}
+.pl-bar{margin-top:22px;width:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);animation:barGrow .9s ease 1.1s forwards}
+@keyframes barGrow{to{width:280px}}
+.pl-sub{margin-top:14px;font-size:.72rem;letter-spacing:.38em;text-transform:uppercase;color:rgba(255,215,0,.45);opacity:0;animation:fi .6s ease 1.7s forwards}
+@keyframes fi{to{opacity:1}}
+
+/* ================================================================
+   NAVBAR
+================================================================ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  padding:20px 48px;display:flex;align-items:center;gap:32px;
+  backdrop-filter:blur(28px);background:rgba(6,6,10,.55);
+  border-bottom:1px solid rgba(255,215,0,.07);
+  transition:padding .4s,background .4s;
+}
+nav.scrolled{padding:13px 48px;background:rgba(6,6,10,.92)}
+.nav-logo{font-size:1.25rem;font-weight:900;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;text-shadow:0 0 18px rgba(255,215,0,.28);flex-shrink:0}
+.nav-links{display:flex;gap:28px;list-style:none;flex:1;justify-content:center}
+.nav-links a{font-size:.81rem;font-weight:500;color:rgba(255,255,255,.48);text-decoration:none;letter-spacing:.04em;transition:color .3s}
+.nav-links a:hover{color:var(--gold)}
+.nav-actions{display:flex;gap:10px;align-items:center;flex-shrink:0}
+.btn-member{
+  background:rgba(255,215,0,.08);color:var(--gold);
+  border:1px solid rgba(255,215,0,.28);padding:10px 22px;
+  border-radius:50px;font-family:'Poppins',sans-serif;font-weight:600;
+  font-size:.8rem;cursor:pointer;letter-spacing:.04em;
+  transition:all .3s;text-decoration:none;display:inline-block;
+}
+.btn-member:hover{background:rgba(255,215,0,.14);box-shadow:0 4px 20px rgba(255,215,0,.18);transform:translateY(-1px)}
+.btn-nav-cta{
+  background:linear-gradient(135deg,#FFD700,#FFC200);color:#000;border:none;
+  padding:10px 24px;border-radius:50px;font-family:'Poppins',sans-serif;
+  font-weight:700;font-size:.8rem;cursor:pointer;letter-spacing:.04em;
+  transition:all .3s;box-shadow:0 4px 16px rgba(255,215,0,.22);
+}
+.btn-nav-cta:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(255,215,0,.45)}
+
+/* ================================================================
+   HERO
+================================================================ */
+#hero{
+  position:relative;height:100vh;min-height:700px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;overflow:hidden;z-index:1;
+}
+#hero-canvas{position:absolute;inset:0;z-index:1;opacity:.85}
+.hero-glow{
+  position:absolute;inset:0;z-index:2;
+  background:radial-gradient(ellipse 70% 55% at 50% 50%,rgba(255,215,0,.09) 0%,transparent 68%);
+  animation:glowPulse 5s ease-in-out infinite;
+}
+@keyframes glowPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+.hero-content{position:relative;z-index:3;padding:0 24px}
+.hero-eyebrow{
+  font-size:.7rem;font-weight:600;letter-spacing:.42em;text-transform:uppercase;
+  color:rgba(255,215,0,.55);opacity:0;transform:translateY(14px);
+  animation:fadeUp .8s var(--easing) 2s forwards;margin-bottom:18px;
+}
+.hero-title{
+  display:flex;justify-content:center;gap:.06em;
+  font-size:clamp(4rem,12.5vw,10.5rem);font-weight:900;
+  color:var(--gold);letter-spacing:.1em;text-transform:uppercase;line-height:1;
+  filter:drop-shadow(0 0 50px rgba(255,215,0,.32));
+}
+.hero-title .lt{
+  display:inline-block;opacity:0;
+  transform:translateY(64px) rotateX(-90deg);
+  animation:ltIn .72s var(--easing) forwards;
+}
+@keyframes ltIn{to{opacity:1;transform:translateY(0) rotateX(0)}}
+.hero-sub{
+  font-size:clamp(.9rem,2.4vw,1.2rem);font-weight:400;letter-spacing:.18em;
+  text-transform:uppercase;color:rgba(255,255,255,.62);margin-top:18px;
+  opacity:0;transform:translateY(18px);animation:fadeUp .9s var(--easing) 2.4s forwards;
+}
+.hero-subsub{
+  font-size:.88rem;color:rgba(255,255,255,.3);margin-top:8px;
+  opacity:0;transform:translateY(14px);animation:fadeUp .9s var(--easing) 2.7s forwards;
+}
+.hero-btns{
+  display:flex;flex-wrap:wrap;gap:13px;justify-content:center;margin-top:48px;
+  opacity:0;transform:translateY(18px);animation:fadeUp .9s var(--easing) 3s forwards;
+}
+.hero-scroll{
+  position:absolute;bottom:34px;left:50%;transform:translateX(-50%);z-index:3;
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  opacity:0;animation:fi .6s ease 3.5s forwards;
+}
+.hero-scroll span{font-size:.62rem;letter-spacing:.3em;text-transform:uppercase;color:rgba(255,255,255,.22)}
+.scroll-mouse{width:22px;height:36px;border:1.5px solid rgba(255,215,0,.28);border-radius:12px;position:relative}
+.scroll-wheel{width:3px;height:6px;background:var(--gold);border-radius:2px;position:absolute;top:5px;left:50%;transform:translateX(-50%);animation:sw 2.2s ease-in-out infinite}
+@keyframes sw{0%{transform:translateX(-50%) translateY(0);opacity:1}100%{transform:translateX(-50%) translateY(16px);opacity:0}}
+
+/* ================================================================
+   BUTTONS
+================================================================ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.btn-gold{
+  background:linear-gradient(135deg,#FFD700,#FFC200);color:#000;border:none;
+  padding:15px 36px;border-radius:50px;font-family:'Poppins',sans-serif;
+  font-weight:700;font-size:.9rem;cursor:pointer;letter-spacing:.04em;
+  text-decoration:none;display:inline-block;
+  transition:all .3s;box-shadow:0 6px 28px rgba(255,215,0,.22);
+}
+.btn-gold:hover{transform:translateY(-3px);box-shadow:0 14px 45px rgba(255,215,0,.5)}
+.btn-outline{
+  background:transparent;color:var(--gold);border:1.5px solid rgba(255,215,0,.42);
+  padding:15px 36px;border-radius:50px;font-family:'Poppins',sans-serif;
+  font-weight:600;font-size:.9rem;cursor:pointer;letter-spacing:.04em;
+  text-decoration:none;display:inline-block;transition:all .3s;
+}
+.btn-outline:hover{background:rgba(255,215,0,.08);transform:translateY(-3px);box-shadow:0 10px 28px rgba(255,215,0,.14)}
+.btn-ghost{
+  background:transparent;color:rgba(255,255,255,.48);border:1.5px solid rgba(255,255,255,.13);
+  padding:15px 36px;border-radius:50px;font-family:'Poppins',sans-serif;
+  font-weight:500;font-size:.9rem;cursor:pointer;letter-spacing:.04em;
+  text-decoration:none;display:inline-block;transition:all .3s;
+}
+.btn-ghost:hover{border-color:rgba(255,255,255,.35);color:#fff;transform:translateY(-3px)}
+
+/* ================================================================
+   STATS BAR
+================================================================ */
+.stats-float{position:relative;z-index:10;max-width:1100px;margin:-48px auto 0;padding:0 40px}
+.stats-inner{
+  background:linear-gradient(135deg,rgba(22,18,4,.92),rgba(14,12,2,.96));
+  border:1px solid rgba(255,215,0,.2);border-radius:22px;padding:30px 48px;
+  display:flex;justify-content:space-around;flex-wrap:wrap;gap:22px;
+  backdrop-filter:blur(30px);box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,215,0,.06);
+}
+.stat-item{text-align:center}
+.stat-n{font-size:2.2rem;font-weight:900;color:var(--gold);line-height:1;text-shadow:0 0 22px rgba(255,215,0,.3)}
+.stat-l{font-size:.72rem;color:rgba(255,255,255,.32);margin-top:5px;letter-spacing:.1em;text-transform:uppercase}
+
+/* ================================================================
+   SECTION LAYOUT
+================================================================ */
+.sw{max-width:1200px;margin:0 auto;padding:130px 48px}
+.sw-center{text-align:center}
+.sec-label{
+  display:inline-block;font-size:.7rem;font-weight:600;letter-spacing:.35em;
+  text-transform:uppercase;color:var(--gold);background:rgba(255,215,0,.07);
+  border:1px solid rgba(255,215,0,.18);padding:6px 16px;border-radius:50px;margin-bottom:18px;
+}
+.sec-title{font-size:clamp(1.9rem,4.5vw,3.5rem);font-weight:900;line-height:1.14}
+.sec-body{font-size:1rem;color:var(--gray);line-height:1.78;max-width:560px}
+.divider{width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,215,0,.14),transparent)}
+
+/* ================================================================
+   SCROLL ANIMATIONS
+================================================================ */
+.ao{opacity:0;transform:translateY(50px);transition:opacity .9s var(--easing),transform .9s var(--easing)}
+.ao.show{opacity:1;transform:translateY(0)}
+.al{opacity:0;transform:translateX(-50px);transition:opacity .9s var(--easing),transform .9s var(--easing)}
+.al.show{opacity:1;transform:translateX(0)}
+.ar{opacity:0;transform:translateX(50px);transition:opacity .9s var(--easing),transform .9s var(--easing)}
+.ar.show{opacity:1;transform:translateX(0)}
+.as{opacity:0;transform:scale(.9);transition:opacity .8s var(--easing),transform .8s var(--easing)}
+.as.show{opacity:1;transform:scale(1)}
+.d1{transition-delay:.07s}.d2{transition-delay:.14s}.d3{transition-delay:.21s}
+.d4{transition-delay:.28s}.d5{transition-delay:.35s}.d6{transition-delay:.42s}
+.d7{transition-delay:.49s}.d8{transition-delay:.56s}.d9{transition-delay:.63s}.d10{transition-delay:.7s}
+
+/* ================================================================
+   SECTION 1 — HOOK
+================================================================ */
+#hook{position:relative;z-index:1}
+.hook-head{
+  font-size:clamp(2.2rem,5.5vw,4.8rem);font-weight:900;line-height:1.12;
+  max-width:940px;margin:16px auto 0;
+}
+.hook-head .hl{color:var(--gold);position:relative;display:inline-block}
+.hook-head .hl::after{
+  content:'';position:absolute;bottom:-4px;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  transform:scaleX(0);transform-origin:left;transition:transform 1.1s var(--easing) .5s;
+}
+.hook-head.show .hl::after{transform:scaleX(1)}
+.hook-body{font-size:1.04rem;color:var(--gray);max-width:620px;margin:26px auto 0;line-height:1.78}
+
+/* ================================================================
+   SECTION 2 — PROBLEM
+================================================================ */
+#problem{position:relative;z-index:1;background:linear-gradient(180deg,var(--black) 0%,#0f0800 60%,var(--black) 100%)}
+.prob-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:960px;margin:0 auto}
+.prob-card{
+  background:linear-gradient(140deg,rgba(255,50,50,.04),rgba(12,4,0,.6));
+  border:1px solid rgba(255,60,60,.1);border-radius:22px;padding:34px;
+  position:relative;overflow:hidden;transition:border-color .4s,transform .4s;
+}
+.prob-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,#ff4444 0%,transparent 100%)}
+.prob-card:hover{border-color:rgba(255,80,80,.22);transform:translateY(-5px)}
+.prob-num{font-size:3.4rem;font-weight:900;color:rgba(255,60,60,.1);line-height:1;margin-bottom:6px}
+.prob-card h3{font-size:1.04rem;font-weight:700;margin-bottom:8px;color:rgba(255,255,255,.9)}
+.prob-card p{font-size:.87rem;color:rgba(255,255,255,.42);line-height:1.72}
+
+/* ================================================================
+   SECTION 3 — QUIZ
+================================================================ */
+#quiz{position:relative;z-index:1}
+.quiz-wrap{max-width:680px;margin:0 auto;text-align:center}
+.quiz-prog{display:flex;justify-content:center;gap:8px;margin-bottom:44px}
+.qd{width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.14);transition:all .4s var(--easing)}
+.qd.on{background:var(--gold);width:28px}
+.quiz-step{display:none}
+.quiz-step.on{display:block;animation:fadeUp .5s var(--easing) both}
+.quiz-qnum{font-size:.7rem;letter-spacing:.3em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.quiz-q{font-size:clamp(1.1rem,2.5vw,1.45rem);font-weight:700;margin-bottom:32px}
+.quiz-opts{display:flex;flex-wrap:wrap;gap:11px;justify-content:center}
+.quiz-opt{
+  padding:11px 25px;border:1.5px solid rgba(255,215,0,.2);border-radius:50px;
+  background:transparent;color:rgba(255,255,255,.58);
+  font-family:'Poppins',sans-serif;font-size:.87rem;cursor:pointer;transition:all .3s;
+}
+.quiz-opt:hover,.quiz-opt.picked{border-color:var(--gold);background:rgba(255,215,0,.08);color:var(--gold)}
+.quiz-nav{margin-top:36px}
+.quiz-res{display:none}
+.quiz-res.on{display:block;animation:fadeUp .6s var(--easing) both}
+.qres-card{
+  background:linear-gradient(135deg,rgba(255,215,0,.07),rgba(255,215,0,.02));
+  border:1px solid rgba(255,215,0,.3);border-radius:26px;padding:50px 38px;
+}
+.qres-icon{font-size:3.5rem;margin-bottom:16px}
+.qres-card h2{font-size:clamp(1.3rem,3vw,2rem);font-weight:800;color:var(--gold);margin-bottom:13px}
+.qres-card p{color:var(--gray);font-size:.95rem;line-height:1.76;margin-bottom:34px}
+
+/* ================================================================
+   SECTION 4 — TOOLS
+================================================================ */
+#tools{position:relative;z-index:1;background:linear-gradient(180deg,var(--black) 0%,#0c0900 50%,var(--black) 100%)}
+.tools-hdr{text-align:center;margin-bottom:70px}
+.tools-hdr h2{font-size:clamp(2rem,5vw,3.8rem);font-weight:900;line-height:1.15}
+.tools-hdr h2 span{color:var(--gold)}
+.tools-hdr p{color:var(--gray);margin-top:14px;font-size:.97rem;max-width:520px;margin-left:auto;margin-right:auto}
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:20px}
+.tool-card{
+  background:linear-gradient(140deg,rgba(255,215,0,.03),rgba(14,12,2,.6));
+  border:1px solid var(--border);border-radius:22px;padding:28px 26px;
+  transition:all .45s var(--easing);position:relative;overflow:hidden;
+}
+.tool-card::after{
+  content:'';position:absolute;top:0;left:-120%;right:-120%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,215,0,.55),transparent);
+  transition:left .65s ease;
+}
+.tool-card:hover::after{left:120%}
+.tool-card:hover{border-color:rgba(255,215,0,.32);transform:translateY(-7px);box-shadow:0 24px 60px rgba(255,215,0,.09)}
+.tool-icon{font-size:2rem;margin-bottom:14px;display:block}
+.tool-name{font-size:.97rem;font-weight:700;margin-bottom:7px}
+.tool-desc{font-size:.83rem;color:var(--gray);line-height:1.66}
+.tool-tag{display:inline-block;margin-top:12px;font-size:.63rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(255,215,0,.24);border-radius:20px;padding:4px 12px}
+.tool-card.wide{grid-column:span 2}
+@media(max-width:640px){.tool-card.wide{grid-column:span 1}}
+.sub-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.sub-tag{font-size:.77rem;padding:6px 13px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.12);border-radius:20px;color:rgba(255,255,255,.54);transition:all .3s;cursor:default}
+.sub-tag:hover{background:rgba(255,215,0,.11);color:var(--gold);border-color:rgba(255,215,0,.34)}
+
+/* ================================================================
+   SECTION 5 — HOW IT WORKS
+================================================================ */
+#hiw{position:relative;z-index:1;text-align:center}
+.hiw-flow{display:flex;gap:0;position:relative;max-width:1100px;margin:0 auto}
+.hiw-line{position:absolute;top:54px;left:calc(16.5% + 48px);width:calc(67% - 96px);height:2px;background:rgba(255,215,0,.09);overflow:hidden}
+.hiw-line-fill{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width 1.9s ease .3s}
+.hiw-flow.show .hiw-line-fill{width:100%}
+.hiw-step{flex:1;padding:0 26px}
+.hiw-num{
+  width:78px;height:78px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(255,215,0,.13),rgba(255,215,0,.04));
+  border:2px solid rgba(255,215,0,.24);display:flex;align-items:center;justify-content:center;
+  font-size:1.55rem;font-weight:900;color:var(--gold);margin:0 auto 24px;
+  position:relative;z-index:1;transition:all .5s;
+}
+.hiw-step:hover .hiw-num{box-shadow:0 0 40px rgba(255,215,0,.34);border-color:var(--gold)}
+.hiw-step h3{font-size:1.12rem;font-weight:700;color:var(--gold);margin-bottom:11px}
+.hiw-step p{font-size:.87rem;color:var(--gray);line-height:1.76}
+
+/* ================================================================
+   SECTION 6 — DASHBOARD PREVIEW (LOCKED)
+================================================================ */
+#dashboard{position:relative;z-index:1;background:linear-gradient(180deg,var(--black) 0%,#0a0800 100%)}
+.dash-hdr{text-align:center;margin-bottom:56px}
+.dash-preview{
+  max-width:1060px;margin:0 auto;border-radius:24px;overflow:hidden;
+  border:1px solid rgba(255,215,0,.18);position:relative;
+  box-shadow:0 0 80px rgba(255,215,0,.08),0 40px 80px rgba(0,0,0,.6);
+}
+.dash-ui{
+  display:flex;height:520px;background:#0c0c10;
+  filter:blur(2.5px);user-select:none;
+}
+.dash-sidebar{
+  width:200px;flex-shrink:0;background:#0a0a0e;border-right:1px solid rgba(255,215,0,.07);
+  padding:24px 16px;display:flex;flex-direction:column;gap:4px;
+}
+.dash-logo-mini{font-size:.8rem;font-weight:900;letter-spacing:.2em;color:var(--gold);margin-bottom:24px;padding-left:8px}
+.dash-nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+  font-size:.78rem;color:rgba(255,255,255,.45);transition:all .3s;
+}
+.dash-nav-item.active{background:rgba(255,215,0,.1);color:var(--gold)}
+.dash-nav-item .di{font-size:.95rem}
+.dash-nav-lock{margin-left:auto;font-size:.6rem;opacity:.4}
+.dash-main{flex:1;padding:22px;overflow:hidden;display:flex;flex-direction:column;gap:16px}
+.dash-top{display:flex;gap:12px}
+.dash-metric{
+  flex:1;background:#141418;border:1px solid rgba(255,215,0,.07);border-radius:12px;
+  padding:14px 16px;
+}
+.dash-metric-lbl{font-size:.65rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.dash-metric-val{font-size:1.4rem;font-weight:800;color:var(--gold)}
+.dash-metric-sub{font-size:.65rem;color:rgba(80,200,80,.6);margin-top:2px}
+.dash-chart{flex:1;background:#141418;border:1px solid rgba(255,215,0,.07);border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.dash-chart-title{font-size:.7rem;color:rgba(255,255,255,.3);margin-bottom:12px;text-transform:uppercase;letter-spacing:.1em}
+.dash-bars{display:flex;align-items:flex-end;gap:6px;height:80px}
+.dash-bar{flex:1;border-radius:3px 3px 0 0;background:linear-gradient(180deg,rgba(255,215,0,.5),rgba(255,215,0,.15))}
+.dash-bottom{display:flex;gap:12px}
+.dash-cal{flex:1;background:#141418;border:1px solid rgba(255,215,0,.07);border-radius:12px;padding:14px}
+.dash-cal-title{font-size:.65rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.dash-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dash-cal-cell{aspect-ratio:1;border-radius:4px;background:rgba(255,255,255,.04);font-size:.5rem;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2)}
+.dash-cal-cell.has{background:rgba(255,215,0,.12);color:rgba(255,215,0,.7)}
+.dash-feed{width:200px;flex-shrink:0;background:#141418;border:1px solid rgba(255,215,0,.07);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.dash-feed-item{background:rgba(255,255,255,.03);border-radius:8px;padding:10px;font-size:.65rem;color:rgba(255,255,255,.3);line-height:1.4}
+/* Lock overlay */
+.dash-lock{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(6,6,10,.1) 0%,rgba(6,6,10,.55) 40%,rgba(6,6,10,.92) 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.dash-lock-card{
+  background:rgba(10,10,14,.95);border:1px solid rgba(255,215,0,.3);border-radius:24px;
+  padding:44px 50px;text-align:center;backdrop-filter:blur(20px);
+  box-shadow:0 0 60px rgba(255,215,0,.12),0 30px 60px rgba(0,0,0,.5);
+  max-width:380px;width:90%;
+}
+.dash-lock-icon{font-size:2.6rem;margin-bottom:14px}
+.dash-lock-card h3{font-size:1.35rem;font-weight:800;color:var(--gold);margin-bottom:10px}
+.dash-lock-card p{font-size:.88rem;color:rgba(255,255,255,.45);line-height:1.68;margin-bottom:28px}
+.dash-lock-actions{display:flex;flex-direction:column;gap:10px}
+
+/* ================================================================
+   SECTION 7 — PRICING
+================================================================ */
+#pricing{position:relative;z-index:1;background:linear-gradient(180deg,var(--black) 0%,#0d0900 100%);text-align:center}
+.price-row{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;align-items:flex-end}
+.price-card{
+  background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:24px;
+  padding:34px 26px;width:210px;text-align:left;flex-shrink:0;
+  transition:all .45s var(--easing);display:flex;flex-direction:column;position:relative;
+}
+.price-card:hover{transform:translateY(-8px);border-color:rgba(255,215,0,.2)}
+.price-card.hot{
+  background:linear-gradient(145deg,rgba(255,215,0,.1),rgba(255,200,0,.04));
+  border:1.5px solid rgba(255,215,0,.38);transform:scale(1.05);
+  box-shadow:0 0 70px rgba(255,215,0,.14);
+}
+.price-card.hot:hover{transform:scale(1.05) translateY(-8px)}
+.pop-badge{
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,#FFD700,#FFC200);color:#000;
+  font-size:.67rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 16px;border-radius:20px;white-space:nowrap;
+}
+.pt{font-size:.7rem;letter-spacing:.2em;color:rgba(255,255,255,.32);text-transform:uppercase;margin-bottom:4px}
+.pn{font-size:1.3rem;font-weight:800;margin-bottom:12px}
+.price-card.hot .pn{color:var(--gold)}
+.pa{font-size:2.8rem;font-weight:900;line-height:1}
+.price-card.hot .pa{color:var(--gold);text-shadow:0 0 28px rgba(255,215,0,.3)}
+.pp{font-size:.76rem;color:rgba(255,255,255,.28);margin:4px 0 14px}
+.psep{height:1px;background:rgba(255,255,255,.06);margin:14px 0}
+.pf{list-style:none;flex:1;margin-bottom:22px}
+.pf li{font-size:.79rem;color:rgba(255,255,255,.48);padding:5px 0 5px 20px;position:relative;line-height:1.4}
+.pf li::before{content:'✓';position:absolute;left:0;color:var(--gold);font-weight:700}
+.price-card.hot .pf li{color:rgba(255,255,255,.74)}
+.pbtn{width:100%;padding:12px 0;border-radius:50px;font-family:'Poppins',sans-serif;font-size:.83rem;font-weight:700;cursor:pointer;transition:all .3s;border:none;letter-spacing:.04em}
+.pbtn-gold{background:linear-gradient(135deg,#FFD700,#FFC200);color:#000}
+.pbtn-gold:hover{box-shadow:0 8px 26px rgba(255,215,0,.45);transform:translateY(-2px)}
+.pbtn-ghost{background:transparent;color:rgba(255,255,255,.48);border:1px solid rgba(255,255,255,.12)!important}
+.pbtn-ghost:hover{border-color:rgba(255,215,0,.3)!important;color:var(--gold)}
+
+/* ================================================================
+   SECTION 8 — INSTAGRAM
+================================================================ */
+#instagram{position:relative;z-index:1;text-align:center}
+.ig-wrap{max-width:860px;margin:0 auto}
+.ig-icon{width:70px;height:70px;border-radius:18px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);display:flex;align-items:center;justify-content:center;margin:0 auto 22px;font-size:2.2rem}
+.ig-title{font-size:clamp(1.5rem,3.5vw,2.8rem);font-weight:800;margin-bottom:10px}
+.ig-handle{font-size:1.15rem;font-weight:700;color:var(--gold);margin-bottom:8px}
+.ig-sub{color:var(--gray);font-size:.91rem;margin-bottom:34px}
+.ig-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+  color:#fff;text-decoration:none;padding:14px 36px;border-radius:50px;
+  font-family:'Poppins',sans-serif;font-weight:700;font-size:.91rem;
+  transition:all .3s;margin-bottom:56px;
+}
+.ig-btn:hover{transform:translateY(-3px);box-shadow:0 14px 42px rgba(188,24,136,.35)}
+.ig-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px}
+.ig-post{
+  aspect-ratio:1;border-radius:10px;background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.05);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;padding:10px;transition:all .35s;position:relative;overflow:hidden;
+}
+.ig-post::before{content:'';position:absolute;inset:0;border-radius:10px;background:linear-gradient(135deg,rgba(255,215,0,.06),transparent);opacity:0;transition:opacity .3s}
+.ig-post:hover::before{opacity:1}
+.ig-post:hover{transform:scale(1.07) rotate(.8deg);border-color:rgba(255,215,0,.22);z-index:1}
+.ig-emoji{font-size:1.6rem}
+.ig-txt{font-size:.5rem;color:rgba(255,255,255,.27);text-align:center;line-height:1.3}
+
+/* ================================================================
+   SECTION 9 — TERMS & LEGAL
+================================================================ */
+#legal{position:relative;z-index:1;background:linear-gradient(180deg,var(--black) 0%,#0a0800 100%)}
+.legal-hdr{text-align:center;margin-bottom:60px}
+.legal-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:960px;margin:0 auto}
+.accordion{border:1px solid rgba(255,215,0,.1);border-radius:18px;overflow:hidden;background:rgba(255,255,255,.02)}
+.acc-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:22px 28px;cursor:pointer;transition:background .3s;
+  font-size:.95rem;font-weight:700;color:rgba(255,255,255,.85);
+}
+.acc-head:hover{background:rgba(255,215,0,.04)}
+.acc-icon{font-size:1rem;color:var(--gold);transition:transform .4s var(--easing);flex-shrink:0}
+.accordion.open .acc-icon{transform:rotate(45deg)}
+.acc-body{max-height:0;overflow:hidden;transition:max-height .55s var(--easing),padding .4s}
+.acc-body-inner{padding:0 28px 24px;font-size:.84rem;color:rgba(255,255,255,.42);line-height:1.8}
+.accordion.open .acc-body{max-height:400px}
+.acc-body-inner p{margin-bottom:10px}
+.acc-body-inner p:last-child{margin-bottom:0}
+.acc-body-inner strong{color:rgba(255,215,0,.7);font-weight:600}
+
+/* ================================================================
+   FOOTER
+================================================================ */
+footer{position:relative;z-index:1;padding:60px 48px 40px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
+.foot-logo{font-size:1.85rem;font-weight:900;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-bottom:10px}
+.foot-tag{color:rgba(255,255,255,.26);font-size:.84rem;margin-bottom:28px}
+.foot-links{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;margin-bottom:28px}
+.foot-links a{color:rgba(255,255,255,.3);font-size:.82rem;text-decoration:none;transition:color .3s}
+.foot-links a:hover{color:var(--gold)}
+.foot-copy{color:rgba(255,255,255,.15);font-size:.75rem}
+
+/* ================================================================
+   RESPONSIVE
+================================================================ */
+@media(max-width:900px){
+  .nav-links{display:none}
+  .prob-grid{grid-template-columns:1fr}
+  .hiw-flow{flex-direction:column;gap:44px}
+  .hiw-line{display:none}
+  .ig-grid{grid-template-columns:repeat(3,1fr)}
+  .stats-inner{padding:24px 22px}
+  .legal-grid{grid-template-columns:1fr}
+  .dash-ui{height:340px}
+  .dash-sidebar{width:160px}
+}
+@media(max-width:640px){
+  .sw{padding:90px 22px}
+  nav{padding:15px 22px}
+  nav.scrolled{padding:11px 22px}
+  .hero-btns{flex-direction:column;align-items:center}
+  .price-row{flex-direction:column;align-items:center}
+  .price-card{width:100%;max-width:320px}
+  .price-card.hot{transform:scale(1)}
+  .price-card.hot:hover{transform:translateY(-8px)}
+  .ig-grid{grid-template-columns:repeat(2,1fr)}
+  .tools-grid{grid-template-columns:1fr}
+  .nav-actions .btn-member{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ CANVASES + CURSORS -->
+<canvas id="global-canvas"></canvas>
+<canvas id="trail-canvas"></canvas>
+<div id="cur-dot"></div>
+<div id="cur-ring"></div>
+
+<!-- ============================================================ PRELOADER -->
+<div id="preloader">
+  <div class="pl-logo" id="pl-logo"></div>
+  <div class="pl-bar"></div>
+  <div class="pl-sub">AI-Powered Content Growth Platform</div>
+</div>
+
+<!-- ============================================================ NAVBAR -->
+<nav id="navbar">
+  <div class="nav-logo">ORAVANI</div>
+  <ul class="nav-links">
+    <li><a href="#hook">Why Oravani</a></li>
+    <li><a href="#tools">Tools</a></li>
+    <li><a href="#hiw">How it Works</a></li>
+    <li><a href="#pricing" onclick="smoothTo('pricing');return false;">Pricing</a></li>
+  </ul>
+  <div class="nav-actions">
+    <a href="#dashboard" class="btn-member" onclick="smoothTo('dashboard');return false;">Sign In</a>
+    <button class="btn-nav-cta" onclick="smoothTo('pricing')">Get Early Access</button>
+  </div>
+</nav>
+
+<!-- ============================================================ HERO -->
+<section id="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">The only platform creators need</div>
+    <h1 class="hero-title" id="hero-title"></h1>
+    <p class="hero-sub">Powered by AI. Built for Creators.</p>
+    <p class="hero-subsub">One platform. 14 tools. Infinite growth.</p>
+    <div class="hero-btns">
+      <a href="#tools" class="btn-gold" onclick="smoothTo('tools');return false;">See What's Inside</a>
+      <a href="#hook" class="btn-outline" onclick="smoothTo('hook');return false;">See More</a>
+      <a href="#quiz" class="btn-ghost" onclick="smoothTo('quiz');return false;">Get More Information</a>
+    </div>
+  </div>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <div class="scroll-mouse"><div class="scroll-wheel"></div></div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-float">
+  <div class="stats-inner ao">
+    <div class="stat-item"><div class="stat-n"><span class="ctr" data-to="14">0</span>+</div><div class="stat-l">AI-Powered Tools</div></div>
+    <div class="stat-item"><div class="stat-n"><span class="ctr" data-to="12000">0</span>+</div><div class="stat-l">Creators Growing</div></div>
+    <div class="stat-item"><div class="stat-n"><span class="ctr" data-to="487">0</span>%</div><div class="stat-l">Avg. Growth Increase</div></div>
+    <div class="stat-item"><div class="stat-n"><span class="ctr" data-to="1">0</span></div><div class="stat-l">Platform. All Tools.</div></div>
+  </div>
+</div>
+
+<!-- ============================================================ HOOK -->
+<section id="hook">
+  <div class="sw sw-center">
+    <div class="ao"><div class="sec-label">The Reality Check</div></div>
+    <h2 class="hook-head ao">
+      You're creating content every day.<br>
+      But it's <span class="hl">not growing.</span><br>
+      Here's why — and how to fix it.
+    </h2>
+    <p class="hook-body ao d2">
+      The problem isn't your talent. It's not your effort. It's the missing layer —
+      the strategy, the system, the data — that transforms random posting into compounding growth.
+      Oravani is that layer.
+    </p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================ PROBLEM -->
+<div id="problem">
+  <div class="sw">
+    <div style="text-align:center;margin-bottom:70px">
+      <div class="ao"><div class="sec-label">Sound Familiar?</div></div>
+      <h2 class="sec-title ao d1" style="margin-top:14px">Here's what's killing<br>your growth.</h2>
+    </div>
+    <div class="prob-grid">
+      <div class="prob-card ao d1">
+        <div class="prob-num">01</div>
+        <h3>Posting Without a Strategy</h3>
+        <p>You're creating content based on vibes, not data. Every post is a gamble — and you're bleeding time without a return.</p>
+      </div>
+      <div class="prob-card ao d2">
+        <div class="prob-num">02</div>
+        <h3>No Idea What Actually Converts</h3>
+        <p>Views, likes, but no real growth, no leads, no revenue. You're stuck in vanity metric hell while your competitors scale.</p>
+      </div>
+      <div class="prob-card ao d3">
+        <div class="prob-num">03</div>
+        <h3>Juggling 10 Different Tools</h3>
+        <p>Canva. Notion. ChatGPT. Sheets. Buffer. You're managing your tools instead of building your brand.</p>
+      </div>
+      <div class="prob-card ao d4">
+        <div class="prob-num">04</div>
+        <h3>No System. No Consistency. No Growth.</h3>
+        <p>Bursts of motivation followed by weeks of silence. Without a system, consistency is impossible — and consistency is everything.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================ QUIZ -->
+<section id="quiz">
+  <div class="sw">
+    <div class="quiz-wrap ao">
+      <div class="sec-label">Status Monetization Audit</div>
+      <h2 class="sec-title" style="margin-bottom:10px">Where are you right now?</h2>
+      <p style="color:var(--gray);margin-bottom:44px;font-size:.95rem">3 quick questions. Honest answers. Your roadmap.</p>
+      <div class="quiz-prog">
+        <div class="qd on" id="qd0"></div>
+        <div class="qd" id="qd1"></div>
+        <div class="qd" id="qd2"></div>
+      </div>
+      <div class="quiz-step on" id="qs0">
+        <div class="quiz-qnum">Question 1 of 3</div>
+        <div class="quiz-q">What's your biggest content struggle?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,0)">I don't know what to post</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I post but get zero traction</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I can't stay consistent</button>
+          <button class="quiz-opt" onclick="pick(this,0)">I don't understand my analytics</button>
+          <button class="quiz-opt" onclick="pick(this,0)">Too many tools, not enough time</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qNext(1)">Next →</button></div>
+      </div>
+      <div class="quiz-step" id="qs1">
+        <div class="quiz-qnum">Question 2 of 3</div>
+        <div class="quiz-q">Which platforms are you on?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,1)">📸 Instagram</button>
+          <button class="quiz-opt" onclick="pick(this,1)">▶️ YouTube</button>
+          <button class="quiz-opt" onclick="pick(this,1)">💼 LinkedIn</button>
+          <button class="quiz-opt" onclick="pick(this,1)">🎵 TikTok</button>
+          <button class="quiz-opt" onclick="pick(this,1)">🐦 Twitter / X</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qNext(2)">Next →</button></div>
+      </div>
+      <div class="quiz-step" id="qs2">
+        <div class="quiz-qnum">Question 3 of 3</div>
+        <div class="quiz-q">What's your primary goal?</div>
+        <div class="quiz-opts">
+          <button class="quiz-opt" onclick="pick(this,2)">🔥 Brand Awareness</button>
+          <button class="quiz-opt" onclick="pick(this,2)">🎯 Lead Generation</button>
+          <button class="quiz-opt" onclick="pick(this,2)">💰 Direct Sales</button>
+          <button class="quiz-opt" onclick="pick(this,2)">🌱 Community Building</button>
+        </div>
+        <div class="quiz-nav"><button class="btn-gold" onclick="qResult()">See My Match →</button></div>
+      </div>
+      <div class="quiz-res" id="qresult">
+        <div class="qres-card">
+          <div class="qres-icon">✨</div>
+          <h2>Oravani is built for exactly this.</h2>
+          <p>Based on your answers, you need a unified system — smart content planning, real-time analytics, and an AI strategy engine — all inside one platform, zero app-switching. That's exactly what Oravani delivers.</p>
+          <a href="#tools" class="btn-gold" onclick="smoothTo('tools');return false;">Explore the Platform →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================ TOOLS -->
+<div id="tools">
+  <div class="sw">
+    <div class="tools-hdr ao">
+      <div class="sec-label">The Full Arsenal</div>
+      <h2>14 tools. <span>One platform.</span><br>Zero excuses.</h2>
+      <p>Everything you need to create, grow, and monetize — seamlessly unified in a single dashboard.</p>
+    </div>
+    <div class="tools-grid">
+      <div class="tool-card ao d1"><span class="tool-icon">💡</span><div class="tool-name">Content Ideas Generator</div><div class="tool-desc">Never run dry. AI generates scroll-stopping ideas tailored to your niche, audience, and current trends — on demand.</div><span class="tool-tag">AI-Powered</span></div>
+      <div class="tool-card ao d2"><span class="tool-icon">📸</span><div class="tool-name">Instagram Tracker</div><div class="tool-desc">Monitor follower growth, engagement rates, story views, reach, and exactly which posts are pulling weight.</div><span class="tool-tag">Analytics</span></div>
+      <div class="tool-card ao d3"><span class="tool-icon">▶️</span><div class="tool-name">YouTube Tracker</div><div class="tool-desc">Track views, watch time, subscriber velocity, and surface your highest-performing content patterns automatically.</div><span class="tool-tag">Analytics</span></div>
+      <div class="tool-card ao d4"><span class="tool-icon">💰</span><div class="tool-name">Sales Tracker</div><div class="tool-desc">Connect content performance to revenue. See exactly which posts are driving real money — down to the dollar.</div><span class="tool-tag">Revenue</span></div>
+      <div class="tool-card wide ao d1">
+        <span class="tool-icon">🎨</span>
+        <div class="tool-name">Design Studio — 8-in-1 Creative Suite</div>
+        <div class="tool-desc">A complete creative powerhouse inside Oravani. Build stunning branded content without ever leaving the platform.</div>
+        <div class="sub-tags">
+          <span class="sub-tag">Carousel Generator</span><span class="sub-tag">Lead Magnet Generator</span><span class="sub-tag">Brand Kit Builder</span><span class="sub-tag">Story Generator</span><span class="sub-tag">Audience Psychology Tool</span><span class="sub-tag">Quantum System Builder</span><span class="sub-tag">AI Content Planner</span><span class="sub-tag">Clip Finder</span>
+        </div>
+        <span class="tool-tag">8-in-1 Suite</span>
+      </div>
+      <div class="tool-card ao d2"><span class="tool-icon">🧠</span><div class="tool-name">Content Coach</div><div class="tool-desc">Your personal AI coach that reviews your content, breaks down what's weak, and gives a precise path to improve.</div><span class="tool-tag">AI Coach</span></div>
+      <div class="tool-card ao d3"><span class="tool-icon">🔬</span><div class="tool-name">Content Analyzer</div><div class="tool-desc">Deep pattern recognition across your entire library. Find what's working — then ruthlessly double down on it.</div><span class="tool-tag">Deep Analytics</span></div>
+      <div class="tool-card ao d4"><span class="tool-icon">🎬</span><div class="tool-name">Video Marketing Hub</div><div class="tool-desc">Host webinars, produce VSLs, and manage your entire video content strategy from a single, powerful hub.</div><span class="tool-tag">Video</span></div>
+      <div class="tool-card ao d5"><span class="tool-icon">📅</span><div class="tool-name">Content Calendar</div><div class="tool-desc">Plan, schedule, and automate your entire pipeline weeks ahead. No chaos. No missed posts. Pure consistency.</div><span class="tool-tag">Automation</span></div>
+      <div class="tool-card ao d6"><span class="tool-icon">🔍</span><div class="tool-name">Competitor Study Tool</div><div class="tool-desc">Study your competitors' strategy. Find their gaps, learn what's working for them, and execute it better.</div><span class="tool-tag">Intelligence</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================ HOW IT WORKS -->
+<section id="hiw">
+  <div class="sw sw-center">
+    <div class="ao"><div class="sec-label">The Process</div></div>
+    <h2 class="sec-title ao d1" style="margin-bottom:80px;margin-top:14px">How Oravani works.</h2>
+    <div class="hiw-flow ao" id="hiwflow">
+      <div class="hiw-line"><div class="hiw-line-fill"></div></div>
+      <div class="hiw-step ao d1">
+        <div class="hiw-num">01</div>
+        <h3>Direct Your Growth</h3>
+        <p>Set your goals, define your niche, choose your platforms. Oravani builds a custom strategy around you — not a generic template.</p>
+      </div>
+      <div class="hiw-step ao d3">
+        <div class="hiw-num">02</div>
+        <h3>Let Oravani Do the Work</h3>
+        <p>AI generates your content plan, surfaces ideas, tracks performance, and hands you prioritized, data-backed actions every day.</p>
+      </div>
+      <div class="hiw-step ao d5">
+        <div class="hiw-num">03</div>
+        <h3>Watch the Magic Happen</h3>
+        <p>Consistent content. Compounding growth. Watch your audience and revenue climb while you stay focused on creating — not managing.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================ DASHBOARD PREVIEW -->
+<div id="dashboard">
+  <div class="sw">
+    <div class="dash-hdr">
+      <div class="ao"><div class="sec-label">Members Area</div></div>
+      <h2 class="sec-title ao d1" style="margin-top:14px;text-align:center">Your command center.<br><span style="color:var(--gold)">Fully unlocked.</span></h2>
+      <p class="sec-body ao d2" style="margin:16px auto 0;text-align:center">Every tool, every insight, every growth lever — in one intelligent dashboard built for creators who are serious about results.</p>
+    </div>
+    <div class="dash-preview ao">
+      <!-- Blurred UI mockup -->
+      <div class="dash-ui">
+        <div class="dash-sidebar">
+          <div class="dash-logo-mini">ORAVANI</div>
+          <div class="dash-nav-item active"><span class="di">📊</span> Overview</div>
+          <div class="dash-nav-item"><span class="di">💡</span> Ideas<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">📸</span> Instagram<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">▶️</span> YouTube<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">💰</span> Sales<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">🎨</span> Design<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">📅</span> Calendar<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">🔍</span> Compete<span class="dash-nav-lock">🔒</span></div>
+          <div class="dash-nav-item"><span class="di">🧠</span> Coach<span class="dash-nav-lock">🔒</span></div>
+        </div>
+        <div class="dash-main">
+          <div class="dash-top">
+            <div class="dash-metric"><div class="dash-metric-lbl">Followers</div><div class="dash-metric-val">24.8K</div><div class="dash-metric-sub">↑ +12.4%</div></div>
+            <div class="dash-metric"><div class="dash-metric-lbl">Reach</div><div class="dash-metric-val">186K</div><div class="dash-metric-sub">↑ +8.1%</div></div>
+            <div class="dash-metric"><div class="dash-metric-lbl">Engagement</div><div class="dash-metric-val">6.2%</div><div class="dash-metric-sub">↑ +2.3%</div></div>
+            <div class="dash-metric"><div class="dash-metric-lbl">Revenue</div><div class="dash-metric-val">$4,240</div><div class="dash-metric-sub">↑ +31%</div></div>
+          </div>
+          <div class="dash-chart">
+            <div class="dash-chart-title">Growth Over 30 Days</div>
+            <div class="dash-bars" id="dash-bars"></div>
+          </div>
+          <div class="dash-bottom">
+            <div class="dash-cal">
+              <div class="dash-cal-title">Content Calendar — May 2026</div>
+              <div class="dash-cal-grid" id="dash-cal"></div>
+            </div>
+            <div class="dash-feed">
+              <div class="dash-feed-item">🔥 Your reel from Mon reached 42K — highest this month</div>
+              <div class="dash-feed-item">💡 AI suggests posting at 7PM today for max reach</div>
+              <div class="dash-feed-item">📈 Competitor gap found — topic: "AI tools for creators"</div>
+              <div class="dash-feed-item">⚡ 3 new content ideas ready in your queue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Lock Overlay -->
+      <div class="dash-lock">
+        <div class="dash-lock-card">
+          <div class="dash-lock-icon">🔐</div>
+          <h3>Members Area</h3>
+          <p>Your full dashboard is waiting. Log in to access all 14 tools, your analytics, content calendar, and AI strategy engine.</p>
+          <div class="dash-lock-actions">
+            <button class="btn-gold">Members Login →</button>
+            <button class="btn-outline" onclick="smoothTo('pricing')">Get Started — Choose a Plan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================ PRICING -->
+<div id="pricing">
+  <div class="sw" style="text-align:center">
+    <div class="ao"><div class="sec-label">Simple, Honest Pricing</div></div>
+    <h2 class="sec-title ao d1" style="margin-top:14px">Invest in your growth.</h2>
+    <p class="ao d2" style="color:var(--gray);margin-top:12px;margin-bottom:64px;font-size:.98rem">No hidden fees. No locked features. Just results that compound.</p>
+    <div class="price-row">
+      <div class="price-card ao d1">
+        <div class="pt">Starter</div><div class="pn">Free</div>
+        <div class="pa">$0</div><div class="pp">forever free</div>
+        <div class="psep"></div>
+        <ul class="pf"><li>Content Ideas Generator</li><li>Basic Analytics</li><li>Calendar (7 days)</li><li>Community Access</li><li>3 AI generations/day</li></ul>
+        <button class="pbtn pbtn-ghost">Get Started</button>
+      </div>
+      <div class="price-card ao d2">
+        <div class="pt">Creator</div><div class="pn">Growth</div>
+        <div class="pa">$29</div><div class="pp">per month</div>
+        <div class="psep"></div>
+        <ul class="pf"><li>Everything in Free</li><li>Instagram + YouTube Tracker</li><li>Content Coach (AI)</li><li>Design Studio — Basic</li><li>50 AI generations/day</li><li>Calendar — 30 days</li></ul>
+        <button class="pbtn pbtn-ghost">Get Started</button>
+      </div>
+      <div class="price-card hot ao d3">
+        <div class="pop-badge">Most Popular</div>
+        <div class="pt">Pro</div><div class="pn">Creator Pro</div>
+        <div class="pa">$59</div><div class="pp">per month</div>
+        <div class="psep"></div>
+        <ul class="pf"><li>Everything in Growth</li><li>Full Design Studio (8 tools)</li><li>Sales Tracker</li><li>Content Analyzer</li><li>Competitor Study Tool</li><li>Unlimited AI generations</li><li>Video Marketing Hub</li><li>Priority Support</li></ul>
+        <button class="pbtn pbtn-gold">Get Started</button>
+      </div>
+      <div class="price-card ao d4">
+        <div class="pt">Agency</div><div class="pn">Scale</div>
+        <div class="pa">$99</div><div class="pp">per month</div>
+        <div class="psep"></div>
+        <ul class="pf"><li>Everything in Pro</li><li>5 Team Members</li><li>Client Reporting Suite</li><li>White-label Reports</li><li>API Access</li><li>Dedicated Account Manager</li></ul>
+        <button class="pbtn pbtn-ghost">Get Started</button>
+      </div>
+      <div class="price-card ao d5">
+        <div class="pt">Enterprise</div><div class="pn">Unlimited</div>
+        <div class="pa">$199</div><div class="pp">per month</div>
+        <div class="psep"></div>
+        <ul class="pf"><li>Everything in Scale</li><li>Unlimited Team Members</li><li>Custom AI Training</li><li>SLA Guarantee</li><li>Custom Integrations</li><li>Quarterly Strategy Call</li><li>Early Feature Access</li></ul>
+        <button class="pbtn pbtn-ghost">Get Started</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ============================================================ INSTAGRAM -->
+<section id="instagram">
+  <div class="sw">
+    <div class="ig-wrap ao">
+      <div class="ig-icon">📸</div>
+      <h2 class="ig-title">Follow for daily content gold.</h2>
+      <div class="ig-handle">@oravini_ai</div>
+      <p class="ig-sub">Daily strategies, AI tool drops, and behind-the-scenes of building the future of content creation.</p>
+      <a href="https://www.instagram.com/oravini_ai/?utm_source=ig_web_button_share_sheet" target="_blank" rel="noopener" class="ig-btn">📸&nbsp;&nbsp;Follow on Instagram</a>
+      <div class="ig-grid">
+        <div class="ig-post ao d1"><div class="ig-emoji">💡</div><div class="ig-txt">5 hooks that 10x your reach overnight</div></div>
+        <div class="ig-post ao d2"><div class="ig-emoji">📈</div><div class="ig-txt">10k in 30 days — the exact system</div></div>
+        <div class="ig-post ao d3"><div class="ig-emoji">🎯</div><div class="ig-txt">Content that converts not just views</div></div>
+        <div class="ig-post ao d4"><div class="ig-emoji">🧠</div><div class="ig-txt">Psychology behind viral content</div></div>
+        <div class="ig-post ao d5"><div class="ig-emoji">⚡</div><div class="ig-txt">AI tools crushing it for creators</div></div>
+        <div class="ig-post ao d6"><div class="ig-emoji">🔑</div><div class="ig-txt">The content growth system blueprint</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ============================================================ TERMS & LEGAL -->
+<div id="legal">
+  <div class="sw">
+    <div class="legal-hdr">
+      <div class="ao"><div class="sec-label">Transparency First</div></div>
+      <h2 class="sec-title ao d1" style="margin-top:14px;text-align:center">Legal & Policies</h2>
+      <p class="sec-body ao d2" style="margin:14px auto 0;text-align:center">Everything you need to know about using Oravani — clear, simple, no legalese.</p>
+    </div>
+    <div class="legal-grid">
+      <div class="accordion ao d1">
+        <div class="acc-head" onclick="toggleAcc(this)">
+          <span>📋 Terms of Service</span>
+          <span class="acc-icon">+</span>
+        </div>
+        <div class="acc-body">
+          <div class="acc-body-inner">
+            <p><strong>Acceptance of Terms</strong> — By accessing or using Oravani, you agree to be bound by these terms. If you disagree with any part, you may not use the platform.</p>
+            <p><strong>Use of Platform</strong> — Oravani grants you a limited, non-exclusive, non-transferable licence to use the platform for your personal or business content growth purposes.</p>
+            <p><strong>Account Responsibility</strong> — You are responsible for maintaining the confidentiality of your account credentials. All activity under your account is your responsibility.</p>
+            <p><strong>Prohibited Use</strong> — You may not use Oravani to distribute spam, infringe on intellectual property, or engage in any activity that violates applicable laws.</p>
+            <p><strong>Modifications</strong> — We reserve the right to update these terms at any time. Continued use of the platform constitutes acceptance of updated terms.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion ao d2">
+        <div class="acc-head" onclick="toggleAcc(this)">
+          <span>🔒 Privacy Policy</span>
+          <span class="acc-icon">+</span>
+        </div>
+        <div class="acc-body">
+          <div class="acc-body-inner">
+            <p><strong>Data We Collect</strong> — We collect account information (name, email), usage data (features used, content performance metrics), and platform connection data when you link social accounts.</p>
+            <p><strong>How We Use It</strong> — Your data powers your personalised AI recommendations, analytics, and content strategy. We do not sell your personal data to third parties.</p>
+            <p><strong>Data Security</strong> — We use industry-standard encryption (AES-256) and secure data centres to protect your information at all times.</p>
+            <p><strong>Your Rights</strong> — You may request a full export of your data or deletion of your account at any time by contacting our support team.</p>
+            <p><strong>Cookies</strong> — We use cookies to maintain session state and improve platform performance. You may manage cookie preferences in your browser settings.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion ao d3">
+        <div class="acc-head" onclick="toggleAcc(this)">
+          <span>💳 Refund Policy</span>
+          <span class="acc-icon">+</span>
+        </div>
+        <div class="acc-body">
+          <div class="acc-body-inner">
+            <p><strong>14-Day Money Back</strong> — All paid plans come with a 14-day no-questions-asked refund guarantee. If you're not satisfied, we'll refund your payment in full.</p>
+            <p><strong>How to Request</strong> — Email us at support@oravani.com within 14 days of your initial charge with your account email and reason for the refund request.</p>
+            <p><strong>Processing Time</strong> — Refunds are processed within 5–7 business days and returned to your original payment method.</p>
+            <p><strong>Exceptions</strong> — Refunds are not available after 14 days of the initial charge, or for accounts found in violation of our Terms of Service.</p>
+          </div>
+        </div>
+      </div>
+      <div class="accordion ao d4">
+        <div class="acc-head" onclick="toggleAcc(this)">
+          <span>🍪 Cookie Policy</span>
+          <span class="acc-icon">+</span>
+        </div>
+        <div class="acc-body">
+          <div class="acc-body-inner">
+            <p><strong>What Are Cookies</strong> — Cookies are small text files placed on your device when you visit Oravani. They help us provide a personalised, functional experience.</p>
+            <p><strong>Types We Use</strong> — <strong>Essential cookies</strong> keep you logged in. <strong>Analytics cookies</strong> help us understand feature usage. <strong>Preference cookies</strong> remember your settings.</p>
+            <p><strong>Third-Party Cookies</strong> — We may use analytics providers (e.g. PostHog) which place their own cookies. These are governed by their respective privacy policies.</p>
+            <p><strong>Managing Cookies</strong> — You can disable cookies in your browser, but some features of the platform may not function correctly without them.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ FOOTER -->
+<footer>
+  <div class="foot-logo">ORAVANI</div>
+  <p class="foot-tag">Powered by AI. Built for creators who refuse to stay small.</p>
+  <div class="foot-links">
+    <a href="#legal" onclick="smoothTo('legal');return false;">Terms of Service</a>
+    <a href="#legal" onclick="smoothTo('legal');return false;">Privacy Policy</a>
+    <a href="#legal" onclick="smoothTo('legal');return false;">Refund Policy</a>
+    <a href="#legal" onclick="smoothTo('legal');return false;">Cookie Policy</a>
+    <a href="https://www.instagram.com/oravini_ai/" target="_blank">Instagram</a>
+    <a href="#dashboard" onclick="smoothTo('dashboard');return false;">Members Login</a>
+  </div>
+  <p class="foot-copy">© 2026 Oravani — Made for creators who dare to grow.</p>
+</footer>
+
+<!-- ============================================================ SCRIPTS -->
+<script>
+/* ─── PRELOADER LETTERS ─── */
+(function(){
+  const w=document.getElementById('pl-logo');
+  'ORAVANI'.split('').forEach((c,i)=>{
+    const s=document.createElement('span');
+    s.textContent=c; s.style.animationDelay=(.1+i*.09)+'s';
+    w.appendChild(s);
+  });
+})();
+
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    document.getElementById('preloader').classList.add('bye');
+    document.body.style.overflowY='auto';
+  },2300);
+});
+document.body.style.overflowY='hidden';
+
+/* ─── HERO LETTERS ─── */
+(function(){
+  const w=document.getElementById('hero-title');
+  'ORAVANI'.split('').forEach((c,i)=>{
+    const s=document.createElement('span');
+    s.className='lt'; s.textContent=c;
+    s.style.animationDelay=(2.3+i*.09)+'s';
+    w.appendChild(s);
+  });
+})();
+
+/* ─── GLOBAL PARTICLES (full page fixed canvas) ─── */
+const gc=document.getElementById('global-canvas');
+const gx=gc.getContext('2d');
+let GW,GH,gparts=[];
+function resizeGlobal(){GW=gc.width=window.innerWidth;GH=gc.height=window.innerHeight}
+resizeGlobal();
+window.addEventListener('resize',resizeGlobal);
+
+class GPart{
+  constructor(){this.reset()}
+  reset(){
+    this.x=Math.random()*GW; this.y=Math.random()*GH;
+    this.vx=(Math.random()-.5)*.3; this.vy=(Math.random()-.5)*.3;
+    this.r=Math.random()*1.6+.3;
+    this.a=Math.random()*.4+.05;
+    this.da=(Math.random()*.002+.001)*(Math.random()<.5?1:-1);
+    this.gold=Math.random()<.3;
+  }
+  tick(){
+    this.x+=this.vx; this.y+=this.vy; this.a+=this.da;
+    if(this.a>.5||this.a<.04) this.da*=-1;
+    if(this.x<-4||this.x>GW+4||this.y<-4||this.y>GH+4) this.reset();
+  }
+  draw(){
+    gx.beginPath(); gx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    gx.fillStyle=this.gold?`rgba(255,215,0,${this.a})`:`rgba(255,255,255,${this.a*.3})`;
+    gx.fill();
+    if(this.gold&&this.r>1){
+      const g=gx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*5);
+      g.addColorStop(0,`rgba(255,215,0,${this.a*.12})`); g.addColorStop(1,'transparent');
+      gx.beginPath(); gx.arc(this.x,this.y,this.r*5,0,Math.PI*2);
+      gx.fillStyle=g; gx.fill();
+    }
+  }
+}
+function spawnGlobal(){
+  const n=Math.min(Math.floor(GW*GH/14000),180);
+  gparts=Array.from({length:n},()=>new GPart());
+}
+spawnGlobal();
+window.addEventListener('resize',spawnGlobal);
+
+/* ─── HERO NETWORK PARTICLES ─── */
+const hc=document.getElementById('hero-canvas');
+const hx=hc.getContext('2d');
+let HW,HH,hparts=[];
+function resizeHero(){HW=hc.width=window.innerWidth;HH=hc.height=window.innerHeight}
+resizeHero();
+window.addEventListener('resize',()=>{resizeHero();spawnHero()});
+
+class HPart{
+  constructor(){this.reset()}
+  reset(){
+    this.x=Math.random()*HW; this.y=Math.random()*HH;
+    this.vx=(Math.random()-.5)*.45; this.vy=(Math.random()-.5)*.45;
+    this.r=Math.random()*2.2+.4;
+    this.a=Math.random()*.55+.08;
+    this.da=(Math.random()*.003+.001)*(Math.random()<.5?1:-1);
+    this.gold=Math.random()<.35;
+  }
+  tick(){
+    this.x+=this.vx; this.y+=this.vy; this.a+=this.da;
+    if(this.a>.7||this.a<.05) this.da*=-1;
+    if(this.x<0||this.x>HW||this.y<0||this.y>HH) this.reset();
+  }
+  draw(){
+    hx.beginPath(); hx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    hx.fillStyle=this.gold?`rgba(255,215,0,${this.a})`:`rgba(255,255,255,${this.a*.35})`;
+    hx.fill();
+    if(this.gold&&this.r>1.3){
+      const g=hx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.r*4);
+      g.addColorStop(0,`rgba(255,215,0,${this.a*.18})`); g.addColorStop(1,'transparent');
+      hx.beginPath(); hx.arc(this.x,this.y,this.r*4,0,Math.PI*2);
+      hx.fillStyle=g; hx.fill();
+    }
+  }
+}
+function spawnHero(){
+  const n=Math.min(Math.floor(HW/10),130);
+  hparts=Array.from({length:n},()=>new HPart());
+}
+spawnHero();
+
+/* ─── CURSOR TRAIL ─── */
+const tc=document.getElementById('trail-canvas');
+const tx=tc.getContext('2d');
+function resizeTrail(){tc.width=window.innerWidth;tc.height=window.innerHeight}
+resizeTrail();
+window.addEventListener('resize',resizeTrail);
+
+let trail=[], mx=0, my=0, rx=window.innerWidth/2, ry=window.innerHeight/2;
+document.addEventListener('mousemove',e=>{
+  mx=e.clientX; my=e.clientY;
+  trail.push({x:e.clientX,y:e.clientY,t:Date.now()});
+  if(trail.length>28) trail.shift();
+});
+
+/* ─── CURSOR DOT + RING ─── */
+const dot=document.getElementById('cur-dot');
+const ring=document.getElementById('cur-ring');
+document.addEventListener('mousemove',e=>{
+  dot.style.left=e.clientX+'px'; dot.style.top=e.clientY+'px';
+});
+(function lerpRing(){
+  rx+=(mx-rx)*.13; ry+=(my-ry)*.13;
+  ring.style.left=rx+'px'; ring.style.top=ry+'px';
+  requestAnimationFrame(lerpRing);
+})();
+
+document.querySelectorAll('a,button,.quiz-opt,.tool-card,.price-card,.ig-post,.accordion,.dash-nav-item').forEach(el=>{
+  el.addEventListener('mouseenter',()=>document.body.classList.add('cur-grow'));
+  el.addEventListener('mouseleave',()=>document.body.classList.remove('cur-grow'));
+});
+
+/* ─── MAIN RENDER LOOP ─── */
+(function render(){
+  /* global particles */
+  gx.clearRect(0,0,GW,GH);
+  gparts.forEach(p=>{p.tick();p.draw()});
+
+  /* hero particles + connections */
+  hx.clearRect(0,0,HW,HH);
+  for(let i=0;i<hparts.length;i++){
+    for(let j=i+1;j<hparts.length;j++){
+      const dx=hparts[i].x-hparts[j].x, dy=hparts[i].y-hparts[j].y;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d<110){
+        hx.beginPath(); hx.moveTo(hparts[i].x,hparts[i].y); hx.lineTo(hparts[j].x,hparts[j].y);
+        hx.strokeStyle=`rgba(255,215,0,${(1-d/110)*.07})`; hx.lineWidth=.6; hx.stroke();
+      }
+    }
+  }
+  hparts.forEach(p=>{p.tick();p.draw()});
+
+  /* cursor trail — short comet line */
+  tx.clearRect(0,0,tc.width,tc.height);
+  const now=Date.now();
+  const live=trail.filter(p=>now-p.t<220);
+  if(live.length>1){
+    for(let i=1;i<live.length;i++){
+      const prog=i/live.length;
+      const age=1-(now-live[i].t)/220;
+      const alpha=prog*age*.8;
+      tx.beginPath();
+      tx.moveTo(live[i-1].x,live[i-1].y);
+      tx.lineTo(live[i].x,live[i].y);
+      tx.strokeStyle=`rgba(255,215,0,${alpha})`;
+      tx.lineWidth=prog*3.5;
+      tx.lineCap='round'; tx.lineJoin='round';
+      tx.stroke();
+    }
+    /* glowing head */
+    if(live.length>0){
+      const tip=live[live.length-1];
+      const g=tx.createRadialGradient(tip.x,tip.y,0,tip.x,tip.y,12);
+      g.addColorStop(0,'rgba(255,215,0,.35)'); g.addColorStop(1,'transparent');
+      tx.beginPath(); tx.arc(tip.x,tip.y,12,0,Math.PI*2);
+      tx.fillStyle=g; tx.fill();
+    }
+  }
+
+  requestAnimationFrame(render);
+})();
+
+/* ─── NAVBAR ─── */
+window.addEventListener('scroll',()=>{
+  document.getElementById('navbar').classList.toggle('scrolled',window.scrollY>80);
+});
+
+/* ─── HERO PARALLAX ─── */
+window.addEventListener('scroll',()=>{
+  const s=window.scrollY,H=innerHeight;
+  const hcnt=document.querySelector('.hero-content');
+  if(hcnt&&s<H){
+    hcnt.style.transform=`translateY(${s*.28}px)`;
+    hcnt.style.opacity=Math.max(0,1-s/(H*.75));
+  }
+});
+
+/* ─── SCROLL ANIMATIONS ─── */
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting) return;
+    e.target.classList.add('show');
+    if(e.target.id==='hiwflow')
+      e.target.querySelector('.hiw-line-fill').style.width='100%';
+  });
+},{threshold:.13,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.ao,.al,.ar,.as,.hook-head').forEach(el=>obs.observe(el));
+const hiwflow=document.getElementById('hiwflow');
+if(hiwflow) obs.observe(hiwflow);
+
+/* ─── COUNTER ─── */
+const cobs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting) return;
+    e.target.querySelectorAll('.ctr').forEach(el=>{
+      const to=parseInt(el.dataset.to),dur=2000,step=to/(dur/16);
+      let v=0;const go=()=>{v=Math.min(v+step,to);el.textContent=Math.floor(v).toLocaleString();if(v<to)requestAnimationFrame(go)};go();
+    });
+    cobs.unobserve(e.target);
+  });
+},{threshold:.5});
+const sb=document.querySelector('.stats-inner');
+if(sb) cobs.observe(sb);
+
+/* ─── QUIZ ─── */
+function pick(el,s){
+  document.querySelectorAll(`#qs${s} .quiz-opt`).forEach(o=>o.classList.remove('picked'));
+  el.classList.add('picked');
+}
+function qNext(to){
+  document.getElementById('qs'+(to-1)).classList.remove('on');
+  document.getElementById('qs'+to).classList.add('on');
+  document.getElementById('qd'+(to-1)).classList.remove('on');
+  document.getElementById('qd'+to).classList.add('on');
+}
+function qResult(){
+  document.getElementById('qs2').classList.remove('on');
+  document.getElementById('qresult').classList.add('on');
+  document.querySelectorAll('.qd').forEach(d=>d.classList.remove('on'));
+}
+
+/* ─── ACCORDION ─── */
+function toggleAcc(head){
+  const acc=head.closest('.accordion');
+  const wasOpen=acc.classList.contains('open');
+  document.querySelectorAll('.accordion').forEach(a=>a.classList.remove('open'));
+  if(!wasOpen) acc.classList.add('open');
+}
+
+/* ─── DASHBOARD MOCKUP DATA ─── */
+(function buildDash(){
+  /* bars */
+  const bars=document.getElementById('dash-bars');
+  if(bars){
+    const heights=[30,42,35,55,48,62,45,70,58,75,65,80,72,88,78,92,82,95,88,100,90,96,85,92,88,98,94,100,92,96];
+    heights.forEach(h=>{
+      const b=document.createElement('div');
+      b.className='dash-bar'; b.style.height=h+'%';
+      bars.appendChild(b);
+    });
+  }
+  /* calendar */
+  const cal=document.getElementById('dash-cal');
+  if(cal){
+    const hasDays=[3,6,8,10,13,15,17,20,22,24,27,29,31];
+    for(let i=1;i<=31;i++){
+      const c=document.createElement('div');
+      c.className='dash-cal-cell'+(hasDays.includes(i)?' has':'');
+      c.textContent=i; cal.appendChild(c);
+    }
+  }
+})();
+
+/* ─── SMOOTH SCROLL ─── */
+function smoothTo(id){
+  const el=document.getElementById(id);
+  if(el) window.scrollTo({top:el.getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});
+}
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{
+    const t=document.querySelector(a.getAttribute('href'));
+    if(t){e.preventDefault();smoothTo(t.id)}
+  });
+});
+</script>
+</body>
+</html>

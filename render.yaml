@@ -1,0 +1,28 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: oravini-db
+    plan: free
+    region: oregon
+    databaseName: oravini
+    databaseUser: oravini
+
+  # Web Service
+  - type: web
+    name: oravini
+    runtime: node
+    buildCommand: npm install --include=dev --legacy-peer-deps && node script/build.mjs
+    startCommand: NODE_ENV=production node dist/index.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oravini-db
+          property: connectionString
+      - key: APP_URL
+        value: https://oravini.com
+      - key: SESSION_SECRET
+        generateValue: true

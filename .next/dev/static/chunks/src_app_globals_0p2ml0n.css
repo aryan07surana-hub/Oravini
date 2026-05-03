@@ -1,0 +1,44 @@
+/* [project]/src/app/globals.css [app-client] (css) */
+:root {
+  --bg: #f4efe4;
+  --panel: #fffcf6db;
+  --panel-strong: #fffdf8;
+  --text: #1f1d1a;
+  --muted: #645d53;
+  --line: #4034271f;
+  --accent: #cf5f38;
+  --accent-soft: #f6c28b;
+  --accent-deep: #8f3420;
+  --success: #2f6b52;
+  --shadow: 0 24px 80px #5c3d2229;
+  --radius: 28px;
+  --font-sans: "Manrope", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(circle at top left, #f6c28b99, transparent 30%),
+    radial-gradient(circle at top right, #cf5f381f, transparent 25%),
+    linear-gradient(180deg, #f9f2e7 0%, var(--bg) 100%);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+/*# sourceMappingURL=src_app_globals_0p2ml0n.css.map*/
