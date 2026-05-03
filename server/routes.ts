@@ -446,7 +446,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(400).json({ message: "An account with this email already exists" });
       const hashed = await hashPassword(password);
-      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false } as any);
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false, hasVideoMarketingAddon: false } as any);
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
       // Auto-enroll in "join" sequences
       storage.getEmailSequences().then(seqs => {

@@ -121,6 +121,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             planConfirmed: false,
             phoneVerified: true,
             surveyCompleted: false,
+            hasVideoMarketingAddon: false,
           } as any);
           (user as any)._isNewGoogleUser = true;
         }
