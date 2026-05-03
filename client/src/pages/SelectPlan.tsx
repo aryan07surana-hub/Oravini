@@ -298,10 +298,10 @@ export default function SelectPlan() {
                     )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                    {plan.slug === "pro"
+                    {(plan.slug === "pro"
                       ? ["Unlimited video hosting + VSL pages", "Unlimited webinars + registration pages", "Live attendee CRM + auto-reminders", "AI Clip Finder + white-label pages"]
                       : ["Unlimited video hosting + VSL pages", "Up to 3 live webinars / month", "Registration pages + email reminders", "Basic attendee analytics"]
-                    }.map(f => (
+                    ).map(f => (
                       <div key={f} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
                         <span style={{ color: plan.slug === "pro" ? GOLD : "rgba(255,255,255,0.45)", fontSize: 10, marginTop: 2, flexShrink: 0 }}>✦</span>
                         <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.4 }}>{f}</span>
