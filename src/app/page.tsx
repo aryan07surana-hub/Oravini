@@ -381,10 +381,10 @@ export default function Home() {
             <h3>Free</h3>
             <p className={styles.price}>$0<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ AI Day Planner</li>
-              <li>✓ Basic scheduling</li>
-              <li>✓ 5 plans per day</li>
-              <li>✓ Community support</li>
+              <li>✓ 20 AI credits per month</li>
+              <li>✓ Access to all AI tools</li>
+              <li>✓ Group community access</li>
+              <li>✓ AI content ideas</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
@@ -393,35 +393,35 @@ export default function Home() {
             <h3>Starter</h3>
             <p className={styles.price}>$19<span>/mo</span></p>
             <ul className={styles.features}>
+              <li>✓ 100 AI credits per month</li>
               <li>✓ Everything in Free</li>
-              <li>✓ Unlimited plans</li>
-              <li>✓ Email support</li>
-              <li>✓ Advanced analytics</li>
+              <li>✓ Full audit access</li>
+              <li>✓ Priority email support</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
 
           <div className={`${styles.pricingCard} ${styles.featured}`}>
             <span className={styles.popularBadge}>Most Popular</span>
-            <h3>Professional</h3>
+            <h3>Growth</h3>
             <p className={styles.price}>$49<span>/mo</span></p>
             <ul className={styles.features}>
+              <li>✓ 250 AI credits per month</li>
               <li>✓ Everything in Starter</li>
-              <li>✓ White-label solution</li>
-              <li>✓ API access</li>
               <li>✓ Video Marketing (+$20/mo)</li>
+              <li>✓ API access</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
 
           <div className={styles.pricingCard}>
-            <h3>Business</h3>
+            <h3>Pro</h3>
             <p className={styles.price}>$59<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ Everything in Professional</li>
+              <li>✓ 500 AI credits per month</li>
+              <li>✓ Everything in Growth</li>
               <li>✓ Video Marketing FREE</li>
               <li>✓ 24/7 support</li>
-              <li>✓ Custom integrations</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
@@ -430,10 +430,10 @@ export default function Home() {
             <h3>Enterprise</h3>
             <p className={styles.price}>Custom</p>
             <ul className={styles.features}>
-              <li>✓ Everything in Business</li>
+              <li>✓ Unlimited AI credits</li>
+              <li>✓ Everything in Pro</li>
               <li>✓ Video Marketing Included</li>
               <li>✓ Dedicated support</li>
-              <li>✓ Custom development</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Work With Us</a>
           </div>

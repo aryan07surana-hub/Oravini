@@ -18,22 +18,39 @@ const PRICING_TIERS: PricingOption[] = [
     tier: "tier1",
     name: "Free",
     price: 0,
-    features: ["AI Day Planner", "Basic scheduling", "5 plans per day", "Community support"],
+    features: [
+      "20 AI credits per month",
+      "Access to all AI tools",
+      "Group community access",
+      "AI content ideas",
+      "Variety tested",
+      "Basic calibration generation",
+      "Partial audit preview"
+    ],
     whopCheckoutUrl: "https://whop.com/checkout/plan_free",
   },
   {
     tier: "tier2",
     name: "Starter",
     price: 19,
-    features: ["Everything in Free", "Unlimited plans", "Email support", "Advanced analytics", "Team collaboration"],
+    features: [
+      "100 AI credits per month",
+      "Everything in Free",
+      "Full audit access",
+      "AI content ideas",
+      "Priority email support",
+      "Advanced analytics"
+    ],
     whopCheckoutUrl: "https://whop.com/checkout/plan_starter123",
   },
   {
     tier: "tier3",
-    name: "Professional",
+    name: "Growth",
     price: 49,
     features: [
+      "250 AI credits per month",
       "Everything in Starter",
+      "Video Marketing (+$20/mo)",
       "White-label solution",
       "API access",
       "Custom integrations",
@@ -43,10 +60,12 @@ const PRICING_TIERS: PricingOption[] = [
   },
   {
     tier: "tier4",
-    name: "Business",
+    name: "Pro",
     price: 59,
     features: [
-      "Everything in Professional",
+      "500 AI credits per month",
+      "Everything in Growth",
+      "Video Marketing FREE",
       "Unlimited team members",
       "Custom development",
       "SLA guarantee",
@@ -60,8 +79,9 @@ const PRICING_TIERS: PricingOption[] = [
     name: "Enterprise",
     price: 99,
     features: [
-      "Everything in Business",
-      "Video Marketing Included FREE",
+      "Unlimited AI credits",
+      "Everything in Pro",
+      "Video Marketing Included",
       "White-glove onboarding",
       "Custom SLA",
       "Dedicated infrastructure",
@@ -126,7 +146,7 @@ export default function PricingPage() {
     <main className={styles.page}>
       <section className={styles.hero}>
         <h1>Choose Your Plan</h1>
-        <p>Select the perfect tier for your needs. Business & Enterprise tiers can add Video Marketing.</p>
+        <p>Select the perfect tier for your needs. Growth & Pro tiers can add Video Marketing.</p>
       </section>
 
       <section className={styles.tierSelector}>
@@ -163,7 +183,7 @@ export default function PricingPage() {
               <div>
                 <h2>🎥 Video Marketing Add-On</h2>
                 {selectedTier === "tier3" && <p className={styles.addonPrice}>+$20/mo</p>}
-                {selectedTier === "tier4" && <p className={styles.addonPrice}>FREE with Business Plan</p>}
+                {selectedTier === "tier4" && <p className={styles.addonPrice}>FREE with Pro Plan</p>}
               </div>
               <label className={styles.toggle}>
                 <input type="checkbox" checked={includeVideoMarketing} onChange={(e) => setIncludeVideoMarketing(e.target.checked)} />
