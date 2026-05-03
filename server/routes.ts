@@ -10691,7 +10691,7 @@ Rules:
   app.post("/api/webinars", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic } = req.body;
+      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic, webinarType, replayVideoUrl, presenterName, videoQuality } = req.body;
       if (!title || !scheduledAt) return res.status(400).json({ message: "Title and scheduledAt required" });
 
       let meetingCode = generateMeetingCode();
@@ -10710,6 +10710,10 @@ Rules:
         chatChannels: chatChannels || ["General"], offerUrl: offerUrl || null,
         offerTitle: offerTitle || null, thumbnailUrl: thumbnailUrl || null,
         isPublic: isPublic ?? false,
+        webinarType: webinarType || "live",
+        replayVideoUrl: replayVideoUrl || null,
+        presenterName: presenterName || null,
+        videoQuality: videoQuality || "1080p",
       });
       res.status(201).json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

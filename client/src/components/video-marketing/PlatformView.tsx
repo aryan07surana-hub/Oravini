@@ -140,6 +140,8 @@ const defaultWebinarForm = () => ({
   webinarType: "live" as "live" | "jic",
   replayVideoUrl: "",
   presenterName: "",
+  videoQuality: "1080p",
+  selectedVideoId: "",
 });
 
 function StatusBadge({ status }: { status: string }) {
@@ -178,6 +180,10 @@ function WebinarsTab() {
 
   const { data: webinars = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinars"],
+  });
+
+  const { data: hostedVideos = [] } = useQuery<any[]>({
+    queryKey: ["/api/video-events"],
   });
 
   const createMut = useMutation({
@@ -232,6 +238,7 @@ function WebinarsTab() {
       webinarType: form.webinarType,
       replayVideoUrl: form.replayVideoUrl || null,
       presenterName: form.presenterName || null,
+      videoQuality: form.videoQuality || "1080p",
     });
   };
 
@@ -444,15 +451,85 @@ function WebinarsTab() {
               />
             </div>
             {form.webinarType === "jic" && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-zinc-400 mb-2 block font-semibold">Pick a Video from Your Library</label>
+                  {(hostedVideos as any[]).length === 0 ? (
+                    <div className="rounded-xl border border-zinc-700 p-4 text-center">
+                      <p className="text-xs text-zinc-500">No hosted videos yet.</p>
+                      <p className="text-[11px] text-zinc-600 mt-0.5">Upload videos in the Videos tab, then come back to select one.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                      {(hostedVideos as any[]).map((v: any) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setForm({ ...form, selectedVideoId: String(v.id), replayVideoUrl: v.videoUrl || "" })}
+                          className="rounded-xl border text-left transition-all overflow-hidden flex flex-col"
+                          style={{
+                            borderColor: form.selectedVideoId === String(v.id) ? GOLD : "rgba(255,255,255,0.1)",
+                            background: form.selectedVideoId === String(v.id) ? `${GOLD}12` : "rgba(255,255,255,0.02)",
+                          }}
+                        >
+                          <div className="aspect-video bg-zinc-800 relative overflow-hidden flex-shrink-0">
+                            {v.thumbnailUrl ? (
+                              <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Film className="w-6 h-6 text-zinc-600" />
+                              </div>
+                            )}
+                            {form.selectedVideoId === String(v.id) && (
+                              <div className="absolute inset-0 flex items-center justify-center" style={{ background: `${GOLD}40` }}>
+                                <Check className="w-6 h-6 text-white drop-shadow-lg" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2">
+                            <p className="text-[11px] font-semibold text-white truncate">{v.title}</p>
+                            {v.duration && <p className="text-[10px] text-zinc-500 mt-0.5">{v.duration}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 mb-1.5 block">
+                    {form.selectedVideoId ? "Or override with a URL" : "Or paste a URL (YouTube, Vimeo, MP4)"}
+                  </label>
+                  <Input
+                    placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..."
+                    value={form.replayVideoUrl}
+                    onChange={(e) => setForm({ ...form, replayVideoUrl: e.target.value, selectedVideoId: "" })}
+                    className="bg-zinc-800 border-zinc-700 text-white text-sm"
+                  />
+                  <p className="text-[10px] text-zinc-600 mt-1">YouTube, Vimeo, and direct MP4 links are all supported.</p>
+                </div>
+              </div>
+            )}
+            {form.webinarType === "live" && (
               <div>
-                <label className="text-xs text-zinc-400 mb-1.5 block">Replay Video URL (YouTube, Vimeo, or direct MP4)</label>
-                <Input
-                  placeholder="https://www.youtube.com/embed/..."
-                  value={form.replayVideoUrl}
-                  onChange={(e) => setForm({ ...form, replayVideoUrl: e.target.value })}
-                  className="bg-zinc-800 border-zinc-700 text-white"
-                />
-                <p className="text-[11px] text-zinc-600 mt-1">Use a YouTube embed URL or direct video link. This plays automatically when attendees join.</p>
+                <label className="text-xs text-zinc-400 mb-2 block font-semibold">Broadcast Quality</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[["720p", "720p HD", "1280×720"], ["1080p", "1080p Full HD", "1920×1080"], ["4k", "4K Ultra HD", "3840×2160"]].map(([val, label, res]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setForm({ ...form, videoQuality: val })}
+                      className="rounded-xl border p-2.5 text-center transition-all"
+                      style={{
+                        borderColor: form.videoQuality === val ? GOLD : "rgba(255,255,255,0.1)",
+                        background: form.videoQuality === val ? `${GOLD}12` : "rgba(255,255,255,0.02)",
+                      }}
+                    >
+                      <p className="text-sm font-black" style={{ color: form.videoQuality === val ? GOLD : "rgba(255,255,255,0.7)" }}>{val === "4k" ? "4K" : val}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{res}</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-1.5">Host preview uses this quality. Multi-viewer 4K broadcasting requires a streaming service.</p>
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
