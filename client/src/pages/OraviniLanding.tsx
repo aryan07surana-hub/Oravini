@@ -941,7 +941,7 @@ export default function OraviniLanding() {
                     {t.period && <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>{t.period}</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24, fontWeight: 500 }}>{t.credits}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, marginBottom: 28 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, marginBottom: 24 }}>
                     {t.features.map(f => (
                       <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                         <span style={{ color: t.accent, fontSize: 12, marginTop: 1, flexShrink: 0 }}>✓</span>
@@ -949,6 +949,42 @@ export default function OraviniLanding() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Video Marketing add-on — Growth (+$39) and Pro (+$29, exclusive rate) */}
+                  {(t.name === "Growth" || t.name === "Pro") && (
+                    <div style={{ background: t.name === "Pro" ? `${GOLD}0c` : "rgba(255,255,255,0.025)", border: `1px solid ${t.name === "Pro" ? `${GOLD}30` : "rgba(255,255,255,0.09)"}`, borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Optional Add-on</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: t.name === "Pro" ? GOLD : "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Video Marketing</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{t.name === "Pro" ? "+$29" : "+$39"}</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>/mo</span>
+                          </div>
+                        </div>
+                        {t.name === "Pro" && (
+                          <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.28)", borderRadius: 99, padding: "2px 8px" }}>
+                            <span style={{ fontSize: 9, fontWeight: 800, color: "#f87171" }}>Save $10</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+                        {(t.name === "Pro"
+                          ? ["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages"]
+                          : ["Video hosting + VSL pages", "3 webinars/mo + registration pages", "Email reminders + basic analytics"]
+                        ).map(f => (
+                          <div key={f} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <span style={{ color: t.name === "Pro" ? GOLD : "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.16)", lineHeight: 1.5 }}>
+                        {t.name === "Pro" ? "Best rate available — $59/mo standalone." : "Upgrade to Pro for exclusive $29/mo rate."}
+                      </div>
+                    </div>
+                  )}
+
                   <a href="/audit" style={{ display: "block", textAlign: "center", background: t.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.06)", border: t.highlight ? "none" : `1px solid ${t.border}`, color: t.highlight ? "#000" : t.accent, fontWeight: 700, fontSize: 14, borderRadius: 10, padding: "12px 20px", textDecoration: "none", transition: "opacity 0.2s" }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                     onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>

@@ -938,15 +938,35 @@ export default function VideoMarketingLanding() {
       {/* ── PRICING ──────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "120px 24px", background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212,180,97,0.04) 0%, transparent 70%)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Anim style={{ textAlign: "center", marginBottom: 64 }}>
+          <Anim style={{ textAlign: "center", marginBottom: 48 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Add-On Pricing</div>
             <h2 style={{ fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.1 }}>
               Add video to<br /><span style={{ color: GOLD }}>any Oravini plan.</span>
             </h2>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginTop: 16, lineHeight: 1.7, maxWidth: 480, margin: "16px auto 0" }}>
-              Pick the add-on that fits your goals. Works on top of Free, Starter, Growth, or Pro.
+              Pick the add-on that fits your goals. Completely optional — add it now or any time later.
             </p>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.2)", marginTop: 10 }}>No contracts. Cancel anytime.</p>
+          </Anim>
+
+          {/* Pro member savings callout */}
+          <Anim style={{ marginBottom: 40 }}>
+            <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}28`, borderRadius: 16, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, maxWidth: 860, margin: "0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ fontSize: 20 }}>⚡</div>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>On Growth or Pro? </span>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>You pay less. Growth members add the full suite for </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>+$39/mo</span>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>. Pro members get it for just </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>+$29/mo</span>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}> — saving $10 vs the standalone bundle price.</span>
+                </div>
+              </div>
+              <button onClick={() => nav("/select-plan")} style={{ background: "transparent", border: `1px solid ${GOLD}40`, color: GOLD, fontWeight: 700, fontSize: 12, borderRadius: 8, padding: "8px 16px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                View Plans →
+              </button>
+            </div>
           </Anim>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
             {PRICING.map(tier => (
