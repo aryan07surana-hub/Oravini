@@ -288,7 +288,7 @@ function ProgressBarPreview({ barStyle }: { barStyle: string }) {
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
-function Navbar({ onStrategy }: { onStrategy: () => void }) {
+function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [, nav] = useLocation();
   useEffect(() => {
@@ -317,12 +317,6 @@ function Navbar({ onStrategy }: { onStrategy: () => void }) {
               {label}
             </button>
           ))}
-          <button onClick={onStrategy}
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer", transition: "all 0.2s" }}
-            onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = `${GOLD}66`; b.style.color = GOLD; }}
-            onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
-            Free Assessment
-          </button>
           <button onClick={() => nav("/login?redirect=/video-marketing")}
             style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, border: "none", borderRadius: 8, color: "#000", fontSize: 13, fontWeight: 800, padding: "9px 20px", cursor: "pointer" }}>
             Login with Oravini →
@@ -363,7 +357,6 @@ export default function VideoMarketingLanding() {
   const [, nav] = useLocation();
   const [showSplash, setShowSplash] = useState(true);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
-  const [showStrategy, setShowStrategy] = useState(false);
   const [activeBar, setActiveBar] = useState("steady");
   const [activeTab, setActiveTab] = useState("All Videos");
   const [clipProgress, setClipProgress] = useState(0);
@@ -411,8 +404,7 @@ export default function VideoMarketingLanding() {
 
       {showSplash && <SplashModal onDone={() => setShowSplash(false)} />}
       {showEmailPopup && <EmailPopup onClose={() => setShowEmailPopup(false)} />}
-      {showStrategy && <StrategyModal onClose={() => setShowStrategy(false)} />}
-      <Navbar onStrategy={() => setShowStrategy(true)} />
+      <Navbar />
 
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", textAlign: "center", overflow: "hidden" }}>
@@ -439,12 +431,6 @@ export default function VideoMarketingLanding() {
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.88")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
               Login with Oravini →
-            </button>
-            <button onClick={() => setShowStrategy(true)}
-              style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 34px", cursor: "pointer", transition: "all 0.2s" }}
-              onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = `${GOLD}55`; b.style.color = GOLD; }}
-              onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
-              Take Free Assessment
             </button>
             <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
               style={{ background: `rgba(212,180,97,0.07)`, color: GOLD, fontWeight: 600, fontSize: 15, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "17px 34px", cursor: "pointer", transition: "all 0.2s" }}

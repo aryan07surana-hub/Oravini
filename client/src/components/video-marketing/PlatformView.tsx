@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -135,6 +136,9 @@ const defaultWebinarForm = () => ({
   offerUrl: "",
   offerTitle: "",
   isPublic: false,
+  webinarType: "live" as "live" | "jic",
+  replayVideoUrl: "",
+  presenterName: "",
 });
 
 function StatusBadge({ status }: { status: string }) {
@@ -166,6 +170,7 @@ function StatusBadge({ status }: { status: string }) {
 function WebinarsTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [, nav] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(defaultWebinarForm());
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -223,6 +228,9 @@ function WebinarsTab() {
       offerUrl: form.offerUrl || null,
       offerTitle: form.offerTitle || null,
       isPublic: form.isPublic,
+      webinarType: form.webinarType,
+      replayVideoUrl: form.replayVideoUrl || null,
+      presenterName: form.presenterName || null,
     });
   };
 
@@ -331,15 +339,26 @@ function WebinarsTab() {
                       {expandedId === w.id ? "Less" : "Details"}
                     </Button>
                     {w.status === "upcoming" && (
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs font-semibold gap-1"
-                        style={{ background: "#ef4444", color: "#fff" }}
-                        onClick={() => startMut.mutate(w.id)}
-                        disabled={startMut.isPending}
-                      >
-                        <Play className="w-3 h-3" /> Go Live
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-semibold gap-1"
+                          style={{ background: "#ef4444", color: "#fff" }}
+                          onClick={() => startMut.mutate(w.id)}
+                          disabled={startMut.isPending}
+                        >
+                          <Play className="w-3 h-3" /> Go Live
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-semibold gap-1"
+                          variant="outline"
+                          style={{ borderColor: `${GOLD}55`, color: GOLD }}
+                          onClick={() => nav(`/webinar-studio/${w.id}`)}
+                        >
+                          <Mic className="w-3 h-3" /> Studio
+                        </Button>
+                      </>
                     )}
                     {w.status === "live" && (
                       <Button
@@ -374,12 +393,42 @@ function WebinarsTab() {
             <DialogTitle className="text-white font-bold">Create Webinar</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Webinar Type */}
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 block">Webinar Type *</label>
+              <div className="grid grid-cols-2 gap-2">
+                {([["live", "Live Webinar", "You broadcast in real-time via camera/screen share"], ["jic", "JIC Automated", "Pre-recorded video plays live at scheduled time"]] as const).map(([val, label, desc]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setForm({ ...form, webinarType: val })}
+                    className="rounded-xl border p-3 text-left transition-all"
+                    style={{
+                      borderColor: form.webinarType === val ? GOLD : "rgba(255,255,255,0.1)",
+                      background: form.webinarType === val ? `${GOLD}10` : "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <p className="text-sm font-bold text-white mb-0.5">{label}</p>
+                    <p className="text-[11px] text-zinc-500">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 block">Title *</label>
               <Input
                 placeholder="e.g. Scale Your Business with Video"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="bg-zinc-800 border-zinc-700 text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-400 mb-1.5 block">Presenter Name</label>
+              <Input
+                placeholder="e.g. Aryan Surana"
+                value={form.presenterName}
+                onChange={(e) => setForm({ ...form, presenterName: e.target.value })}
                 className="bg-zinc-800 border-zinc-700 text-white"
               />
             </div>
@@ -393,6 +442,18 @@ function WebinarsTab() {
                 rows={3}
               />
             </div>
+            {form.webinarType === "jic" && (
+              <div>
+                <label className="text-xs text-zinc-400 mb-1.5 block">Replay Video URL (YouTube, Vimeo, or direct MP4)</label>
+                <Input
+                  placeholder="https://www.youtube.com/embed/..."
+                  value={form.replayVideoUrl}
+                  onChange={(e) => setForm({ ...form, replayVideoUrl: e.target.value })}
+                  className="bg-zinc-800 border-zinc-700 text-white"
+                />
+                <p className="text-[11px] text-zinc-600 mt-1">Use a YouTube embed URL or direct video link. This plays automatically when attendees join.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-zinc-400 mb-1.5 block">Date & Time *</label>

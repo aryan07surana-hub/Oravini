@@ -65,6 +65,7 @@ import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import WebinarStudio from "@/pages/client/WebinarStudio";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
@@ -183,6 +184,7 @@ function Router() {
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
+      <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
       <Route path="/ig-bot">{() => <Guard component={IgCommentBot} />}</Route>
       <Route path="/ig-tracker">{() => { window.location.replace("/tracking/content/instagram"); return null; }}</Route>
