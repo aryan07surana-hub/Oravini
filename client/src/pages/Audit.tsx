@@ -365,37 +365,6 @@ export default function Audit() {
   };
 
   const [, navigate] = useLocation();
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [accountForm, setAccountForm] = useState({ name: "", email: "", password: "" });
-  const [accountLoading, setAccountLoading] = useState(false);
-  const [accountError, setAccountError] = useState("");
-
-  const createAccountAndLogin = async () => {
-    if (!accountForm.name || !accountForm.email || !accountForm.password) {
-      setAccountError("All fields are required");
-      return;
-    }
-    if (accountForm.password.length < 6) {
-      setAccountError("Password must be at least 6 characters");
-      return;
-    }
-    setAccountLoading(true);
-    setAccountError("");
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(accountForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Registration failed");
-      // Successfully registered and logged in
-      navigate("/dashboard");
-    } catch (e: any) {
-      setAccountError(e.message || "Failed to create account");
-      setAccountLoading(false);
-    }
-  };
 
   const card: React.CSSProperties = {
     background: "#0c0c0c", border: "1px solid rgba(255,255,255,0.09)",
@@ -868,15 +837,16 @@ export default function Audit() {
                     {report.upgradeTeaser}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 340, margin: "0 auto" }}>
-                    <button onClick={() => setShowAccountModal(true)}
-                      style={{ display: "block", width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px 24px", borderRadius: 10, cursor: "pointer", border: "none" }}>
-                      Create Free Account & View Full Report →
-                    </button>
-                    <a href={CALENDLY} target="_blank" rel="noopener noreferrer">
-                      <span style={{ display: "block", background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", fontWeight: 500, fontSize: 13, padding: "8px", cursor: "pointer" }}>
-                        Book a strategy call instead
-                      </span>
-                    </a>
+                    <Link href="/login?tab=register">
+                      <button style={{ display: "block", width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px 24px", borderRadius: 10, cursor: "pointer", border: "none" }}>
+                        Sign Up to View Full Report →
+                      </button>
+                    </Link>
+                    <Link href="/login">
+                      <button style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 14, padding: "12px 24px", borderRadius: 10, cursor: "pointer" }}>
+                        Already have an account? Login
+                      </button>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -893,37 +863,8 @@ export default function Audit() {
             </div>
 
             <div style={{ textAlign: "center", padding: "0 20px" }}>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Create a free account to access your full report inside the dashboard.</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Sign up or login to access your full report inside the dashboard.</p>
             </div>
-
-            {/* Account Creation Modal */}
-            {showAccountModal && (
-              <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}
-                onClick={() => setShowAccountModal(false)}>
-                <div onClick={e => e.stopPropagation()} style={{ background: "#0c0c0c", border: `1px solid ${GOLD}35`, borderRadius: 20, padding: "36px 32px", maxWidth: 420, width: "100%", textAlign: "center" }}>
-                  <button onClick={() => setShowAccountModal(false)} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 20, cursor: "pointer" }}>✕</button>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>🎉</div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Create Your Free Account</h3>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 24, lineHeight: 1.6 }}>
-                    Get instant access to your full audit report + all AI tools inside the dashboard.
-                  </p>
-                  {accountError && <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13, marginBottom: 16 }}>{accountError}</div>}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                    <input type="text" placeholder="Your name" value={accountForm.name} onChange={e => setAccountForm(f => ({ ...f, name: e.target.value }))}
-                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
-                    <input type="email" placeholder="Your email" value={accountForm.email} onChange={e => setAccountForm(f => ({ ...f, email: e.target.value }))}
-                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
-                    <input type="password" placeholder="Create password (min 6 characters)" value={accountForm.password} onChange={e => setAccountForm(f => ({ ...f, password: e.target.value }))}
-                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
-                  </div>
-                  <button onClick={createAccountAndLogin} disabled={accountLoading}
-                    style={{ width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px", borderRadius: 10, border: "none", cursor: accountLoading ? "not-allowed" : "pointer", opacity: accountLoading ? 0.7 : 1, marginBottom: 12 }}>
-                    {accountLoading ? "Creating Account..." : "Create Account & View Full Report →"}
-                  </button>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Already have an account? <Link href="/login"><span style={{ color: GOLD, cursor: "pointer", textDecoration: "underline" }}>Log in</span></Link></p>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
