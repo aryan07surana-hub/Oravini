@@ -2210,7 +2210,6 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       )}
       {creditError && <CreditErrorBanner message={creditError} />}
 
-      {
       {/* New Analysis Form */}
       <Card className="border border-card-border">
         <CardContent className="p-5 space-y-4">
