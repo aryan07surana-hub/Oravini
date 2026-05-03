@@ -369,6 +369,76 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <section className={styles.pricingSection}>
+        <div className={styles.pricingHeader}>
+          <h2>Choose Your Plan</h2>
+          <p>Select the perfect tier for your needs</p>
+        </div>
+
+        <div className={styles.pricingGrid}>
+          <div className={styles.pricingCard}>
+            <h3>Free</h3>
+            <p className={styles.price}>$0<span>/mo</span></p>
+            <ul className={styles.features}>
+              <li>✓ AI Day Planner</li>
+              <li>✓ Basic scheduling</li>
+              <li>✓ 5 plans per day</li>
+              <li>✓ Community support</li>
+            </ul>
+            <a href="/pricing" className={styles.pricingButton}>Get Started</a>
+          </div>
+
+          <div className={styles.pricingCard}>
+            <h3>Starter</h3>
+            <p className={styles.price}>$19<span>/mo</span></p>
+            <ul className={styles.features}>
+              <li>✓ Everything in Free</li>
+              <li>✓ Unlimited plans</li>
+              <li>✓ Email support</li>
+              <li>✓ Advanced analytics</li>
+            </ul>
+            <a href="/pricing" className={styles.pricingButton}>Get Started</a>
+          </div>
+
+          <div className={`${styles.pricingCard} ${styles.featured}`}>
+            <span className={styles.popularBadge}>Most Popular</span>
+            <h3>Professional</h3>
+            <p className={styles.price}>$49<span>/mo</span></p>
+            <ul className={styles.features}>
+              <li>✓ Everything in Starter</li>
+              <li>✓ White-label solution</li>
+              <li>✓ API access</li>
+              <li>✓ Video Marketing (+$20/mo)</li>
+            </ul>
+            <a href="/pricing" className={styles.pricingButton}>Get Started</a>
+          </div>
+
+          <div className={styles.pricingCard}>
+            <h3>Business</h3>
+            <p className={styles.price}>$59<span>/mo</span></p>
+            <ul className={styles.features}>
+              <li>✓ Everything in Professional</li>
+              <li>✓ Video Marketing FREE</li>
+              <li>✓ 24/7 support</li>
+              <li>✓ Custom integrations</li>
+            </ul>
+            <a href="/pricing" className={styles.pricingButton}>Get Started</a>
+          </div>
+
+          <div className={styles.pricingCard}>
+            <h3>Enterprise</h3>
+            <p className={styles.price}>Custom</p>
+            <ul className={styles.features}>
+              <li>✓ Everything in Business</li>
+              <li>✓ Video Marketing Included</li>
+              <li>✓ Dedicated support</li>
+              <li>✓ Custom development</li>
+            </ul>
+            <a href="/pricing" className={styles.pricingButton}>Work With Us</a>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
