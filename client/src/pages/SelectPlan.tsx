@@ -125,11 +125,11 @@ export default function SelectPlan() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [videoMarketingGrowth, setVideoMarketingGrowth] = useState(false);
-  const [videoMarketingPro, setVideoMarketingPro] = useState(false);
   const [expandedFeatures, setExpandedFeatures] = useState<string | null>(null);
   const [showVideoPreview, setShowVideoPreview] = useState(false);
   const [previewTier, setPreviewTier] = useState<'growth' | 'pro' | null>(null);
+  const [showVideoDecision, setShowVideoDecision] = useState(false);
+  const [decisionTier, setDecisionTier] = useState<'growth' | 'pro' | null>(null);
 
   // Handle return from Whop after successful payment
   useEffect(() => {
@@ -173,15 +173,13 @@ export default function SelectPlan() {
       return;
     }
     if (slug === "growth") {
-      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth${videoMarketingGrowth ? '&video=true' : ''}`;
-      const checkoutUrl = videoMarketingGrowth ? WHOP_GROWTH_VIDEO_URL : WHOP_GROWTH_URL;
-      window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      setDecisionTier('growth');
+      setShowVideoDecision(true);
       return;
     }
     if (slug === "pro") {
-      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro${videoMarketingPro ? '&video=true' : ''}`;
-      const checkoutUrl = videoMarketingPro ? WHOP_PRO_VIDEO_URL : WHOP_PRO_URL;
-      window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      setDecisionTier('pro');
+      setShowVideoDecision(true);
       return;
     }
     // Elite is still coming soon
@@ -196,6 +194,18 @@ export default function SelectPlan() {
       navigate("/dashboard");
     } catch {
       setConfirming(null);
+    }
+  };
+
+  const proceedToCheckout = (tier: 'growth' | 'pro', withVideo: boolean) => {
+    setShowVideoDecision(false);
+    if (tier === 'growth') {
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth${withVideo ? '&video=true' : ''}`;
+      const checkoutUrl = withVideo ? WHOP_GROWTH_VIDEO_URL : WHOP_GROWTH_URL;
+      window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+    } else {
+      const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro${withVideo ? '&video=true' : ''}`;
+      window.location.href = `${WHOP_PRO_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
     }
   };
 
@@ -266,11 +276,7 @@ export default function SelectPlan() {
           {PLANS.map(plan => {
             const isGrowth = plan.slug === "growth";
             const isPro = plan.slug === "pro";
-            const hasVideoMarketing = (isGrowth && videoMarketingGrowth) || (isPro && videoMarketingPro);
-            const videoPrice = isGrowth ? 20 : isPro ? 0 : 0;
-            const basePrice = parseInt(plan.price.replace("$", "")) || 0;
-            const totalPrice = hasVideoMarketing ? basePrice + videoPrice : basePrice;
-            
+
             return (
             <div key={plan.slug} style={{ background: plan.bg, border: `1px solid ${plan.border}`, borderRadius: 20, padding: "30px 24px", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", boxShadow: plan.highlight ? `0 0 50px rgba(212,180,97,0.12)` : "none", transition: "transform 0.2s, box-shadow 0.2s" }}
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)"; }}
@@ -284,62 +290,16 @@ export default function SelectPlan() {
               <div style={{ fontSize: 10, fontWeight: 700, color: plan.accent, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{plan.tier}</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{plan.name}</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 3, marginBottom: 5 }}>
-                {(isGrowth || isPro) && hasVideoMarketing ? (
-                  <>
-                    <span style={{ fontSize: 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>${totalPrice}</span>
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: plan.price === "Free" ? 30 : 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>{plan.price}</span>
-                    {plan.period && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>}
-                  </>
-                )}
+                <span style={{ fontSize: plan.price === "Free" ? 30 : 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>{plan.price}</span>
+                {plan.period && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 22, fontWeight: 500 }}>{plan.credits}</div>
-              
+
               {isGrowth && (
                 <div className="space-y-3">
-                  <div 
-                    onClick={() => setVideoMarketingGrowth(!videoMarketingGrowth)}
-                    style={{ 
-                      background: videoMarketingGrowth ? `${plan.accent}15` : "rgba(255,255,255,0.03)", 
-                      border: `1px solid ${videoMarketingGrowth ? plan.accent + "40" : "rgba(255,255,255,0.08)"}`, 
-                      borderRadius: 10, 
-                      padding: "10px 12px", 
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ 
-                        width: 16, 
-                        height: 16, 
-                        borderRadius: 4, 
-                        border: `2px solid ${videoMarketingGrowth ? plan.accent : "rgba(255,255,255,0.2)"}`, 
-                        background: videoMarketingGrowth ? plan.accent : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0
-                      }}>
-                        {videoMarketingGrowth && <span style={{ color: "#000", fontSize: 10, fontWeight: 900 }}>✓</span>}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: videoMarketingGrowth ? plan.accent : "rgba(255,255,255,0.7)", marginBottom: 2 }}>
-                          Add Video Marketing?
-                        </div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-                          📊 Webinar hosting • Landing pages • Analytics
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: plan.accent }}>+$20/mo</div>
-                    </div>
-                  </div>
-                  
                   <button
                     onClick={(e) => { e.stopPropagation(); setExpandedFeatures(expandedFeatures === 'growth' ? null : 'growth'); }}
-                    style={{ 
+                    style={{
                       width: "100%",
                       background: "none",
                       border: "none",
@@ -356,9 +316,9 @@ export default function SelectPlan() {
                   >
                     {expandedFeatures === 'growth' ? '−' : '+'} {expandedFeatures === 'growth' ? 'Hide' : 'See all'} features
                   </button>
-                  
+
                   {expandedFeatures === 'growth' && (
-                    <div style={{ 
+                    <div style={{
                       background: "rgba(255,255,255,0.02)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       borderRadius: 10,
@@ -397,7 +357,7 @@ export default function SelectPlan() {
                       </div>
                     </div>
                   )}
-                  
+
                   <button
                     onClick={(e) => { e.stopPropagation(); setPreviewTier('growth'); setShowVideoPreview(true); }}
                     style={{
@@ -423,49 +383,12 @@ export default function SelectPlan() {
                   </button>
                 </div>
               )}
-              
+
               {isPro && (
                 <div className="space-y-3">
-                  <div 
-                    onClick={() => setVideoMarketingPro(!videoMarketingPro)}
-                    style={{ 
-                      background: videoMarketingPro ? `${plan.accent}15` : "rgba(255,255,255,0.03)", 
-                      border: `1px solid ${videoMarketingPro ? plan.accent + "40" : "rgba(255,255,255,0.08)"}`, 
-                      borderRadius: 10, 
-                      padding: "10px 12px", 
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ 
-                        width: 16, 
-                        height: 16, 
-                        borderRadius: 4, 
-                        border: `2px solid ${videoMarketingPro ? plan.accent : "rgba(255,255,255,0.2)"}`, 
-                        background: videoMarketingPro ? plan.accent : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0
-                      }}>
-                        {videoMarketingPro && <span style={{ color: "#000", fontSize: 10, fontWeight: 900 }}>✓</span>}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: videoMarketingPro ? plan.accent : "rgba(255,255,255,0.7)", marginBottom: 2 }}>
-                          Add Video Marketing?
-                        </div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-                          📊 Webinar hosting • Landing pages • Analytics
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: plan.accent }}>FREE</div>
-                    </div>
-                  </div>
-                  
                   <button
                     onClick={(e) => { e.stopPropagation(); setExpandedFeatures(expandedFeatures === 'pro' ? null : 'pro'); }}
-                    style={{ 
+                    style={{
                       width: "100%",
                       background: "none",
                       border: "none",
@@ -482,9 +405,9 @@ export default function SelectPlan() {
                   >
                     {expandedFeatures === 'pro' ? '−' : '+'} {expandedFeatures === 'pro' ? 'Hide' : 'See all'} features
                   </button>
-                  
+
                   {expandedFeatures === 'pro' && (
-                    <div style={{ 
+                    <div style={{
                       background: "rgba(255,255,255,0.02)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       borderRadius: 10,
@@ -521,7 +444,7 @@ export default function SelectPlan() {
                         <span style={{ color: plan.accent, fontSize: 10 }}>✓</span>
                         <span>Priority Support</span>
                       </div>
-                      <div style={{ 
+                      <div style={{
                         marginTop: 10,
                         paddingTop: 10,
                         borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -533,7 +456,7 @@ export default function SelectPlan() {
                       </div>
                     </div>
                   )}
-                  
+
                   <button
                     onClick={(e) => { e.stopPropagation(); setPreviewTier('pro'); setShowVideoPreview(true); }}
                     style={{
@@ -559,7 +482,7 @@ export default function SelectPlan() {
                   </button>
                 </div>
               )}
-              
+
               <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1, marginBottom: 24 }}>
                 {plan.features.map(f => (
                   <div key={f} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
@@ -568,44 +491,6 @@ export default function SelectPlan() {
                   </div>
                 ))}
               </div>
-
-              {/* Video Marketing Add-on — Growth + Pro only, optional */}
-              {(plan.slug === "growth" || plan.slug === "pro") && (
-                <div style={{ background: plan.slug === "pro" ? `${GOLD}0c` : "rgba(255,255,255,0.03)", border: `1px solid ${plan.slug === "pro" ? `${GOLD}35` : "rgba(255,255,255,0.1)"}`, borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 10 }}>Optional Add-on</div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: plan.slug === "pro" ? GOLD : "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>🎬 Video Marketing</div>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                        <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{plan.slug === "pro" ? "+$29" : "+$39"}</span>
-                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>/mo</span>
-                      </div>
-                    </div>
-                    {plan.slug === "pro" && (
-                      <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 99, padding: "3px 10px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "#f87171", letterSpacing: "0.04em" }}>Save $10 vs standalone</span>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                    {(plan.slug === "pro"
-                      ? ["Unlimited video hosting + VSL pages", "Unlimited webinars + registration pages", "Live attendee CRM + auto-reminders", "AI Clip Finder + white-label pages"]
-                      : ["Unlimited video hosting + VSL pages", "Up to 3 live webinars / month", "Registration pages + email reminders", "Basic attendee analytics"]
-                    ).map(f => (
-                      <div key={f} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-                        <span style={{ color: plan.slug === "pro" ? GOLD : "rgba(255,255,255,0.45)", fontSize: 10, marginTop: 2, flexShrink: 0 }}>✦</span>
-                        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.4 }}>{f}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.18)", lineHeight: 1.5 }}>
-                    {plan.slug === "pro"
-                      ? "Standalone Video Pro Bundle costs $59/mo. Pro members unlock the same for just $29/mo."
-                      : "Full Video Pro Bundle is $59/mo standalone. Upgrade to Pro for an exclusive $29/mo rate."
-                    }
-                  </div>
-                </div>
-              )}
 
               <button
                 data-testid={`button-plan-${plan.slug}`}
@@ -650,10 +535,310 @@ export default function SelectPlan() {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      
+
+      {/* Video Marketing Decision Modal — shown when user clicks Growth/Pro CTA */}
+      {showVideoDecision && decisionTier && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.97)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "#0a0a0a",
+              borderRadius: 24,
+              maxWidth: 860,
+              width: "100%",
+              maxHeight: "92vh",
+              overflow: "auto",
+              position: "relative",
+              border: `2px solid ${decisionTier === 'pro' ? '#34d39940' : `${GOLD}40`}`,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Close / skip button */}
+            <button
+              onClick={() => proceedToCheckout(decisionTier, false)}
+              aria-label="Skip and continue without video marketing"
+              style={{
+                position: "absolute",
+                top: 18,
+                right: 18,
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                color: "#fff",
+                fontSize: 20,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.18)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+            >
+              ×
+            </button>
+
+            {/* Header */}
+            <div style={{ padding: "40px 40px 28px", borderBottom: `1px solid ${decisionTier === 'pro' ? '#34d39920' : `${GOLD}20`}`, background: "#060606" }}>
+              <div style={{
+                display: "inline-block",
+                background: decisionTier === 'pro' ? "rgba(52,211,153,0.12)" : `${GOLD}18`,
+                border: `1px solid ${decisionTier === 'pro' ? 'rgba(52,211,153,0.4)' : `${GOLD}40`}`,
+                borderRadius: 99,
+                padding: "5px 14px",
+                marginBottom: 14,
+              }}>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: decisionTier === 'pro' ? "#34d399" : GOLD,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                }}>
+                  {decisionTier === 'growth' ? 'Growth Plan · +$20/mo' : 'Pro Plan · Included FREE'}
+                </span>
+              </div>
+              <h2 style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginBottom: 10, lineHeight: 1.15 }}>
+                🎬 Add Video Marketing?
+              </h2>
+              <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: 0 }}>
+                Host webinars, build landing pages, track every viewer — all inside Oravini
+              </p>
+            </div>
+
+            {/* Feature preview */}
+            <div style={{ padding: "32px 40px 24px", flex: 1 }}>
+              {decisionTier === 'pro' && (
+                <div style={{
+                  marginBottom: 22,
+                  padding: "12px 16px",
+                  background: "linear-gradient(135deg, rgba(52,211,153,0.14), rgba(52,211,153,0.04))",
+                  border: "1px solid rgba(52,211,153,0.4)",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                }}>
+                  <span style={{ fontSize: 18 }}>🎉</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#34d399", letterSpacing: "0.02em" }}>
+                    Worth $20/mo — yours FREE
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
+                {/* Webinar Hosting */}
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(212,180,97,0.08), rgba(212,180,97,0.02))",
+                  border: `1px solid ${GOLD}30`,
+                  borderRadius: 14,
+                  padding: 18,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 26 }}>🎥</span>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>Webinar Hosting</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Live, interactive sessions at scale</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginTop: 12 }}>
+                    {["500 Attendees", "HD Streaming", "Live Q&A", "Screen Share"].map(label => (
+                      <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", fontSize: 11, color: GOLD, fontWeight: 700 }}>
+                        ✓ {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* VSL & Video Pages */}
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02))",
+                  border: "1px solid rgba(99,102,241,0.3)",
+                  borderRadius: 14,
+                  padding: 18,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 26 }}>📹</span>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>VSL & Video Pages</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Convert traffic with hosted video</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginTop: 12 }}>
+                    {["Video Heatmaps", "Lead Gates", "CTA Overlays", "Custom Brand"].map(label => (
+                      <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", fontSize: 11, color: "#818cf8", fontWeight: 700 }}>
+                        ✓ {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Landing Pages */}
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(244,114,182,0.08), rgba(244,114,182,0.02))",
+                  border: "1px solid rgba(244,114,182,0.3)",
+                  borderRadius: 14,
+                  padding: 18,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 26 }}>📝</span>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>Landing Pages</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Drag-and-drop, no code needed</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginTop: 12 }}>
+                    {["Custom Domains", "Mobile Ready", "A/B Testing", "Email Capture"].map(label => (
+                      <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", fontSize: 11, color: "#f472b6", fontWeight: 700 }}>
+                        ✓ {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Analytics & CRM */}
+                <div style={{
+                  background: "linear-gradient(135deg, rgba(52,211,153,0.08), rgba(52,211,153,0.02))",
+                  border: "1px solid rgba(52,211,153,0.3)",
+                  borderRadius: 14,
+                  padding: 18,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 26 }}>📊</span>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>Analytics & CRM</div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Know exactly what works</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginTop: 12 }}>
+                    {["Attendance Rates", "Watch Time", "Conversions", "Replay Views"].map(label => (
+                      <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "7px 10px", fontSize: 11, color: "#34d399", fontWeight: 700 }}>
+                        ✓ {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {decisionTier === 'growth' && (
+                <div style={{
+                  marginTop: 22,
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 14,
+                  padding: 18,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", marginBottom: 12 }}>
+                    What's different on Growth vs Pro
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+                    <div style={{ background: `${GOLD}10`, border: `1px solid ${GOLD}30`, borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: GOLD, marginBottom: 8, letterSpacing: "0.04em" }}>GROWTH (this plan)</div>
+                      <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.7 }}>
+                        <li>• Up to 3 live webinars / mo</li>
+                        <li>• Basic analytics</li>
+                        <li>• Email reminders</li>
+                      </ul>
+                    </div>
+                    <div style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 10, padding: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#34d399", marginBottom: 8, letterSpacing: "0.04em" }}>PRO (upgrade)</div>
+                      <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.7 }}>
+                        <li>• Unlimited webinars</li>
+                        <li>• Full CRM</li>
+                        <li>• AI Clip Finder</li>
+                        <li>• White-label pages</li>
+                        <li>• Advanced heatmaps</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer CTA */}
+            <div style={{
+              padding: "22px 40px 28px",
+              borderTop: `1px solid ${decisionTier === 'pro' ? '#34d39920' : `${GOLD}20`}`,
+              background: "#060606",
+              position: "sticky",
+              bottom: 0,
+            }}>
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
+                  {decisionTier === 'growth'
+                    ? <>+<span style={{ color: GOLD, fontWeight: 700 }}>$20/mo</span> added to <span style={{ color: "#fff", fontWeight: 700 }}>$49/mo</span> = <span style={{ color: "#fff", fontWeight: 800 }}>$69/mo total</span></>
+                    : <>Included <span style={{ color: "#34d399", fontWeight: 700 }}>FREE</span> with your <span style={{ color: "#fff", fontWeight: 700 }}>$59/mo Pro plan</span></>
+                  }
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => proceedToCheckout(decisionTier, true)}
+                  style={{
+                    flex: "2 1 280px",
+                    background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`,
+                    border: "none",
+                    color: "#000",
+                    padding: "14px 24px",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: `0 0 24px ${GOLD}50`,
+                    letterSpacing: "0.01em",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 0 32px ${GOLD}70`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 0 24px ${GOLD}50`; }}
+                >
+                  Yes, Add Video Marketing →
+                </button>
+                <button
+                  onClick={() => proceedToCheckout(decisionTier, false)}
+                  style={{
+                    flex: "1 1 200px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(255,255,255,0.65)",
+                    padding: "14px 20px",
+                    borderRadius: 12,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#fff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
+                >
+                  No Thanks, Continue Without
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Video Marketing Interactive Preview Modal */}
       {showVideoPreview && (
-        <div 
+        <div
           style={{
             position: "fixed",
             top: 0,
@@ -670,7 +855,7 @@ export default function SelectPlan() {
           }}
           onClick={() => setShowVideoPreview(false)}
         >
-          <div 
+          <div
             style={{
               background: "#0a0a0a",
               borderRadius: 24,
@@ -709,7 +894,7 @@ export default function SelectPlan() {
             >
               ×
             </button>
-            
+
             {/* Header */}
             <div style={{ padding: "40px 40px 30px", borderBottom: `1px solid ${GOLD}20` }}>
               <div style={{ display: "inline-block", background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: 99, padding: "4px 12px", marginBottom: 12 }}>
@@ -724,12 +909,12 @@ export default function SelectPlan() {
                 Host webinars, build landing pages, and convert your audience — all in one platform
               </p>
             </div>
-            
+
             {/* Feature Slides */}
             <div style={{ padding: 40 }}>
               {/* Slide 1: Webinar Hosting */}
               <div style={{ marginBottom: 40 }}>
-                <div style={{ 
+                <div style={{
                   background: "linear-gradient(135deg, rgba(212,180,97,0.1), rgba(212,180,97,0.02))",
                   border: `1px solid ${GOLD}30`,
                   borderRadius: 16,
@@ -761,10 +946,10 @@ export default function SelectPlan() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Slide 2: Landing Pages */}
               <div style={{ marginBottom: 40 }}>
-                <div style={{ 
+                <div style={{
                   background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.02))",
                   border: "1px solid rgba(99,102,241,0.3)",
                   borderRadius: 16,
@@ -796,10 +981,10 @@ export default function SelectPlan() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Slide 3: Analytics */}
               <div style={{ marginBottom: 40 }}>
-                <div style={{ 
+                <div style={{
                   background: "linear-gradient(135deg, rgba(52,211,153,0.1), rgba(52,211,153,0.02))",
                   border: "1px solid rgba(52,211,153,0.3)",
                   borderRadius: 16,
@@ -831,7 +1016,7 @@ export default function SelectPlan() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Slide 4: More Features */}
               <div style={{ marginBottom: 30 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 16 }}>Plus Everything Else</h3>
@@ -855,9 +1040,9 @@ export default function SelectPlan() {
                 </div>
               </div>
             </div>
-            
+
             {/* Footer CTA */}
-            <div style={{ 
+            <div style={{
               padding: "30px 40px",
               borderTop: `1px solid ${GOLD}20`,
               background: "rgba(0,0,0,0.3)",
@@ -896,13 +1081,9 @@ export default function SelectPlan() {
                 </button>
                 <button
                   onClick={() => {
-                    if (previewTier === 'growth') {
-                      setVideoMarketingGrowth(true);
-                    } else {
-                      setVideoMarketingPro(true);
-                    }
                     setShowVideoPreview(false);
-                    toast({ title: "Video Marketing Added!", description: `Added to your ${previewTier === 'growth' ? 'Growth' : 'Pro'} plan. Ready to checkout!` });
+                    setDecisionTier(previewTier);
+                    setShowVideoDecision(true);
                   }}
                   style={{
                     background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`,
@@ -919,7 +1100,7 @@ export default function SelectPlan() {
                   onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 0 30px ${GOLD}60`; }}
                   onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 0 20px ${GOLD}40`; }}
                 >
-                  Add to My Plan →
+                  Continue to Checkout →
                 </button>
               </div>
             </div>
