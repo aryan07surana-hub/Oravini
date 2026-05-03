@@ -2141,7 +2141,6 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const [creditError, setCreditError] = useState<string | null>(null);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
-  const [activeView, setActiveView] = useState<"new" | "history">("new");
 
   const { data: analyses = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/competitor/analyses", activeClientId],
@@ -2192,7 +2191,8 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
   const canAnalyze = clientUrl.trim() && competitorUrl.trim() && (!useAdmin || activeClientId);
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
+      <div className="space-y-6">
       {screenVisible && (
         <GeneratingScreen
           label="your competitor analysis"
@@ -2210,103 +2210,92 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       )}
       {creditError && <CreditErrorBanner message={creditError} />}
 
-      {/* Tab bar */}
-      <div className="flex rounded-xl border border-border overflow-hidden">
-        <button
-          onClick={() => setActiveView("new")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "new" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
-          data-testid="tab-new-analysis">
-          <Sparkles className="w-3.5 h-3.5" />New Analysis
-        </button>
-        <button
-          onClick={() => setActiveView("history")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "history" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
-          data-testid="tab-analysis-history">
-          <Clock className="w-3.5 h-3.5" />History
-          {(analyses as any[]).length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary/20 text-primary">{(analyses as any[]).length}</span>
-          )}
-        </button>
+      {
+      {/* New Analysis Form */}
+      <Card className="border border-card-border">
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <p className="text-sm font-bold text-foreground mb-0.5">New Competitor Analysis</p>
+            <p className="text-xs text-muted-foreground">Enter your Instagram + a competitor's — get a 9-section deep-dive report</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
+              <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle or @yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
+              <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
+            </div>
+            <div>
+              <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
+              <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle or @handle" className="h-9 text-sm" data-testid="input-competitor-url" />
+              <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
+            </div>
+          </div>
+          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
+            {analyze.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
+              : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={10} level="heavy" className="ml-1.5" /></>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Selected analysis display */}
+      {selectedId && (analyses as any[]).find((a: any) => a.id === selectedId) && (
+        <div className="border border-primary/40 rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <FullReport analysis={(analyses as any[]).find((a: any) => a.id === selectedId)!} onDelete={() => { deleteAnalysis.mutate(selectedId); setSelectedId(null); }} />
+          </div>
+        </div>
+      )}
       </div>
 
-      {activeView === "new" ? (
-        /* ── New Analysis Form ── */
-        <Card className="border border-card-border">
-          <CardContent className="p-5 space-y-4">
-            <div>
-              <p className="text-sm font-bold text-foreground mb-0.5">New Competitor Analysis</p>
-              <p className="text-xs text-muted-foreground">Enter your Instagram + a competitor's — get a 9-section deep-dive report</p>
+      {/* Right column: History panel */}
+      {!useAdmin && (
+        <div className="lg:sticky lg:top-4">
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">Past Analyses</span>
+              {(analyses as any[]).length > 0 && (
+                <span className="ml-auto text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5">{(analyses as any[]).length}</span>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs mb-1.5 block">Your Instagram URL</Label>
-                <Input value={clientUrl} onChange={e => setClientUrl(e.target.value)} placeholder="instagram.com/yourhandle or @yourhandle" className="h-9 text-sm" data-testid="input-client-url" />
-                <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
+            {isLoading ? (
+              <div className="p-4 space-y-2">
+                {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
               </div>
-              <div>
-                <Label className="text-xs mb-1.5 block">Competitor Instagram URL</Label>
-                <Input value={competitorUrl} onChange={e => setCompetitorUrl(e.target.value)} placeholder="instagram.com/competitorhandle or @handle" className="h-9 text-sm" data-testid="input-competitor-url" />
-                <p className="text-[10px] text-muted-foreground mt-1">Use a profile URL, not a reel or post link</p>
+            ) : (analyses as any[]).length === 0 ? (
+              <div className="p-6 flex flex-col items-center gap-2 text-center">
+                <BarChart2 className="w-7 h-7 text-muted-foreground opacity-30" />
+                <p className="text-xs text-muted-foreground leading-relaxed">No analyses yet.<br />Run your first analysis above.</p>
               </div>
-            </div>
-            <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2" data-testid="button-run-analysis">
-              {analyze.isPending
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping & Analysing…</>
-                : <><Sparkles className="w-4 h-4" />Run Deep Analysis<CreditCostBadge cost={10} level="heavy" className="ml-1.5" /></>}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        /* ── History Tab ── */
-        isLoading ? (
-          <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-        ) : (analyses as any[]).length === 0 ? (
-          <div className="text-center py-16">
-            <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-            <p className="text-sm text-muted-foreground">No analyses yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Run your first competitor analysis to see it here</p>
-            <button onClick={() => setActiveView("new")} className="mt-4 text-xs text-primary hover:text-primary/80 font-semibold transition-colors">
-              + Start New Analysis
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">{(analyses as any[]).length} saved {(analyses as any[]).length === 1 ? "analysis" : "analyses"} — click to expand the full report</p>
-            {(analyses as any[]).map((a: any) => {
-              const isActive = selectedId === a.id;
-              return (
-                <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
-                  <button
-                    className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
-                    onClick={() => setSelectedId(isActive ? null : a.id)}
-                    data-testid={`analysis-${a.id}`}
-                  >
-                    <div className="w-9 h-9 bg-pink-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Instagram className="w-4 h-4 text-pink-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(a.createdAt), "MMM d, yyyy")}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
+            ) : (
+              <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
+                {(analyses as any[]).map((a: any) => {
+                  const isActive = selectedId === a.id;
+                  return (
+                    <div key={a.id} className={`flex items-center gap-2.5 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer ${isActive ? "bg-primary/5" : ""}`} onClick={() => setSelectedId(isActive ? null : a.id)} data-testid={`analysis-${a.id}`}>
+                      <div className="w-8 h-8 bg-pink-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Instagram className="w-3.5 h-3.5 text-pink-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-foreground leading-snug truncate font-medium">{a.clientHandle} <span className="text-muted-foreground">vs</span> {a.competitorHandle}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(a.createdAt), "MMM d")}</p>
+                      </div>
                       {a.report?.overview?.assessment && (
-                        <Badge variant="outline" className={`text-[10px] ${a.report.overview.assessment === "winning" ? "text-green-400 border-green-500/30" : a.report.overview.assessment === "losing" ? "text-red-400 border-red-500/30" : "text-yellow-400 border-yellow-500/30"}`}>
-                          {a.report.overview.assessment === "losing" ? "Needs Work" : a.report.overview.assessment}
-                        </Badge>
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${a.report.overview.assessment === "winning" ? "bg-green-400" : a.report.overview.assessment === "losing" ? "bg-red-400" : "bg-yellow-400"}`} />
                       )}
-                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
+                      <button
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={(e) => { e.stopPropagation(); deleteAnalysis.mutate(a.id); }}
+                        data-testid={`delete-analysis-${a.id}`}
+                      ><Trash2 className="w-3 h-3" /></button>
                     </div>
-                  </button>
-                  {isActive && (
-                    <div className="p-4 pt-0 border-t border-border mt-1">
-                      <FullReport analysis={a} onDelete={() => deleteAnalysis.mutate(a.id)} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )
+        </div>
       )}
     </div>
   );
@@ -2884,7 +2873,6 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
   const [showGrowthPlaybook, setShowGrowthPlaybook] = useState(false);
   const [screenVisible, setScreenVisible] = useState(false);
   const [apiDone, setApiDone] = useState(false);
-  const [activeView, setActiveView] = useState<"new" | "history">("new");
 
   // Pre-fill niche from survey
   useEffect(() => {
@@ -2947,7 +2935,8 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
   const canAnalyze = niche.trim() && competitorUrls.some(u => u.trim()) && (!useAdmin || activeClientId);
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
+      <div className="space-y-6">
       {screenVisible && (
         <GeneratingScreen
           label="your niche intelligence report"
@@ -2964,177 +2953,174 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
         />
       )}
 
-      {/* Tab bar */}
-      <div className="flex rounded-xl border border-border overflow-hidden">
-        <button
-          onClick={() => setActiveView("new")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "new" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
-          data-testid="tab-new-niche">
-          <Sparkles className="w-3.5 h-3.5" />New Analysis
-        </button>
-        <button
-          onClick={() => setActiveView("history")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-all ${activeView === "history" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"}`}
-          data-testid="tab-niche-history">
-          <Clock className="w-3.5 h-3.5" />History
-          {(analyses as any[]).length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-primary/20 text-primary">{(analyses as any[]).length}</span>
-          )}
-        </button>
-      </div>
-
-      {activeView === "new" ? (
-        /* ── New Analysis Form ── */
-        <Card className="border border-card-border">
-          <CardContent className="p-5 space-y-5">
-            <div>
-              <p className="text-sm font-bold text-foreground mb-0.5">Niche Intelligence Engine</p>
-              <p className="text-xs text-muted-foreground">Enter your niche + up to 5 competitor URLs — get a complete intelligence report on what's working</p>
-            </div>
-
-            <div>
-              <Label className="text-xs mb-1.5 block">Your Niche</Label>
-              <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. fitness, real estate, SMMA, faceless content..." className="h-9 text-sm" data-testid="input-niche-name" />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs">Competitor Instagram URLs (3–5 for best results)</Label>
-                {competitorUrls.length < 5 && (
-                  <button onClick={addUrl} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">+ Add URL</button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {competitorUrls.map((url, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
-                      <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
-                    </div>
-                    <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`@competitor${i + 1} or instagram.com/handle`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
-                    {competitorUrls.length > 1 && (
-                      <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
-              {analyze.isPending
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report…</>
-                : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        /* ── History Tab ── */
-        isLoading ? (
-          <div className="space-y-2">{Array(2).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
-        ) : (analyses as any[]).length === 0 ? (
-          <div className="text-center py-16">
-            <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
-            <p className="text-sm text-muted-foreground">No niche analyses yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Run your first analysis to see it here</p>
-            <button onClick={() => setActiveView("new")} className="mt-4 text-xs text-primary hover:text-primary/80 font-semibold transition-colors">+ Start New Analysis</button>
+      {
+      {/* New Analysis Form */}
+      <Card className="border border-card-border">
+        <CardContent className="p-5 space-y-5">
+          <div>
+            <p className="text-sm font-bold text-foreground mb-0.5">Niche Intelligence Engine</p>
+            <p className="text-xs text-muted-foreground">Enter your niche + up to 5 competitor URLs — get a complete intelligence report on what's working</p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">{(analyses as any[]).length} saved {(analyses as any[]).length === 1 ? "analysis" : "analyses"} — click to expand the full report</p>
-            {(analyses as any[]).map((a: any) => {
-              const isActive = selectedId === a.id;
-              return (
-                <div key={a.id} className={`border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40" : "border-border"}`}>
-                  <button
-                    className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/20 transition-colors"
-                    onClick={() => { setSelectedId(isActive ? null : a.id); setActiveNicheSection(null); setShowGrowthPlaybook(false); }}
-                    data-testid={`niche-analysis-${a.id}`}
-                  >
-                    <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Search className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-foreground capitalize">{a.niche}</p>
-                      <p className="text-xs text-muted-foreground">{(a.competitorHandles || []).map((h: string) => `@${h}`).join(", ")} · {format(new Date(a.createdAt), "MMM d, yyyy")}</p>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${isActive ? "rotate-90" : ""}`} />
-                  </button>
 
-                  {isActive && a.report && (
-                    <div className="p-4 border-t border-border space-y-5">
-                      {/* Section grid */}
-                      <div className="grid grid-cols-3 gap-3">
-                        {NICHE_SECTIONS.map((sec) => {
-                          const Icon = sec.icon;
-                          const isSecActive = activeNicheSection === sec.id;
-                          return (
-                            <button
-                              key={sec.id}
-                              onClick={() => { setActiveNicheSection(isSecActive ? null : sec.id); setShowGrowthPlaybook(false); }}
-                              data-testid={`niche-section-${sec.id}`}
-                              className={`flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${isSecActive
-                                ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
-                                : "bg-card border-border hover:bg-muted/20"
-                                }`}
-                            >
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSecActive ? "bg-white/10" : "bg-muted/40"}`}>
-                                <Icon className={`w-4 h-4 ${isSecActive ? sec.text : "text-muted-foreground"}`} />
-                              </div>
-                              <div>
-                                <p className={`text-xs font-bold ${isSecActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+          <div>
+            <Label className="text-xs mb-1.5 block">Your Niche</Label>
+            <Input value={niche} onChange={e => setNiche(e.target.value)} placeholder="e.g. fitness, real estate, SMMA, faceless content..." className="h-9 text-sm" data-testid="input-niche-name" />
+          </div>
 
-                      {/* Growth Playbook special button */}
-                      <button
-                        onClick={() => { setShowGrowthPlaybook(!showGrowthPlaybook); setActiveNicheSection(null); }}
-                        className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all ${showGrowthPlaybook
-                          ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
-                          : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70"
-                          }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                            <Sparkles className="w-6 h-6 text-primary" />
-                          </div>
-                          <div className="flex-1 text-left">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-sm font-black text-primary">🧠 AI Niche Brain + Growth Playbook</p>
-                              <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase">Most Valuable</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">What to post · 30-day playbook · Content lifecycle · Virality scores</p>
-                          </div>
-                          <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showGrowthPlaybook ? "rotate-180" : ""}`} />
-                        </div>
-                      </button>
-
-                      {/* Section content */}
-                      {(activeNicheSection || showGrowthPlaybook) && (
-                        <div className="bg-card border border-card-border rounded-2xl p-5">
-                          {showGrowthPlaybook
-                            ? <NicheGrowthPlaybook report={a.report} niche={a.niche} />
-                            : <NicheReportSection sectionId={activeNicheSection!} report={a.report} niche={a.niche} />
-                          }
-                        </div>
-                      )}
-
-                      <div className="flex justify-end">
-                        <button onClick={() => deleteAnalysis.mutate(a.id)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors p-2">
-                          <Trash2 className="w-3.5 h-3.5" />Delete Analysis
-                        </button>
-                      </div>
-                    </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs">Competitor Instagram URLs (3–5 for best results)</Label>
+              {competitorUrls.length < 5 && (
+                <button onClick={addUrl} className="text-xs text-primary hover:text-primary/80 transition-colors font-medium">+ Add URL</button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {competitorUrls.map((url, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-muted/40 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-muted-foreground">{i + 1}</span>
+                  </div>
+                  <Input value={url} onChange={e => updateUrl(i, e.target.value)} placeholder={`@competitor${i + 1} or instagram.com/handle`} className="h-9 text-sm flex-1" data-testid={`input-niche-url-${i}`} />
+                  {competitorUrls.length > 1 && (
+                    <button onClick={() => removeUrl(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                      <XCircle className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        )
+
+          <Button onClick={() => { setScreenVisible(true); setApiDone(false); analyze.mutate(); }} disabled={!canAnalyze || analyze.isPending} className="gap-2 w-full" data-testid="button-run-niche-analysis">
+            {analyze.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Scraping Competitors & Building Report…</>
+              : <><Sparkles className="w-4 h-4" />Run Niche Intelligence Analysis</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Selected analysis display */}
+      {selectedId && (analyses as any[]).find((a: any) => a.id === selectedId) && (() => {
+        const a = (analyses as any[]).find((a: any) => a.id === selectedId)!;
+        return (
+          <div className="border border-primary/40 rounded-2xl overflow-hidden">
+            <div className="p-4 space-y-5">
+              {/* Section grid */}
+              <div className="grid grid-cols-3 gap-3">
+                {NICHE_SECTIONS.map((sec) => {
+                  const Icon = sec.icon;
+                  const isSecActive = activeNicheSection === sec.id;
+                  return (
+                    <button
+                      key={sec.id}
+                      onClick={() => { setActiveNicheSection(isSecActive ? null : sec.id); setShowGrowthPlaybook(false); }}
+                      data-testid={`niche-section-${sec.id}`}
+                      className={`flex flex-col items-start gap-2 p-4 rounded-2xl border transition-all text-left group ${isSecActive
+                        ? `bg-gradient-to-br ${sec.color} ${sec.border} border-2`
+                        : "bg-card border-border hover:bg-muted/20"
+                        }`}
+                    >
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSecActive ? "bg-white/10" : "bg-muted/40"}`}>
+                        <Icon className={`w-4 h-4 ${isSecActive ? sec.text : "text-muted-foreground"}`} />
+                      </div>
+                      <div>
+                        <p className={`text-xs font-bold ${isSecActive ? sec.text : "text-foreground"}`}>{sec.label}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{sec.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Growth Playbook special button */}
+              <button
+                onClick={() => { setShowGrowthPlaybook(!showGrowthPlaybook); setActiveNicheSection(null); }}
+                className={`w-full relative overflow-hidden rounded-2xl border-2 p-5 transition-all ${showGrowthPlaybook
+                  ? "border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5"
+                  : "border-primary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent hover:border-primary/70"
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-black text-primary">🧠 AI Niche Brain + Growth Playbook</p>
+                      <span className="bg-primary/20 border border-primary/30 rounded-full px-2 py-0.5 text-[10px] font-bold text-primary uppercase">Most Valuable</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">What to post · 30-day playbook · Content lifecycle · Virality scores</p>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-primary transition-transform flex-shrink-0 ${showGrowthPlaybook ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+
+              {/* Section content */}
+              {(activeNicheSection || showGrowthPlaybook) && (
+                <div className="bg-card border border-card-border rounded-2xl p-5">
+                  {showGrowthPlaybook
+                    ? <NicheGrowthPlaybook report={a.report} niche={a.niche} />
+                    : <NicheReportSection sectionId={activeNicheSection!} report={a.report} niche={a.niche} />
+                  }
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button onClick={() => { deleteAnalysis.mutate(a.id); setSelectedId(null); }} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors p-2">
+                  <Trash2 className="w-3.5 h-3.5" />Delete Analysis
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      </div>
+
+      {/* Right column: History panel */}
+      {!useAdmin && (
+        <div className="lg:sticky lg:top-4">
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-foreground">Past Analyses</span>
+              {(analyses as any[]).length > 0 && (
+                <span className="ml-auto text-[10px] font-bold bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5">{(analyses as any[]).length}</span>
+              )}
+            </div>
+            {isLoading ? (
+              <div className="p-4 space-y-2">
+                {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+              </div>
+            ) : (analyses as any[]).length === 0 ? (
+              <div className="p-6 flex flex-col items-center gap-2 text-center">
+                <Search className="w-7 h-7 text-muted-foreground opacity-30" />
+                <p className="text-xs text-muted-foreground leading-relaxed">No analyses yet.<br />Run your first analysis above.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
+                {(analyses as any[]).map((a: any) => {
+                  const isActive = selectedId === a.id;
+                  return (
+                    <div key={a.id} className={`flex items-center gap-2.5 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer ${isActive ? "bg-primary/5" : ""}`} onClick={() => { setSelectedId(isActive ? null : a.id); setActiveNicheSection(null); setShowGrowthPlaybook(false); }} data-testid={`niche-analysis-${a.id}`}>
+                      <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Search className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] text-foreground leading-snug truncate font-medium capitalize">{a.niche}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(a.createdAt), "MMM d")}</p>
+                      </div>
+                      <button
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={(e) => { e.stopPropagation(); deleteAnalysis.mutate(a.id); }}
+                        data-testid={`delete-niche-${a.id}`}
+                      ><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -6,9 +6,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 const oraviniLogoPath = "/oravini-logo.png";
 import { Gift } from "lucide-react";
 
-const WHOP_STARTER_URL = "https://whop.com/checkout/plan_MyQ8imbxSSYqE";
-const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_czIrdl7ryaq6B";
-const WHOP_PRO_URL = "https://whop.com/checkout/plan_HjKg0jyCVzuG3";
+const WHOP_STARTER_URL = "https://whop.com/checkout/plan_905ZhpnorE74t";
+const WHOP_GROWTH_URL = "https://whop.com/checkout/plan_C26g4nwUDB7oQ";
+const WHOP_GROWTH_VIDEO_URL = "https://whop.com/checkout/plan_jD3ZhsKmotNdv";
+const WHOP_PRO_URL = "https://whop.com/checkout/plan_e0wfzKlT0upkU";
+const WHOP_PRO_VIDEO_URL = "https://whop.com/checkout/plan_e0wfzKlT0upkU";
 const PLATFORM_URL = "https://oravini.com";
 
 const GOLD = "#d4b461";
@@ -43,7 +45,7 @@ const PLANS = [
     slug: "starter",
     tier: "Tier 2",
     name: "Starter",
-    price: "$29",
+    price: "$19",
     period: "/mo",
     credits: "100 credits / month",
     accent: "#818cf8",
@@ -69,7 +71,7 @@ const PLANS = [
     slug: "growth",
     tier: "Tier 3",
     name: "Growth",
-    price: "$59",
+    price: "$49",
     period: "/mo",
     credits: "250 credits / month",
     accent: GOLD,
@@ -95,7 +97,7 @@ const PLANS = [
     slug: "pro",
     tier: "Tier 4",
     name: "Pro",
-    price: "$79",
+    price: "$59",
     period: "/mo",
     credits: "500 credits / month",
     accent: "#34d399",
@@ -123,6 +125,8 @@ export default function SelectPlan() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [videoMarketingGrowth, setVideoMarketingGrowth] = useState(false);
+  const [videoMarketingPro, setVideoMarketingPro] = useState(false);
 
   // Handle return from Whop after successful payment
   useEffect(() => {
@@ -133,7 +137,7 @@ export default function SelectPlan() {
       apiRequest("POST", "/api/auth/confirm-plan", { plan: "starter" })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Starter! 🎉", description: "Your $29/mo plan is now active. Enjoy 100 credits per month." });
+          toast({ title: "Welcome to Starter! 🎉", description: "Your $19/mo plan is now active. Enjoy 100 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
@@ -142,7 +146,7 @@ export default function SelectPlan() {
       apiRequest("POST", "/api/auth/confirm-plan", { plan: "growth" })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Growth! 🚀", description: "Your $59/mo plan is now active. Enjoy 250 credits per month." });
+          toast({ title: "Welcome to Growth! 🚀", description: "Your plan is now active. Enjoy 250 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
@@ -151,7 +155,7 @@ export default function SelectPlan() {
       apiRequest("POST", "/api/auth/confirm-plan", { plan: "pro" })
         .then(updated => {
           queryClient.setQueryData(["/api/auth/me"], updated);
-          toast({ title: "Welcome to Pro! ⚡", description: "Your $79/mo plan is now active. Enjoy 500 credits per month." });
+          toast({ title: "Welcome to Pro! ⚡", description: "Your plan is now active. Enjoy 500 credits per month." });
           navigate("/dashboard");
         })
         .catch(() => setConfirming(null));
@@ -166,12 +170,14 @@ export default function SelectPlan() {
     }
     if (slug === "growth") {
       const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=growth`;
-      window.location.href = `${WHOP_GROWTH_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      const checkoutUrl = videoMarketingGrowth ? WHOP_GROWTH_VIDEO_URL : WHOP_GROWTH_URL;
+      window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
     if (slug === "pro") {
       const returnUrl = `${PLATFORM_URL}/select-plan?whop_success=pro`;
-      window.location.href = `${WHOP_PRO_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+      const checkoutUrl = videoMarketingPro ? WHOP_PRO_VIDEO_URL : WHOP_PRO_URL;
+      window.location.href = `${checkoutUrl}?redirect_uri=${encodeURIComponent(returnUrl)}`;
       return;
     }
     // Elite is still coming soon
@@ -246,14 +252,22 @@ export default function SelectPlan() {
             <Gift size={18} color={GOLD} />
           </div>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter ($29), Growth ($59) and Pro ($79) plans are live via Whop 🎉</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: GOLD, margin: 0 }}>Starter ($19), Growth ($49) and Pro ($59) plans are live via Whop 🎉</p>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", margin: "2px 0 0" }}>Elite tier is on free access during launch. Paid upgrade coming soon.</p>
           </div>
         </div>
 
         {/* Plan grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, width: "100%", maxWidth: 1100, marginBottom: 24 }}>
-          {PLANS.map(plan => (
+          {PLANS.map(plan => {
+            const isGrowth = plan.slug === "growth";
+            const isPro = plan.slug === "pro";
+            const hasVideoMarketing = (isGrowth && videoMarketingGrowth) || (isPro && videoMarketingPro);
+            const videoPrice = isGrowth ? 20 : isPro ? 0 : 0;
+            const basePrice = parseInt(plan.price.replace("$", "")) || 0;
+            const totalPrice = hasVideoMarketing ? basePrice + videoPrice : basePrice;
+            
+            return (
             <div key={plan.slug} style={{ background: plan.bg, border: `1px solid ${plan.border}`, borderRadius: 20, padding: "30px 24px", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden", boxShadow: plan.highlight ? `0 0 50px rgba(212,180,97,0.12)` : "none", transition: "transform 0.2s, box-shadow 0.2s" }}
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; }}>
@@ -266,10 +280,98 @@ export default function SelectPlan() {
               <div style={{ fontSize: 10, fontWeight: 700, color: plan.accent, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>{plan.tier}</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{plan.name}</div>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 3, marginBottom: 5 }}>
-                <span style={{ fontSize: plan.price === "Free" ? 30 : 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>{plan.price}</span>
-                {plan.period && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>}
+                {(isGrowth || isPro) && hasVideoMarketing ? (
+                  <>
+                    <span style={{ fontSize: 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>${totalPrice}</span>
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: plan.price === "Free" ? 30 : 36, fontWeight: 900, color: plan.accent, lineHeight: 1 }}>{plan.price}</span>
+                    {plan.period && <span style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", paddingBottom: 3 }}>{plan.period}</span>}
+                  </>
+                )}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginBottom: 22, fontWeight: 500 }}>{plan.credits}</div>
+              
+              {isGrowth && (
+                <div 
+                  onClick={() => setVideoMarketingGrowth(!videoMarketingGrowth)}
+                  style={{ 
+                    background: videoMarketingGrowth ? `${plan.accent}15` : "rgba(255,255,255,0.03)", 
+                    border: `1px solid ${videoMarketingGrowth ? plan.accent + "40" : "rgba(255,255,255,0.08)"}`, 
+                    borderRadius: 10, 
+                    padding: "10px 12px", 
+                    marginBottom: 16, 
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ 
+                      width: 16, 
+                      height: 16, 
+                      borderRadius: 4, 
+                      border: `2px solid ${videoMarketingGrowth ? plan.accent : "rgba(255,255,255,0.2)"}`, 
+                      background: videoMarketingGrowth ? plan.accent : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}>
+                      {videoMarketingGrowth && <span style={{ color: "#000", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: videoMarketingGrowth ? plan.accent : "rgba(255,255,255,0.7)", marginBottom: 2 }}>
+                        Add Video Marketing?
+                      </div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                        +$20/mo
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {isPro && (
+                <div 
+                  onClick={() => setVideoMarketingPro(!videoMarketingPro)}
+                  style={{ 
+                    background: videoMarketingPro ? `${plan.accent}15` : "rgba(255,255,255,0.03)", 
+                    border: `1px solid ${videoMarketingPro ? plan.accent + "40" : "rgba(255,255,255,0.08)"}`, 
+                    borderRadius: 10, 
+                    padding: "10px 12px", 
+                    marginBottom: 16, 
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ 
+                      width: 16, 
+                      height: 16, 
+                      borderRadius: 4, 
+                      border: `2px solid ${videoMarketingPro ? plan.accent : "rgba(255,255,255,0.2)"}`, 
+                      background: videoMarketingPro ? plan.accent : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}>
+                      {videoMarketingPro && <span style={{ color: "#000", fontSize: 10, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: videoMarketingPro ? plan.accent : "rgba(255,255,255,0.7)", marginBottom: 2 }}>
+                        Add Video Marketing?
+                      </div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+                        FREE (worth $20)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1, marginBottom: 24 }}>
                 {plan.features.map(f => (
                   <div key={f} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
@@ -329,7 +431,7 @@ export default function SelectPlan() {
                 )}
               </button>
             </div>
-          ))}
+          )})}
         </div>
 
         {/* Tier 5 special card */}
