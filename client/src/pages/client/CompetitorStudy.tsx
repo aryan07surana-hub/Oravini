@@ -2952,7 +2952,6 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
         />
       )}
 
-      {
       {/* New Analysis Form */}
       <Card className="border border-card-border">
         <CardContent className="p-5 space-y-5">
