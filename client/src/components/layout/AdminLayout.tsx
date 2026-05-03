@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown, Gift, Star
+  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown, Gift, Star, Activity
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ const mainNavItems = [
   { href: "/admin/feedback", label: "Feedback", icon: Star },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/churn", label: "Churn Analysis", icon: TrendingDown },
+  { href: "/admin/tool-heatmap", label: "Tool Heatmap", icon: Activity },
   { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
   { href: "/admin/scheduling", label: "Scheduling", icon: CalendarDays },
   { href: "/admin/credits", label: "Credits", icon: Zap },
