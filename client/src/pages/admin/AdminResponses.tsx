@@ -1,20 +1,24 @@
 import { useState } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Search, ChevronDown, ChevronUp, Users, TrendingUp, Target,
   DollarSign, Layers, BarChart2, Lightbulb, Star, Radio as RadioIcon,
-  Megaphone, Video, MapPin, Crown, Flame, Mail, ArrowRight,
+  Megaphone, Video, MapPin, Crown, Flame, Mail, ArrowRight, Trash2,
+  Download, Filter, SortDesc, Calendar, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { apiRequest } from "@/lib/api";
+import { toast } from "sonner";
 
 const GOLD = "#d4b461";
 
@@ -87,18 +91,94 @@ export default function AdminResponses() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [chartType, setChartType] = useState<"bar" | "pie">("bar");
+  const [filterPlan, setFilterPlan] = useState<string>("");
+  const [filterElite, setFilterElite] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "elite">("newest");
+  const queryClient = useQueryClient();
 
   const { data: surveys = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/onboarding-surveys"],
   });
 
-  const filtered = surveys.filter(s =>
-    !search ||
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/admin/onboarding-surveys/clear-all", { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
+      toast.success("All responses cleared successfully");
+    },
+    onError: () => {
+      toast.error("Failed to clear responses");
+    },
+  });
+
+  const deleteResponseMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/admin/onboarding-surveys/${userId}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
+      toast.success("Response deleted");
+    },
+    onError: () => {
+      toast.error("Failed to delete response");
+    },
+  });
+
+  let filtered = surveys.filter(s =>
+    (!search ||
     s.user_name?.toLowerCase().includes(search.toLowerCase()) ||
     s.user_email?.toLowerCase().includes(search.toLowerCase()) ||
     s.field?.toLowerCase().includes(search.toLowerCase()) ||
-    s.descriptor?.toLowerCase().includes(search.toLowerCase())
+    s.descriptor?.toLowerCase().includes(search.toLowerCase())) &&
+    (!filterPlan || s.user_plan === filterPlan) &&
+    (!filterElite || s.answers?.eliteInterest === filterElite)
   );
+
+  // Sort
+  filtered = [...filtered].sort((a, b) => {
+    if (sortBy === "newest") return new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime();
+    if (sortBy === "oldest") return new Date(a.completed_at || 0).getTime() - new Date(b.completed_at || 0).getTime();
+    if (sortBy === "elite") {
+      const aElite = a.answers?.eliteInterest === "yes" ? 1 : 0;
+      const bElite = b.answers?.eliteInterest === "yes" ? 1 : 0;
+      return bElite - aElite;
+    }
+    return 0;
+  });
+
+  const exportData = () => {
+    const csv = [
+      ["Name", "Email", "Plan", "Field", "Elite Interest", "Follower Count", "Revenue", "Submitted"].join(","),
+      ...filtered.map(s => [
+        s.user_name || "",
+        s.user_email || "",
+        s.user_plan || "",
+        s.field || "",
+        s.answers?.eliteInterest || "",
+        s.follower_count || "",
+        s.monthly_revenue || "",
+        s.completed_at ? format(new Date(s.completed_at), "yyyy-MM-dd HH:mm") : "",
+      ].join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `survey-responses-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    toast.success("Exported to CSV");
+  };
+
+  const handleClearAll = () => {
+    if (window.confirm(`Are you sure you want to delete ALL ${total} responses? This cannot be undone!`)) {
+      clearAllMutation.mutate();
+    }
+  };
+
+  const uniquePlans = [...new Set(surveys.map(s => s.user_plan).filter(Boolean))];
+  const activeFilters = [filterPlan, filterElite].filter(Boolean).length;
 
   const total = surveys.length;
 
@@ -209,30 +289,99 @@ export default function AdminResponses() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-white">Onboarding Responses</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              Survey answers from clients — {total} total response{total !== 1 ? "s" : ""}
+            <h1 className="text-3xl font-bold text-white">Onboarding Responses</h1>
+            <p className="text-base text-zinc-400 mt-1">
+              Survey answers from clients — <span className="text-[#d4b461] font-semibold">{total}</span> total response{total !== 1 ? "s" : ""}
             </p>
           </div>
-          {total > 0 && (
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg p-1">
-              <button
-                onClick={() => setChartType("bar")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "bar" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
-                data-testid="btn-chart-bar"
-              >
-                <BarChart2 className="w-3.5 h-3.5" /> Bar
-              </button>
-              <button
-                onClick={() => setChartType("pie")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "pie" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
-                data-testid="btn-chart-pie"
-              >
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-current" /> Pie
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {total > 0 && (
+              <>
+                <Button
+                  onClick={exportData}
+                  variant="outline"
+                  size="sm"
+                  className="border-zinc-700 hover:bg-zinc-800"
+                >
+                  <Download className="w-4 h-4 mr-2" /> Export CSV
+                </Button>
+                <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded-lg p-1">
+                  <button
+                    onClick={() => setChartType("bar")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "bar" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
+                    data-testid="btn-chart-bar"
+                  >
+                    <BarChart2 className="w-3.5 h-3.5" /> Bar
+                  </button>
+                  <button
+                    onClick={() => setChartType("pie")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${chartType === "pie" ? "bg-[#d4b461] text-black" : "text-zinc-400 hover:text-white"}`}
+                    data-testid="btn-chart-pie"
+                  >
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-current" /> Pie
+                  </button>
+                </div>
+                <Button
+                  onClick={handleClearAll}
+                  variant="destructive"
+                  size="sm"
+                  disabled={clearAllMutation.isPending}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Clear All
+                </Button>
+              </>
+            )}
+          </div>
         </div>
+
+        {/* Quick Stats Dashboard */}
+        {total > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="border border-zinc-800 bg-zinc-900/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <p className="text-xs text-zinc-500 font-medium">Total Responses</p>
+                </div>
+                <p className="text-2xl font-bold text-white">{total}</p>
+              </CardContent>
+            </Card>
+            <Card className="border border-zinc-800 bg-zinc-900/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Flame className="w-4 h-4 text-[#d4b461]" />
+                  <p className="text-xs text-zinc-500 font-medium">Hot Leads</p>
+                </div>
+                <p className="text-2xl font-bold text-[#d4b461]">{eliteCounts.yes}</p>
+              </CardContent>
+            </Card>
+            <Card className="border border-zinc-800 bg-zinc-900/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Target className="w-4 h-4 text-emerald-400" />
+                  <p className="text-xs text-zinc-500 font-medium">Conversion Rate</p>
+                </div>
+                <p className="text-2xl font-bold text-emerald-400">{eliteYesPct}%</p>
+              </CardContent>
+            </Card>
+            <Card className="border border-zinc-800 bg-zinc-900/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Calendar className="w-4 h-4 text-violet-400" />
+                  <p className="text-xs text-zinc-500 font-medium">This Week</p>
+                </div>
+                <p className="text-2xl font-bold text-violet-400">
+                  {surveys.filter(s => {
+                    const date = new Date(s.completed_at);
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    return date > weekAgo;
+                  }).length}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* ── ELITE INTEREST — TIER 5 / 12TH QUESTION ── */}
         {total > 0 && (
@@ -418,18 +567,76 @@ export default function AdminResponses() {
 
         {/* Individual responses */}
         <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+          <div className="flex items-start gap-3 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <Input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search by name, email, field…"
-                className="pl-9 h-9 text-sm bg-zinc-900 border-zinc-700"
+                className="pl-10 h-10 text-sm bg-zinc-900 border-zinc-700"
                 data-testid="input-responses-search"
               />
             </div>
-            <span className="text-xs text-zinc-500">{filtered.length} of {total}</span>
+            
+            {/* Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                <select
+                  value={filterPlan}
+                  onChange={e => setFilterPlan(e.target.value)}
+                  className="pl-9 pr-8 h-10 text-sm bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 appearance-none cursor-pointer hover:border-zinc-600"
+                >
+                  <option value="">All Plans</option>
+                  {uniquePlans.map(plan => <option key={plan} value={plan}>{plan}</option>)}
+                </select>
+              </div>
+              
+              <div className="relative">
+                <Crown className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                <select
+                  value={filterElite}
+                  onChange={e => setFilterElite(e.target.value)}
+                  className="pl-9 pr-8 h-10 text-sm bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 appearance-none cursor-pointer hover:border-zinc-600"
+                >
+                  <option value="">All Elite Status</option>
+                  <option value="yes">Hot Leads (Yes)</option>
+                  <option value="not_now">Not Now</option>
+                  <option value="maybe">Maybe</option>
+                </select>
+              </div>
+              
+              <div className="relative">
+                <SortDesc className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as any)}
+                  className="pl-9 pr-8 h-10 text-sm bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-300 appearance-none cursor-pointer hover:border-zinc-600"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="elite">Hot Leads First</option>
+                </select>
+              </div>
+              
+              {activeFilters > 0 && (
+                <Button
+                  onClick={() => { setFilterPlan(""); setFilterElite(""); }}
+                  variant="ghost"
+                  size="sm"
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <X className="w-4 h-4 mr-1" /> Clear Filters
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2 ml-auto">
+              <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">
+                {filtered.length} of {total}
+              </Badge>
+            </div>
           </div>
 
           {isLoading ? (
@@ -461,9 +668,10 @@ export default function AdminResponses() {
                     data-testid={`card-response-${s.user_id}`}
                   >
                     <CardContent className="p-0">
+                      <div className="flex items-stretch">
                       <button
                         onClick={() => setExpanded(isOpen ? null : s.user_id)}
-                        className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl"
+                        className="flex-1 flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors rounded-l-xl"
                       >
                         <Avatar className="w-9 h-9 shrink-0">
                           <AvatarFallback
@@ -503,6 +711,21 @@ export default function AdminResponses() {
                           {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
                         </div>
                       </button>
+                      <div className="flex items-center border-l border-zinc-800">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete response from ${s.user_name}?`)) {
+                              deleteResponseMutation.mutate(s.user_id);
+                            }
+                          }}
+                          className="px-4 h-full hover:bg-red-500/10 transition-colors group rounded-r-xl"
+                          title="Delete response"
+                        >
+                          <Trash2 className="w-4 h-4 text-zinc-600 group-hover:text-red-400" />
+                        </button>
+                      </div>
+                      </div>
 
                       {isOpen && (
                         <div className="border-t border-zinc-800/60 px-4 pb-5 pt-4 space-y-5">
