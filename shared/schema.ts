@@ -1357,31 +1357,3 @@ export const insertFunnelStageTrainingSchema = createInsertSchema(funnelStageTra
 export type InsertFunnelStageTraining = z.infer<typeof insertFunnelStageTrainingSchema>;
 export type FunnelStageTraining = typeof funnelStageTraining.$inferSelect;
 
-// ── Daily Competitor Monitor ──────────────────────────────────────────────
-export const competitorMonitors = pgTable("competitor_monitors", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clientId: varchar("client_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  competitorUrl: text("competitor_url").notNull(),
-  competitorHandle: varchar("competitor_handle"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-export const insertCompetitorMonitorSchema = createInsertSchema(competitorMonitors).omit({ id: true, createdAt: true });
-export type InsertCompetitorMonitor = z.infer<typeof insertCompetitorMonitorSchema>;
-export type CompetitorMonitor = typeof competitorMonitors.$inferSelect;
-
-export const competitorDailySnapshots = pgTable("competitor_daily_snapshots", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  monitorId: varchar("monitor_id").notNull().references(() => competitorMonitors.id, { onDelete: "cascade" }),
-  snapshotDate: timestamp("snapshot_date").notNull(),
-  postsToday: jsonb("posts_today"),
-  totalPosts: integer("total_posts").default(0),
-  newPostsCount: integer("new_posts_count").default(0),
-  avgEngagement: real("avg_engagement").default(0),
-  topPost: jsonb("top_post"),
-  summary: text("summary"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-export const insertCompetitorDailySnapshotSchema = createInsertSchema(competitorDailySnapshots).omit({ id: true, createdAt: true });
-export type InsertCompetitorDailySnapshot = z.infer<typeof insertCompetitorDailySnapshotSchema>;
-export type CompetitorDailySnapshot = typeof competitorDailySnapshots.$inferSelect;

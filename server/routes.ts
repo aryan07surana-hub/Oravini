@@ -11556,10 +11556,6 @@ Rules:
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
   app.use(contentWorkflowRoutes);
 
-  // ── DAILY COMPETITOR MONITOR ────────────────────────────────────────────────
-  const competitorMonitorRoutes = (await import("./competitorMonitor")).default;
-  app.use("/api/competitor-monitor", competitorMonitorRoutes);
-
   return httpServer;
 }
 
