@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const GOLD = "#d4b461";
 const CALENDLY = "https://calendly.com/brandversee/30min";
@@ -106,28 +106,119 @@ function CheckRow({ label, selected, onClick }: { label: string; selected: boole
   );
 }
 
-function ScanningScreen({ username }: { username: string }) {
+function ScanningScreen({ username, profileData }: { username: string; profileData: IgProfile | null }) {
   const [idx, setIdx] = useState(0);
   const steps = [
     "Connecting to Instagram…",
-    `Found @${username}…`,
-    "Reading profile data…",
-    "Analysing followers & engagement…",
-    "Checking posting patterns…",
-    "Reviewing bio & content…",
-    "Preparing your audit…",
+    `Locating @${username}…`,
+    "Found profile! Loading data…",
+    "Scanning followers & following…",
+    "Analyzing post history…",
+    "Reading bio & profile info…",
+    "Calculating engagement metrics…",
+    "Checking content patterns…",
+    "Finalizing scan…",
   ];
   useEffect(() => {
-    const t = setInterval(() => setIdx(i => Math.min(i + 1, steps.length - 1)), 1100);
+    const t = setInterval(() => setIdx(i => Math.min(i + 1, steps.length - 1)), 1400);
     return () => clearInterval(t);
   }, []);
+  
+  const showProfile = idx >= 2 && profileData?.found;
+  
   return (
-    <div style={{ textAlign: "center", padding: "52px 0" }}>
-      <div style={{ width: 72, height: 72, borderRadius: "50%", border: `3px solid ${GOLD}30`, borderTop: `3px solid ${GOLD}`, margin: "0 auto 28px", animation: "spin 1s linear infinite" }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 10 }}>📡 Scanning @{username}</h3>
+    <div style={{ textAlign: "center", padding: "40px 0" }}>
+      {/* Animated Instagram-style loader */}
+      <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 24px" }}>
+        {showProfile && profileData?.profilePic ? (
+          <>
+            <img 
+              src={profileData.profilePic} 
+              alt={username}
+              style={{ 
+                width: 100, 
+                height: 100, 
+                borderRadius: "50%", 
+                objectFit: "cover",
+                border: `3px solid ${GOLD}`,
+                animation: "fadeIn 0.5s ease"
+              }} 
+            />
+            <div style={{ 
+              position: "absolute", 
+              inset: -6, 
+              borderRadius: "50%", 
+              border: `3px solid ${GOLD}30`, 
+              borderTop: `3px solid ${GOLD}`, 
+              animation: "spin 1.5s linear infinite" 
+            }} />
+          </>
+        ) : (
+          <div style={{ 
+            width: 100, 
+            height: 100, 
+            borderRadius: "50%", 
+            border: `3px solid ${GOLD}30`, 
+            borderTop: `3px solid ${GOLD}`, 
+            animation: "spin 1s linear infinite",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(255,255,255,0.03)",
+            fontSize: 32
+          }}>
+            📸
+          </div>
+        )}
+      </div>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
+      
+      <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 10 }}>
+        {showProfile ? `Scanning @${profileData?.username || username}` : `📡 Connecting to Instagram`}
+      </h3>
+      
+      {showProfile && profileData?.fullName && (
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>
+          {profileData.fullName}
+        </p>
+      )}
+      
       <p style={{ fontSize: 14, color: GOLD, fontWeight: 600, minHeight: 22 }}>{steps[idx]}</p>
-      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 12 }}>Pulling live data from Instagram…</p>
+      
+      {/* Progress indicators */}
+      {showProfile && (
+        <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 8, maxWidth: 280, margin: "20px auto 0" }}>
+          {[
+            { label: "Profile Data", done: idx >= 3 },
+            { label: "Follower Analysis", done: idx >= 4 },
+            { label: "Content Review", done: idx >= 6 },
+            { label: "Engagement Metrics", done: idx >= 7 },
+          ].map(({ label, done }) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12 }}>
+              <div style={{ 
+                width: 16, 
+                height: 16, 
+                borderRadius: "50%", 
+                background: done ? GOLD : "rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.3s"
+              }}>
+                {done && <span style={{ color: "#000", fontSize: 10, fontWeight: 900 }}>✓</span>}
+              </div>
+              <span style={{ color: done ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)", transition: "all 0.3s" }}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 16 }}>Pulling live data from Instagram…</p>
     </div>
   );
 }
@@ -224,17 +315,33 @@ export default function Audit() {
     const username = raw.replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("?")[0].replace(/^@/, "");
     setStep("scanning");
     scrollTop();
+    
+    // Start fetching immediately and update state as data comes in
+    const minDisplayTime = 8000; // Show scanning for at least 8 seconds
+    const startTime = Date.now();
+    
     try {
       const res = await fetch("/api/leads/scan-ig", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
       const data = await res.json();
+      
+      // Update profile data immediately so it shows during scanning
       setIgProfile(data);
+      
+      // Wait for remaining time if needed
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, minDisplayTime - elapsed);
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
     } catch {
       setIgProfile({ found: false, username });
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minDisplayTime - (Date.now() - startTime))));
     }
-    setTimeout(() => { setStep("ig-found"); scrollTop(); }, 500);
+    
+    setTimeout(() => { setStep("ig-found"); scrollTop(); }, 800);
   };
 
   const submitAudit = async () => {
@@ -254,6 +361,39 @@ export default function Audit() {
     } catch (e: any) {
       setError(e.message || "Something went wrong. Please try again.");
       setStep("ig-found");
+    }
+  };
+
+  const [, navigate] = useLocation();
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: "", email: "", password: "" });
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState("");
+
+  const createAccountAndLogin = async () => {
+    if (!accountForm.name || !accountForm.email || !accountForm.password) {
+      setAccountError("All fields are required");
+      return;
+    }
+    if (accountForm.password.length < 6) {
+      setAccountError("Password must be at least 6 characters");
+      return;
+    }
+    setAccountLoading(true);
+    setAccountError("");
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(accountForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Registration failed");
+      // Successfully registered and logged in
+      navigate("/dashboard");
+    } catch (e: any) {
+      setAccountError(e.message || "Failed to create account");
+      setAccountLoading(false);
     }
   };
 
@@ -479,7 +619,10 @@ export default function Audit() {
         {/* ── SCANNING ──────────────────────────────────────────────── */}
         {step === "scanning" && (
           <div style={card}>
-            <ScanningScreen username={form.instagramUrl.replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("?")[0].replace(/^@/, "") || "profile"} />
+            <ScanningScreen 
+              username={form.instagramUrl.replace(/https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("?")[0].replace(/^@/, "") || "profile"}
+              profileData={igProfile}
+            />
           </div>
         )}
 
@@ -489,47 +632,90 @@ export default function Audit() {
             {error && <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13, marginBottom: 16 }}>{error}</div>}
             {igProfile?.found ? (
               <>
-                <div style={{ textAlign: "center", marginBottom: 20 }}>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 4 }}>Profile Found!</h3>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>We've pulled your real Instagram data — your audit will be specific to your account.</p>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontSize: 32, marginBottom: 8, animation: "bounceIn 0.6s ease" }}>✅</div>
+                  <style>{`@keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }`}</style>
+                  <h3 style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>Profile Successfully Scanned!</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>We've analyzed your real Instagram data — your audit will be hyper-specific to your account.</p>
                 </div>
-                <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 14, padding: "18px", marginBottom: 20 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                
+                {/* Enhanced Profile Card */}
+                <div style={{ 
+                  background: `linear-gradient(135deg, ${GOLD}08 0%, rgba(255,255,255,0.02) 100%)`, 
+                  border: `1px solid ${GOLD}25`, 
+                  borderRadius: 16, 
+                  padding: "24px", 
+                  marginBottom: 24,
+                  position: "relative",
+                  overflow: "hidden"
+                }}>
+                  {/* Decorative corner accent */}
+                  <div style={{ position: "absolute", top: 0, right: 0, width: 80, height: 80, background: `radial-gradient(circle at top right, ${GOLD}15, transparent)`, pointerEvents: "none" }} />
+                  
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18, position: "relative" }}>
                     {igProfile.profilePic
-                      ? <img src={igProfile.profilePic} alt={igProfile.username} style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", border: `2px solid ${GOLD}50` }} />
-                      : <div style={{ width: 56, height: 56, borderRadius: "50%", background: `${GOLD}18`, border: `2px solid ${GOLD}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📷</div>
+                      ? <img src={igProfile.profilePic} alt={igProfile.username} style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `3px solid ${GOLD}`, boxShadow: `0 4px 12px ${GOLD}30` }} />
+                      : <div style={{ width: 72, height: 72, borderRadius: "50%", background: `${GOLD}18`, border: `3px solid ${GOLD}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📷</div>
                     }
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>@{igProfile.username}</span>
-                        {igProfile.verified && <span style={{ fontSize: 12, color: "#60a5fa" }}>✓</span>}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>@{igProfile.username}</span>
+                        {igProfile.verified && <span style={{ fontSize: 14, color: "#60a5fa" }}>✓</span>}
                       </div>
-                      {igProfile.fullName && <p style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{igProfile.fullName}</p>}
-                      {igProfile.isPrivate && <p style={{ fontSize: 11, color: "#fbbf24", marginTop: 2 }}>⚠️ Private account</p>}
+                      {igProfile.fullName && <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", marginBottom: 2 }}>{igProfile.fullName}</p>}
+                      {igProfile.isPrivate && (
+                        <div style={{ display: "inline-block", background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 6, padding: "2px 8px", marginTop: 4 }}>
+                          <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 600 }}>⚠️ Private Account</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 10, marginBottom: igProfile.bio ? 14 : 0 }}>
+                  
+                  {/* Stats Grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: igProfile.bio ? 18 : 0 }}>
                     {[
-                      { label: "Followers", value: igProfile.followers ? fmtNum(igProfile.followers) : "–" },
-                      { label: "Following", value: igProfile.following ? fmtNum(igProfile.following) : "–" },
-                      { label: "Posts", value: igProfile.posts ? fmtNum(igProfile.posts) : "–" },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ flex: 1, textAlign: "center", background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 6px" }}>
-                        <p style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{value}</p>
+                      { label: "Followers", value: igProfile.followers ? fmtNum(igProfile.followers) : "–", icon: "👥" },
+                      { label: "Following", value: igProfile.following ? fmtNum(igProfile.following) : "–", icon: "➕" },
+                      { label: "Posts", value: igProfile.posts ? fmtNum(igProfile.posts) : "–", icon: "📸" },
+                    ].map(({ label, value, icon }) => (
+                      <div key={label} style={{ textAlign: "center", background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 8px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+                        <p style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 2 }}>{value}</p>
                         <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{label}</p>
                       </div>
                     ))}
                   </div>
+                  
+                  {/* Follower/Following Ratio Badge */}
+                  {igProfile.followers && igProfile.following && (
+                    <div style={{ 
+                      display: "inline-block", 
+                      background: igProfile.followers > igProfile.following ? "rgba(74,222,128,0.12)" : "rgba(251,191,36,0.12)",
+                      border: `1px solid ${igProfile.followers > igProfile.following ? "rgba(74,222,128,0.3)" : "rgba(251,191,36,0.3)"}`,
+                      borderRadius: 8,
+                      padding: "6px 12px",
+                      marginBottom: igProfile.bio ? 14 : 0
+                    }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: igProfile.followers > igProfile.following ? "#4ade80" : "#fbbf24" }}>
+                        {(igProfile.followers / Math.max(igProfile.following, 1)).toFixed(1)}x F/F Ratio — {igProfile.followers > igProfile.following ? "Strong Authority ✓" : "Needs Improvement"}
+                      </span>
+                    </div>
+                  )}
+                  
                   {igProfile.bio && (
-                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.5, borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 12 }}>
-                      {igProfile.bio.slice(0, 160)}{igProfile.bio.length > 160 ? "…" : ""}
-                    </p>
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 14, marginTop: 14 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Bio</p>
+                      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6 }}>
+                        {igProfile.bio.slice(0, 180)}{igProfile.bio.length > 180 ? "…" : ""}
+                      </p>
+                    </div>
                   )}
                 </div>
-                <button onClick={submitAudit} style={{ width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px", borderRadius: 10, border: "none", cursor: "pointer" }}>
-                  Generate My Full Audit →
+                
+                <button onClick={submitAudit} style={{ width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "15px", borderRadius: 10, border: "none", cursor: "pointer", boxShadow: `0 4px 16px ${GOLD}40` }}>
+                  🚀 Generate My Full AI Audit →
                 </button>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", textAlign: "center", marginTop: 12 }}>This will take 20-40 seconds to analyze everything</p>
               </>
             ) : (
               <>
@@ -623,6 +809,29 @@ export default function Audit() {
               </div>
             </div>
 
+            {/* Weaknesses */}
+            {report.weaknesses && report.weaknesses.length > 0 && (
+              <div style={{ background: "#0c0c0c", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 20, padding: "28px", marginBottom: 14 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 14 }}>⚠️ What's Holding You Back</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {report.weaknesses.map((w: string, i: number) => (
+                    <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ color: "#f87171", fontSize: 13, flexShrink: 0, marginTop: 1 }}>✗</span>
+                      <span style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Engagement Analysis */}
+            {report.engagementAnalysis && (
+              <div style={{ background: "#0c0c0c", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "28px", marginBottom: 14 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 14 }}>📊 Engagement Quality</h3>
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, margin: 0 }}>{report.engagementAnalysis}</p>
+              </div>
+            )}
+
             {/* Growth Opportunities */}
             <div style={{ background: "#0c0c0c", border: `1px solid ${GOLD}25`, borderRadius: 20, padding: "28px", marginBottom: 14 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 6 }}>🚀 Your Top Growth Opportunities</h3>
@@ -659,11 +868,10 @@ export default function Audit() {
                     {report.upgradeTeaser}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 340, margin: "0 auto" }}>
-                    <a href="/login">
-                      <span style={{ display: "block", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px 24px", borderRadius: 10, cursor: "pointer" }}>
-                        Continue to Dashboard →
-                      </span>
-                    </a>
+                    <button onClick={() => setShowAccountModal(true)}
+                      style={{ display: "block", width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px 24px", borderRadius: 10, cursor: "pointer", border: "none" }}>
+                      Create Free Account & View Full Report →
+                    </button>
                     <a href={CALENDLY} target="_blank" rel="noopener noreferrer">
                       <span style={{ display: "block", background: "transparent", border: "none", color: "rgba(255,255,255,0.3)", fontWeight: 500, fontSize: 13, padding: "8px", cursor: "pointer" }}>
                         Book a strategy call instead
@@ -685,8 +893,37 @@ export default function Audit() {
             </div>
 
             <div style={{ textAlign: "center", padding: "0 20px" }}>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Log in to access your full report inside the dashboard.</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Create a free account to access your full report inside the dashboard.</p>
             </div>
+
+            {/* Account Creation Modal */}
+            {showAccountModal && (
+              <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}
+                onClick={() => setShowAccountModal(false)}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#0c0c0c", border: `1px solid ${GOLD}35`, borderRadius: 20, padding: "36px 32px", maxWidth: 420, width: "100%", textAlign: "center" }}>
+                  <button onClick={() => setShowAccountModal(false)} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 20, cursor: "pointer" }}>✕</button>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🎉</div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Create Your Free Account</h3>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 24, lineHeight: 1.6 }}>
+                    Get instant access to your full audit report + all AI tools inside the dashboard.
+                  </p>
+                  {accountError && <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13, marginBottom: 16 }}>{accountError}</div>}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                    <input type="text" placeholder="Your name" value={accountForm.name} onChange={e => setAccountForm(f => ({ ...f, name: e.target.value }))}
+                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
+                    <input type="email" placeholder="Your email" value={accountForm.email} onChange={e => setAccountForm(f => ({ ...f, email: e.target.value }))}
+                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
+                    <input type="password" placeholder="Create password (min 6 characters)" value={accountForm.password} onChange={e => setAccountForm(f => ({ ...f, password: e.target.value }))}
+                      style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", color: "#fff", fontSize: 14, outline: "none" }} />
+                  </div>
+                  <button onClick={createAccountAndLogin} disabled={accountLoading}
+                    style={{ width: "100%", background: GOLD, color: "#000", fontWeight: 800, fontSize: 15, padding: "14px", borderRadius: 10, border: "none", cursor: accountLoading ? "not-allowed" : "pointer", opacity: accountLoading ? 0.7 : 1, marginBottom: 12 }}>
+                    {accountLoading ? "Creating Account..." : "Create Account & View Full Report →"}
+                  </button>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Already have an account? <Link href="/login"><span style={{ color: GOLD, cursor: "pointer", textDecoration: "underline" }}>Log in</span></Link></p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

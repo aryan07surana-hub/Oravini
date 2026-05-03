@@ -6498,39 +6498,51 @@ ${ig.posts < 20 ? "- Very few posts — consistency has been a major issue" : ""
         igContext = `No Instagram profile provided. Generate audit purely from form answers.`;
       }
 
-      const sysPrompt = `You are a world-class Instagram growth strategist. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
+      const sysPrompt = `You are a world-class Instagram growth strategist and data analyst. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
 
-Generate a JSON audit with these EXACT fields (no extras, no missing):
+Generate a comprehensive JSON audit with these EXACT fields:
 {
-  "overallScore": <integer 0-100, based on their actual metrics and goals>,
+  "overallScore": <integer 0-100, based on their actual metrics, engagement quality, and growth potential>,
   "scoreLabel": <"Early Stage" | "Building Momentum" | "Established" | "Monetisation Ready">,
   "headline": <punchy personalised headline referencing their niche and actual situation, max 12 words>,
   "topInsight": <the single most critical insight about their account, 2-3 sentences, MUST reference their real numbers if available>,
   "profileAnalysis": [
-    <3-4 specific observations about their REAL profile data — follower count, ratio, bio, posting frequency, mention exact numbers>,
+    <5-7 specific, data-driven observations about their REAL profile:
+    - Follower count and tier (nano/micro/mid/macro/mega)
+    - Follower/following ratio and what it signals
+    - Bio quality and clarity
+    - Estimated posting frequency
+    - Account authority signals
+    - Growth trajectory indicators
+    - Engagement quality assessment>
   ],
-  "strengths": [<3 specific strengths, referencing their data where possible>],
+  "strengths": [<3-4 specific strengths, referencing their data where possible>],
+  "weaknesses": [<3-4 honest weaknesses that are holding them back, with specific numbers>],
   "growthOpportunities": [
-    <3 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers>
+    <5-6 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers. Prioritize by impact.>
   ],
-  "contentStrategy": <2-3 sentences specific to their content types and niche>,
-  "monetisationPath": <2-3 sentences on their best monetisation route given their goals and follower tier>,
+  "contentStrategy": <3-4 sentences specific to their content types and niche, with tactical advice>,
+  "monetisationPath": <3-4 sentences on their best monetisation route given their goals and follower tier, with specific revenue streams>,
+  "engagementAnalysis": <2-3 sentences analyzing their likely engagement quality based on follower/following ratio and account signals>,
+  "competitivePosition": <2-3 sentences on where they stand in their niche and how to differentiate>,
   "90DayRoadmap": [
-    {"phase": "Days 1–30", "focus": "...", "keyAction": "..."},
-    {"phase": "Days 31–60", "focus": "...", "keyAction": "..."},
-    {"phase": "Days 61–90", "focus": "...", "keyAction": "..."}
+    {"phase": "Days 1–30", "focus": "...", "keyAction": "...", "expectedOutcome": "..."},
+    {"phase": "Days 31–60", "focus": "...", "keyAction": "...", "expectedOutcome": "..."},
+    {"phase": "Days 61–90", "focus": "...", "keyAction": "...", "expectedOutcome": "..."}
   ],
   "revenueEstimate": <realistic monthly revenue range achievable in 90 days, based on their current size>,
-  "revenueContext": <one sentence explaining why this is achievable for their tier>,
-  "upgradeTeaser": <1-2 sentences on what the full Oravini platform gives them that they can't do alone>
+  "revenueContext": <2 sentences explaining why this is achievable for their tier and what revenue streams to focus on>,
+  "upgradeTeaser": <2-3 sentences on what the full Oravini platform gives them that they can't do alone, be specific about tools and features>
 }
 
 CRITICAL RULES:
-- If profile data is available, every section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
-- profileAnalysis must be data-driven observations, not opinions
-- growthOpportunities are NOT "quick wins" — they are strategic moves based on their specific gaps
-- Be honest about weaknesses but constructive
-- revenueEstimate must be calibrated to their actual follower count tier`;
+- If profile data is available, EVERY section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
+- profileAnalysis must be 5-7 data-driven observations, not generic opinions
+- Include both strengths AND weaknesses - be honest but constructive
+- growthOpportunities should be prioritized by impact (biggest wins first)
+- Be brutally specific - no fluff, no generic advice
+- revenueEstimate must be calibrated to their actual follower count tier and niche
+- If they have red flags (bad ratio, empty bio, low posts), call them out directly with numbers`;
 
       const userMsg = `CREATOR PROFILE:
 Niche: ${safeNiche}
@@ -6601,7 +6613,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         }
       }
 
-      // Return partial report
+      // Return comprehensive report with more data
       const partialReport = {
         overallScore: auditReport.overallScore,
         scoreLabel: auditReport.scoreLabel,
@@ -6609,11 +6621,13 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         topInsight: auditReport.topInsight,
         profileAnalysis: auditReport.profileAnalysis,
         strengths: auditReport.strengths,
-        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 3),
+        weaknesses: auditReport.weaknesses,
+        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 5),
+        engagementAnalysis: auditReport.engagementAnalysis,
         revenueEstimate: auditReport.revenueEstimate,
         revenueContext: auditReport.revenueContext,
         upgradeTeaser: auditReport.upgradeTeaser,
-        locked: ["contentStrategy", "monetisationPath", "90DayRoadmap", "competitiveEdge"],
+        locked: ["contentStrategy", "monetisationPath", "competitivePosition", "90DayRoadmap", "fullActionPlan"],
       };
 
       return res.json({ report: partialReport });
@@ -11541,6 +11555,10 @@ Rules:
 
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
   app.use(contentWorkflowRoutes);
+
+  // ── DAILY COMPETITOR MONITOR ────────────────────────────────────────────────
+  const competitorMonitorRoutes = (await import("./competitorMonitor")).default;
+  app.use("/api/competitor-monitor", competitorMonitorRoutes);
 
   return httpServer;
 }
