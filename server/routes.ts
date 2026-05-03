@@ -2324,6 +2324,92 @@ Return this exact JSON structure:
     }
   });
 
+  // Admin: Detailed Tool Analytics
+  app.get("/api/admin/tool-analytics", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      // Overall platform stats
+      const overallStats = await pool.query(`
+        SELECT
+          COUNT(DISTINCT user_id)::int AS total_users,
+          COUNT(*)::int AS total_actions,
+          SUM(ABS(amount))::int AS total_credits_used
+        FROM credit_transactions
+        WHERE amount < 0
+      `);
+
+      // Tool usage over time (last 30 days)
+      const timelineData = await pool.query(`
+        SELECT
+          DATE(created_at) AS date,
+          type AS tool,
+          COUNT(*)::int AS uses
+        FROM credit_transactions
+        WHERE amount < 0 AND created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(created_at), type
+        ORDER BY date DESC, uses DESC
+      `);
+
+      // Most active users
+      const topUsers = await pool.query(`
+        SELECT
+          u.id,
+          u.name,
+          u.email,
+          u.plan,
+          COUNT(ct.id)::int AS total_uses,
+          SUM(ABS(ct.amount))::int AS credits_used,
+          COUNT(DISTINCT ct.type)::int AS unique_tools_used
+        FROM users u
+        JOIN credit_transactions ct ON ct.user_id = u.id
+        WHERE ct.amount < 0
+        GROUP BY u.id, u.name, u.email, u.plan
+        ORDER BY total_uses DESC
+        LIMIT 20
+      `);
+
+      // Section usage (AI Content Ideas, Design Studio, etc.)
+      const sectionUsage = await pool.query(`
+        SELECT
+          CASE
+            WHEN type IN ('ai_ideas', 'ai_coach', 'ai_report') THEN 'AI Content Ideas'
+            WHEN type IN ('carousel', 'carousel_image') THEN 'Design Studio'
+            WHEN type IN ('competitor', 'competitor_reels', 'niche_analysis') THEN 'Competitor Intelligence'
+            WHEN type IN ('methodology', 'hashtag_suggestions') THEN 'Content Tools'
+            ELSE 'Other'
+          END AS section,
+          COUNT(*)::int AS uses,
+          COUNT(DISTINCT user_id)::int AS unique_users
+        FROM credit_transactions
+        WHERE amount < 0
+        GROUP BY section
+        ORDER BY uses DESC
+      `);
+
+      // Tool popularity by plan tier
+      const planBreakdown = await pool.query(`
+        SELECT
+          u.plan,
+          ct.type AS tool,
+          COUNT(*)::int AS uses
+        FROM credit_transactions ct
+        JOIN users u ON u.id = ct.user_id
+        WHERE ct.amount < 0
+        GROUP BY u.plan, ct.type
+        ORDER BY u.plan, uses DESC
+      `);
+
+      return res.json({
+        overview: overallStats.rows[0],
+        timeline: timelineData.rows,
+        topUsers: topUsers.rows,
+        sectionUsage: sectionUsage.rows,
+        planBreakdown: planBreakdown.rows,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Admin: get all AI idea generation logs
   app.get("/api/ai/idea-logs", requireAdmin, async (_req: Request, res: Response) => {
     try {

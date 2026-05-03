@@ -66,6 +66,14 @@ export interface CommunicationThread {
   unread: number;
 }
 
+export interface ExecutionColumn {
+  id: string;
+  title: string;
+  status: ActionStatus;
+  owner: ActionOwner;
+  notes: string;
+}
+
 export interface ProjectDeliverable {
   id: string;
   title: string;
@@ -135,6 +143,7 @@ export interface ProjectTracker {
   crmPipeline: CrmStage[];
   contentPipeline: ContentFlowItem[];
   communicationThreads: CommunicationThread[];
+  executionColumns: ExecutionColumn[];
   updatedAt: string;
 }
 
@@ -494,6 +503,29 @@ export function createDefaultProjectTracker(clientId: string, clientName: string
         unread: 0,
       },
     ],
+    executionColumns: [
+      { id: "col-1", title: "Agreement and payment", status: "in_progress", owner: "client", notes: "Contract signed and onboarding payment confirmed." },
+      { id: "col-2", title: "Client intake", status: "in_progress", owner: "client", notes: "Client submits intake form with offer and audience details." },
+      { id: "col-3", title: "Data collection", status: "pending", owner: "client", notes: "Collect brand assets, links, testimonials, and current funnel data." },
+      { id: "col-4", title: "Kickoff call", status: "pending", owner: "manager", notes: "Align goals, timeline, and execution priorities." },
+      { id: "col-5", title: "Offer", status: "pending", owner: "manager", notes: "Refine promise, pricing, and delivery model." },
+      { id: "col-6", title: "Validation", status: "pending", owner: "manager", notes: "Validate offer-market fit and core assumptions." },
+      { id: "col-7", title: "Refinement funnel", status: "pending", owner: "team", notes: "Tighten conversion flow based on validation." },
+      { id: "col-8", title: "Selection funnel", status: "pending", owner: "manager", notes: "Select the best funnel type for client stage." },
+      { id: "col-9", title: "Mapping", status: "pending", owner: "team", notes: "Map end-to-end customer journey and handoffs." },
+      { id: "col-10", title: "Message and positioning", status: "pending", owner: "manager", notes: "Finalize hooks, positioning, and messaging pillars." },
+      { id: "col-11", title: "Website funnel vs funnel builder", status: "pending", owner: "team", notes: "Decide architecture and implementation route." },
+      { id: "col-12", title: "Email sequence", status: "pending", owner: "team", notes: "Build welcome, nurture, and sales follow-up emails." },
+      { id: "col-13", title: "Ad setup", status: "pending", owner: "team", notes: "Set creatives, targeting, and campaign structure." },
+      { id: "col-14", title: "Organic content system", status: "pending", owner: "manager", notes: "Deploy repeatable YouTube-to-short-form pipeline." },
+      { id: "col-15", title: "Sales process", status: "pending", owner: "manager", notes: "Set booking flow, qualification, and close script." },
+      { id: "col-16", title: "CRM", status: "pending", owner: "team", notes: "Track leads, booked calls, and conversions." },
+      { id: "col-17", title: "Thinking", status: "pending", owner: "admin", notes: "Strategic review, diagnostics, and next experiments." },
+      { id: "col-18", title: "Automation setup", status: "pending", owner: "team", notes: "Set triggers, notifications, and workflow automations." },
+      { id: "col-19", title: "Workflow management", status: "pending", owner: "manager", notes: "Run weekly ops, assignments, and unblockers." },
+      { id: "col-20", title: "Lead optimization for scaling ads", status: "pending", owner: "manager", notes: "Improve CPL, conversion, and ROAS before scale." },
+      { id: "col-21", title: "Hiring and managing sales teams", status: "pending", owner: "admin", notes: "Build sales org structure, training, and accountability." },
+    ],
     updatedAt: today,
   };
 }
@@ -515,6 +547,7 @@ export function normalizeProjectTracker(tracker: ProjectTracker): ProjectTracker
     crmPipeline: tracker.crmPipeline?.length ? tracker.crmPipeline : baseline.crmPipeline,
     contentPipeline: tracker.contentPipeline?.length ? tracker.contentPipeline : baseline.contentPipeline,
     communicationThreads: tracker.communicationThreads?.length ? tracker.communicationThreads : baseline.communicationThreads,
+    executionColumns: tracker.executionColumns?.length ? tracker.executionColumns : baseline.executionColumns,
   };
 }
 

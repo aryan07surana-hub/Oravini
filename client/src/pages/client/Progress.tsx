@@ -408,21 +408,19 @@ export default function ClientProgress() {
                 <div className="rounded-[28px] border border-zinc-800 bg-[#0c0c0f] p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <Target className="w-4 h-4 text-[#d4b461]" />
-                    <p className="text-sm font-semibold text-white">Action Columns</p>
+                    <p className="text-sm font-semibold text-white">Section-wise Workflow</p>
                   </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Client Actions</p>
-                      <p className="text-lg font-semibold text-white mt-1">{data.summary.clientQueueCount}</p>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Approvals</p>
-                      <p className="text-lg font-semibold text-white mt-1">{data.summary.approvalCount}</p>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
-                      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Blockers</p>
-                      <p className="text-lg font-semibold text-white mt-1">{data.summary.blockerCount}</p>
-                    </div>
+                  <div className="grid grid-cols-1 gap-2 max-h-[420px] overflow-auto pr-1">
+                    {(data.tracker.executionColumns || []).map((section) => (
+                      <div key={section.id} className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-white">{section.title}</p>
+                          <Badge variant="outline" className="border-zinc-700 text-zinc-300">{section.status.replace("_", " ")}</Badge>
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-1">Owner: {section.owner}</p>
+                        <p className="text-xs text-zinc-400 mt-2">{section.notes}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
