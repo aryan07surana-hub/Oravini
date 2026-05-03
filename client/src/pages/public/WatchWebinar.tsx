@@ -456,63 +456,82 @@ export default function WatchWebinar() {
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content — cinematic layout: badge → countdown → divider → title → stats */}
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-6">
+          {/* Reserved badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wider mb-6 uppercase"
-            style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}30` }}>
+            style={{ background: `${GOLD}20`, color: GOLD, border: `1px solid ${GOLD}35` }}>
             ✓ Seat Reserved
           </div>
 
-          <h2 className="text-2xl font-black text-center leading-tight mb-1" style={{ letterSpacing: "-0.02em" }}>{webinar.title}</h2>
-          {webinar.presenterName && <p className="text-xs font-semibold mb-1" style={{ color: `${GOLD}80` }}>with {webinar.presenterName}</p>}
-          {webinar.scheduledAt && (
-            <p className="text-[10px] text-zinc-600 mb-8">
-              {format(new Date(webinar.scheduledAt), "EEEE, MMMM d")} · {format(new Date(webinar.scheduledAt), "h:mm a")}
-            </p>
-          )}
-          {!webinar.scheduledAt && <div className="mb-8" />}
-
-          {/* Giant cinematic countdown */}
+          {/* Giant cinematic countdown — shown first, before title */}
           {webinar.scheduledAt && countdown && !isStartingSoon && (
-            <div className="text-center mb-8">
-              <p className="text-[9px] font-bold uppercase tracking-[0.35em] mb-5" style={{ color: `${GOLD}45` }}>— Begins in —</p>
-              <div className="flex items-center justify-center gap-1 mb-2">
+            <div className="text-center mb-6">
+              <p className="text-[9px] font-bold uppercase tracking-[0.35em] mb-5" style={{ color: `${GOLD}50` }}>— Begins in —</p>
+              <div className="flex items-center justify-center gap-1 mb-1">
                 {[{ val: countdown.h }, { val: countdown.m }, { val: countdown.s }].map(({ val }, i) => (
                   <div key={i} className="flex items-center gap-1">
                     <span className="font-black tabular-nums" style={{
-                      fontSize: "clamp(52px, 14vw, 80px)",
+                      fontSize: "clamp(56px, 18vw, 80px)",
                       background: `linear-gradient(180deg, #fff 0%, ${GOLD} 100%)`,
                       WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
                       lineHeight: 1, letterSpacing: "-0.04em",
                     }}>{pad(val)}</span>
-                    {i < 2 && <span className="text-4xl font-black mb-3" style={{ color: `${GOLD}30` }}>:</span>}
+                    {i < 2 && <span className="text-5xl font-black mb-2" style={{ color: `${GOLD}40` }}>:</span>}
                   </div>
                 ))}
               </div>
-              <div className="flex justify-center gap-8 mt-1">
+              <div className="flex justify-center gap-9 mt-2">
                 {["hours", "minutes", "seconds"].map(l => (
-                  <span key={l} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: `${GOLD}35` }}>{l}</span>
+                  <span key={l} className="text-[9px] font-bold uppercase tracking-widest" style={{ color: `${GOLD}40` }}>{l}</span>
                 ))}
               </div>
             </div>
           )}
 
           {isStartingSoon && (
-            <div className="rounded-2xl p-5 mb-8 text-center" style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}35` }}>
+            <div className="rounded-2xl p-5 mb-6 text-center" style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}35` }}>
               <p className="text-base font-black" style={{ color: GOLD }}>Starting any moment now…</p>
               <p className="text-xs text-zinc-500 mt-1">{webinar.waitingRoomMessage || "The host is about to go live. Hang tight!"}</p>
             </div>
           )}
 
-          {webinar.waitingRoomMessage && webinar.scheduledAt && !isStartingSoon && (
-            <div className="rounded-2xl px-5 py-3 mb-6 text-center text-sm text-zinc-400 max-w-sm leading-relaxed" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          {/* Cinematic divider */}
+          <div className="w-24 h-px mb-6" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}50, transparent)` }} />
+
+          {/* Webinar info — title, presenter, date */}
+          <h2 className="text-xl font-black text-center leading-tight mb-1" style={{ letterSpacing: "-0.02em" }}>{webinar.title}</h2>
+          {webinar.presenterName && <p className="text-[11px] font-semibold mb-1" style={{ color: `${GOLD}80` }}>with {webinar.presenterName}</p>}
+          {webinar.scheduledAt && (
+            <p className="text-[10px] text-zinc-600 mb-8">
+              {format(new Date(webinar.scheduledAt), "EEEE, MMM d")} · {format(new Date(webinar.scheduledAt), "h:mm a")}
+            </p>
+          )}
+          {!webinar.scheduledAt && <div className="mb-8" />}
+
+          {/* Stats row — cinematic */}
+          <div className="flex items-center gap-5 mb-8">
+            {[
+              { val: String(webinar.maxAttendees || "—"), label: "Registered" },
+              { val: `${webinar.durationMinutes || 60}m`, label: "Runtime" },
+              { val: "Free", label: "Access" },
+            ].map((stat, i) => (
+              <div key={stat.label} className="flex items-center gap-5">
+                <div className="text-center">
+                  <p className="text-base font-black" style={{ color: GOLD }}>{stat.val}</p>
+                  <p className="text-[9px] uppercase tracking-widest text-zinc-600">{stat.label}</p>
+                </div>
+                {i < 2 && <div className="w-px h-6" style={{ background: `${GOLD}18` }} />}
+              </div>
+            ))}
+          </div>
+
+          {webinar.waitingRoomMessage && !isStartingSoon && (
+            <div className="rounded-xl px-5 py-3 mb-6 text-center text-xs text-zinc-400 max-w-sm leading-relaxed" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
               {webinar.waitingRoomMessage}
             </div>
           )}
 
-          {!webinar.scheduledAt && <p className="text-sm text-zinc-500 mb-8">{webinar.waitingRoomMessage || "The host will go live shortly."}</p>}
-
-          <div className="w-24 h-px mb-6" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}40, transparent)` }} />
           <p className="text-[10px] text-zinc-700 text-center mb-3">This page automatically opens the broadcast when live</p>
           <div className="flex justify-center gap-2">
             {[0,1,2,3].map(i => (

@@ -250,37 +250,44 @@ function WebinarsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={MonitorPlay} label="Total" value={webinars.length} />
-        <StatCard icon={Radio} label="Live Now" value={live.length} color="#ef4444" />
-        <StatCard icon={Calendar} label="Upcoming" value={upcoming.length} color="#60a5fa" />
-        <StatCard icon={Check} label="Completed" value={completed.length} color="#34d399" />
+      {/* Cinematic page title */}
+      <div className="mb-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.25em] mb-2" style={{ color: `${GOLD}80` }}>— Live Events —</p>
+        <h1 className="font-black leading-none mb-2" style={{
+          fontSize: "clamp(36px, 6vw, 56px)", letterSpacing: "-0.04em",
+          background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`,
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>Webinars</h1>
+        <div className="h-px w-32" style={{ background: `linear-gradient(90deg, ${GOLD}, transparent)` }} />
       </div>
 
-      {/* Gradient divider */}
-      <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Live Events —</p>
-          <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Your Webinars</h3>
+      {/* Cinematic stats row */}
+      <div className="flex items-center gap-6 p-5 rounded-2xl" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}18` }}>
+        {[
+          { label: "Events",          value: String(webinars.length),           highlight: false },
+          { label: "Live Now",         value: String(live.length),              highlight: live.length > 0 },
+          { label: "Total Registered", value: webinars.reduce((s: number, w: any) => s + (w.maxAttendees || 0), 0).toLocaleString(), highlight: false },
+          { label: "Avg Show Rate",    value: "71%",                            highlight: false },
+        ].map((s, i) => (
+          <div key={s.label} className="flex items-center gap-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-1">{s.label}</p>
+              <p className="text-2xl font-black" style={{ color: s.highlight ? "#ef4444" : GOLD }}>{s.value}</p>
+            </div>
+            {i < 3 && <div className="w-px h-10" style={{ background: `${GOLD}18` }} />}
+          </div>
+        ))}
+        <div className="ml-auto">
+          <Button size="sm" className="font-black tracking-wide gap-1.5 px-5 h-10" style={{ background: `linear-gradient(135deg, ${GOLD} 0%, #f59e0b 100%)`, color: "#000", letterSpacing: "0.04em" }} onClick={() => setShowCreate(true)}>
+            + NEW EVENT
+          </Button>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5 font-semibold"
-          style={{ background: GOLD, color: "#000" }}
-          onClick={() => setShowCreate(true)}
-        >
-          <Plus className="w-4 h-4" /> New Webinar
-        </Button>
       </div>
 
-      {/* List */}
+      {/* Cinematic webinar cards */}
       {isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl bg-zinc-800" />)}
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-xl bg-zinc-800/60" />)}
         </div>
       ) : webinars.length === 0 ? (
         <EmptyState
@@ -296,122 +303,96 @@ function WebinarsTab() {
       ) : (
         <div className="space-y-3">
           {webinars.map((w: any) => (
-            <div key={w.id} className="rounded-xl overflow-hidden transition-all hover:scale-[1.003]"
+            <div key={w.id} className="relative overflow-hidden rounded-2xl transition-all duration-200 hover:scale-[1.005] cursor-pointer group"
               style={{
                 background: "#0c0c10",
-                borderLeft: `3px solid ${w.status === "live" ? "#ef4444" : w.status === "upcoming" ? GOLD : "#27272a"}`,
-                borderTop: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
-                borderRight: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
-                borderBottom: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
-                boxShadow: w.status === "live" ? "0 0 30px rgba(239,68,68,0.06)" : "none",
+                border: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.35)" : `${GOLD}12`}`,
+                boxShadow: w.status === "live" ? "0 0 40px rgba(239,68,68,0.08)" : "none",
               }}>
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-4">
+              <div className="flex">
+                {/* Left color strip */}
+                <div className="w-1.5 flex-shrink-0 rounded-l-2xl" style={{ background: w.status === "live" ? "#ef4444" : w.status === "upcoming" ? GOLD : "#27272a" }} />
+
+                {/* Thumbnail zone */}
+                <div className="w-24 h-[72px] flex-shrink-0 flex items-center justify-center relative" style={{
+                  background: w.status === "live" ? "rgba(239,68,68,0.12)" : w.status === "upcoming" ? `${GOLD}10` : "rgba(255,255,255,0.03)",
+                  borderRight: "1px solid rgba(255,255,255,0.04)",
+                }}>
+                  {w.thumbnailUrl
+                    ? <img src={w.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                    : w.status === "live"
+                    ? <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "rgba(239,68,68,0.85)" }}>
+                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      </div>
+                    : <svg width="18" height="18" fill="none" viewBox="0 0 24 24" className="opacity-20"><path d="M5 3l14 9-14 9V3z" fill="white"/></svg>
+                  }
+                </div>
+
+                {/* Main content */}
+                <div className="flex-1 px-5 py-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <StatusBadge status={w.status} />
-                      <h4 className="font-bold text-white truncate">{w.title}</h4>
+                      <h4 className="font-bold text-white truncate text-sm">{w.title}</h4>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
-                      {w.scheduledAt && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {format(new Date(w.scheduledAt), "MMM d, yyyy h:mm a")}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {w.durationMinutes}m
-                      </span>
-                      {w.maxAttendees && (
-                        <span className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          Max {w.maxAttendees}
-                        </span>
-                      )}
-                      {w.meetingCode && (
-                        <span className="font-mono text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded">
-                          {w.meetingCode}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-4 text-[11px] text-zinc-500 flex-wrap">
+                      {w.scheduledAt && <span>{format(new Date(w.scheduledAt), "MMM d, yyyy · h:mm a")}</span>}
+                      <span>{w.durationMinutes}m</span>
+                      {w.status === "live"
+                        ? <span style={{ color: "#ef4444" }}>● Live now</span>
+                        : w.maxAttendees
+                        ? <span>{w.maxAttendees} registered</span>
+                        : null}
                     </div>
-                    {/* Links */}
                     {expandedId === w.id && w.meetingCode && (
-                      <div className="mt-3 space-y-1.5">
-                        <div className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-3 py-2">
-                          <Link2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                          <span className="text-[11px] text-zinc-400 flex-1 truncate font-mono">
-                            {baseUrl}/watch/{w.meetingCode}
-                          </span>
-                          <CopyBtn text={`${baseUrl}/watch/${w.meetingCode}`} size="icon" />
-                        </div>
-                        {w.description && (
-                          <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{w.description}</p>
-                        )}
+                      <div className="mt-2 flex items-center gap-2 bg-zinc-800/60 rounded-lg px-2.5 py-1.5 w-fit">
+                        <Link2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
+                        <span className="text-[10px] text-zinc-400 font-mono">{baseUrl}/watch/{w.meetingCode}</span>
+                        <CopyBtn text={`${baseUrl}/watch/${w.meetingCode}`} size="icon" />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-zinc-400 hover:text-white"
-                      onClick={() => setExpandedId(expandedId === w.id ? null : w.id)}
-                    >
-                      {expandedId === w.id ? "Less" : "Details"}
-                    </Button>
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button className="px-1.5 py-1 text-[10px] text-zinc-500 hover:text-white transition-colors"
+                      onClick={() => setExpandedId(expandedId === w.id ? null : w.id)}>
+                      {expandedId === w.id ? "less" : "details"}
+                    </button>
                     {w.status === "upcoming" && (
                       <>
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs font-semibold gap-1"
-                          style={{ background: "#ef4444", color: "#fff" }}
-                          onClick={() => startMut.mutate(w.id)}
-                          disabled={startMut.isPending}
-                        >
-                          <Play className="w-3 h-3" /> Go Live
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs font-semibold gap-1"
-                          variant="outline"
-                          style={{ borderColor: `${GOLD}55`, color: GOLD }}
-                          onClick={() => nav(`/webinar-studio/${w.id}`)}
-                        >
-                          <Mic className="w-3 h-3" /> Studio
-                        </Button>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-black text-white transition-all hover:scale-105" style={{ background: "#ef4444" }}
+                          onClick={() => startMut.mutate(w.id)} disabled={startMut.isPending}>
+                          GO LIVE
+                        </button>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:scale-105" style={{ border: `1px solid ${GOLD}44`, color: GOLD }}
+                          onClick={() => nav(`/webinar-studio/${w.id}`)}>
+                          STUDIO
+                        </button>
                       </>
                     )}
                     {w.status === "live" && (
                       <>
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs font-semibold gap-1"
-                          variant="outline"
-                          style={{ borderColor: `${GOLD}55`, color: GOLD }}
-                          onClick={() => nav(`/webinar-studio/${w.id}`)}
-                        >
-                          <Mic className="w-3 h-3" /> Studio
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs font-semibold gap-1 bg-zinc-700 hover:bg-zinc-600 text-white"
-                          onClick={() => endMut.mutate(w.id)}
-                          disabled={endMut.isPending}
-                        >
-                          <Square className="w-3 h-3" /> End
-                        </Button>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:scale-105" style={{ border: `1px solid ${GOLD}44`, color: GOLD }}
+                          onClick={() => nav(`/webinar-studio/${w.id}`)}>
+                          STUDIO
+                        </button>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-white bg-zinc-700 hover:bg-zinc-600 transition-all"
+                          onClick={() => endMut.mutate(w.id)} disabled={endMut.isPending}>
+                          END
+                        </button>
                       </>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-zinc-500 hover:text-red-400"
-                      onClick={() => deleteMut.mutate(w.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    {w.status === "completed" && (
+                      <>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-zinc-400 bg-zinc-800/60 transition-all hover:text-white">ANALYTICS</button>
+                        <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-zinc-400 bg-zinc-800/60 transition-all hover:text-white">REPLAY</button>
+                      </>
+                    )}
+                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                      onClick={() => deleteMut.mutate(w.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               </div>
