@@ -66,12 +66,14 @@ import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import WebinarStudio from "@/pages/client/WebinarStudio";
+import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
+import WatchWebinar from "@/pages/public/WatchWebinar";
+import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
 import Jarvis from "@/pages/client/Jarvis";
-import ContentIntelligence from "@/pages/ContentIntelligence";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
 import EverydayRead from "@/pages/client/EverydayRead";
@@ -150,6 +152,9 @@ function Router() {
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/f/:slug">{() => <PublicForm />}</Route>
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
+      <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/join/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
@@ -185,6 +190,7 @@ function Router() {
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
+      <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
       <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
       <Route path="/ig-bot">{() => <Guard component={IgCommentBot} />}</Route>
@@ -204,7 +210,6 @@ function Router() {
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
       <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
-      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>

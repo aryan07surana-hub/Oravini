@@ -1,9 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -21,6 +20,10 @@ import {
   Target, UserCheck, Download, Mic, LayoutTemplate,
   ArrowRight, Building, Search, AlertCircle,
   TrendingUp, TrendingDown, Activity, UserX, ChevronDown,
+  Server, Key, Shield, EyeOff, Loader2, CheckCircle2, X, Info, Wifi,
+  Repeat2, Bell, Send, Code2, Lock, Unlock, Upload, Image,
+  Layers, MousePointer, Timer, RefreshCw, ChevronRight, Hash,
+  SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -66,23 +69,21 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <Card className="bg-zinc-900/60 border-zinc-800">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">{label}</p>
-            <p className="text-2xl font-black text-white">{value}</p>
-            {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
-          </div>
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: `${color}18`, border: `1px solid ${color}33` }}
-          >
-            <Icon className="w-5 h-5" style={{ color }} />
-          </div>
+    <div className="rounded-2xl p-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: `${GOLD}55` }}>{label}</p>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: `${color}14`, border: `1px solid ${color}22` }}>
+          <Icon className="w-4 h-4" style={{ color }} />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="text-3xl font-black" style={{
+        background: `linear-gradient(135deg, #fff 0%, ${color} 100%)`,
+        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        letterSpacing: "-0.02em",
+      }}>{value}</p>
+      {sub && <p className="text-[11px] mt-1.5" style={{ color: `${color}55` }}>{sub}</p>}
+    </div>
   );
 }
 
@@ -257,9 +258,15 @@ function WebinarsTab() {
         <StatCard icon={Check} label="Completed" value={completed.length} color="#34d399" />
       </div>
 
+      {/* Gradient divider */}
+      <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">Your Webinars</h3>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Live Events —</p>
+          <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Your Webinars</h3>
+        </div>
         <Button
           size="sm"
           className="gap-1.5 font-semibold"
@@ -289,8 +296,16 @@ function WebinarsTab() {
       ) : (
         <div className="space-y-3">
           {webinars.map((w: any) => (
-            <Card key={w.id} className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
-              <CardContent className="p-5">
+            <div key={w.id} className="rounded-xl overflow-hidden transition-all hover:scale-[1.003]"
+              style={{
+                background: "#0c0c10",
+                borderLeft: `3px solid ${w.status === "live" ? "#ef4444" : w.status === "upcoming" ? GOLD : "#27272a"}`,
+                borderTop: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
+                borderRight: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
+                borderBottom: `1px solid ${w.status === "live" ? "rgba(239,68,68,0.2)" : `${GOLD}14`}`,
+                boxShadow: w.status === "live" ? "0 0 30px rgba(239,68,68,0.06)" : "none",
+              }}>
+              <div className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
@@ -326,9 +341,9 @@ function WebinarsTab() {
                         <div className="flex items-center gap-2 bg-zinc-800/60 rounded-lg px-3 py-2">
                           <Link2 className="w-3 h-3 text-zinc-500 flex-shrink-0" />
                           <span className="text-[11px] text-zinc-400 flex-1 truncate font-mono">
-                            {baseUrl}/join/{w.meetingCode}
+                            {baseUrl}/watch/{w.meetingCode}
                           </span>
-                          <CopyBtn text={`${baseUrl}/join/${w.meetingCode}`} size="icon" />
+                          <CopyBtn text={`${baseUrl}/watch/${w.meetingCode}`} size="icon" />
                         </div>
                         {w.description && (
                           <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{w.description}</p>
@@ -369,14 +384,25 @@ function WebinarsTab() {
                       </>
                     )}
                     {w.status === "live" && (
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs font-semibold gap-1 bg-zinc-700 hover:bg-zinc-600 text-white"
-                        onClick={() => endMut.mutate(w.id)}
-                        disabled={endMut.isPending}
-                      >
-                        <Square className="w-3 h-3" /> End
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-semibold gap-1"
+                          variant="outline"
+                          style={{ borderColor: `${GOLD}55`, color: GOLD }}
+                          onClick={() => nav(`/webinar-studio/${w.id}`)}
+                        >
+                          <Mic className="w-3 h-3" /> Studio
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-semibold gap-1 bg-zinc-700 hover:bg-zinc-600 text-white"
+                          onClick={() => endMut.mutate(w.id)}
+                          disabled={endMut.isPending}
+                        >
+                          <Square className="w-3 h-3" /> End
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"
@@ -388,15 +414,15 @@ function WebinarsTab() {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Create Webinar</DialogTitle>
           </DialogHeader>
@@ -665,7 +691,10 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
       </div>
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">Video Library</h3>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-0.5" style={{ color: `${GOLD}50` }}>Library</p>
+          <h3 className="text-lg font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Video Library</h3>
+        </div>
         <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" /> Add Video
         </Button>
@@ -689,13 +718,13 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayed.map((v: any) => (
-            <Card key={v.id} className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-all overflow-hidden group">
+            <div key={v.id} className="rounded-xl overflow-hidden transition-all group" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
               <div
                 className="h-36 flex items-center justify-center relative"
                 style={{
                   background: v.thumbnailUrl
                     ? `url(${v.thumbnailUrl}) center/cover no-repeat`
-                    : `linear-gradient(135deg, ${GOLD}10, rgba(18,14,30,0.6))`,
+                    : `linear-gradient(135deg, ${GOLD}10, rgba(4,4,6,0.9))`,
                 }}
               >
                 {!v.thumbnailUrl && (
@@ -712,7 +741,7 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
                   </Badge>
                 )}
               </div>
-              <CardContent className="p-4">
+              <div className="p-4">
                 <h4 className="font-bold text-white text-sm line-clamp-1 mb-1">{v.title}</h4>
                 {v.description && (
                   <p className="text-xs text-zinc-500 line-clamp-2 mb-2">{v.description}</p>
@@ -740,14 +769,14 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Add Video</DialogTitle>
           </DialogHeader>
@@ -912,7 +941,10 @@ function LandingPagesTab() {
       </div>
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">Landing Pages</h3>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-0.5" style={{ color: `${GOLD}50` }}>Publish</p>
+          <h3 className="text-lg font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Landing Pages</h3>
+        </div>
         <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" /> New Page
         </Button>
@@ -936,8 +968,8 @@ function LandingPagesTab() {
       ) : (
         <div className="space-y-3">
           {(pages as any[]).map((p: any) => (
-            <Card key={p.id} className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
-              <CardContent className="p-5">
+            <div key={p.id} className="rounded-xl transition-colors" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+              <div className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -990,14 +1022,14 @@ function LandingPagesTab() {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Create Landing Page</DialogTitle>
           </DialogHeader>
@@ -1211,7 +1243,7 @@ function CRMTab() {
             className="p-4 rounded-xl cursor-pointer transition-all"
             style={{
               background: stageFilter === s.id ? `${s.color}18` : "rgba(39,39,42,0.6)",
-              border: `1px solid ${stageFilter === s.id ? s.color + "55" : "rgba(63,63,70,0.8)"}`,
+              border: `1px solid ${stageFilter === s.id ? s.color + "55" : `${GOLD}10`}`,
             }}
             onClick={() => setStageFilter(stageFilter === s.id ? "all" : s.id)}
           >
@@ -1269,10 +1301,10 @@ function CRMTab() {
           }
         />
       ) : (
-        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/80">
+              <tr style={{ borderBottom: `1px solid ${GOLD}10`, background: "rgba(12,12,16,0.98)" }}>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider hidden md:table-cell">Email</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Stage</th>
@@ -1327,7 +1359,7 @@ function CRMTab() {
 
       {/* Contact Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-sm">
+        <DialogContent className="max-w-sm" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Contact Details</DialogTitle>
           </DialogHeader>
@@ -1378,7 +1410,7 @@ function CRMTab() {
                       className="px-3 py-2 rounded-lg text-xs font-semibold transition-all"
                       style={selected.stage === s.id
                         ? { background: `${s.color}25`, color: s.color, border: `1px solid ${s.color}55` }
-                        : { background: "rgba(39,39,42,0.6)", color: "#71717a", border: "1px solid rgba(63,63,70,0.6)" }
+                        : { background: "rgba(12,12,16,0.8)", color: "#71717a", border: `1px solid ${GOLD}10` }
                       }
                     >
                       {s.emoji} {s.label}
@@ -1408,7 +1440,7 @@ function CRMTab() {
 
       {/* Add Contact Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Add Contact</DialogTitle>
           </DialogHeader>
@@ -1566,7 +1598,10 @@ function RecordingsTab() {
       </div>
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">Recordings</h3>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-0.5" style={{ color: `${GOLD}50` }}>Archive</p>
+          <h3 className="text-lg font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Recordings</h3>
+        </div>
         <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4" /> Add Recording
         </Button>
@@ -1590,8 +1625,8 @@ function RecordingsTab() {
       ) : (
         <div className="space-y-3">
           {(recordings as any[]).map((r: any) => (
-            <Card key={r.id} className="bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 transition-colors">
-              <CardContent className="p-5">
+            <div key={r.id} className="rounded-xl transition-colors" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+              <div className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div
@@ -1647,14 +1682,14 @@ function RecordingsTab() {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
+        <DialogContent className="max-w-md" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
             <DialogTitle className="text-white font-bold">Add Recording</DialogTitle>
           </DialogHeader>
@@ -1845,8 +1880,8 @@ function AnalyticsTab() {
       </div>
 
       {/* Per-webinar drill-down */}
-      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(63,63,70,0.8)" }}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(24,24,27,0.9)", borderBottom: "1px solid rgba(63,63,70,0.6)" }}>
+      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
           <div className="flex items-center gap-2">
             <BarChart3 className="w-3.5 h-3.5" style={{ color: GOLD }} />
             <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Webinar Deep Dive</p>
@@ -1904,7 +1939,7 @@ function AnalyticsTab() {
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Live Attendance Timeline</p>
                 <p className="text-[10px] text-zinc-600">Every 5 minutes over {perWebinarStats.dur}min session</p>
               </div>
-              <div className="flex items-end gap-0.5 h-28 bg-zinc-900/50 rounded-xl px-3 py-3">
+              <div className="flex items-end gap-0.5 h-28 rounded-xl px-3 py-3" style={{ background: "rgba(8,8,12,0.9)" }}>
                 {perWebinarStats.timeline.map((val: number, i: number) => {
                   const heightPct = Math.round((val / perWebinarStats.maxT) * 100);
                   const isPeak = val === perWebinarStats.peak;
@@ -1936,7 +1971,7 @@ function AnalyticsTab() {
 
             {/* Join vs Leave chart */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-xl p-4" style={{ background: "rgba(24,24,27,0.6)", border: "1px solid rgba(63,63,70,0.6)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}12` }}>
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">When People Joined</p>
                 <div className="flex items-end gap-1 h-16">
                   {perWebinarStats.joins.map((val: number, i: number) => {
@@ -1961,7 +1996,7 @@ function AnalyticsTab() {
                 </div>
               </div>
 
-              <div className="rounded-xl p-4" style={{ background: "rgba(24,24,27,0.6)", border: "1px solid rgba(63,63,70,0.6)" }}>
+              <div className="rounded-xl p-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}12` }}>
                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">When People Left</p>
                 <div className="flex items-end gap-1 h-16">
                   {perWebinarStats.leaves.map((val: number, i: number) => {
@@ -2017,7 +2052,7 @@ function AnalyticsTab() {
                       <span className="text-xs text-zinc-400">{s.label}</span>
                       <span className="text-xs font-bold text-white">{s.value}</span>
                     </div>
-                    <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
                       <div
                         className="h-full rounded-full"
                         style={{
@@ -2036,18 +2071,18 @@ function AnalyticsTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* CRM Funnel */}
-        <Card className="bg-zinc-900/60 border-zinc-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-white text-base font-bold">CRM Pipeline Funnel</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+          <div className="px-5 pt-5 pb-3">
+            <p className="text-base font-bold text-white">CRM Pipeline Funnel</p>
+          </div>
+          <div className="px-5 pb-5 space-y-3">
             {stageFunnel.map((s) => (
               <div key={s.stage}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold text-zinc-400">{s.stage}</span>
                   <span className="text-xs font-bold text-white">{s.count}</span>
                 </div>
-                <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${Math.round((s.count / maxFunnelCount) * 100)}%`, background: s.color }}
@@ -2058,15 +2093,15 @@ function AnalyticsTab() {
             {contacts.length === 0 && (
               <p className="text-xs text-zinc-500 text-center py-4">No contacts yet</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Platform overview */}
-        <Card className="bg-zinc-900/60 border-zinc-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-white text-base font-bold">Platform Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+          <div className="px-5 pt-5 pb-3">
+            <p className="text-base font-bold text-white">Platform Overview</p>
+          </div>
+          <div className="px-5 pb-5">
             <div className="space-y-3">
               {[
                 { label: "Upcoming Webinars", value: allWebinars.filter((w: any) => w.status !== "completed").length, icon: MonitorPlay, color: "#60a5fa" },
@@ -2087,20 +2122,20 @@ function AnalyticsTab() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* All webinars performance table */}
       {allWebinars.length > 0 && (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(63,63,70,0.8)" }}>
-          <div className="px-4 py-3" style={{ background: "rgba(24,24,27,0.9)", borderBottom: "1px solid rgba(63,63,70,0.6)" }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+          <div className="px-4 py-3" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
             <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">All Webinars — Performance Summary</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(63,63,70,0.5)", background: "rgba(24,24,27,0.6)" }}>
+                <tr style={{ borderBottom: `1px solid ${GOLD}10`, background: "rgba(8,8,12,0.9)" }}>
                   {["Title", "Date", "Registered", "Attended", "Show Rate", "Avg Time", "Status"].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -2114,7 +2149,7 @@ function AnalyticsTab() {
                   const rate = regs > 0 ? Math.round((att / regs) * 100) : 0;
                   const avgT = Math.round((w.durationMinutes || 60) * (0.45 + seed * 0.05));
                   return (
-                    <tr key={w.id} style={{ borderBottom: "1px solid rgba(63,63,70,0.3)" }} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={w.id} style={{ borderBottom: `1px solid ${GOLD}08` }} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-4 py-3 text-white font-medium text-sm max-w-48 truncate">{w.title}</td>
                       <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
                         {w.scheduledAt ? format(new Date(w.scheduledAt), "MMM d, yy") : "—"}
@@ -2193,8 +2228,8 @@ function VideoAnalyticsTab() {
       </div>
 
       {/* Per-video selector drill-down */}
-      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(63,63,70,0.8)" }}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(24,24,27,0.9)", borderBottom: "1px solid rgba(63,63,70,0.6)" }}>
+      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
           <div className="flex items-center gap-2">
             <Activity className="w-3.5 h-3.5" style={{ color: GOLD }} />
             <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Video Deep Dive</p>
@@ -2248,7 +2283,7 @@ function VideoAnalyticsTab() {
             {/* Retention bars */}
             <div>
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Retention Curve</p>
-              <div className="flex items-end gap-0.5 h-16 bg-zinc-900/50 rounded-xl px-2 py-2">
+              <div className="flex items-end gap-0.5 h-16 rounded-xl px-2 py-2" style={{ background: "rgba(8,8,12,0.9)" }}>
                 {(() => {
                   const seed = (selectedVideo.id || 1) % 10;
                   const curve = [100];
@@ -2276,14 +2311,14 @@ function VideoAnalyticsTab() {
 
       {/* All videos performance table */}
       {sorted.length > 0 && (
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(63,63,70,0.8)" }}>
-          <div className="px-4 py-3" style={{ background: "rgba(24,24,27,0.9)", borderBottom: "1px solid rgba(63,63,70,0.6)" }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+          <div className="px-4 py-3" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
             <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">All Videos — Performance</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(63,63,70,0.5)", background: "rgba(24,24,27,0.6)" }}>
+                <tr style={{ borderBottom: `1px solid ${GOLD}10`, background: "rgba(8,8,12,0.9)" }}>
                   {["Title", "Type", "Views", "Watch Rate", "Completion", "Engagement", "Drop-off"].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
@@ -2291,7 +2326,7 @@ function VideoAnalyticsTab() {
               </thead>
               <tbody>
                 {sorted.map(v => (
-                  <tr key={v.id} style={{ borderBottom: "1px solid rgba(63,63,70,0.3)" }} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={v.id} style={{ borderBottom: `1px solid ${GOLD}08` }} className="hover:bg-white/[0.02] transition-colors">
                     <td className="px-4 py-3 text-white font-medium max-w-40 truncate">{v.title}</td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
@@ -2323,24 +2358,24 @@ function VideoAnalyticsTab() {
 
       {/* Category breakdown */}
       {Object.keys(categoryBreakdown).length > 0 && (
-        <Card className="bg-zinc-900/60 border-zinc-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-white text-sm font-bold">Videos by Category</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+          <div className="px-5 pt-5 pb-3">
+            <p className="text-sm font-bold text-white">Videos by Category</p>
+          </div>
+          <div className="px-5 pb-5 space-y-2">
             {Object.entries(categoryBreakdown).map(([cat, count]) => (
               <div key={cat}>
                 <div className="flex justify-between mb-1">
                   <span className="text-xs text-zinc-400">{cat}</span>
                   <span className="text-xs font-bold text-white">{String(count)}</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
                   <div className="h-full rounded-full" style={{ width: `${Math.round((Number(count) / allVideos.length) * 100)}%`, background: GOLD }} />
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {allVideos.length === 0 && (
@@ -2357,7 +2392,67 @@ function VideoAnalyticsTab() {
 
 function SettingsTab() {
   const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const { data: lkSettings, refetch: refetchLk } = useQuery<any>({ queryKey: ["/api/video-marketing-settings"] });
+  const { data: domains = [], refetch: refetchDomains } = useQuery<any[]>({ queryKey: ["/api/webinar-domains"] });
   const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // ── Livekit state ──
+  const [lkUrl,    setLkUrl]    = useState("");
+  const [lkKey,    setLkKey]    = useState("");
+  const [lkSecret, setLkSecret] = useState("");
+  const [lkSaving, setLkSaving] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  useEffect(() => {
+    if (lkSettings) {
+      setLkUrl(lkSettings.livekitUrl || "");
+      setLkKey(lkSettings.livekitKey || "");
+    }
+  }, [lkSettings]);
+  const saveLkSettings = async () => {
+    setLkSaving(true);
+    try {
+      const body: any = { livekitUrl: lkUrl, livekitKey: lkKey };
+      if (lkSecret.trim()) body.livekitSecret = lkSecret;
+      await apiRequest("PATCH", "/api/video-marketing-settings", body);
+      await refetchLk();
+      setLkSecret("");
+      toast({ title: "Livekit settings saved" });
+    } catch { toast({ title: "Save failed", variant: "destructive" }); }
+    finally { setLkSaving(false); }
+  };
+
+  // ── Domain state ──
+  const [newDomain,  setNewDomain]  = useState("");
+  const [newSlug,    setNewSlug]    = useState("");
+  const [addingDom,  setAddingDom]  = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  const addDomain = async () => {
+    if (!newDomain.trim()) return;
+    setAddingDom(true);
+    try {
+      await apiRequest("POST", "/api/webinar-domains", { domain: newDomain.trim(), targetSlug: newSlug.trim() || undefined });
+      await refetchDomains();
+      setNewDomain(""); setNewSlug("");
+      toast({ title: "Domain added — add the DNS TXT record to verify." });
+    } catch (e: any) { toast({ title: e.message || "Failed to add domain", variant: "destructive" }); }
+    finally { setAddingDom(false); }
+  };
+  const deleteDomain = async (id: string) => {
+    await apiRequest("DELETE", `/api/webinar-domains/${id}`);
+    qc.invalidateQueries({ queryKey: ["/api/webinar-domains"] });
+    toast({ title: "Domain removed" });
+  };
+  const verifyDomain = async (id: string) => {
+    setVerifyingId(id);
+    try {
+      await apiRequest("POST", `/api/webinar-domains/${id}/verify`);
+      await refetchDomains();
+      toast({ title: "Domain verified! DNS is resolving correctly." });
+    } catch (e: any) { toast({ title: e.message || "Verification failed", variant: "destructive" }); }
+    finally { setVerifyingId(null); }
+  };
 
   const registerEndpoint = `${window.location.origin}/api/register/:meetingCode`;
   const publicPageBase = `${window.location.origin}/lp/:slug`;
@@ -2367,69 +2462,70 @@ function SettingsTab() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h3 className="text-lg font-bold text-white mb-1">Integration & Settings</h3>
+        <p className="text-[10px] font-black uppercase tracking-[0.22em] mb-0.5" style={{ color: `${GOLD}50` }}>Configure</p>
+        <h3 className="text-lg font-black mb-1" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Integration & Settings</h3>
         <p className="text-sm text-zinc-400">Connect your webinar platform with external tools and view integration details.</p>
       </div>
 
       {/* Public Registration API */}
-      <Card className="bg-zinc-900/60 border-zinc-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
             <Zap className="w-4 h-4" style={{ color: GOLD }} />
             Public Registration API
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
           <p className="text-xs text-zinc-400 leading-relaxed">
             Use this endpoint to allow external websites to register attendees for your webinars automatically.
           </p>
           <div>
-            <p className="text-xs text-zinc-500 mb-1.5 font-semibold">POST Endpoint</p>
-            <div className="flex items-center gap-2 bg-zinc-800/80 rounded-lg px-3 py-2.5 font-mono text-xs">
+            <p className="text-xs mb-1.5 font-semibold" style={{ color: `${GOLD}60` }}>POST Endpoint</p>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-xs" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
               <span className="text-green-400">POST</span>
               <span className="text-zinc-300 flex-1 truncate">{registerEndpoint}</span>
               <CopyBtn text={`${window.location.origin}/api/register/:meetingCode`} size="icon" />
             </div>
           </div>
           <div>
-            <p className="text-xs text-zinc-500 mb-1.5 font-semibold">Request Body</p>
-            <div className="bg-zinc-800/80 rounded-lg p-3 font-mono text-xs text-zinc-300 space-y-0.5">
+            <p className="text-xs mb-1.5 font-semibold" style={{ color: `${GOLD}60` }}>Request Body</p>
+            <div className="rounded-lg p-3 font-mono text-xs text-zinc-300 space-y-0.5" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
               <div><span className="text-purple-400">"name"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// required</span></div>
               <div><span className="text-purple-400">"email"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// required</span></div>
               <div><span className="text-purple-400">"phone"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// optional</span></div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Landing Pages */}
-      <Card className="bg-zinc-900/60 border-zinc-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
             <Globe className="w-4 h-4" style={{ color: GOLD }} />
             Public Landing Pages
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
           <p className="text-xs text-zinc-400 leading-relaxed">
             Your landing pages are publicly accessible at this URL pattern. Create and publish them in the Landing Pages tab.
           </p>
-          <div className="flex items-center gap-2 bg-zinc-800/80 rounded-lg px-3 py-2.5 font-mono text-xs">
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-xs" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
             <span className="text-zinc-300 flex-1 truncate">{publicPageBase}</span>
             <CopyBtn text={publicPageBase} size="icon" />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Public Webinars */}
-      <Card className="bg-zinc-900/60 border-zinc-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
             <Radio className="w-4 h-4" style={{ color: GOLD }} />
             Public Webinar Calendar
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </div>
+        <div className="px-5 pb-5">
           <p className="text-xs text-zinc-400 leading-relaxed mb-3">
             Webinars marked as "public" appear in the public webinar calendar. Toggle this when creating a webinar.
           </p>
@@ -2453,31 +2549,1400 @@ function SettingsTab() {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Quick Links */}
-      <Card className="bg-zinc-900/60 border-zinc-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
-            <Link2 className="w-4 h-4" style={{ color: GOLD }} />
-            Quick Links
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[
-            { label: "Webinars Dashboard", href: "#webinars" },
-            { label: "CRM / Contacts", href: "#crm" },
-            { label: "Recordings Library", href: "#recordings" },
-            { label: "Analytics Overview", href: "#analytics" },
-          ].map(({ label }) => (
-            <div key={label} className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-zinc-300">{label}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-zinc-600" />
+      {/* Livekit / Unlimited Scale */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Server className="w-4 h-4" style={{ color: GOLD }} />
+            Livekit — Unlimited Attendees
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
+          <div className="p-3 rounded-xl text-xs leading-relaxed" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}18` }}>
+            <p className="text-zinc-300 mb-1"><span className="font-bold" style={{ color: GOLD }}>Scale beyond 50 viewers</span> with Livekit Cloud SFU.</p>
+            <p className="text-zinc-500">Create a free account at <span className="text-zinc-300">cloud.livekit.io</span> → New Project → copy the API Key, Secret, and WSS URL.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 text-zinc-400">Livekit Server URL (wss://...)</label>
+            <input value={lkUrl} onChange={e => setLkUrl(e.target.value)} placeholder="wss://your-project.livekit.cloud"
+              className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}15` }} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 text-zinc-400">API Key</label>
+            <input value={lkKey} onChange={e => setLkKey(e.target.value)} placeholder="APIxxxxxxxx"
+              className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}15` }} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 text-zinc-400">
+              API Secret
+              {lkSettings?.hasSecret && !lkSecret && (
+                <span className="ml-2 text-green-500 font-normal">✓ saved</span>
+              )}
+            </label>
+            <div className="relative">
+              <input value={lkSecret} onChange={e => setLkSecret(e.target.value)}
+                type={showSecret ? "text" : "password"}
+                placeholder={lkSettings?.hasSecret ? "••••••• (leave blank to keep)" : "Enter API Secret"}
+                className="w-full px-3 py-2 pr-10 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none"
+                style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}15` }} />
+              <button onClick={() => setShowSecret(s => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+                {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+          <button onClick={saveLkSettings} disabled={lkSaving}
+            className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ background: `linear-gradient(135deg, ${GOLD} 0%, ${GOLD}cc 100%)`, color: "#040406" }}>
+            {lkSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+            {lkSaving ? "Saving…" : "Save Livekit Settings"}
+          </button>
+          {lkSettings?.livekitKey && (
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+              Connected. When you start a webinar, host &amp; viewer tokens are generated automatically.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* HLS Broadcast URL guide */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Wifi className="w-4 h-4" style={{ color: GOLD }} />
+            HLS Broadcast (OBS + CDN)
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            For truly unlimited viewers, stream via OBS → YouTube Live / Mux / Cloudflare Stream, then paste the HLS <code className="text-zinc-300">.m3u8</code> or embed URL into the webinar's <span className="text-zinc-200">Broadcast URL</span> field in the studio settings.
+          </p>
+          <div className="rounded-xl p-3 space-y-1.5 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.06)` }}>
+            {["1. Open OBS → Settings → Stream → choose YouTube / Custom RTMP", "2. Get your stream key from the CDN provider", "3. Go live in OBS", "4. Copy the HLS playback URL from your CDN provider", "5. Paste it in the Webinar Studio → Settings → Broadcast URL"].map(s => (
+              <p key={s} className="text-zinc-500">{s}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Custom Domains */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Shield className="w-4 h-4" style={{ color: GOLD }} />
+            Custom Domains
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Serve your landing pages on your own domain (e.g. <span className="text-zinc-200">webinar.yourbrand.com</span>). Point a DNS TXT record to verify ownership, then CNAME to <span className="text-zinc-200">oravini.app</span>.
+          </p>
+
+          {/* Add domain form */}
+          <div className="space-y-2">
+            <input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="webinar.yourbrand.com"
+              className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}15` }} />
+            <input value={newSlug} onChange={e => setNewSlug(e.target.value)} placeholder="Landing page slug (optional)"
+              className="w-full px-3 py-2 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none"
+              style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}15` }} />
+            <button onClick={addDomain} disabled={addingDom || !newDomain.trim()}
+              className="w-full py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity hover:opacity-90"
+              style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}25` }}>
+              {addingDom ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              Add Domain
+            </button>
+          </div>
+
+          {/* Domain list */}
+          {(domains as any[]).length > 0 && (
+            <div className="space-y-2">
+              {(domains as any[]).map((d: any) => (
+                <div key={d.id} className="rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid rgba(255,255,255,0.07)` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white truncate">{d.domain}</p>
+                      {d.targetSlug && <p className="text-[10px] text-zinc-500">→ /lp/{d.targetSlug}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${d.status === "active" ? "bg-green-500/15 text-green-400" : d.status === "failed" ? "bg-red-500/15 text-red-400" : "bg-zinc-700/50 text-zinc-400"}`}>
+                        {d.status}
+                      </span>
+                      <button onClick={() => deleteDomain(d.id)} className="text-zinc-600 hover:text-red-400 transition-colors p-1">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  {d.status !== "active" && d.verifyToken && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-zinc-500">Add this TXT record to your DNS:</p>
+                      <div className="rounded-lg px-2.5 py-2 font-mono text-[10px] text-zinc-300 break-all" style={{ background: "rgba(255,255,255,0.04)" }}>
+                        {d.verifyToken}
+                      </div>
+                      <button onClick={() => verifyDomain(d.id)} disabled={verifyingId === d.id}
+                        className="flex items-center gap-1.5 text-[11px] font-bold transition-colors disabled:opacity-50"
+                        style={{ color: GOLD }}>
+                        {verifyingId === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                        {verifyingId === d.id ? "Checking DNS…" : "Verify Now"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {(domains as any[]).length === 0 && (
+            <div className="flex items-center gap-2 p-3 rounded-xl text-xs text-zinc-500" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}15` }}>
+              <Globe className="w-3.5 h-3.5 flex-shrink-0" style={{ color: `${GOLD}50` }} />
+              No custom domains yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Public Registration API */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Zap className="w-4 h-4" style={{ color: GOLD }} />
+            Public Registration API
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Use this endpoint to allow external websites to register attendees for your webinars automatically.
+          </p>
+          <div>
+            <p className="text-xs mb-1.5 font-semibold" style={{ color: `${GOLD}60` }}>POST Endpoint</p>
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-xs" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
+              <span className="text-green-400">POST</span>
+              <span className="text-zinc-300 flex-1 truncate">{registerEndpoint}</span>
+              <CopyBtn text={`${window.location.origin}/api/register/:meetingCode`} size="icon" />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs mb-1.5 font-semibold" style={{ color: `${GOLD}60` }}>Request Body</p>
+            <div className="rounded-lg p-3 font-mono text-xs text-zinc-300 space-y-0.5" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
+              <div><span className="text-purple-400">"name"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// required</span></div>
+              <div><span className="text-purple-400">"email"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// required</span></div>
+              <div><span className="text-purple-400">"phone"</span>: <span className="text-green-400">"string"</span> <span className="text-zinc-600">// optional</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Landing Pages */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Globe className="w-4 h-4" style={{ color: GOLD }} />
+            Public Landing Pages
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-3">
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Your landing pages are publicly accessible at this URL pattern. Create and publish them in the Landing Pages tab.
+          </p>
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-xs" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}10` }}>
+            <span className="text-zinc-300 flex-1 truncate">{publicPageBase}</span>
+            <CopyBtn text={publicPageBase} size="icon" />
+          </div>
+        </div>
+      </div>
+
+      {/* Public Webinars */}
+      <div className="rounded-xl overflow-hidden" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-sm font-bold text-white flex items-center gap-2">
+            <Radio className="w-4 h-4" style={{ color: GOLD }} />
+            Public Webinar Calendar
+          </p>
+        </div>
+        <div className="px-5 pb-5">
+          <p className="text-xs text-zinc-400 leading-relaxed mb-3">
+            Webinars marked as "public" appear in the public webinar calendar. Toggle this when creating a webinar.
+          </p>
+          {publicWebinars.length === 0 ? (
+            <div className="flex items-center gap-2 p-3 rounded-lg text-xs text-zinc-500" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.15)" }}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: `${GOLD}80` }} />
+              No public webinars yet. Create a webinar and check "Show on public calendar".
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {publicWebinars.map((w: any) => (
+                <div key={w.id} className="flex items-center justify-between py-1.5">
+                  <p className="text-sm text-white">{w.title}</p>
+                  <Badge className="text-[10px] border-none" style={{ background: `${GOLD}18`, color: GOLD }}>Public</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SERIES TAB ────────────────────────────────────────────────────────────────
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const SCHEDULE_OPTS = [{ v: "weekly", l: "Weekly" }, { v: "biweekly", l: "Every 2 Weeks" }, { v: "monthly", l: "Monthly" }];
+
+function getNextDate(dayOfWeek: number, timeHour: number, timeMinute: number, schedule: string): Date {
+  const now = new Date();
+  const d = new Date();
+  d.setHours(timeHour, timeMinute, 0, 0);
+  const diff = (dayOfWeek - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + (diff === 0 && d <= now ? (schedule === "weekly" ? 7 : schedule === "biweekly" ? 14 : 30) : diff || (schedule === "weekly" ? 7 : schedule === "biweekly" ? 14 : 30)));
+  return d;
+}
+
+function SeriesTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", schedule: "weekly", dayOfWeek: 1, timeHour: 19, timeMinute: 0, durationMinutes: 60, presenterName: "", webinarType: "live" });
+
+  const { data: series = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/webinar-series"] });
+
+  const createMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/webinar-series", d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/webinar-series"] }); setShowCreate(false); toast({ title: "Series created!" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/webinar-series/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/webinar-series"] }),
+  });
+  const toggleMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => apiRequest("PATCH", `/api/webinar-series/${id}`, { isActive }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/webinar-series"] }),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Recurring Events —</p>
+          <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Webinar Series</h3>
+          <p className="text-sm text-zinc-500 mt-1">One registration link for a recurring webinar schedule. Attendees register once, attend every session.</p>
+        </div>
+        <Button size="sm" style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5 flex-shrink-0" onClick={() => setShowCreate(true)}>
+          <Plus className="w-4 h-4" /> New Series
+        </Button>
+      </div>
+
+      <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
+
+      {isLoading ? (
+        <div className="space-y-3">{[1,2].map(i => <Skeleton key={i} className="h-28 rounded-2xl bg-zinc-800" />)}</div>
+      ) : (series as any[]).length === 0 ? (
+        <EmptyState icon={Repeat2} title="No series yet" desc="Create a recurring webinar series. One registration link auto-creates sessions weekly, biweekly, or monthly." action={<Button size="sm" style={{ background: GOLD, color: "#000" }} onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-1.5" /> Create Series</Button>} />
+      ) : (
+        <div className="grid gap-4">
+          {(series as any[]).map((s: any) => {
+            const nextDate = getNextDate(s.dayOfWeek || 1, s.timeHour || 19, s.timeMinute || 0, s.schedule || "weekly");
+            return (
+              <div key={s.id} className="rounded-2xl p-5" style={{ background: "#0c0c10", border: `1px solid ${s.isActive ? GOLD + "30" : "rgba(255,255,255,0.06)"}` }}>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: s.isActive ? `${GOLD}20` : "rgba(255,255,255,0.06)", color: s.isActive ? GOLD : "#71717a" }}>
+                        {s.isActive ? "● ACTIVE" : "○ PAUSED"}
+                      </span>
+                      <span className="text-[10px] font-semibold text-zinc-500">{SCHEDULE_OPTS.find(o => o.v === s.schedule)?.l || "Weekly"}</span>
+                    </div>
+                    <h4 className="font-bold text-white text-base mb-0.5">{s.title}</h4>
+                    {s.description && <p className="text-xs text-zinc-500 mb-1">{s.description}</p>}
+                    <div className="flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
+                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{DAY_NAMES[s.dayOfWeek || 1]}s at {String(s.timeHour || 19).padStart(2,"0")}:{String(s.timeMinute || 0).padStart(2,"0")}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{s.durationMinutes || 60}min</span>
+                      {s.presenterName && <span className="flex items-center gap-1"><Users className="w-3 h-3" />with {s.presenterName}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => toggleMut.mutate({ id: s.id, isActive: !s.isActive })}
+                      className="text-xs px-3 py-1.5 rounded-xl font-bold transition-all hover:opacity-80"
+                      style={{ background: s.isActive ? "rgba(239,68,68,0.12)" : `${GOLD}18`, color: s.isActive ? "#f87171" : GOLD }}>
+                      {s.isActive ? "Pause" : "Activate"}
+                    </button>
+                    <button onClick={() => deleteMut.mutate(s.id)} className="p-2 rounded-xl text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-all">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pt-4" style={{ borderTop: `1px solid rgba(255,255,255,0.06)` }}>
+                  <div className="flex-1 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-600 mb-0.5">Next Session</p>
+                    <p className="text-xs font-semibold text-white">{format(nextDate, "EEE, MMM d · h:mm a")}</p>
+                  </div>
+                  {s.registrationSlug && (
+                    <div className="flex items-center gap-1.5 flex-1 rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <Link2 className="w-3 h-3 text-zinc-600 flex-shrink-0" />
+                      <span className="text-[10px] text-zinc-400 truncate flex-1">/lp/{s.registrationSlug}</span>
+                      <CopyBtn text={`${window.location.origin}/lp/${s.registrationSlug}`} size="icon" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="bg-zinc-900 border-zinc-700 max-w-md">
+          <DialogHeader><DialogTitle className="text-white font-bold flex items-center gap-2"><Repeat2 className="w-4 h-4" style={{ color: GOLD }} /> New Webinar Series</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div><label className="text-xs text-zinc-400 mb-1.5 block">Series Name *</label>
+              <Input placeholder="Weekly Sales Masterclass" value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} className="bg-zinc-800 border-zinc-700 text-white" /></div>
+            <div><label className="text-xs text-zinc-400 mb-1.5 block">Description</label>
+              <Textarea placeholder="What is this series about?" value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} className="bg-zinc-800 border-zinc-700 text-white resize-none" rows={2} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-zinc-400 mb-1.5 block">Frequency</label>
+                <Select value={form.schedule} onValueChange={v => setForm(f => ({...f, schedule: v}))}>
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {SCHEDULE_OPTS.map(o => <SelectItem key={o.v} value={o.v} className="text-zinc-300">{o.l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><label className="text-xs text-zinc-400 mb-1.5 block">Day of Week</label>
+                <Select value={String(form.dayOfWeek)} onValueChange={v => setForm(f => ({...f, dayOfWeek: Number(v)}))}>
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {DAY_NAMES.map((d, i) => <SelectItem key={i} value={String(i)} className="text-zinc-300">{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-zinc-400 mb-1.5 block">Start Hour (24h)</label>
+                <Input type="number" min={0} max={23} value={form.timeHour} onChange={e => setForm(f => ({...f, timeHour: Number(e.target.value)}))} className="bg-zinc-800 border-zinc-700 text-white" /></div>
+              <div><label className="text-xs text-zinc-400 mb-1.5 block">Duration (min)</label>
+                <Input type="number" min={15} value={form.durationMinutes} onChange={e => setForm(f => ({...f, durationMinutes: Number(e.target.value)}))} className="bg-zinc-800 border-zinc-700 text-white" /></div>
+            </div>
+            <div><label className="text-xs text-zinc-400 mb-1.5 block">Presenter Name</label>
+              <Input placeholder="John Smith" value={form.presenterName} onChange={e => setForm(f => ({...f, presenterName: e.target.value}))} className="bg-zinc-800 border-zinc-700 text-white" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowCreate(false)} className="text-zinc-400">Cancel</Button>
+            <Button onClick={() => createMut.mutate(form)} disabled={createMut.isPending || !form.title} style={{ background: GOLD, color: "#000" }} className="font-semibold">
+              {createMut.isPending ? "Creating…" : "Create Series"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── EMAIL SEQUENCES TAB ───────────────────────────────────────────────────────
+function EmailSequencesTab() {
+  const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const TRIGGER_TYPES = [
+    { id: "reminder_24h", label: "24h Before Reminder",    icon: Bell,  desc: "Sent 24 hours before the scheduled start time", color: "#60a5fa" },
+    { id: "going_live",   label: "Going Live Notification", icon: Radio, desc: "Sent when host clicks Go Live", color: "#ef4444" },
+    { id: "replay",       label: "Replay Follow-up",        icon: Play,  desc: "Sent 1 hour after the webinar ends with replay link", color: "#34d399" },
+  ];
+
+  const testEmailMut = useMutation({
+    mutationFn: (type: string) => apiRequest("POST", "/api/email/test", { type }),
+    onSuccess: () => toast({ title: "Test email sent!" }),
+    onError: () => toast({ title: "Configure EMAIL_USER + EMAIL_PASS first", variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Automated —</p>
+        <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Email Sequences</h3>
+        <p className="text-sm text-zinc-500 mt-1">Automated emails sent to registered attendees at key moments in the webinar lifecycle.</p>
+      </div>
+
+      <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
+
+      {/* Trigger cards */}
+      <div className="grid gap-4">
+        {TRIGGER_TYPES.map(t => (
+          <div key={t.id} className="rounded-2xl p-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${t.color}14`, border: `1px solid ${t.color}22` }}>
+                <t.icon className="w-5 h-5" style={{ color: t.color }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-bold text-white text-sm">{t.label}</p>
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full text-green-400" style={{ background: "rgba(52,211,153,0.12)" }}>AUTO</span>
+                </div>
+                <p className="text-xs text-zinc-500 mb-3 leading-relaxed">{t.desc}</p>
+                <div className="rounded-xl p-3 text-xs font-mono leading-relaxed" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", color: "#a1a1aa" }}>
+                  {t.id === "reminder_24h" && `To: {registrant.email}\nSubject: 📅 Reminder: {webinar.title} is tomorrow\nBody: Don't forget — you're registered for "{webinar.title}" starting at {time}. Join link: {watchUrl}`}
+                  {t.id === "going_live" && `To: {registrant.email}\nSubject: 🔴 LIVE NOW: {webinar.title}\nBody: We're starting right now! Click to join: {watchUrl}`}
+                  {t.id === "replay" && `To: {registrant.email}\nSubject: 🎬 Replay Available: {webinar.title}\nBody: Missed it or want to rewatch? The replay is now available: {replayUrl}`}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-webinar email status */}
+      {(webinars as any[]).length > 0 && (
+        <div>
+          <h4 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2"><Mail className="w-4 h-4" style={{ color: GOLD }} /> Webinar Email Status</h4>
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+            <div className="px-4 py-3 text-[10px] font-black uppercase tracking-wider" style={{ background: "#0c0c10", borderBottom: `1px solid ${GOLD}12`, color: `${GOLD}55` }}>
+              {(webinars as any[]).length} webinar{(webinars as any[]).length !== 1 ? "s" : ""} · automated emails active for all
+            </div>
+            {(webinars as any[]).slice(0, 6).map((w: any) => (
+              <div key={w.id} className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: "rgba(12,12,16,0.8)" }}>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">{w.title}</p>
+                  <p className="text-[10px] text-zinc-600">{w.scheduledAt ? format(new Date(w.scheduledAt), "MMM d, h:mm a") : "No date set"}</p>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0 ml-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  <span className="text-[10px] text-green-400 font-semibold">Emails Active</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Setup note */}
+      <div className="rounded-2xl p-5" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}20` }}>
+        <div className="flex items-start gap-3">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: GOLD }} />
+          <div>
+            <p className="text-sm font-bold text-white mb-1">Email Setup</p>
+            <p className="text-xs text-zinc-400 leading-relaxed">Set <code className="bg-zinc-800 px-1 rounded text-xs">EMAIL_USER</code> and <code className="bg-zinc-800 px-1 rounded text-xs">EMAIL_PASS</code> environment variables to enable automated emails. Uses Gmail SMTP with app passwords.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── VSL STUDIO TAB ───────────────────────────────────────────────────────────
+
+function VSLStudioTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [ctaForm, setCtaForm] = useState({ type: "button", text: "", url: "", appearAt: 0, disappearAt: "", style: "gold", isActive: true });
+  const [chapterForm, setChapterForm] = useState({ title: "", startSeconds: 0, description: "" });
+  const [showCtaForm, setShowCtaForm] = useState(false);
+  const [showChapterForm, setShowChapterForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<"ctas"|"chapters"|"urgency">("ctas");
+
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const vslVideos = (videos as any[]).filter(v => v.videoType === "vsl");
+  const selected = vslVideos.find((v: any) => v.id === selectedId) || null;
+
+  const { data: ctas = [] } = useQuery<any[]>({
+    queryKey: ["/api/video-events", selectedId, "ctas"],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/ctas`, { credentials: "include" }).then(r => r.json()) : [],
+    enabled: !!selectedId,
+  });
+  const { data: chapters = [] } = useQuery<any[]>({
+    queryKey: ["/api/video-events", selectedId, "chapters"],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/chapters`, { credentials: "include" }).then(r => r.json()) : [],
+    enabled: !!selectedId,
+  });
+
+  const createCtaMut = useMutation({
+    mutationFn: (data: any) => fetch(`/api/video-events/${selectedId}/ctas`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-events", selectedId, "ctas"] }); setShowCtaForm(false); setCtaForm({ type: "button", text: "", url: "", appearAt: 0, disappearAt: "", style: "gold", isActive: true }); toast({ title: "CTA added!" }); },
+  });
+  const deleteCtaMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/video-ctas/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/video-events", selectedId, "ctas"] }),
+  });
+  const toggleCtaMut = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => fetch(`/api/video-ctas/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ isActive }) }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/video-events", selectedId, "ctas"] }),
+  });
+  const createChapterMut = useMutation({
+    mutationFn: (data: any) => fetch(`/api/video-events/${selectedId}/chapters`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-events", selectedId, "chapters"] }); setShowChapterForm(false); setChapterForm({ title: "", startSeconds: 0, description: "" }); toast({ title: "Chapter added!" }); },
+  });
+  const deleteChapterMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/video-chapters/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/video-events", selectedId, "chapters"] }),
+  });
+  const updateSettingsMut = useMutation({
+    mutationFn: (data: any) => fetch(`/api/video-events/${selectedId}/settings`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-events"] }); toast({ title: "Settings saved" }); },
+  });
+
+  const fmtSec = (s: number) => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  const CTA_STYLES: Record<string, { bg: string; text: string }> = {
+    gold:  { bg: GOLD,      text: "#000" },
+    red:   { bg: "#ef4444", text: "#fff" },
+    white: { bg: "#fff",    text: "#000" },
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— VSL Studio —</p>
+        <h3 className="text-2xl font-black mb-4" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>VSL Studio</h3>
+        <div className="relative w-full max-w-sm">
+          <select
+            value={selectedId}
+            onChange={e => setSelectedId(e.target.value)}
+            className="w-full appearance-none text-sm text-white bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 pr-9 cursor-pointer"
+            style={{ borderColor: selectedId ? `${GOLD}55` : undefined }}
+          >
+            <option value="">— Select a VSL to configure —</option>
+            {vslVideos.map((v: any) => <option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+        </div>
+        {vslVideos.length === 0 && <p className="text-sm text-zinc-500 mt-3">No VSLs yet — add a video with type "VSL" in the Library tab.</p>}
+      </div>
+
+      {selected && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${GOLD}20` }}>
+          <div className="px-5 py-4 flex items-center gap-3" style={{ background: "#0c0c10", borderBottom: `1px solid ${GOLD}14` }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}30` }}>
+              <Zap className="w-4 h-4" style={{ color: GOLD }} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">{selected.title}</p>
+              <p className="text-xs text-zinc-500">{selected.duration ? `${selected.duration}m` : "Duration not set"} · VSL</p>
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="flex gap-1 mb-5 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+              {(["ctas","chapters","urgency"] as const).map(t => (
+                <button key={t} onClick={() => setActiveTab(t)} className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all" style={{
+                  background: activeTab === t ? GOLD : "transparent",
+                  color: activeTab === t ? "#000" : "#71717a",
+                }}>
+                  {t === "ctas" ? "⚡ Timed CTAs" : t === "chapters" ? "📑 Chapters" : "🔥 Urgency Bar"}
+                </button>
+              ))}
+            </div>
+
+            {/* CTAs Tab */}
+            {activeTab === "ctas" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-zinc-400">Overlays that appear at specific timestamps. Viewers see them during playback.</p>
+                  <Button size="sm" onClick={() => setShowCtaForm(v => !v)} style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1 text-xs">
+                    <Plus className="w-3 h-3" /> Add CTA
+                  </Button>
+                </div>
+                {showCtaForm && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(212,180,97,0.06)", border: `1px solid ${GOLD}25` }}>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["button","banner","urgency"].map(t => (
+                        <button key={t} onClick={() => setCtaForm(f => ({ ...f, type: t }))} className="py-2 rounded-lg text-xs font-bold transition-all capitalize" style={{ background: ctaForm.type === t ? `${GOLD}22` : "rgba(255,255,255,0.04)", color: ctaForm.type === t ? GOLD : "#71717a", border: `1px solid ${ctaForm.type === t ? GOLD+"44" : "transparent"}` }}>
+                          {t === "button" ? "🖱 Button" : t === "banner" ? "📢 Banner" : "⏳ Urgency"}
+                        </button>
+                      ))}
+                    </div>
+                    <input placeholder="CTA text (e.g. 'Grab My Free Guide →')" value={ctaForm.text} onChange={e => setCtaForm(f => ({ ...f, text: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder:text-zinc-600" />
+                    <input placeholder="URL (https://...)" value={ctaForm.url} onChange={e => setCtaForm(f => ({ ...f, url: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder:text-zinc-600" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] text-zinc-500 mb-1">Appear at (seconds)</p>
+                        <input type="number" value={ctaForm.appearAt} onChange={e => setCtaForm(f => ({ ...f, appearAt: Number(e.target.value) }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-zinc-500 mb-1">Disappear at (blank = stays)</p>
+                        <input type="number" placeholder="—" value={ctaForm.disappearAt} onChange={e => setCtaForm(f => ({ ...f, disappearAt: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {Object.entries(CTA_STYLES).map(([key, s]) => (
+                        <button key={key} onClick={() => setCtaForm(f => ({ ...f, style: key }))} className="flex-1 py-1.5 rounded-lg text-xs font-bold capitalize transition-all" style={{ background: s.bg, color: s.text, outline: ctaForm.style === key ? `2px solid #fff` : "none", outlineOffset: "2px" }}>
+                          {key}
+                        </button>
+                      ))}
+                    </div>
+                    <Button size="sm" onClick={() => createCtaMut.mutate(ctaForm)} disabled={!ctaForm.text || createCtaMut.isPending} style={{ background: GOLD, color: "#000" }} className="font-semibold w-full">
+                      {createCtaMut.isPending ? "Saving…" : "Save CTA"}
+                    </Button>
+                  </div>
+                )}
+                {(ctas as any[]).length === 0 ? (
+                  <div className="text-center py-8 text-zinc-600 text-sm">No CTAs yet. Add one to start converting viewers.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {(ctas as any[]).map((c: any) => (
+                      <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${c.isActive ? GOLD+"22" : "rgba(63,63,70,0.5)"}` }}>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: CTA_STYLES[c.style]?.bg || GOLD, color: CTA_STYLES[c.style]?.text || "#000" }}>
+                          <MousePointer className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{c.text}</p>
+                          <p className="text-[10px] text-zinc-500">Appears at {fmtSec(c.appearAt)} · {c.type} · {c.clicks || 0} clicks</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => toggleCtaMut.mutate({ id: c.id, isActive: !c.isActive })} className="text-[10px] px-2 py-0.5 rounded-full font-bold transition-all" style={{ background: c.isActive ? "#22c55e18" : "rgba(255,255,255,0.06)", color: c.isActive ? "#22c55e" : "#71717a" }}>
+                            {c.isActive ? "ON" : "OFF"}
+                          </button>
+                          <button onClick={() => deleteCtaMut.mutate(c.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 transition-colors">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Chapters Tab */}
+            {activeTab === "chapters" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-zinc-400">Chapter markers allow viewers to jump to key sections of the video.</p>
+                  <Button size="sm" onClick={() => setShowChapterForm(v => !v)} style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1 text-xs">
+                    <Plus className="w-3 h-3" /> Add Chapter
+                  </Button>
+                </div>
+                {showChapterForm && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(212,180,97,0.06)", border: `1px solid ${GOLD}25` }}>
+                    <input placeholder="Chapter title (e.g. 'The Core Problem')" value={chapterForm.title} onChange={e => setChapterForm(f => ({ ...f, title: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder:text-zinc-600" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] text-zinc-500 mb-1">Start time (seconds)</p>
+                        <input type="number" value={chapterForm.startSeconds} onChange={e => setChapterForm(f => ({ ...f, startSeconds: Number(e.target.value) }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2" />
+                      </div>
+                      <div className="flex items-end">
+                        <p className="text-zinc-400 text-xs">{fmtSec(chapterForm.startSeconds)}</p>
+                      </div>
+                    </div>
+                    <input placeholder="Description (optional)" value={chapterForm.description} onChange={e => setChapterForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 placeholder:text-zinc-600" />
+                    <Button size="sm" onClick={() => createChapterMut.mutate(chapterForm)} disabled={!chapterForm.title || createChapterMut.isPending} style={{ background: GOLD, color: "#000" }} className="font-semibold w-full">
+                      {createChapterMut.isPending ? "Saving…" : "Save Chapter"}
+                    </Button>
+                  </div>
+                )}
+                {(chapters as any[]).length === 0 ? (
+                  <div className="text-center py-8 text-zinc-600 text-sm">No chapters yet.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {(chapters as any[]).map((ch: any) => (
+                      <div key={ch.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}12` }}>
+                        <div className="text-xs font-mono font-bold" style={{ color: GOLD }}>{fmtSec(ch.startSeconds)}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white">{ch.title}</p>
+                          {ch.description && <p className="text-[10px] text-zinc-500 truncate">{ch.description}</p>}
+                        </div>
+                        <button onClick={() => deleteChapterMut.mutate(ch.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 transition-colors">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Urgency Bar Tab */}
+            {activeTab === "urgency" && (
+              <div className="space-y-4">
+                <p className="text-xs text-zinc-400">The urgency bar appears above the video player — a countdown or scarcity message that runs while the video plays.</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1.5">Urgency Message</p>
+                    <input placeholder="e.g. '⚡ This offer expires in {timer}...'" defaultValue={selected.urgencyText || ""} onBlur={e => updateSettingsMut.mutate({ urgencyText: e.target.value || null })} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+                    <p className="text-[10px] text-zinc-600 mt-1">Use &#123;timer&#125; to insert a live countdown</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1.5">Urgency Countdown Ends At</p>
+                    <input type="datetime-local" defaultValue={selected.urgencyEndsAt ? new Date(selected.urgencyEndsAt).toISOString().slice(0,16) : ""} onBlur={e => updateSettingsMut.mutate({ urgencyEndsAt: e.target.value ? new Date(e.target.value).toISOString() : null })} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3" />
+                  </div>
+                  {(selected.urgencyText) && (
+                    <div>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-1.5">Bar Preview</p>
+                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", borderLeft: `2px solid ${GOLD}50` }}>
+                        <Timer className="w-3 h-3 flex-shrink-0" style={{ color: `${GOLD}80` }} />
+                        <p className="text-xs text-zinc-400">{selected.urgencyText.replace("{timer}", "02:47:33")}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── VIDEO COLLECTIONS TAB ─────────────────────────────────────────────────────
+
+function VideoCollectionsTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [addingVideo, setAddingVideo] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", isPublic: false });
+
+  const { data: collections = [] } = useQuery<any[]>({ queryKey: ["/api/video-collections"] });
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: items = [] } = useQuery<any[]>({
+    queryKey: ["/api/video-collections", selectedId, "items"],
+    queryFn: () => selectedId ? fetch(`/api/video-collections/${selectedId}/items`, { credentials: "include" }).then(r => r.json()) : [],
+    enabled: !!selectedId,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => fetch("/api/video-collections", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-collections"] }); setShowCreate(false); setForm({ title: "", description: "", isPublic: false }); toast({ title: "Collection created!" }); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/video-collections/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-collections"] }); if (selectedId) setSelectedId(null); },
+  });
+  const addVideoMut = useMutation({
+    mutationFn: ({ colId, videoEventId }: { colId: number; videoEventId: string }) => fetch(`/api/video-collections/${colId}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ videoEventId, sortOrder: (items as any[]).length }) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-collections", selectedId, "items"] }); setAddingVideo(false); toast({ title: "Video added to collection" }); },
+  });
+  const removeVideoMut = useMutation({
+    mutationFn: (id: number) => fetch(`/api/video-collection-items/${id}`, { method: "DELETE", credentials: "include" }).then(r => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/video-collections", selectedId, "items"] }),
+  });
+
+  const selected = (collections as any[]).find((c: any) => c.id === selectedId);
+  const itemVideoIds = new Set((items as any[]).map((i: any) => i.videoEventId));
+  const availableVideos = (videos as any[]).filter((v: any) => !itemVideoIds.has(v.id));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Collections —</p>
+          <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Video Collections</h3>
+        </div>
+        <Button size="sm" onClick={() => setShowCreate(v => !v)} style={{ background: GOLD, color: "#000" }} className="font-semibold gap-1.5">
+          <Plus className="w-4 h-4" /> New Collection
+        </Button>
+      </div>
+
+      {showCreate && (
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: "rgba(212,180,97,0.05)", border: `1px solid ${GOLD}25` }}>
+          <input placeholder="Collection title (e.g. 'Sales Mastery Course')" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+          <input placeholder="Description (optional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+          <div className="flex items-center gap-3">
+            <input type="checkbox" id="col-public" checked={form.isPublic} onChange={e => setForm(f => ({ ...f, isPublic: e.target.checked }))} className="w-4 h-4 accent-[#d4b461]" />
+            <label htmlFor="col-public" className="text-xs text-zinc-400">Make collection public (shareable link)</label>
+          </div>
+          <Button size="sm" onClick={() => createMut.mutate(form)} disabled={!form.title || createMut.isPending} style={{ background: GOLD, color: "#000" }} className="font-semibold">
+            {createMut.isPending ? "Creating…" : "Create Collection"}
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Collections list */}
+        <div className="space-y-2">
+          {(collections as any[]).length === 0 ? (
+            <div className="rounded-xl p-6 text-center" style={{ border: `1px dashed ${GOLD}20` }}>
+              <Layers className="w-8 h-8 mx-auto mb-2 text-zinc-700" />
+              <p className="text-sm text-zinc-500">No collections yet</p>
+            </div>
+          ) : (collections as any[]).map((col: any) => (
+            <div key={col.id} onClick={() => setSelectedId(col.id === selectedId ? null : col.id)} className="p-4 rounded-xl cursor-pointer transition-all" style={{
+              background: col.id === selectedId ? `${GOLD}10` : "rgba(255,255,255,0.03)",
+              border: `1px solid ${col.id === selectedId ? GOLD+"44" : "rgba(63,63,70,0.5)"}`,
+            }}>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{col.title}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{col.isPublic ? "🌐 Public" : "🔒 Private"} · {format(new Date(col.createdAt), "MMM d")}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+                </div>
+              </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Collection detail */}
+        <div className="lg:col-span-2">
+          {!selected ? (
+            <div className="rounded-xl p-8 text-center h-full flex flex-col items-center justify-center" style={{ border: `1px dashed ${GOLD}15` }}>
+              <Layers className="w-10 h-10 mb-3 text-zinc-700" />
+              <p className="text-sm text-zinc-500">Select a collection to manage its videos</p>
+            </div>
+          ) : (
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}20` }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ background: "#0c0c10", borderBottom: `1px solid ${GOLD}12` }}>
+                <div>
+                  <p className="text-sm font-bold text-white">{selected.title}</p>
+                  <p className="text-xs text-zinc-500">{(items as any[]).length} video{(items as any[]).length !== 1 ? "s" : ""}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setAddingVideo(v => !v)} className="text-xs border-zinc-700 text-zinc-300 gap-1">
+                    <Plus className="w-3 h-3" /> Add Video
+                  </Button>
+                  <button onClick={() => deleteMut.mutate(selected.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {addingVideo && (
+                <div className="p-3 border-b border-zinc-800 bg-zinc-900/50">
+                  <p className="text-xs text-zinc-400 mb-2">Click a video to add it:</p>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                    {availableVideos.length === 0 ? (
+                      <p className="text-xs text-zinc-600">All videos already in this collection</p>
+                    ) : availableVideos.map((v: any) => (
+                      <button key={v.id} onClick={() => addVideoMut.mutate({ colId: selected.id, videoEventId: v.id })} className="text-xs px-2.5 py-1 rounded-lg font-medium transition-all" style={{ background: "rgba(255,255,255,0.06)", color: "#d4d4d8" }}>
+                        + {v.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="divide-y" style={{ borderColor: "rgba(63,63,70,0.4)" }}>
+                {(items as any[]).length === 0 ? (
+                  <div className="p-6 text-center text-zinc-600 text-sm">No videos yet. Add some above.</div>
+                ) : (items as any[]).map((item: any, idx: number) => {
+                  const vid = (videos as any[]).find((v: any) => v.id === item.videoEventId);
+                  return (
+                    <div key={item.id} className="px-4 py-3 flex items-center gap-3">
+                      <span className="text-xs text-zinc-600 font-mono w-4">{idx + 1}</span>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}15` }}>
+                        <Play className="w-3 h-3" style={{ color: GOLD }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-white truncate">{vid?.title || "Unknown video"}</p>
+                        <p className="text-[10px] text-zinc-500">{vid?.videoType || "standard"} · {vid?.duration || "—"}m</p>
+                      </div>
+                      <button onClick={() => removeVideoMut.mutate(item.id)} className="w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── VIDEO VIEWER CRM TAB ──────────────────────────────────────────────────────
+
+function VideoViewerCRMTab() {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: sessions = [] } = useQuery<any[]>({
+    queryKey: ["/api/video-events", selectedId, "viewers"],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/viewers`, { credentials: "include" }).then(r => r.json()) : [],
+    enabled: !!selectedId,
+  });
+
+  const selected = (videos as any[]).find((v: any) => v.id === selectedId);
+  const allSessions = sessions as any[];
+  const totalViewers = allSessions.length;
+  const avgCompletion = totalViewers > 0 ? Math.round(allSessions.reduce((s: number, v: any) => s + (v.completionPct || 0), 0) / totalViewers) : 0;
+  const ctaClicks = allSessions.filter((v: any) => v.ctaClicked).length;
+  const ctaRate = totalViewers > 0 ? Math.round((ctaClicks / totalViewers) * 100) : 0;
+
+  // Simulated viewers for demo when no real sessions
+  const DEMO_SESSIONS = selectedId ? Array.from({ length: 12 }, (_, i) => {
+    const seed = (i * 7 + 3) % 10;
+    return {
+      id: i + 1,
+      visitorId: `viewer_${Math.random().toString(36).slice(2, 8)}`,
+      watchedSeconds: 120 + seed * 45,
+      completionPct: 20 + seed * 7,
+      ctaClicked: seed > 5,
+      country: ["US","UK","CA","AU","DE","FR","BR","MX"][i % 8],
+      referrer: ["direct","google","facebook","email","twitter","linkedin"][i % 6],
+      createdAt: new Date(Date.now() - seed * 3600000 * (i + 1)).toISOString(),
+    };
+  }) : [];
+  const displaySessions = allSessions.length > 0 ? allSessions : DEMO_SESSIONS;
+  const isDemo = allSessions.length === 0 && selectedId;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Viewer CRM —</p>
+        <h3 className="text-2xl font-black mb-4" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Viewer CRM</h3>
+        <div className="relative w-full max-w-sm">
+          <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="w-full appearance-none text-sm text-white bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 pr-9 cursor-pointer" style={{ borderColor: selectedId ? `${GOLD}55` : undefined }}>
+            <option value="">— Select a video —</option>
+            {(videos as any[]).map((v: any) => <option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+        </div>
+      </div>
+
+      {selectedId && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: "Unique Viewers", value: isDemo ? 12 : totalViewers, icon: Users, color: GOLD },
+              { label: "Avg Completion", value: `${isDemo ? 58 : avgCompletion}%`, icon: TrendingUp, color: "#34d399" },
+              { label: "CTA Clicks", value: isDemo ? 4 : ctaClicks, icon: MousePointer, color: "#a78bfa" },
+              { label: "CTA Click Rate", value: `${isDemo ? 33 : ctaRate}%`, icon: Target, color: "#f87171" },
+            ].map(s => (
+              <div key={s.label} className="p-4 rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+                <div className="flex items-start justify-between mb-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ color: `${GOLD}55` }}>{s.label}</p>
+                  <s.icon className="w-3.5 h-3.5" style={{ color: s.color }} />
+                </div>
+                <p className="text-2xl font-black text-white">{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {isDemo && (
+            <div className="px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2" style={{ background: `${GOLD}10`, color: GOLD, border: `1px solid ${GOLD}25` }}>
+              <Info className="w-3.5 h-3.5" /> Demo data — real viewers tracked once your embed code is live
+            </div>
+          )}
+
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+            <div className="px-4 py-3 flex items-center gap-2" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
+              <UserCheck className="w-3.5 h-3.5" style={{ color: GOLD }} />
+              <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Session Log</p>
+              {selected && <span className="text-xs text-zinc-600">· {selected.title}</span>}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${GOLD}10`, background: "rgba(8,8,12,0.9)" }}>
+                    {["Viewer ID","Watched","Completion","CTA","Country","Source","Date"].map(h => (
+                      <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displaySessions.map((s: any) => (
+                    <tr key={s.id} style={{ borderBottom: `1px solid ${GOLD}08` }} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-4 py-3 text-zinc-400 font-mono text-xs">{s.visitorId}</td>
+                      <td className="px-4 py-3 text-zinc-300 text-xs">{Math.floor((s.watchedSeconds || 0) / 60)}m {(s.watchedSeconds || 0) % 60}s</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-14 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${s.completionPct || 0}%`, background: GOLD }} />
+                          </div>
+                          <span className="text-xs font-bold" style={{ color: GOLD }}>{s.completionPct || 0}%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s.ctaClicked ? "bg-green-500/20 text-green-400" : "bg-zinc-800 text-zinc-600"}`}>
+                          {s.ctaClicked ? "Clicked" : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-xs">{s.country || "—"}</td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs">{s.referrer || "direct"}</td>
+                      <td className="px-4 py-3 text-zinc-600 text-xs whitespace-nowrap">{s.createdAt ? format(new Date(s.createdAt), "MMM d, HH:mm") : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── PLAYER SETTINGS TAB ───────────────────────────────────────────────────────
+
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const QUALITY_OPTIONS = ["Auto", "1080p", "720p", "480p", "360p"];
+
+function OraviniSymbol({ size = 20, color = GOLD }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="14" stroke={color} strokeWidth="2.5" />
+      <circle cx="16" cy="16" r="7" fill={color} opacity="0.9" />
+      <circle cx="16" cy="16" r="3" fill={color === GOLD ? "#0c0c10" : "#000"} />
+    </svg>
+  );
+}
+
+function PlayerPreview({ settings }: { settings: any }) {
+  const color = settings.brandColor || GOLD;
+  const speed = settings.defaultPlaybackSpeed ?? 1;
+  const showSpeed = settings.allowSpeedControl !== false;
+  const showQuality = settings.allowQualityControl !== false;
+  const showWatermark = settings.showOraviniWatermark !== false;
+
+  return (
+    <div className="relative rounded-xl overflow-hidden select-none" style={{ background: "#000", border: `1px solid ${GOLD}18`, aspectRatio: "16/9" }}>
+      {/* fake video content */}
+      <div className="absolute inset-0 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #111 0%, #1a1a1a 100%)" }}>
+        <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: `${color}22`, border: `2px solid ${color}` }}>
+          <Play className="w-5 h-5 ml-0.5" style={{ color }} />
+        </div>
+      </div>
+
+      {/* custom logo — top-left */}
+      {settings.logoUrl && (
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ background: "rgba(0,0,0,0.45)" }}>
+          <img src={settings.logoUrl} alt="" className="h-3.5 object-contain" onError={e => (e.currentTarget.style.display = "none")} />
+        </div>
+      )}
+
+      {/* Oravini watermark — bottom-right, very subtle */}
+      {showWatermark && (
+        <div style={{ position: "absolute", bottom: 34, right: 6, display: "flex", alignItems: "center", gap: 3, opacity: 0.28, pointerEvents: "none" }}>
+          <OraviniSymbol size={10} color="#ffffff" />
+          <span style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", color: "#ffffff", textTransform: "uppercase", lineHeight: 1 }}>oravini</span>
+        </div>
+      )}
+
+      {/* Progress bar + controls */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 pt-4" style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
+        {/* Progress bar */}
+        <div className="w-full h-1 rounded-full mb-2 overflow-hidden" style={{ background: "rgba(255,255,255,0.18)" }}>
+          <div className="h-full rounded-full w-2/5" style={{ background: color }} />
+          <div className="w-2.5 h-2.5 rounded-full -mt-3.5 ml-[38%]" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+        </div>
+        {/* Controls row */}
+        <div className="flex items-center gap-2">
+          <Play className="w-3 h-3 text-white" />
+          <span className="text-[9px] text-zinc-400 flex-1">2:14 / 5:30</span>
+          {showSpeed && (
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.1)", color }}>
+              {speed === 1 ? "1×" : `${speed}×`}
+            </span>
+          )}
+          {showQuality && (
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.1)", color: "#a1a1aa" }}>
+              HD
+            </span>
+          )}
+          {settings.captionUrl && (
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: "rgba(255,255,255,0.1)", color: "#a1a1aa" }}>
+              CC
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlayerSettingsTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [localSettings, setLocalSettings] = useState<any>({});
+  const [activeSection, setActiveSection] = useState<"branding"|"watermark"|"controls"|"protection"|"playback"|"captions">("branding");
+
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const selected = (videos as any[]).find((v: any) => v.id === selectedId);
+
+  const updateMut = useMutation({
+    mutationFn: (data: any) => fetch(`/api/video-events/${selectedId}/settings`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/video-events"] }); toast({ title: "Settings saved" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const save = (key: string, val: any) => {
+    if (!selectedId) return;
+    setLocalSettings((p: any) => ({ ...p, [key]: val }));
+    updateMut.mutate({ [key]: val });
+  };
+
+  const merged = { ...(selected || {}), ...localSettings };
+
+  const NAV_SECTIONS = [
+    { id: "branding",   label: "Branding",    icon: Image },
+    { id: "watermark",  label: "Watermark",   icon: Sparkles },
+    { id: "controls",   label: "Controls",    icon: SlidersHorizontal },
+    { id: "protection", label: "Protection",  icon: Shield },
+    { id: "playback",   label: "Playback",    icon: Play },
+    { id: "captions",   label: "Captions",    icon: Hash },
+  ] as const;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— Player Settings —</p>
+        <h3 className="text-2xl font-black mb-4" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>Player Settings</h3>
+        <div className="relative w-full max-w-sm">
+          <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setLocalSettings({}); }} className="w-full appearance-none text-sm text-white bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 pr-9 cursor-pointer" style={{ borderColor: selectedId ? `${GOLD}55` : undefined }}>
+            <option value="">— Select a video —</option>
+            {(videos as any[]).map((v: any) => <option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+        </div>
+      </div>
+
+      {selected && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Section nav */}
+          <div className="space-y-1">
+            {NAV_SECTIONS.map(s => (
+              <button key={s.id} onClick={() => setActiveSection(s.id)} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left" style={{
+                background: activeSection === s.id ? `${GOLD}12` : "transparent",
+                color: activeSection === s.id ? GOLD : "#71717a",
+                border: `1px solid ${activeSection === s.id ? GOLD+"25" : "transparent"}`,
+              }}>
+                <s.icon className="w-4 h-4" />
+                {s.label}
+              </button>
+            ))}
+            {/* Live player preview */}
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${GOLD}10` }}>
+              <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-wider mb-2">Live Preview</p>
+              <PlayerPreview settings={merged} />
+            </div>
+          </div>
+
+          {/* Settings panel */}
+          <div className="lg:col-span-3 rounded-2xl p-5 space-y-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+
+            {/* ── BRANDING ── */}
+            {activeSection === "branding" && (
+              <>
+                <p className="text-sm font-bold text-white">Player Branding</p>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Brand Color</p>
+                  <div className="flex items-center gap-3">
+                    <input type="color" defaultValue={merged.brandColor || "#d4b461"} onBlur={e => save("brandColor", e.target.value)} className="w-10 h-10 rounded-lg border border-zinc-700 cursor-pointer bg-transparent" />
+                    <input placeholder="#d4b461" defaultValue={merged.brandColor || "#d4b461"} onBlur={e => save("brandColor", e.target.value)} className="flex-1 bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2" />
+                    <div className="w-8 h-8 rounded-lg" style={{ background: merged.brandColor || GOLD }} />
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">Applied to play button, progress bar, speed badge, and CTA buttons</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Your Logo URL (optional)</p>
+                  <input placeholder="https://your-domain.com/logo.png" defaultValue={merged.logoUrl || ""} onBlur={e => save("logoUrl", e.target.value || null)} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+                  <p className="text-[10px] text-zinc-600 mt-1">Appears in the top-left corner alongside the Oravini watermark</p>
+                </div>
+                <PlayerPreview settings={merged} />
+              </>
+            )}
+
+            {/* ── WATERMARK ── */}
+            {activeSection === "watermark" && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <OraviniSymbol size={18} />
+                  <p className="text-sm font-bold text-white">Oravini Watermark</p>
+                </div>
+                <p className="text-xs text-zinc-500">The Oravini symbol and wordmark appear on your hosted videos, letting viewers know the video is powered by Oravini.</p>
+
+                <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}14` }}>
+                  <div className="flex items-start gap-3">
+                    <OraviniSymbol size={20} />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Show Oravini Watermark</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">Displays the Oravini logo on the player</p>
+                    </div>
+                  </div>
+                  <button onClick={() => save("showOraviniWatermark", merged.showOraviniWatermark === false ? true : false)} className="w-11 h-6 rounded-full flex items-center transition-all" style={{ background: merged.showOraviniWatermark !== false ? GOLD : "#3f3f46", justifyContent: merged.showOraviniWatermark !== false ? "flex-end" : "flex-start", padding: "0 2px" }}>
+                    <div className="w-5 h-5 rounded-full bg-white shadow" />
+                  </button>
+                </div>
+
+                {merged.showOraviniWatermark !== false && (
+                  <>
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}10` }}>
+                      <div style={{ opacity: 0.35 }}><OraviniSymbol size={12} color="#ffffff" /></div>
+                      <p className="text-xs text-zinc-500">Fixed bottom-right, barely visible — 28% opacity, no background. Viewers won't notice it unless they look.</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Preview</p>
+                      <PlayerPreview settings={merged} />
+                    </div>
+                  </>
+                )}
+
+                {merged.showOraviniWatermark === false && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "rgba(113,113,122,0.08)", border: "1px solid rgba(113,113,122,0.15)" }}>
+                    <Info className="w-3.5 h-3.5 text-zinc-600" />
+                    <p className="text-xs text-zinc-600">Watermark hidden — no Oravini branding on this video</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── CONTROLS ── */}
+            {activeSection === "controls" && (
+              <>
+                <p className="text-sm font-bold text-white">Player Controls</p>
+                <p className="text-xs text-zinc-500 -mt-2">Configure the controls visible in the video player's bottom bar.</p>
+
+                {/* Speed control */}
+                <div className="space-y-3 p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}10` }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start gap-2">
+                      <Gauge className="w-4 h-4 text-zinc-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-white">Playback Speed Control</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">Show a speed selector button in the controls bar</p>
+                      </div>
+                    </div>
+                    <button onClick={() => save("allowSpeedControl", !merged.allowSpeedControl)} className="w-11 h-6 rounded-full flex items-center transition-all flex-shrink-0" style={{ background: merged.allowSpeedControl !== false ? GOLD : "#3f3f46", justifyContent: merged.allowSpeedControl !== false ? "flex-end" : "flex-start", padding: "0 2px" }}>
+                      <div className="w-5 h-5 rounded-full bg-white shadow" />
+                    </button>
+                  </div>
+
+                  {merged.allowSpeedControl !== false && (
+                    <>
+                      <div>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Default Playback Speed</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {SPEED_OPTIONS.map(spd => (
+                            <button key={spd} onClick={() => save("defaultPlaybackSpeed", spd)} className="px-3 py-1.5 rounded-lg text-xs font-black transition-all" style={{
+                              background: (merged.defaultPlaybackSpeed ?? 1) === spd ? GOLD : "rgba(255,255,255,0.06)",
+                              color: (merged.defaultPlaybackSpeed ?? 1) === spd ? "#000" : "#71717a",
+                              border: `1px solid ${(merged.defaultPlaybackSpeed ?? 1) === spd ? GOLD : "transparent"}`,
+                            }}>
+                              {spd === 1 ? "1× Normal" : `${spd}×`}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-zinc-600 mt-1.5">This speed is applied when the video first loads. Viewers can change it using the speed button.</p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}20` }}>
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: GOLD, color: "#000" }}>
+                          {(merged.defaultPlaybackSpeed ?? 1) === 1 ? "1×" : `${merged.defaultPlaybackSpeed ?? 1}×`}
+                        </span>
+                        <p className="text-xs text-zinc-400">Speed badge appears in the player controls bar</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Quality control */}
+                <div className="space-y-3 p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}10` }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start gap-2">
+                      <MonitorSmartphone className="w-4 h-4 text-zinc-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-white">Video Quality Selector</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">Let viewers choose their preferred video quality</p>
+                      </div>
+                    </div>
+                    <button onClick={() => save("allowQualityControl", !merged.allowQualityControl)} className="w-11 h-6 rounded-full flex items-center transition-all flex-shrink-0" style={{ background: merged.allowQualityControl !== false ? GOLD : "#3f3f46", justifyContent: merged.allowQualityControl !== false ? "flex-end" : "flex-start", padding: "0 2px" }}>
+                      <div className="w-5 h-5 rounded-full bg-white shadow" />
+                    </button>
+                  </div>
+
+                  {merged.allowQualityControl !== false && (
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Available Qualities</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {QUALITY_OPTIONS.map(q => (
+                          <div key={q} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold" style={{ background: q === "Auto" ? `${GOLD}15` : "rgba(255,255,255,0.06)", color: q === "Auto" ? GOLD : "#71717a", border: `1px solid ${q === "Auto" ? GOLD+"30" : "transparent"}` }}>
+                            {q === "1080p" && "🔴"} {q === "720p" && "🟡"} {q === "480p" && "🟢"} {q === "360p" && "⚪"} {q}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-zinc-600 mt-1.5">Quality options are auto-detected based on the source video. Auto selects the best quality for the viewer's connection.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live controls preview */}
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Controls Bar Preview</p>
+                  <PlayerPreview settings={merged} />
+                  <p className="text-[10px] text-zinc-600 mt-1.5">The controls bar updates live as you toggle features above.</p>
+                </div>
+              </>
+            )}
+
+            {/* ── PROTECTION ── */}
+            {activeSection === "protection" && (
+              <>
+                <p className="text-sm font-bold text-white">Access Protection</p>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Allowed Domains (embed whitelist)</p>
+                  <input placeholder="yourdomain.com, anotherdomain.com" defaultValue={(merged.domainWhitelist || []).join(", ")} onBlur={e => save("domainWhitelist", e.target.value ? e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) : [])} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+                  <p className="text-[10px] text-zinc-600 mt-1">Leave blank to allow embedding anywhere. Separate with commas.</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Video Expires At</p>
+                  <input type="datetime-local" defaultValue={merged.expiresAt ? new Date(merged.expiresAt).toISOString().slice(0,16) : ""} onBlur={e => save("expiresAt", e.target.value ? new Date(e.target.value).toISOString() : null)} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3" />
+                  <p className="text-[10px] text-zinc-600 mt-1">After this date/time, the video player will show "unavailable"</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Password Protection</p>
+                  <input type="password" placeholder="Set a password (leave blank to remove)" onBlur={e => { if (e.target.value) save("passwordHash", e.target.value); }} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+                  <p className="text-[10px] text-zinc-600 mt-1">Viewers must enter this password before watching</p>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}10` }}>
+                  <Shield className="w-4 h-4 text-zinc-500" />
+                  <p className="text-xs text-zinc-400">Lead gate: <span className={merged.leadGateEnabled ? "text-green-400 font-bold" : "text-zinc-600"}>{merged.leadGateEnabled ? "ENABLED" : "disabled"}</span> — toggle in the Library tab per video</p>
+                </div>
+              </>
+            )}
+
+            {/* ── PLAYBACK ── */}
+            {activeSection === "playback" && (
+              <>
+                <p className="text-sm font-bold text-white">Playback Behavior</p>
+                <div className="space-y-3">
+                  {[
+                    { key: "resumeEnabled", label: "Resume Playback", desc: "Remember where each viewer left off across sessions", icon: RefreshCw },
+                    { key: "autoplayNextEnabled", label: "Autoplay Next Video", desc: "Automatically play the next video in the collection", icon: ChevronRight },
+                  ].map(opt => (
+                    <div key={opt.key} className="flex items-center justify-between p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}10` }}>
+                      <div className="flex items-start gap-3">
+                        <opt.icon className="w-4 h-4 text-zinc-400 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-white">{opt.label}</p>
+                          <p className="text-[10px] text-zinc-500 mt-0.5">{opt.desc}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => save(opt.key, !merged[opt.key])} className="w-11 h-6 rounded-full flex items-center transition-all" style={{ background: merged[opt.key] ? GOLD : "#3f3f46", justifyContent: merged[opt.key] ? "flex-end" : "flex-start", padding: "0 2px" }}>
+                        <div className="w-5 h-5 rounded-full bg-white shadow" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── CAPTIONS ── */}
+            {activeSection === "captions" && (
+              <>
+                <p className="text-sm font-bold text-white">Captions & Subtitles</p>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Caption File URL (.srt or .vtt)</p>
+                  <input placeholder="https://your-cdn.com/captions.srt" defaultValue={merged.captionUrl || ""} onBlur={e => save("captionUrl", e.target.value || null)} className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 placeholder:text-zinc-600" />
+                  <p className="text-[10px] text-zinc-600 mt-1">Supports .srt and .vtt formats. Shown as a CC toggle in the player.</p>
+                </div>
+                {merged.captionUrl && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl" style={{ background: "#22c55e10", border: "1px solid #22c55e30" }}>
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    <p className="text-xs text-green-400 font-medium">Captions configured — viewers will see a CC button</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2487,18 +3952,24 @@ function SettingsTab() {
 type NavItem = { id: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
 const WEBINAR_NAV: NavItem[] = [
-  { id: "webinars",      label: "Live Webinars",  icon: MonitorPlay },
-  { id: "landing-pages", label: "Landing Pages",  icon: LayoutTemplate },
-  { id: "crm",           label: "CRM",            icon: Users },
-  { id: "recordings",    label: "Recordings",     icon: Mic },
-  { id: "analytics",     label: "Analytics",      icon: BarChart3 },
-  { id: "settings",      label: "API & Settings", icon: Settings2 },
+  { id: "webinars",         label: "Live Webinars",   icon: MonitorPlay },
+  { id: "series",           label: "Series",          icon: Repeat2 },
+  { id: "landing-pages",    label: "Landing Pages",   icon: LayoutTemplate },
+  { id: "crm",              label: "CRM",             icon: Users },
+  { id: "recordings",       label: "Recordings",      icon: Mic },
+  { id: "email-sequences",  label: "Email Sequences", icon: Mail },
+  { id: "analytics",        label: "Analytics",       icon: BarChart3 },
+  { id: "settings",         label: "API & Settings",  icon: Settings2 },
 ];
 
 const HOSTING_NAV: NavItem[] = [
-  { id: "video-hosting",   label: "Video Hosting",    icon: Video },
-  { id: "vsl-library",     label: "VSL Library",      icon: Film },
-  { id: "video-analytics", label: "Video Analytics",  icon: BarChart3 },
+  { id: "video-hosting",     label: "Library",          icon: Video },
+  { id: "vsl-studio",        label: "VSL Studio",       icon: Zap },
+  { id: "collections",       label: "Collections",      icon: Layers },
+  { id: "vsl-library",       label: "VSL Library",      icon: Film },
+  { id: "video-analytics",   label: "Analytics",        icon: BarChart3 },
+  { id: "video-crm",         label: "Viewer CRM",       icon: UserCheck },
+  { id: "player-settings",   label: "Player Settings",  icon: Settings2 },
 ];
 
 export default function PlatformView() {
@@ -2513,21 +3984,32 @@ export default function PlatformView() {
   const navItems = section === "webinars" ? WEBINAR_NAV : HOSTING_NAV;
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#0a0910" }}>
+    <div className="flex min-h-screen relative" style={{ background: "#040406" }}>
+      <svg className="absolute inset-0 w-full h-full opacity-[0.02] pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+        <filter id="pv-grain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>
+        <rect width="100%" height="100%" filter="url(#pv-grain)"/>
+      </svg>
 
       {/* ── SIDEBAR ── */}
       <aside
-        className="w-60 flex-shrink-0 flex flex-col border-r"
-        style={{ background: "#0a0910", borderColor: "rgba(255,255,255,0.06)", minHeight: "100vh" }}
+        className="w-60 flex-shrink-0 flex flex-col relative z-10"
+        style={{ background: "#040406", borderRight: `1px solid ${GOLD}15`, minHeight: "100vh" }}
       >
         {/* Logo */}
-        <div className="px-5 py-4 border-b flex items-center gap-2.5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}33` }}>
-            <MonitorPlay className="w-4 h-4" style={{ color: GOLD }} />
+        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${GOLD}15` }}>
+          <div className="flex gap-0.5 mb-3">
+            {[...Array(10)].map((_, i) => (
+              <div key={i} className="h-2.5 flex-1 rounded-sm" style={{ background: i % 2 === 0 ? `${GOLD}22` : "transparent", border: `1px solid ${GOLD}12` }} />
+            ))}
           </div>
-          <div>
-            <p className="text-[11px] font-black tracking-widest uppercase leading-none" style={{ color: GOLD }}>ORAVINI</p>
-            <p className="text-[9px] text-zinc-500 mt-0.5 tracking-wide uppercase leading-none">Video Studio</p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962f)` }}>
+              <MonitorPlay className="w-4 h-4 text-black" />
+            </div>
+            <div>
+              <p className="text-[11px] font-black tracking-[0.2em] uppercase leading-none" style={{ color: GOLD }}>ORAVINI</p>
+              <p className="text-[9px] mt-0.5 tracking-wide uppercase leading-none" style={{ color: `${GOLD}45` }}>Video Studio</p>
+            </div>
           </div>
         </div>
 
@@ -2585,30 +4067,44 @@ export default function PlatformView() {
       <main className="flex-1 overflow-y-auto">
         {/* Top bar */}
         <div
-          className="sticky top-0 z-20 px-6 py-3 border-b flex items-center gap-3"
-          style={{ background: "rgba(10,9,16,0.95)", backdropFilter: "blur(12px)", borderColor: "rgba(255,255,255,0.05)" }}
+          className="sticky top-0 z-20 px-6 py-3 flex items-center gap-3"
+          style={{ background: "rgba(4,4,6,0.97)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${GOLD}14` }}
         >
+          <div className="flex gap-0.5 mr-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="w-2 h-4 rounded-sm" style={{ background: i % 2 === 0 ? `${GOLD}20` : "transparent", border: `1px solid ${GOLD}12` }} />
+            ))}
+          </div>
           <div>
-            <h1 className="text-sm font-black text-white">
+            <h1 className="text-sm font-black" style={{
+              background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`,
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            }}>
               {navItems.find(n => n.id === activeId)?.label ?? "Video Marketing Studio"}
             </h1>
-            <p className="text-[10px] text-zinc-500 leading-none">Powered by Oravini</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.15em] leading-none mt-0.5" style={{ color: `${GOLD}40` }}>ORAVINI · Studio</p>
           </div>
         </div>
 
         {/* Content */}
         <div className="px-6 py-8">
           {/* Webinars section */}
-          {activeId === "webinars"      && <WebinarsTab />}
-          {activeId === "landing-pages" && <LandingPagesTab />}
-          {activeId === "crm"           && <CRMTab />}
-          {activeId === "recordings"    && <RecordingsTab />}
-          {activeId === "analytics"     && <AnalyticsTab />}
-          {activeId === "settings"      && <SettingsTab />}
+          {activeId === "webinars"          && <WebinarsTab />}
+          {activeId === "series"            && <SeriesTab />}
+          {activeId === "landing-pages"     && <LandingPagesTab />}
+          {activeId === "crm"               && <CRMTab />}
+          {activeId === "recordings"        && <RecordingsTab />}
+          {activeId === "email-sequences"   && <EmailSequencesTab />}
+          {activeId === "analytics"         && <AnalyticsTab />}
+          {activeId === "settings"          && <SettingsTab />}
           {/* Video hosting section */}
-          {activeId === "video-hosting"   && <VideoHosting />}
-          {activeId === "vsl-library"     && <VideosTab typeFilter="vsl" />}
-          {activeId === "video-analytics" && <VideoAnalyticsTab />}
+          {activeId === "video-hosting"     && <VideoHosting onNavigate={setActiveId} />}
+          {activeId === "vsl-studio"        && <VSLStudioTab />}
+          {activeId === "collections"       && <VideoCollectionsTab />}
+          {activeId === "vsl-library"       && <VideosTab typeFilter="vsl" />}
+          {activeId === "video-analytics"   && <VideoAnalyticsTab />}
+          {activeId === "video-crm"         && <VideoViewerCRMTab />}
+          {activeId === "player-settings"   && <PlayerSettingsTab />}
         </div>
       </main>
 

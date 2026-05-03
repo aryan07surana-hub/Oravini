@@ -1060,6 +1060,15 @@ export const webinars = pgTable("webinars", {
   presenterName: text("presenter_name"),
   videoQuality: text("video_quality").default("1080p"),
   views: integer("views").notNull().default(0),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  peakViewers: integer("peak_viewers").notNull().default(0),
+  broadcastUrl: text("broadcast_url"),
+  livekitRoomName: text("livekit_room_name"),
+  seriesId: varchar("series_id"),
+  waitingRoomVideoUrl: text("waiting_room_video_url"),
+  waitingRoomMessage: text("waiting_room_message"),
+  emailReminderEnabled: boolean("email_reminder_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1094,11 +1103,106 @@ export const videoEvents = pgTable("video_events", {
   views: integer("views").notNull().default(0),
   isPublic: boolean("is_public").notNull().default(false),
   allowDownload: boolean("allow_download").notNull().default(false),
+  videoType: text("video_type").notNull().default("standard"), // standard | vsl | webinar
+  progressBarConfig: text("progress_bar_config"), // JSON stringified config
+  leadGateEnabled: boolean("lead_gate_enabled").notNull().default(false),
+  // Player branding
+  brandColor: text("brand_color"),
+  logoUrl: text("logo_url"),
+  captionUrl: text("caption_url"),
+  resumeEnabled: boolean("resume_enabled").notNull().default(false),
+  autoplayNextEnabled: boolean("autoplay_next_enabled").notNull().default(false),
+  // Protection
+  domainWhitelist: text("domain_whitelist").array().default(sql`'{}'::text[]`),
+  expiresAt: timestamp("expires_at"),
+  passwordHash: text("password_hash"),
+  // Urgency bar
+  urgencyText: text("urgency_text"),
+  urgencyEndsAt: timestamp("urgency_ends_at"),
+  // Player controls
+  defaultPlaybackSpeed: real("default_playback_speed").notNull().default(1.0),
+  allowSpeedControl: boolean("allow_speed_control").notNull().default(true),
+  allowQualityControl: boolean("allow_quality_control").notNull().default(true),
+  // Oravini watermark
+  showOraviniWatermark: boolean("show_oravini_watermark").notNull().default(true),
+  oraviniWatermarkPosition: text("oravini_watermark_position").notNull().default("bottom-right"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertVideoEventSchema = createInsertSchema(videoEvents).omit({ id: true, createdAt: true, views: true });
 export type InsertVideoEvent = z.infer<typeof insertVideoEventSchema>;
 export type VideoEvent = typeof videoEvents.$inferSelect;
+
+// ── Video Collections ─────────────────────────────────────────────────────────
+export const videoCollections = pgTable("video_collections", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url"),
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoCollectionSchema = createInsertSchema(videoCollections).omit({ id: true, createdAt: true });
+export type InsertVideoCollection = z.infer<typeof insertVideoCollectionSchema>;
+export type VideoCollection = typeof videoCollections.$inferSelect;
+
+export const videoCollectionItems = pgTable("video_collection_items", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").notNull().references(() => videoCollections.id, { onDelete: "cascade" }),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type VideoCollectionItem = typeof videoCollectionItems.$inferSelect;
+
+// ── Video Chapters ─────────────────────────────────────────────────────────────
+export const videoChapters = pgTable("video_chapters", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  startSeconds: integer("start_seconds").notNull().default(0),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoChapterSchema = createInsertSchema(videoChapters).omit({ id: true, createdAt: true });
+export type InsertVideoChapter = z.infer<typeof insertVideoChapterSchema>;
+export type VideoChapter = typeof videoChapters.$inferSelect;
+
+// ── Video CTAs (timed overlays) ───────────────────────────────────────────────
+export const videoCtas = pgTable("video_ctas", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("button"), // button | banner | urgency
+  text: text("text").notNull(),
+  url: text("url"),
+  appearAt: integer("appear_at").notNull().default(0), // seconds
+  disappearAt: integer("disappear_at"),
+  style: text("style").notNull().default("gold"), // gold | red | white
+  clicks: integer("clicks").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoCtaSchema = createInsertSchema(videoCtas).omit({ id: true, createdAt: true, clicks: true });
+export type InsertVideoCta = z.infer<typeof insertVideoCtaSchema>;
+export type VideoCta = typeof videoCtas.$inferSelect;
+
+// ── Video Viewer Sessions (watch heatmap / viewer CRM) ────────────────────────
+export const videoViewerSessions = pgTable("video_viewer_sessions", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  visitorId: text("visitor_id").notNull(),
+  watchedSeconds: integer("watched_seconds").notNull().default(0),
+  completionPct: integer("completion_pct").notNull().default(0),
+  heatmapData: text("heatmap_data"), // JSON: {[second]: watchCount}
+  ctaClicked: boolean("cta_clicked").notNull().default(false),
+  country: text("country"),
+  referrer: text("referrer"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow(),
+});
+export const insertVideoViewerSessionSchema = createInsertSchema(videoViewerSessions).omit({ id: true, createdAt: true, lastSeenAt: true });
+export type InsertVideoViewerSession = z.infer<typeof insertVideoViewerSessionSchema>;
+export type VideoViewerSession = typeof videoViewerSessions.$inferSelect;
 
 export const webinarRecordings = pgTable("webinar_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1357,3 +1461,90 @@ export const insertFunnelStageTrainingSchema = createInsertSchema(funnelStageTra
 export type InsertFunnelStageTraining = z.infer<typeof insertFunnelStageTrainingSchema>;
 export type FunnelStageTraining = typeof funnelStageTraining.$inferSelect;
 
+// ── Video Marketing: Custom Domains ──────────────────────────────────────────
+export const webinarDomains = pgTable("webinar_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  domain: text("domain").notNull().unique(),
+  status: text("status").notNull().default("pending"), // pending | active | failed
+  targetSlug: text("target_slug"),
+  verifyToken: text("verify_token"),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWebinarDomainSchema = createInsertSchema(webinarDomains).omit({ id: true, createdAt: true, verifiedAt: true });
+export type InsertWebinarDomain = z.infer<typeof insertWebinarDomainSchema>;
+export type WebinarDomain = typeof webinarDomains.$inferSelect;
+
+// ── Video Marketing: Broadcast / Livekit Settings (per user) ─────────────────
+export const videoMarketingSettings = pgTable("video_marketing_settings", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  livekitUrl: text("livekit_url"),
+  livekitKey: text("livekit_key"),
+  livekitSecret: text("livekit_secret"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type VideoMarketingSettings = typeof videoMarketingSettings.$inferSelect;
+
+// ── Webinar Live Events (analytics) ───────────────────────────────────────────
+export const webinarEvents = pgTable("webinar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // viewer_join | viewer_leave | chat | qa | reaction | raise_hand
+  viewerName: text("viewer_name"),
+  viewerId: text("viewer_id"),
+  data: jsonb("data"),
+  ts: timestamp("ts").defaultNow(),
+});
+export const insertWebinarEventSchema = createInsertSchema(webinarEvents).omit({ id: true, ts: true });
+export type InsertWebinarEvent = z.infer<typeof insertWebinarEventSchema>;
+export type WebinarEvent = typeof webinarEvents.$inferSelect;
+
+// ── Webinar Series ─────────────────────────────────────────────────────────────
+export const webinarSeries = pgTable("webinar_series", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  schedule: text("schedule").notNull().default("weekly"), // weekly | biweekly | monthly
+  dayOfWeek: integer("day_of_week").notNull().default(1), // 0=Sun…6=Sat
+  timeHour: integer("time_hour").notNull().default(19),
+  timeMinute: integer("time_minute").notNull().default(0),
+  timezone: text("timezone").notNull().default("America/New_York"),
+  durationMinutes: integer("duration_minutes").notNull().default(60),
+  maxAttendees: integer("max_attendees"),
+  presenterName: text("presenter_name"),
+  webinarType: text("webinar_type").notNull().default("live"),
+  registrationSlug: text("registration_slug"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertWebinarSeriesSchema = createInsertSchema(webinarSeries).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertWebinarSeries = z.infer<typeof insertWebinarSeriesSchema>;
+export type WebinarSeries = typeof webinarSeries.$inferSelect;
+
+// ── Webinar Polls ─────────────────────────────────────────────────────────────
+export const webinarPolls = pgTable("webinar_polls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }),
+  question: text("question").notNull(),
+  options: jsonb("options").notNull().$type<string[]>(),
+  isActive: boolean("is_active").notNull().default(false),
+  showResults: boolean("show_results").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWebinarPollSchema = createInsertSchema(webinarPolls).omit({ id: true, createdAt: true });
+export type InsertWebinarPoll = z.infer<typeof insertWebinarPollSchema>;
+export type WebinarPoll = typeof webinarPolls.$inferSelect;
+
+export const webinarPollVotes = pgTable("webinar_poll_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pollId: varchar("poll_id").notNull().references(() => webinarPolls.id, { onDelete: "cascade" }),
+  webinarId: varchar("webinar_id").notNull(),
+  viewerId: text("viewer_id").notNull(),
+  viewerName: text("viewer_name"),
+  optionIndex: integer("option_index").notNull(),
+  ts: timestamp("ts").defaultNow(),
+});
+export type WebinarPollVote = typeof webinarPollVotes.$inferSelect;

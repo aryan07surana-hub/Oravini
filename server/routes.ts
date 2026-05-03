@@ -1,7 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import dns from "dns";
 import passport from "passport";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -161,15 +163,249 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.use("/uploads", (await import("express")).default.static(uploadsDir));
 
+  // ── Webinar analytics schema migration ────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webinar_events (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        webinar_id VARCHAR NOT NULL REFERENCES webinars(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        viewer_name TEXT,
+        viewer_id TEXT,
+        data JSONB,
+        ts TIMESTAMP DEFAULT NOW()
+      );
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP;
+      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS peak_viewers INTEGER DEFAULT 0;
+    `);
+  } catch (e: any) {
+    console.warn("[migration] webinar analytics:", e?.message);
+  }
+
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+
+  // ── Webinar signaling rooms ──────────────────────────────────────────────
+  interface WRViewer { ws: WebSocket; name: string; raisedHand?: boolean; }
+  type WRRoom = { host: WebSocket | null; viewers: Map<string, WRViewer>; activePoll: { pollId: string; options: string[]; votes: number[] } | null };
+  const webinarRooms = new Map<string, WRRoom>();
+
+  const wrSend = (socket: WebSocket | null | undefined, data: object) => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data));
+  };
+  const wrNotifyCount = (roomId: string) => {
+    const room = webinarRooms.get(roomId);
+    if (!room) return;
+    const count = room.viewers.size;
+    const list = Array.from(room.viewers.entries()).map(([id, v]) => ({ id, name: v.name, raisedHand: !!v.raisedHand }));
+    wrSend(room.host, { type: "wr_attendee_update", count, list });
+    room.viewers.forEach(v => wrSend(v.ws, { type: "wr_attendee_count", count }));
+  };
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://localhost`);
     const userId = url.searchParams.get("userId");
     if (userId) clients.set(userId, ws);
 
+    let wrRole: "host" | "viewer" | null = null;
+    let wrId:   string | null = null;
+    let vrId:   string | null = null;
+
+    ws.on("message", async (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        switch (msg.type) {
+
+          case "wr_host_join": {
+            wrRole = "host"; wrId = msg.webinarId;
+            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
+            const room = webinarRooms.get(wrId!)!;
+            room.host = ws;
+            wrSend(ws, { type: "wr_host_ready" });
+            room.viewers.forEach((v, vid) => wrSend(ws, { type: "wr_viewer_joined", viewerId: vid, name: v.name }));
+            wrNotifyCount(wrId!);
+            break;
+          }
+
+          case "wr_viewer_join": {
+            wrRole = "viewer"; wrId = msg.webinarId;
+            vrId = msg.viewerId || Math.random().toString(36).slice(2, 10);
+            const vName = msg.name || "Anonymous";
+            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
+            const room = webinarRooms.get(wrId!)!;
+            room.viewers.set(vrId!, { ws, name: vName });
+            wrSend(ws, { type: "wr_viewer_ready", viewerId: vrId });
+            wrSend(room.host, { type: "wr_viewer_joined", viewerId: vrId, name: vName });
+            wrNotifyCount(wrId!);
+            storage.createWebinarEvent({ webinarId: wrId!, eventType: "viewer_join", viewerName: vName, viewerId: vrId!, data: null }).catch(() => {});
+            pool.query(`UPDATE webinars SET peak_viewers = GREATEST(COALESCE(peak_viewers,0), $1) WHERE id = $2`, [room.viewers.size, wrId!]).catch(() => {});
+            break;
+          }
+
+          case "wr_offer": {
+            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
+            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_offer", sdp: msg.sdp }));
+            break;
+          }
+
+          case "wr_answer": {
+            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_answer", viewerId: msg.viewerId, sdp: msg.sdp });
+            break;
+          }
+
+          case "wr_ice_host": {
+            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
+            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_ice", candidate: msg.candidate }));
+            break;
+          }
+
+          case "wr_ice_viewer": {
+            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_ice", viewerId: msg.viewerId, candidate: msg.candidate });
+            break;
+          }
+
+          case "wr_chat": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const pkt = { type: "wr_chat", message: { name: msg.name, text: msg.text, ts: msg.ts, isHost: !!msg.isHost } };
+            if (msg.isHost) {
+              room.viewers.forEach(v => wrSend(v.ws, pkt));
+            } else {
+              wrSend(room.host, pkt);
+              room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
+            }
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "chat", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, isHost: !!msg.isHost } }).catch(() => {});
+            break;
+          }
+
+          case "wr_qa": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            wrSend(room.host, { type: "wr_qa", question: { id: msg.id, name: msg.name, text: msg.text, ts: msg.ts } });
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "qa", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, id: msg.id } }).catch(() => {});
+            break;
+          }
+
+          case "wr_reaction": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const pkt = { type: "wr_reaction", emoji: msg.emoji, name: msg.name };
+            wrSend(room.host, pkt);
+            room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "reaction", viewerName: msg.name || null, viewerId: vrId || null, data: { emoji: msg.emoji } }).catch(() => {});
+            break;
+          }
+
+          case "wr_raise_hand": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room || !vrId) break;
+            const viewer = room.viewers.get(vrId);
+            if (viewer) viewer.raisedHand = true;
+            wrSend(room.host, { type: "wr_raise_hand", viewerId: vrId, name: msg.name });
+            wrNotifyCount(msg.webinarId);
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "raise_hand", viewerName: msg.name || null, viewerId: vrId, data: null }).catch(() => {});
+            break;
+          }
+
+          case "wr_lower_hand": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const viewer = room.viewers.get(msg.viewerId);
+            if (viewer) {
+              viewer.raisedHand = false;
+              wrSend(viewer.ws, { type: "wr_hand_lowered" });
+            }
+            wrNotifyCount(msg.webinarId);
+            break;
+          }
+
+          case "wr_lower_hand_self": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room || !vrId) break;
+            const viewer = room.viewers.get(vrId);
+            if (viewer) viewer.raisedHand = false;
+            wrNotifyCount(msg.webinarId);
+            break;
+          }
+
+          case "wr_cta_launch": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const ctaPkt = { type: "wr_cta_show", title: msg.title, url: msg.url, buttonText: msg.buttonText || "Get Access Now →" };
+            room.viewers.forEach(v => wrSend(v.ws, ctaPkt));
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_launched", viewerName: null, viewerId: null, data: { title: msg.title, url: msg.url } }).catch(() => {});
+            break;
+          }
+
+          case "wr_cta_hide": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            room.viewers.forEach(v => wrSend(v.ws, { type: "wr_cta_hidden" }));
+            break;
+          }
+
+          case "wr_cta_click": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_click", viewerName: msg.name || null, viewerId: vrId || null, data: { url: msg.url } }).catch(() => {});
+            if (room) wrSend(room.host, { type: "wr_cta_clicked" });
+            break;
+          }
+
+          case "wr_poll_launch": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            room.activePoll = { pollId: msg.pollId, options: msg.options || [], votes: new Array((msg.options || []).length).fill(0) };
+            const pkt = { type: "wr_poll_show", pollId: msg.pollId, question: msg.question, options: msg.options };
+            room.viewers.forEach(v => wrSend(v.ws, pkt));
+            break;
+          }
+
+          case "wr_poll_vote": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room?.activePoll || room.activePoll.pollId !== msg.pollId) break;
+            const idx = Number(msg.optionIndex);
+            if (idx >= 0 && idx < room.activePoll.votes.length) {
+              room.activePoll.votes[idx] = (room.activePoll.votes[idx] || 0) + 1;
+            }
+            wrSend(room.host, { type: "wr_poll_results", pollId: msg.pollId, votes: room.activePoll.votes });
+            break;
+          }
+
+          case "wr_poll_end": {
+            const room = webinarRooms.get(msg.webinarId);
+            if (!room) break;
+            const finalVotes = room.activePoll?.votes || [];
+            const endPkt = { type: "wr_poll_ended", pollId: msg.pollId, options: msg.options || room.activePoll?.options || [], votes: finalVotes };
+            room.viewers.forEach(v => wrSend(v.ws, endPkt));
+            wrSend(room.host, endPkt);
+            room.activePoll = null;
+            break;
+          }
+
+          case "wr_host_end": {
+            const room = webinarRooms.get(msg.webinarId);
+            room?.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
+            webinarRooms.delete(msg.webinarId);
+            break;
+          }
+        }
+      } catch {}
+    });
+
     ws.on("close", () => {
       if (userId) clients.delete(userId);
+      if (!wrId) return;
+      const room = webinarRooms.get(wrId);
+      if (!room) return;
+      if (wrRole === "host") {
+        room.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
+        webinarRooms.delete(wrId);
+      } else if (wrRole === "viewer" && vrId) {
+        room.viewers.delete(vrId);
+        wrSend(room.host, { type: "wr_viewer_left", viewerId: vrId });
+        wrNotifyCount(wrId);
+        if (wrId) storage.createWebinarEvent({ webinarId: wrId, eventType: "viewer_leave", viewerName: null, viewerId: vrId, data: null }).catch(() => {});
+      }
     });
   });
 
@@ -2318,92 +2554,6 @@ Return this exact JSON structure:
         toolStats,
         allTools,
         userToolMatrix: Object.values(userMap),
-      });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // Admin: Detailed Tool Analytics
-  app.get("/api/admin/tool-analytics", requireAdmin, async (_req: Request, res: Response) => {
-    try {
-      // Overall platform stats
-      const overallStats = await pool.query(`
-        SELECT
-          COUNT(DISTINCT user_id)::int AS total_users,
-          COUNT(*)::int AS total_actions,
-          SUM(ABS(amount))::int AS total_credits_used
-        FROM credit_transactions
-        WHERE amount < 0
-      `);
-
-      // Tool usage over time (last 30 days)
-      const timelineData = await pool.query(`
-        SELECT
-          DATE(created_at) AS date,
-          type AS tool,
-          COUNT(*)::int AS uses
-        FROM credit_transactions
-        WHERE amount < 0 AND created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY DATE(created_at), type
-        ORDER BY date DESC, uses DESC
-      `);
-
-      // Most active users
-      const topUsers = await pool.query(`
-        SELECT
-          u.id,
-          u.name,
-          u.email,
-          u.plan,
-          COUNT(ct.id)::int AS total_uses,
-          SUM(ABS(ct.amount))::int AS credits_used,
-          COUNT(DISTINCT ct.type)::int AS unique_tools_used
-        FROM users u
-        JOIN credit_transactions ct ON ct.user_id = u.id
-        WHERE ct.amount < 0
-        GROUP BY u.id, u.name, u.email, u.plan
-        ORDER BY total_uses DESC
-        LIMIT 20
-      `);
-
-      // Section usage (AI Content Ideas, Design Studio, etc.)
-      const sectionUsage = await pool.query(`
-        SELECT
-          CASE
-            WHEN type IN ('ai_ideas', 'ai_coach', 'ai_report') THEN 'AI Content Ideas'
-            WHEN type IN ('carousel', 'carousel_image') THEN 'Design Studio'
-            WHEN type IN ('competitor', 'competitor_reels', 'niche_analysis') THEN 'Competitor Intelligence'
-            WHEN type IN ('methodology', 'hashtag_suggestions') THEN 'Content Tools'
-            ELSE 'Other'
-          END AS section,
-          COUNT(*)::int AS uses,
-          COUNT(DISTINCT user_id)::int AS unique_users
-        FROM credit_transactions
-        WHERE amount < 0
-        GROUP BY section
-        ORDER BY uses DESC
-      `);
-
-      // Tool popularity by plan tier
-      const planBreakdown = await pool.query(`
-        SELECT
-          u.plan,
-          ct.type AS tool,
-          COUNT(*)::int AS uses
-        FROM credit_transactions ct
-        JOIN users u ON u.id = ct.user_id
-        WHERE ct.amount < 0
-        GROUP BY u.plan, ct.type
-        ORDER BY u.plan, uses DESC
-      `);
-
-      return res.json({
-        overview: overallStats.rows[0],
-        timeline: timelineData.rows,
-        topUsers: topUsers.rows,
-        sectionUsage: sectionUsage.rows,
-        planBreakdown: planBreakdown.rows,
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -6498,51 +6648,39 @@ ${ig.posts < 20 ? "- Very few posts — consistency has been a major issue" : ""
         igContext = `No Instagram profile provided. Generate audit purely from form answers.`;
       }
 
-      const sysPrompt = `You are a world-class Instagram growth strategist and data analyst. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
+      const sysPrompt = `You are a world-class Instagram growth strategist. Your job is to give brutally honest, hyper-specific audits based on REAL profile data. Every insight MUST reference their actual numbers. Never give generic advice — always tie it back to their specific situation.
 
-Generate a comprehensive JSON audit with these EXACT fields:
+Generate a JSON audit with these EXACT fields (no extras, no missing):
 {
-  "overallScore": <integer 0-100, based on their actual metrics, engagement quality, and growth potential>,
+  "overallScore": <integer 0-100, based on their actual metrics and goals>,
   "scoreLabel": <"Early Stage" | "Building Momentum" | "Established" | "Monetisation Ready">,
   "headline": <punchy personalised headline referencing their niche and actual situation, max 12 words>,
   "topInsight": <the single most critical insight about their account, 2-3 sentences, MUST reference their real numbers if available>,
   "profileAnalysis": [
-    <5-7 specific, data-driven observations about their REAL profile:
-    - Follower count and tier (nano/micro/mid/macro/mega)
-    - Follower/following ratio and what it signals
-    - Bio quality and clarity
-    - Estimated posting frequency
-    - Account authority signals
-    - Growth trajectory indicators
-    - Engagement quality assessment>
+    <3-4 specific observations about their REAL profile data — follower count, ratio, bio, posting frequency, mention exact numbers>,
   ],
-  "strengths": [<3-4 specific strengths, referencing their data where possible>],
-  "weaknesses": [<3-4 honest weaknesses that are holding them back, with specific numbers>],
+  "strengths": [<3 specific strengths, referencing their data where possible>],
   "growthOpportunities": [
-    <5-6 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers. Prioritize by impact.>
+    <3 highly specific, actionable items tailored to their profile — NOT generic tips. Each must be 1-2 sentences and reference their actual situation, niche, or numbers>
   ],
-  "contentStrategy": <3-4 sentences specific to their content types and niche, with tactical advice>,
-  "monetisationPath": <3-4 sentences on their best monetisation route given their goals and follower tier, with specific revenue streams>,
-  "engagementAnalysis": <2-3 sentences analyzing their likely engagement quality based on follower/following ratio and account signals>,
-  "competitivePosition": <2-3 sentences on where they stand in their niche and how to differentiate>,
+  "contentStrategy": <2-3 sentences specific to their content types and niche>,
+  "monetisationPath": <2-3 sentences on their best monetisation route given their goals and follower tier>,
   "90DayRoadmap": [
-    {"phase": "Days 1–30", "focus": "...", "keyAction": "...", "expectedOutcome": "..."},
-    {"phase": "Days 31–60", "focus": "...", "keyAction": "...", "expectedOutcome": "..."},
-    {"phase": "Days 61–90", "focus": "...", "keyAction": "...", "expectedOutcome": "..."}
+    {"phase": "Days 1–30", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 31–60", "focus": "...", "keyAction": "..."},
+    {"phase": "Days 61–90", "focus": "...", "keyAction": "..."}
   ],
   "revenueEstimate": <realistic monthly revenue range achievable in 90 days, based on their current size>,
-  "revenueContext": <2 sentences explaining why this is achievable for their tier and what revenue streams to focus on>,
-  "upgradeTeaser": <2-3 sentences on what the full Oravini platform gives them that they can't do alone, be specific about tools and features>
+  "revenueContext": <one sentence explaining why this is achievable for their tier>,
+  "upgradeTeaser": <1-2 sentences on what the full Oravini platform gives them that they can't do alone>
 }
 
 CRITICAL RULES:
-- If profile data is available, EVERY section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
-- profileAnalysis must be 5-7 data-driven observations, not generic opinions
-- Include both strengths AND weaknesses - be honest but constructive
-- growthOpportunities should be prioritized by impact (biggest wins first)
-- Be brutally specific - no fluff, no generic advice
-- revenueEstimate must be calibrated to their actual follower count tier and niche
-- If they have red flags (bad ratio, empty bio, low posts), call them out directly with numbers`;
+- If profile data is available, every section MUST reference real numbers (e.g. "With 4,200 followers and a 0.84x ratio...")
+- profileAnalysis must be data-driven observations, not opinions
+- growthOpportunities are NOT "quick wins" — they are strategic moves based on their specific gaps
+- Be honest about weaknesses but constructive
+- revenueEstimate must be calibrated to their actual follower count tier`;
 
       const userMsg = `CREATOR PROFILE:
 Niche: ${safeNiche}
@@ -6613,7 +6751,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         }
       }
 
-      // Return comprehensive report with more data
+      // Return partial report
       const partialReport = {
         overallScore: auditReport.overallScore,
         scoreLabel: auditReport.scoreLabel,
@@ -6621,13 +6759,11 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         topInsight: auditReport.topInsight,
         profileAnalysis: auditReport.profileAnalysis,
         strengths: auditReport.strengths,
-        weaknesses: auditReport.weaknesses,
-        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 5),
-        engagementAnalysis: auditReport.engagementAnalysis,
+        growthOpportunities: auditReport.growthOpportunities || auditReport.quickWins?.slice(0, 3),
         revenueEstimate: auditReport.revenueEstimate,
         revenueContext: auditReport.revenueContext,
         upgradeTeaser: auditReport.upgradeTeaser,
-        locked: ["contentStrategy", "monetisationPath", "competitivePosition", "90DayRoadmap", "fullActionPlan"],
+        locked: ["contentStrategy", "monetisationPath", "90DayRoadmap", "competitiveEdge"],
       };
 
       return res.json({ report: partialReport });
@@ -10827,6 +10963,23 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.get("/api/webinars/public/:code", async (req, res) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(req.params.code);
+      if (!webinar) return res.status(404).json({ message: "Not found" });
+      res.json({
+        id: webinar.id, title: webinar.title, description: webinar.description,
+        scheduledAt: webinar.scheduledAt, durationMinutes: webinar.durationMinutes,
+        status: webinar.status,
+        webinarType:    (webinar as any).webinarType    ?? "live",
+        replayVideoUrl: (webinar as any).replayVideoUrl ?? null,
+        presenterName:  (webinar as any).presenterName  ?? null,
+        offerUrl: webinar.offerUrl, offerTitle: webinar.offerTitle,
+        meetingCode: webinar.meetingCode,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/webinars/:id", requireAuth, async (req, res) => {
     try {
       const webinar = await storage.updateWebinar(p(req.params.id), req.body);
@@ -10843,14 +10996,16 @@ Rules:
 
   app.post("/api/webinars/:id/start", requireAuth, async (req, res) => {
     try {
-      const webinar = await storage.updateWebinar(p(req.params.id), { status: "live" });
+      const id = p(req.params.id);
+      const webinar = await storage.updateWebinar(id, { status: "live", startedAt: new Date() } as any);
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
     try {
-      const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
+      const id = p(req.params.id);
+      const webinar = await storage.updateWebinar(id, { status: "completed", endedAt: new Date() } as any);
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -10945,6 +11100,132 @@ Rules:
       await storage.deleteWebinarRecording(p(req.params.id));
       res.json({ message: "Deleted" });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Recording upload from host's MediaRecorder ────────────────────────────
+  const recordingUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        const dir = path.resolve("uploads/recordings");
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (_req, file, cb) => {
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `${unique}${path.extname(file.originalname) || ".webm"}`);
+      },
+    }),
+    limits: { fileSize: 500 * 1024 * 1024 },
+  });
+
+  app.post("/api/webinars/:id/recording/upload", requireAuth, recordingUpload.single("file"), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const webinarId = p(req.params.id);
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const recordingUrl = `/uploads/recordings/${req.file.filename}`;
+      const duration = req.body.duration ? Math.round(Number(req.body.duration)) : null;
+      const title = req.body.title || "Webinar Recording";
+      const fileSize = `${(req.file.size / 1024 / 1024).toFixed(1)} MB`;
+      const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const rec = await storage.createWebinarRecording({
+        webinarId, userId: user.id, title, recordingUrl,
+        thumbnailUrl: null, duration, fileSize, shareToken, isPublic: false,
+      });
+      await storage.updateWebinar(webinarId, { replayVideoUrl: recordingUrl });
+      res.status(201).json(rec);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Webinar Analytics ─────────────────────────────────────────────────────
+  app.get("/api/webinars/:id/analytics", requireAuth, async (req, res) => {
+    try {
+      const webinarId = p(req.params.id);
+      const [webinar, registrations, events, recordings] = await Promise.all([
+        storage.getWebinar(webinarId),
+        storage.getWebinarRegistrations(webinarId),
+        storage.getWebinarEvents(webinarId),
+        storage.getWebinarRecordingsByWebinarId(webinarId),
+      ]);
+      if (!webinar) return res.status(404).json({ message: "Not found" });
+
+      const joins     = events.filter(e => e.eventType === "viewer_join");
+      const chats     = events.filter(e => e.eventType === "chat");
+      const qas       = events.filter(e => e.eventType === "qa");
+      const reactions = events.filter(e => e.eventType === "reaction");
+      const hands     = events.filter(e => e.eventType === "raise_hand");
+      const uniqueIds = [...new Set(joins.map(e => e.viewerId).filter(Boolean))];
+      const attended  = uniqueIds.length;
+
+      const attendeeMap = new Map<string, { id: string; name: string | null; joinTime: Date | null; chatCount: number; qaCount: number }>();
+      joins.forEach(e => {
+        if (e.viewerId && !attendeeMap.has(e.viewerId))
+          attendeeMap.set(e.viewerId, { id: e.viewerId, name: e.viewerName, joinTime: e.ts, chatCount: 0, qaCount: 0 });
+      });
+      chats.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.chatCount++; });
+      qas.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.qaCount++; });
+
+      // ── Timeline: per-minute dropout curve ───────────────────────────────
+      const ctaLaunchEvts = events.filter(e => e.eventType === "cta_launched");
+      const ctaClickEvts  = events.filter(e => e.eventType === "cta_click");
+      const wStart  = (webinar as any).startedAt ? new Date((webinar as any).startedAt).getTime() : null;
+      const wEnd    = (webinar as any).endedAt   ? new Date((webinar as any).endedAt).getTime()   : null;
+      const durMs   = wStart && wEnd ? wEnd - wStart : null;
+      const durMins = durMs ? Math.min(Math.ceil(durMs / 60000), 180) : 0;
+
+      const timeline: { minute: number; viewers: number; chats: number; reactions: number; ctaClicks: number }[] = [];
+      if (wStart && durMins > 0) {
+        const sessions = new Map<string, { joinMs: number; leaveMs: number }>();
+        events.filter(e => e.eventType === "viewer_join"  && e.viewerId && e.ts).forEach(ev => {
+          const ms = new Date(ev.ts!).getTime() - wStart;
+          if (ms >= 0) sessions.set(ev.viewerId!, { joinMs: ms, leaveMs: durMs! });
+        });
+        events.filter(e => e.eventType === "viewer_leave" && e.viewerId && e.ts).forEach(ev => {
+          const ms = new Date(ev.ts!).getTime() - wStart;
+          if (ms > 0 && sessions.has(ev.viewerId!)) sessions.get(ev.viewerId!)!.leaveMs = ms;
+        });
+        const getMin = (ev: any) => ev.ts ? Math.max(0, Math.floor((new Date(ev.ts).getTime() - wStart) / 60000)) : -1;
+        for (let m = 0; m <= durMins; m++) {
+          const msAt = m * 60000;
+          timeline.push({
+            minute:    m,
+            viewers:   [...sessions.values()].filter(s => s.joinMs <= msAt && s.leaveMs > msAt).length,
+            chats:     chats.filter(e => getMin(e) === m).length,
+            reactions: reactions.filter(e => getMin(e) === m).length,
+            ctaClicks: ctaClickEvts.filter(e => getMin(e) === m).length,
+          });
+        }
+      }
+
+      const ctaStats = {
+        launches: ctaLaunchEvts.length,
+        clicks:   ctaClickEvts.length,
+        convRate: ctaClickEvts.length > 0 && attended > 0
+          ? Math.round((ctaClickEvts.length / attended) * 100)
+          : 0,
+      };
+
+      res.json({
+        webinar,
+        registrations: registrations.length,
+        attended,
+        peakViewers: (webinar as any).peakViewers || attended,
+        chatMessages: chats.length,
+        qaQuestions: qas.length,
+        totalReactions: reactions.length,
+        raisedHands: hands.length,
+        attendeeList: Array.from(attendeeMap.values()),
+        chatTranscript: chats.map(e => ({ name: e.viewerName, text: (e.data as any)?.text, ts: e.ts })),
+        qaLog: qas.map(e => ({ name: e.viewerName, question: (e.data as any)?.text, ts: e.ts })),
+        recordings,
+        timeline,
+        ctaStats,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // Webinar Landing Pages
@@ -11555,6 +11836,172 @@ Rules:
 
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
   app.use(contentWorkflowRoutes);
+
+  // ── Custom Domains ────────────────────────────────────────────────────────
+  app.get("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const domains = await storage.getWebinarDomains(user.id);
+      res.json(domains);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { domain, targetSlug } = req.body;
+      if (!domain) return res.status(400).json({ message: "Domain is required" });
+      const cleaned = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const verifyToken = `oravini-verify-${user.id.slice(0, 8)}-${Math.random().toString(36).slice(2, 10)}`;
+      const existing = await storage.getWebinarDomainByDomain(cleaned);
+      if (existing) return res.status(409).json({ message: "Domain already registered" });
+      const d = await storage.createWebinarDomain({ userId: user.id, domain: cleaned, status: "pending", targetSlug: targetSlug || null, verifyToken });
+      res.status(201).json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarDomain(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const updated = await storage.updateWebinarDomain(p(req.params.id), req.body);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains/:id/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domains = await storage.getWebinarDomains((req.user as any).id);
+      const domain = domains.find(d => d.id === p(req.params.id));
+      if (!domain) return res.status(404).json({ message: "Domain not found" });
+
+      let verified = false;
+      try {
+        const txtRecords = await dns.promises.resolveTxt(domain.domain);
+        const flat = txtRecords.flat();
+        verified = flat.some(r => r.includes(domain.verifyToken || ""));
+        if (!verified) {
+          // Also try _oravini-challenge subdomain
+          try {
+            const chalRecords = await dns.promises.resolveTxt(`_oravini-challenge.${domain.domain}`);
+            const chalFlat = chalRecords.flat();
+            verified = chalFlat.some(r => r.includes(domain.verifyToken || ""));
+          } catch {}
+        }
+      } catch {}
+
+      if (verified) {
+        const updated = await storage.updateWebinarDomain(domain.id, { status: "active", verifiedAt: new Date() });
+        return res.json({ success: true, domain: updated });
+      } else {
+        await storage.updateWebinarDomain(domain.id, { status: "pending" });
+        return res.status(400).json({ success: false, message: "DNS TXT record not found yet. DNS changes can take up to 48 hours to propagate." });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Public: Domain Config (for custom domain SPA routing) ────────────────
+  app.get("/api/domain-config", async (req: Request, res: Response) => {
+    try {
+      const host = (req.query.domain as string) || req.hostname;
+      if (!host || host.includes("localhost") || host.includes("replit")) return res.json({ slug: null });
+      const domain = await storage.getWebinarDomainByDomain(host);
+      if (!domain || domain.status !== "active" || !domain.targetSlug) return res.json({ slug: null });
+      res.json({ slug: domain.targetSlug, domain: domain.domain });
+    } catch { res.json({ slug: null }); }
+  });
+
+  // ── Video Marketing Settings (Livekit) ───────────────────────────────────
+  app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      // Never return the secret to the client
+      if (!settings) return res.json({ livekitUrl: "", livekitKey: "", hasSecret: false });
+      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { livekitUrl, livekitKey, livekitSecret } = req.body;
+      const data: any = {};
+      if (livekitUrl !== undefined) data.livekitUrl = livekitUrl;
+      if (livekitKey !== undefined) data.livekitKey = livekitKey;
+      if (livekitSecret !== undefined) data.livekitSecret = livekitSecret;
+      const settings = await storage.upsertVideoMarketingSettings(user.id, data);
+      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Livekit Room Tokens ───────────────────────────────────────────────────
+  app.post("/api/webinars/:id/livekit-token", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const webinarId = p(req.params.id);
+      const webinar = await storage.getWebinar(webinarId);
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      if (webinar.userId !== user.id) return res.status(403).json({ message: "Not authorized" });
+
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
+        return res.status(400).json({ message: "Livekit not configured. Add your API key, secret, and URL in Settings." });
+      }
+
+      const { AccessToken } = await import("livekit-server-sdk");
+      const roomName = `webinar_${webinarId}`;
+      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
+        identity: `host_${user.id}`,
+        name: user.name || "Host",
+        ttl: "4h",
+      });
+      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, roomCreate: true });
+      const token = await at.toJwt();
+
+      // Store room name on webinar
+      await storage.updateWebinar(webinarId, { livekitRoomName: roomName } as any);
+      res.json({ token, roomName, livekitUrl: settings.livekitUrl });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: viewer token (no auth required — identity is anonymous)
+  app.get("/api/webinars/:id/viewer-token", async (req: Request, res: Response) => {
+    try {
+      const webinarId = p(req.params.id);
+      const webinar = await storage.getWebinar(webinarId);
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      if (!webinar.livekitRoomName) return res.status(404).json({ message: "No Livekit room configured for this webinar" });
+
+      const settings = await storage.getVideoMarketingSettings(webinar.userId);
+      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
+        return res.status(404).json({ message: "Livekit not configured" });
+      }
+
+      const viewerName = (req.query.name as string) || "Viewer";
+      const viewerId = `viewer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const { AccessToken } = await import("livekit-server-sdk");
+      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
+        identity: viewerId,
+        name: viewerName,
+        ttl: "6h",
+      });
+      at.addGrant({ roomJoin: true, room: webinar.livekitRoomName, canPublish: false, canSubscribe: true });
+      const token = await at.toJwt();
+      res.json({ token, roomName: webinar.livekitRoomName, livekitUrl: settings.livekitUrl });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Modular route registrations ──────────────────────────────────────────────
+  // Routes split into server/routes/ for maintainability
+  registerWebinarPollRoutes(app, requireAuth);
+  registerWebinarSeriesRoutes(app, requireAuth);
+  registerVideoHostingRoutes(app, requireAuth);
 
   return httpServer;
 }
