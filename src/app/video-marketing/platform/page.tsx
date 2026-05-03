@@ -38,6 +38,12 @@ export default function VideoMarketingPlatform() {
 
   return (
     <main className={styles.platform}>
+      <div className={styles.backToOravini}>
+        <a href="/" className={styles.backLink}>
+          ← Back to Oravini
+        </a>
+      </div>
+      
       <header className={styles.header}>
         <h1>Video Marketing Platform</h1>
         <div className={styles.userInfo}>

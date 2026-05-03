@@ -437,6 +437,29 @@ input:checked + .slider:before {
   font-size: 0.875rem;
 }
 
+.modalFooter {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e0e0e0;
+  text-align: center;
+}
+
+.backToPricingButton {
+  padding: 1rem 2rem;
+  background: #f5f5f5;
+  color: #333;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.backToPricingButton:hover {
+  background: #e0e0e0;
+  border-color: #ccc;
+}
+
 .features {
   background: #f5f5f5;
   padding: 1.5rem;

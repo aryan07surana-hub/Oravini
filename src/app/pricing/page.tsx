@@ -239,6 +239,11 @@ export default function PricingPage() {
             {previewType === "webinar" && <WebinarPreview />}
             {previewType === "video-hosting" && <VideoHostingPreview />}
             {previewType === "video-marketing" && <VideoMarketingPreview />}
+            <div className={styles.modalFooter}>
+              <button className={styles.backToPricingButton} onClick={() => setShowPreview(false)}>
+                ← Back to Pricing
+              </button>
+            </div>
           </div>
         </div>
       )}
