@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -213,7 +213,6 @@ const topNavItems = [
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/video-marketing-landing", label: "Video Marketing", icon: MonitorPlay },
-  { href: "/dm-automation", label: "DM Automation", icon: Workflow },
 ];
 
 const bottomNavItems = [

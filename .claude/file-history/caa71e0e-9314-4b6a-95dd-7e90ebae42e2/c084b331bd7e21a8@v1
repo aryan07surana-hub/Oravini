@@ -38,7 +38,6 @@ import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
-import DMAutomation from "@/pages/client/DMAutomation";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -79,7 +78,6 @@ import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
 import EverydayRead from "@/pages/client/EverydayRead";
-import ContentIntelligence from "@/pages/ContentIntelligence";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -188,7 +186,6 @@ function Router() {
       <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
-      <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
@@ -218,7 +215,6 @@ function Router() {
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
-      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
@@ -228,7 +224,6 @@ function Router() {
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/dm-automation">{() => <Guard component={DMAutomation} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-tracker">{() => <Guard component={DMTracker} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-hub">{() => <Guard component={DMHub} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/calendar">{() => <Guard component={AdminCalendar} adminOnly />}</Route>

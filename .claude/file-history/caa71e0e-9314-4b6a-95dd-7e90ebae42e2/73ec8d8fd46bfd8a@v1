@@ -9,7 +9,6 @@ import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, dmTriggers, dmSequences, dmSequenceSteps, dmSequenceEnrollments,
-  commentAutoReplies, storyReplyConfigs, dmFlows, dmContactTags, aiBotConfigs, optInLinks, metaTokens,
   instagramProfileReports, appSettings, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
@@ -97,7 +96,7 @@ import {
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool);
+const db = drizzle(pool);
 
 export interface IStorage {
   // App Settings

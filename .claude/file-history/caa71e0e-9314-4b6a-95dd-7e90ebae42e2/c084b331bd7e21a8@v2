@@ -79,7 +79,6 @@ import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
 import EverydayRead from "@/pages/client/EverydayRead";
-import ContentIntelligence from "@/pages/ContentIntelligence";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -218,7 +217,6 @@ function Router() {
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
-      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
