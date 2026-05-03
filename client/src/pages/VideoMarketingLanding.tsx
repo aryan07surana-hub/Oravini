@@ -330,25 +330,60 @@ function Navbar() {
 // ── Pricing Data ──────────────────────────────────────────────────────────────
 const PRICING = [
   {
-    tier: "Starter", price: "$29", period: "/mo",
-    accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false,
+    addon: "Video Hosting",
+    price: "$29", period: "/mo",
+    accent: "rgba(255,255,255,0.6)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.09)", highlight: false,
     tag: "",
-    features: ["5 hosted videos", "VSL pages with progress bar", "3 progress bar presets", "Email opt-in gating", "Basic analytics", "Share via public link", "Embed anywhere"],
-    cta: "Start for Free",
+    tagline: "Host and convert with VSLs",
+    features: [
+      "Unlimited video hosting",
+      "VSL pages with custom progress bar",
+      "5 progress bar timing presets",
+      "Email opt-in gating",
+      "Basic analytics dashboard",
+      "Share via public link",
+      "Embed anywhere",
+      "1 live webinar per month",
+    ],
+    cta: "Add Video Hosting",
   },
   {
-    tier: "Growth", price: "$59", period: "/mo",
-    accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true,
-    tag: "Most Popular",
-    features: ["Unlimited video hosting", "Unlimited webinars", "Custom progress bar timing", "Registration pages auto-built", "Email reminders (24h · 1h · 10min)", "Webinar recordings auto-saved", "Google Drive import", "Live attendee analytics", "CRM pipeline integration", "No Oravini watermark"],
-    cta: "Start Growing",
+    addon: "Webinar Platform",
+    price: "$39", period: "/mo",
+    accent: GOLD, bg: `${GOLD}09`, border: `${GOLD}40`, highlight: false,
+    tag: "",
+    tagline: "Everything in Video Hosting, plus:",
+    features: [
+      "Unlimited live webinars",
+      "Auto-built registration pages",
+      "Email reminders — 24h · 1h · 10min",
+      "Live attendee CRM",
+      "Webinar recordings auto-saved",
+      "Google Drive import",
+      "Real-time attendance analytics",
+      "Post-webinar CRM pipeline push",
+    ],
+    cta: "Add Webinar Platform",
   },
   {
-    tier: "Pro", price: "$99", period: "/mo",
-    accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false,
-    tag: "",
-    features: ["Everything in Growth", "AI Clip Finder (video extraction)", "Custom branded player", "Password-protected videos", "Time-limited share links", "Real-time drop-off tracking", "Conversion event tracking", "Priority processing & support", "API access", "White-label hosting pages"],
-    cta: "Go Pro",
+    addon: "Video Pro Bundle",
+    price: "$59", period: "/mo",
+    accent: GOLD, bg: `${GOLD}0c`, border: `${GOLD}55`, highlight: true,
+    tag: "Best Value — Save $9",
+    tagline: "Both add-ons + exclusive Pro features:",
+    features: [
+      "Everything in both add-ons",
+      "AI Clip Finder — auto-extract viral clips",
+      "Custom branded player (your logo)",
+      "Password-protected videos",
+      "Time-limited share links",
+      "Real-time drop-off tracking",
+      "Conversion event tracking",
+      "White-label hosting pages",
+      "API access",
+      "Priority processing & support",
+    ],
+    cta: "Get Video Pro Bundle",
   },
 ];
 
@@ -904,46 +939,70 @@ export default function VideoMarketingLanding() {
       <section id="pricing" style={{ padding: "120px 24px", background: "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212,180,97,0.04) 0%, transparent 70%)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
-            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Simple Pricing</div>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Add-On Pricing</div>
             <h2 style={{ fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.1 }}>
-              Start free.<br /><span style={{ color: GOLD }}>Scale when ready.</span>
+              Add video to<br /><span style={{ color: GOLD }}>any Oravini plan.</span>
             </h2>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginTop: 16, lineHeight: 1.7 }}>No contracts. Cancel anytime.</p>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginTop: 16, lineHeight: 1.7, maxWidth: 480, margin: "16px auto 0" }}>
+              Pick the add-on that fits your goals. Works on top of Free, Starter, Growth, or Pro.
+            </p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.2)", marginTop: 10 }}>No contracts. Cancel anytime.</p>
           </Anim>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
             {PRICING.map(tier => (
-              <Anim key={tier.tier} delay={80}>
-                <div className="vm-pricing-card" style={{ background: tier.bg, border: `1px solid ${tier.border}`, borderRadius: 22, padding: "36px 30px", position: "relative", height: "100%" }}>
+              <Anim key={tier.addon} delay={80}>
+                <div className="vm-pricing-card" style={{ background: tier.bg, border: `1px solid ${tier.border}`, borderRadius: 22, padding: "36px 30px", position: "relative", height: "100%", display: "flex", flexDirection: "column", boxShadow: tier.highlight ? `0 0 60px ${GOLD}12` : "none" }}>
                   {tier.highlight && (
                     <div style={{ position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 11, borderRadius: 99, padding: "5px 18px", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                       {tier.tag}
                     </div>
                   )}
-                  <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: tier.accent, letterSpacing: "0.05em", marginBottom: 8 }}>{tier.tier}</div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                      <span style={{ fontSize: "clamp(36px, 5vw, 48px)", fontWeight: 900, color: "#fff" }}>{tier.price}</span>
-                      <span style={{ fontSize: 15, color: "rgba(255,255,255,0.35)" }}>{tier.period}</span>
+
+                  {/* Header */}
+                  <div style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: tier.accent, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10, opacity: 0.8 }}>Add-On</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 4 }}>{tier.addon}</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                      <span style={{ fontSize: "clamp(40px, 5vw, 52px)", fontWeight: 900, color: "#fff", lineHeight: 1 }}>{tier.price}</span>
+                      <span style={{ fontSize: 15, color: "rgba(255,255,255,0.3)" }}>{tier.period}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", paddingBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                      Requires any Oravini plan
                     </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
+
+                  {/* Tagline */}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: tier.accent, marginTop: 20, marginBottom: 14, opacity: 0.75 }}>{tier.tagline}</div>
+
+                  {/* Features */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 32, flex: 1 }}>
                     {tier.features.map(f => (
                       <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                        <span style={{ color: tier.accent, fontSize: 12, marginTop: 1, flexShrink: 0 }}>✓</span>
-                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>{f}</span>
+                        <span style={{ color: tier.accent, fontSize: 11, marginTop: 2, flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.58)", lineHeight: 1.5 }}>{f}</span>
                       </div>
                     ))}
                   </div>
+
+                  {/* CTA */}
                   <button onClick={() => nav("/login?redirect=/video-marketing")}
-                    style={{ width: "100%", background: tier.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : `rgba(255,255,255,0.06)`, color: tier.highlight ? "#000" : tier.accent, fontWeight: 800, fontSize: 14, border: tier.highlight ? "none" : `1px solid ${tier.border}`, borderRadius: 12, padding: "14px 0", cursor: "pointer", transition: "all 0.2s" }}
-                    onMouseEnter={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.1)"); }}
-                    onMouseLeave={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.06)"); }}>
-                    Login with Oravini →
+                    style={{ width: "100%", background: tier.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : `rgba(255,255,255,0.05)`, color: tier.highlight ? "#000" : "#fff", fontWeight: 800, fontSize: 14, border: tier.highlight ? "none" : `1px solid ${tier.border}`, borderRadius: 12, padding: "15px 0", cursor: "pointer", transition: "all 0.2s", letterSpacing: "0.01em" }}
+                    onMouseEnter={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.09)"); }}
+                    onMouseLeave={e => { if (!tier.highlight) (e.currentTarget.style.background = "rgba(255,255,255,0.05)"); }}>
+                    {tier.cta} →
                   </button>
                 </div>
               </Anim>
             ))}
           </div>
+
+          {/* Reassurance note */}
+          <Anim style={{ textAlign: "center", marginTop: 48 }}>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.22)", lineHeight: 1.8 }}>
+              All add-ons stack on top of your existing Oravini subscription.<br />
+              Video Hosting ($29) + Webinar Platform ($39) = Video Pro Bundle ($59) — you save $9 going with the bundle.
+            </p>
+          </Anim>
         </div>
       </section>
 
