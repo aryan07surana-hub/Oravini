@@ -190,7 +190,27 @@ async function runMigrations() {
     `);
     console.log("[migration] content_posts columns ensured");
   } catch (e: any) {
-    console.warn("[migration] skipped:", e.message);
+    console.warn("[migration] content_posts skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_video_marketing BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    console.log("[migration] users.has_video_marketing ensured");
+  } catch (e: any) {
+    console.warn("[migration] users.has_video_marketing skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_video_marketing_addon BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    console.log("[migration] users.has_video_marketing_addon ensured");
+  } catch (e: any) {
+    console.warn("[migration] users.has_video_marketing_addon skipped:", e.message);
   }
 }
 
