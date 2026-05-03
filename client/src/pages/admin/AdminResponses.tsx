@@ -18,7 +18,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { apiRequest } from "@/lib/api";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 const GOLD = "#d4b461";
 
@@ -95,6 +95,7 @@ export default function AdminResponses() {
   const [filterElite, setFilterElite] = useState<string>("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "elite">("newest");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: surveys = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/onboarding-surveys"],
@@ -106,10 +107,10 @@ export default function AdminResponses() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
-      toast.success("All responses cleared successfully");
+      toast({ title: "Success", description: "All responses cleared successfully" });
     },
     onError: () => {
-      toast.error("Failed to clear responses");
+      toast({ title: "Error", description: "Failed to clear responses", variant: "destructive" });
     },
   });
 
@@ -119,10 +120,10 @@ export default function AdminResponses() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/onboarding-surveys"] });
-      toast.success("Response deleted");
+      toast({ title: "Success", description: "Response deleted" });
     },
     onError: () => {
-      toast.error("Failed to delete response");
+      toast({ title: "Error", description: "Failed to delete response", variant: "destructive" });
     },
   });
 
@@ -168,7 +169,7 @@ export default function AdminResponses() {
     a.href = url;
     a.download = `survey-responses-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
-    toast.success("Exported to CSV");
+    toast({ title: "Success", description: "Exported to CSV" });
   };
 
   const handleClearAll = () => {
