@@ -11,7 +11,7 @@ services:
   - type: web
     name: oravini
     runtime: node
-    buildCommand: npm install --include=dev && node script/build.mjs
+    buildCommand: npm install --include=dev --legacy-peer-deps && node script/build.mjs
     startCommand: NODE_ENV=production node dist/index.cjs
     envVars:
       - key: NODE_ENV
