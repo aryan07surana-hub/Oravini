@@ -3,7 +3,7 @@
 import { useState } from "react";
 import styles from "./pricing.module.css";
 
-type Tier = "tier1" | "tier2" | "tier3" | "tier4";
+type Tier = "tier1" | "tier2" | "tier3" | "tier4" | "tier5";
 
 type PricingOption = {
   tier: Tier;
@@ -16,49 +16,63 @@ type PricingOption = {
 const PRICING_TIERS: PricingOption[] = [
   {
     tier: "tier1",
-    name: "Starter",
-    price: 29,
-    features: ["AI Day Planner", "Basic scheduling", "5 plans per day", "Email support"],
-    whopCheckoutUrl: "https://whop.com/checkout/plan_starter123",
+    name: "Free",
+    price: 0,
+    features: ["AI Day Planner", "Basic scheduling", "5 plans per day", "Community support"],
+    whopCheckoutUrl: "https://whop.com/checkout/plan_free",
   },
   {
     tier: "tier2",
-    name: "Professional",
-    price: 79,
-    features: ["Everything in Starter", "Unlimited plans", "Priority support", "Advanced analytics", "Team collaboration"],
-    whopCheckoutUrl: "https://whop.com/checkout/plan_professional456",
+    name: "Starter",
+    price: 19,
+    features: ["Everything in Free", "Unlimited plans", "Email support", "Advanced analytics", "Team collaboration"],
+    whopCheckoutUrl: "https://whop.com/checkout/plan_starter123",
   },
   {
     tier: "tier3",
-    name: "Business",
-    price: 149,
+    name: "Professional",
+    price: 49,
     features: [
-      "Everything in Professional",
+      "Everything in Starter",
       "White-label solution",
       "API access",
       "Custom integrations",
+      "Priority support",
+    ],
+    whopCheckoutUrl: "https://whop.com/checkout/plan_professional456",
+  },
+  {
+    tier: "tier4",
+    name: "Business",
+    price: 59,
+    features: [
+      "Everything in Professional",
+      "Unlimited team members",
+      "Custom development",
+      "SLA guarantee",
+      "24/7 phone support",
       "Dedicated account manager",
     ],
     whopCheckoutUrl: "https://whop.com/checkout/plan_business789",
   },
   {
-    tier: "tier4",
+    tier: "tier5",
     name: "Enterprise",
-    price: 299,
+    price: 99,
     features: [
       "Everything in Business",
-      "Unlimited team members",
-      "Custom development",
-      "SLA guarantee",
-      "24/7 phone support",
-      "On-premise deployment option",
+      "Video Marketing Included FREE",
+      "White-glove onboarding",
+      "Custom SLA",
+      "Dedicated infrastructure",
+      "Annual contract discounts",
     ],
     whopCheckoutUrl: "https://whop.com/checkout/plan_enterprise999",
   },
 ];
 
 const VIDEO_MARKETING_ADDON = {
-  price: 99,
+  price: 20,
   features: [
     "AI Video Generation",
     "Video Hosting Platform",
@@ -79,8 +93,21 @@ export default function PricingPage() {
   const [previewType, setPreviewType] = useState<"webinar" | "video-hosting" | "video-marketing" | null>(null);
 
   const selectedPlan = PRICING_TIERS.find((p) => p.tier === selectedTier)!;
-  const totalPrice = selectedPlan.price + (includeVideoMarketing ? VIDEO_MARKETING_ADDON.price : 0);
-  const canAddVideoMarketing = selectedTier === "tier3" || selectedTier === "tier4";
+  
+  const getVideoMarketingPrice = () => {
+    if (selectedTier === "tier1" || selectedTier === "tier2") return null;
+    if (selectedTier === "tier3") return 20;
+    if (selectedTier === "tier4") return 0;
+    if (selectedTier === "tier5") return "included";
+    return null;
+  };
+  
+  const videoMarketingPrice = getVideoMarketingPrice();
+  const canAddVideoMarketing = selectedTier === "tier3" || selectedTier === "tier4" || selectedTier === "tier5";
+  const videoMarketingIncluded = selectedTier === "tier5";
+  
+  const totalPrice = selectedPlan.price + 
+    (includeVideoMarketing && selectedTier === "tier3" ? 20 : 0);
 
   const handleCheckout = () => {
     if (includeVideoMarketing && canAddVideoMarketing) {
@@ -112,7 +139,11 @@ export default function PricingPage() {
               }`}
               onClick={() => setSelectedTier(plan.tier)}
             >
-              {(plan.tier === "tier3" || plan.tier === "tier4") && <span className={styles.badge}>Video Marketing Available</span>}
+              {(plan.tier === "tier3" || plan.tier === "tier4" || plan.tier === "tier5") && (
+                <span className={styles.badge}>
+                  {plan.tier === "tier5" ? "Video Marketing Included" : "Video Marketing Available"}
+                </span>
+              )}
               <h3>{plan.name}</h3>
               <p className={styles.price}>${plan.price}/mo</p>
               <ul>
@@ -125,13 +156,14 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {canAddVideoMarketing && (
+      {canAddVideoMarketing && !videoMarketingIncluded && (
         <section className={styles.addonSection}>
           <div className={styles.addonCard}>
             <div className={styles.addonHeader}>
               <div>
                 <h2>🎥 Video Marketing Add-On</h2>
-                <p className={styles.addonPrice}>+${VIDEO_MARKETING_ADDON.price}/mo</p>
+                {selectedTier === "tier3" && <p className={styles.addonPrice}>+$20/mo</p>}
+                {selectedTier === "tier4" && <p className={styles.addonPrice}>FREE with Business Plan</p>}
               </div>
               <label className={styles.toggle}>
                 <input type="checkbox" checked={includeVideoMarketing} onChange={(e) => setIncludeVideoMarketing(e.target.checked)} />
@@ -175,10 +207,16 @@ export default function PricingPage() {
             <span>{selectedPlan.name} Plan</span>
             <span>${selectedPlan.price}/mo</span>
           </div>
-          {includeVideoMarketing && canAddVideoMarketing && (
+          {includeVideoMarketing && selectedTier === "tier3" && (
             <div className={styles.summaryLine}>
               <span>Video Marketing Add-On</span>
-              <span>+${VIDEO_MARKETING_ADDON.price}/mo</span>
+              <span>+$20/mo</span>
+            </div>
+          )}
+          {includeVideoMarketing && selectedTier === "tier4" && (
+            <div className={styles.summaryLine}>
+              <span>Video Marketing Add-On</span>
+              <span>FREE</span>
             </div>
           )}
           <div className={styles.summaryTotal}>

@@ -1,4 +1,4 @@
-export type UserTier = "free" | "pro" | "enterprise";
+export type UserTier = "tier1" | "tier2" | "tier3" | "tier4" | "tier5";
 
 export type User = {
   id: string;
@@ -9,24 +9,50 @@ export type User = {
 
 export const canUseVideoMarketing = (user: User | null): boolean => {
   if (!user) return false;
-  return user.hasVideoMarketing && (user.tier === "pro" || user.tier === "enterprise");
+  return user.hasVideoMarketing && (user.tier === "tier3" || user.tier === "tier4" || user.tier === "tier5");
 };
 
 export const canSeeVideoMarketing = (user: User | null): boolean => {
-  if (!user) return true; // Public can see landing page
-  return true; // All logged-in users can see it
+  return true; // Everyone can see the landing page
 };
 
 export const getVideoMarketingAccess = (user: User | null) => {
+  if (!user) {
+    return {
+      canUse: false,
+      canSee: true,
+      reason: "Sign up to access",
+    };
+  }
+
+  if (user.tier === "tier1" || user.tier === "tier2") {
+    return {
+      canUse: false,
+      canSee: true,
+      reason: "Upgrade to Professional (Tier 3) or higher to access Video Marketing",
+    };
+  }
+
+  if (!user.hasVideoMarketing) {
+    if (user.tier === "tier3") {
+      return {
+        canUse: false,
+        canSee: true,
+        reason: "Add Video Marketing for +$20/mo",
+      };
+    }
+    if (user.tier === "tier4") {
+      return {
+        canUse: false,
+        canSee: true,
+        reason: "Add Video Marketing FREE with your Business plan",
+      };
+    }
+  }
+
   return {
-    canUse: canUseVideoMarketing(user),
-    canSee: canSeeVideoMarketing(user),
-    reason: !user
-      ? "Sign up to access"
-      : !user.hasVideoMarketing
-        ? "Upgrade to unlock"
-        : user.tier === "free"
-          ? "Upgrade to Pro or Enterprise"
-          : null,
+    canUse: true,
+    canSee: true,
+    reason: null,
   };
 };

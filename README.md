@@ -81,10 +81,11 @@ model User {
 - **Can Use**: Users with `hasVideoMarketing = true` AND (`tier = "pro"` OR `tier = "enterprise"`)
 
 ### Tier Availability
-- **Tier 1 (Starter)**: $29/mo - No video marketing
-- **Tier 2 (Professional)**: $79/mo - No video marketing
-- **Tier 3 (Business)**: $149/mo - Can add video marketing (+$99/mo)
-- **Tier 4 (Enterprise)**: $299/mo - Can add video marketing (+$99/mo)
+- **Tier 1 (Free)**: $0/mo - No video marketing
+- **Tier 2 (Starter)**: $19/mo - No video marketing
+- **Tier 3 (Professional)**: $49/mo - Can add video marketing (+$20/mo)
+- **Tier 4 (Business)**: $59/mo - Video marketing included FREE
+- **Tier 5 (Enterprise)**: $99/mo - Video marketing included FREE
 
 ## Whop Integration
 

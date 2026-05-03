@@ -11,7 +11,7 @@ model User {
   id                String   @id @default(cuid())
   email             String   @unique
   name              String?
-  tier              String   @default("free") // free, pro, enterprise
+  tier              String   @default("tier1") // tier1, tier2, tier3, tier4, tier5
   hasVideoMarketing Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

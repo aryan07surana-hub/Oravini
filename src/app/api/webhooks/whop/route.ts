@@ -41,35 +41,46 @@ export async function POST(request: NextRequest) {
 async function handleSubscriptionCreated(data: WhopWebhookEvent["data"]) {
   const hasVideoMarketing = data.addons?.includes("addon_videomarketing") || false;
 
-  let tier = "free";
-  if (data.plan_id.includes("starter")) tier = "tier1";
-  if (data.plan_id.includes("professional")) tier = "tier2";
-  if (data.plan_id.includes("business")) tier = "tier3";
-  if (data.plan_id.includes("enterprise")) tier = "tier4";
+  let tier = "tier1";
+  let autoGrantVideoMarketing = false;
 
-  // Update user in database (replace with actual DB logic)
+  if (data.plan_id.includes("free")) {
+    tier = "tier1";
+  } else if (data.plan_id.includes("starter")) {
+    tier = "tier2";
+  } else if (data.plan_id.includes("professional")) {
+    tier = "tier3";
+  } else if (data.plan_id.includes("business")) {
+    tier = "tier4";
+    autoGrantVideoMarketing = true; // Tier 4 gets video marketing FREE
+  } else if (data.plan_id.includes("enterprise")) {
+    tier = "tier5";
+    autoGrantVideoMarketing = true; // Tier 5 includes video marketing
+  }
+
+  const finalHasVideoMarketing = hasVideoMarketing || autoGrantVideoMarketing;
+
   console.log("Creating/updating user:", {
     userId: data.user_id,
     email: data.email,
     tier,
-    hasVideoMarketing,
+    hasVideoMarketing: finalHasVideoMarketing,
   });
 
   // TODO: Update Prisma database
   // await prisma.user.upsert({
   //   where: { email: data.email },
-  //   update: { tier, hasVideoMarketing },
-  //   create: { email: data.email, tier, hasVideoMarketing }
+  //   update: { tier, hasVideoMarketing: finalHasVideoMarketing },
+  //   create: { email: data.email, tier, hasVideoMarketing: finalHasVideoMarketing }
   // });
 }
 
 async function handleSubscriptionCancelled(data: WhopWebhookEvent["data"]) {
-  // Downgrade user to free tier
   console.log("Cancelling subscription for:", data.user_id);
 
   // TODO: Update Prisma database
   // await prisma.user.update({
   //   where: { email: data.email },
-  //   data: { tier: "free", hasVideoMarketing: false }
+  //   data: { tier: "tier1", hasVideoMarketing: false }
   // });
 }
