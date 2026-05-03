@@ -73,6 +73,7 @@ import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
+import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
 import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
@@ -205,6 +206,7 @@ function Router() {
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
+      <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
