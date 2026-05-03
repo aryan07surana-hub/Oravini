@@ -5,7 +5,25 @@
 import { Router } from "express";
 import { storage } from "./storage";
 import { generateContentWorkflow, analyzeContentBatch } from "./contentWorkflow";
-import { analyzeBrandVoice, processPerformanceFeedback } from "./contentIntelligence";
+import { 
+  analyzeBrandVoice, 
+  processPerformanceFeedback,
+  getViralHookSuggestions,
+  getStructureSuggestions,
+  getCTASuggestions,
+  getNicheInsights,
+  getViralFormulas,
+  getPlatformBestPractices,
+  generateSmartSuggestions,
+  classifyHookType,
+  extractHook,
+  analyzeContentStructure,
+  calculateViralScore,
+  detectViralPatterns,
+  calculateContentScore,
+  getViralBreakdowns,
+  searchViralBreakdowns
+} from "./contentIntelligence";
 
 const router = Router();
 
@@ -270,6 +288,350 @@ router.get("/api/content-strategies", async (req, res) => {
         contentMix: CONTENT_MIX,
       },
     });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── SMART CONTENT ANALYSIS (ENHANCED) ──────────────────────────────────────
+router.post("/api/intelligence/analyze", async (req, res) => {
+  try {
+    const { content, platform, niche, funnelStage } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: "Content is required" });
+    }
+
+    const suggestions = generateSmartSuggestions(
+      content,
+      platform || "instagram",
+      niche,
+      funnelStage || "top"
+    );
+
+    res.json({ success: true, ...suggestions });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET VIRAL HOOK SUGGESTIONS ─────────────────────────────────────────────
+router.get("/api/intelligence/hooks", async (req, res) => {
+  try {
+    const { hookType, platform, niche } = req.query;
+    
+    const hooks = getViralHookSuggestions(
+      hookType as string || "curiosity",
+      platform as string || "instagram",
+      niche as string
+    );
+
+    res.json({ success: true, hooks });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET STRUCTURE SUGGESTIONS ──────────────────────────────────────────────
+router.get("/api/intelligence/structures", async (req, res) => {
+  try {
+    const { platform } = req.query;
+    
+    const structures = getStructureSuggestions(platform as string || "instagram");
+
+    res.json({ success: true, structures });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET CTA SUGGESTIONS ────────────────────────────────────────────────────
+router.get("/api/intelligence/ctas", async (req, res) => {
+  try {
+    const { funnelStage, platform } = req.query;
+    
+    const ctas = getCTASuggestions(
+      funnelStage as string || "top_funnel",
+      platform as string || "instagram"
+    );
+
+    res.json({ success: true, ctas });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET NICHE INSIGHTS ─────────────────────────────────────────────────────
+router.get("/api/intelligence/niche/:niche", async (req, res) => {
+  try {
+    const insights = getNicheInsights(req.params.niche);
+
+    if (!insights) {
+      return res.status(404).json({ error: "No insights found for this niche" });
+    }
+
+    res.json({ success: true, insights });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET VIRAL FORMULAS ─────────────────────────────────────────────────────
+router.get("/api/intelligence/formulas", async (req, res) => {
+  try {
+    const { niche } = req.query;
+    
+    const formulas = getViralFormulas(niche as string);
+
+    res.json({ success: true, formulas });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET PLATFORM BEST PRACTICES ────────────────────────────────────────────
+router.get("/api/intelligence/platform/:platform", async (req, res) => {
+  try {
+    const practices = getPlatformBestPractices(req.params.platform);
+
+    if (!practices) {
+      return res.status(404).json({ error: "Platform not found" });
+    }
+
+    res.json({ success: true, practices });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── SUBMIT PERFORMANCE FEEDBACK ────────────────────────────────────────────
+router.post("/api/performance-feedback", async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { content, views, likes, comments, saves, niche, platform } = req.body;
+
+    if (!content || views === undefined || likes === undefined) {
+      return res.status(400).json({ error: "Content, views, and likes are required" });
+    }
+
+    // Create a temporary post to process
+    const post = await storage.createContentPost({
+      clientId: userId,
+      platform: platform || "instagram",
+      title: content.slice(0, 120),
+      contentType: "post",
+      funnelStage: "top",
+      views: Number(views),
+      likes: Number(likes),
+      comments: Number(comments) || 0,
+      saves: Number(saves) || 0,
+      followersGained: 0,
+      subscribersGained: 0,
+    });
+
+    await processPerformanceFeedback(
+      userId,
+      post.id,
+      Number(views),
+      Number(likes),
+      Number(comments) || 0,
+      Number(saves) || 0,
+      niche || "general"
+    );
+
+    const viralScore = calculateViralScore(
+      Number(views),
+      Number(likes),
+      Number(comments) || 0,
+      Number(saves) || 0
+    );
+
+    res.json({ 
+      success: true, 
+      viralScore,
+      message: viralScore >= 7 ? "Added to winning patterns!" : "Performance logged"
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── ANALYZE POST WITH CONTENT INTELLIGENCE ────────────────────────────────────
+router.post("/api/content/:postId/analyze", async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const post = await storage.getContentPost(req.params.postId);
+    if (!post || post.clientId !== userId) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const { niche } = req.body;
+
+    // Run full intelligence analysis
+    const patterns = detectViralPatterns(post.title || "");
+    const score = calculateContentScore(post.title || "", post.platform, niche);
+    const suggestions = generateSmartSuggestions(post.title || "", post.platform, niche, post.funnelStage || "top");
+
+    // If post has performance data, process it for learning
+    if (post.views > 0) {
+      await processPerformanceFeedback(
+        userId,
+        post.id,
+        post.views,
+        post.likes || 0,
+        post.comments || 0,
+        post.saves || 0,
+        niche || "general"
+      );
+    }
+
+    res.json({
+      success: true,
+      postId: post.id,
+      patterns: patterns.detected,
+      missingPatterns: patterns.missingPatterns,
+      score: score.totalScore,
+      rating: score.rating,
+      breakdown: score.breakdown,
+      improvements: score.improvements,
+      suggestions,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── BULK ANALYZE POSTS ─────────────────────────────────────────────────────────
+router.post("/api/content/bulk-analyze", async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { postIds, niche } = req.body;
+
+    if (!Array.isArray(postIds) || postIds.length === 0) {
+      return res.status(400).json({ error: "postIds array is required" });
+    }
+
+    const results = [];
+
+    for (const postId of postIds) {
+      try {
+        const post = await storage.getContentPost(postId);
+        if (!post || post.clientId !== userId) continue;
+
+        const patterns = detectViralPatterns(post.title || "");
+        const score = calculateContentScore(post.title || "", post.platform, niche);
+
+        // Process performance feedback if post has metrics
+        if (post.views > 0) {
+          await processPerformanceFeedback(
+            userId,
+            post.id,
+            post.views,
+            post.likes || 0,
+            post.comments || 0,
+            post.saves || 0,
+            niche || "general"
+          );
+        }
+
+        results.push({
+          postId: post.id,
+          title: post.title,
+          score: score.totalScore,
+          rating: score.rating,
+          patternsDetected: patterns.count,
+          viralScore: calculateViralScore(post.views, post.likes || 0, post.comments || 0, post.saves || 0),
+        });
+      } catch (e) {
+        // Skip failed posts
+        continue;
+      }
+    }
+
+    res.json({
+      success: true,
+      analyzed: results.length,
+      results: results.sort((a, b) => b.score - a.score),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── DETECT VIRAL PATTERNS ──────────────────────────────────────────────────
+router.post("/api/intelligence/detect-patterns", async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: "Content is required" });
+    }
+
+    const patterns = detectViralPatterns(content);
+
+    res.json({ success: true, ...patterns });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── CALCULATE CONTENT SCORE ────────────────────────────────────────────────
+router.post("/api/intelligence/score", async (req, res) => {
+  try {
+    const { content, platform, niche } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: "Content is required" });
+    }
+
+    const score = calculateContentScore(
+      content,
+      platform || "instagram",
+      niche
+    );
+
+    res.json({ success: true, ...score });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── GET VIRAL BREAKDOWNS ───────────────────────────────────────────────────
+router.get("/api/intelligence/viral-breakdowns", async (req, res) => {
+  try {
+    const { platform, niche, minViralScore, limit } = req.query;
+    
+    const breakdowns = getViralBreakdowns({
+      platform: platform as string,
+      niche: niche as string,
+      minViralScore: minViralScore ? Number(minViralScore) : undefined,
+      limit: limit ? Number(limit) : 20
+    });
+
+    res.json({ success: true, breakdowns, count: breakdowns.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── SEARCH VIRAL BREAKDOWNS ────────────────────────────────────────────────
+router.get("/api/intelligence/search-breakdowns", async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    const breakdowns = searchViralBreakdowns(query as string);
+
+    res.json({ success: true, breakdowns, count: breakdowns.length });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

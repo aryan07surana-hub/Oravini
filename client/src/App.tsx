@@ -71,6 +71,7 @@ import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
 import Jarvis from "@/pages/client/Jarvis";
+import ContentIntelligence from "@/pages/ContentIntelligence";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
 import EverydayRead from "@/pages/client/EverydayRead";
@@ -203,6 +204,7 @@ function Router() {
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
       <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
+      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>

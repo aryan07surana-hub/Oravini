@@ -328,6 +328,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <span className="flex-1">Tools</span>
                 {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
+
+              {/* Content Intelligence — AI-powered content analysis */}
+              <Link
+                href="/content-intelligence"
+                data-testid="nav-content-intelligence"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${location === "/content-intelligence"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+              >
+                <Sparkles className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">Content Intelligence</span>
+                {location !== "/content-intelligence" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+              </Link>
             </div>
 
 
