@@ -279,31 +279,40 @@ export default function SelectPlan() {
                 ))}
               </div>
 
-              {/* Video Marketing Add-on — Pro only */}
-              {plan.slug === "pro" && (
-                <div style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}35`, borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
+              {/* Video Marketing Add-on — Growth + Pro only, optional */}
+              {(plan.slug === "growth" || plan.slug === "pro") && (
+                <div style={{ background: plan.slug === "pro" ? `${GOLD}0c` : "rgba(255,255,255,0.03)", border: `1px solid ${plan.slug === "pro" ? `${GOLD}35` : "rgba(255,255,255,0.1)"}`, borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.25)", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 10 }}>Optional Add-on</div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 3 }}>🎬 Video Marketing Add-on</div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: plan.slug === "pro" ? GOLD : "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>🎬 Video Marketing</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                        <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>+$29</span>
+                        <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{plan.slug === "pro" ? "+$29" : "+$39"}</span>
                         <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>/mo</span>
                       </div>
                     </div>
-                    <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.35)", borderRadius: 99, padding: "3px 10px" }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: "#f87171", letterSpacing: "0.05em" }}>Save $10 vs standalone</span>
-                    </div>
+                    {plan.slug === "pro" && (
+                      <div style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 99, padding: "3px 10px" }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: "#f87171", letterSpacing: "0.04em" }}>Save $10 vs standalone</span>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                    {["Unlimited video hosting + VSL pages", "Unlimited webinars + registration pages", "Live attendee CRM + auto-reminders", "AI Clip Finder + white-label pages"].map(f => (
+                    {plan.slug === "pro"
+                      ? ["Unlimited video hosting + VSL pages", "Unlimited webinars + registration pages", "Live attendee CRM + auto-reminders", "AI Clip Finder + white-label pages"]
+                      : ["Unlimited video hosting + VSL pages", "Up to 3 live webinars / month", "Registration pages + email reminders", "Basic attendee analytics"]
+                    }.map(f => (
                       <div key={f} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-                        <span style={{ color: GOLD, fontSize: 10, marginTop: 2, flexShrink: 0 }}>✦</span>
-                        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>{f}</span>
+                        <span style={{ color: plan.slug === "pro" ? GOLD : "rgba(255,255,255,0.45)", fontSize: 10, marginTop: 2, flexShrink: 0 }}>✦</span>
+                        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.4 }}>{f}</span>
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", lineHeight: 1.5 }}>
-                    Standalone Video Pro Bundle costs $59/mo. As a Pro member you get full access for just $29/mo extra.
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.18)", lineHeight: 1.5 }}>
+                    {plan.slug === "pro"
+                      ? "Standalone Video Pro Bundle costs $59/mo. Pro members unlock the same for just $29/mo."
+                      : "Full Video Pro Bundle is $59/mo standalone. Upgrade to Pro for an exclusive $29/mo rate."
+                    }
                   </div>
                 </div>
               )}

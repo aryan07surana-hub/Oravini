@@ -305,6 +305,8 @@ const FEATURES = [
   { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Coming Soon" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
+  { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
+  { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
   { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
@@ -659,6 +661,99 @@ export default function OraviniLanding() {
               <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>
                 The AI runs in the background 24/7 — you just show up and create.
               </span>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
+      {/* ── VIDEO MARKETING ──────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 80% 50% at 50% 100%, rgba(212,180,97,0.05) 0%, transparent 70%)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 72 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Video Marketing · Optional Add-on</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
+              Host webinars. Deploy VSLs.<br /><span style={{ color: GOLD }}>Convert with video.</span>
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.42)", fontSize: "clamp(14px, 1.6vw, 16px)", maxWidth: 520, margin: "0 auto", lineHeight: 1.8 }}>
+              Add the full video marketing suite to any Growth or Pro plan. Webinars, VSLs, video hosting, AI clip extraction — all in one place.
+            </p>
+          </Anim>
+
+          {/* Two-column feature blocks */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginBottom: 60 }}>
+            {[
+              {
+                icon: "📡",
+                title: "Live Webinars",
+                desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
+                bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+                accent: "#60a5fa",
+              },
+              {
+                icon: "🎯",
+                title: "VSL Engine",
+                desc: "Deploy video sales letters with a custom progress bar you fully control. Set precise timing to maximise watch-through and push conversion rates higher.",
+                bullets: ["Custom progress bar — any timing", "Email opt-in gating at any timestamp", "Watch-through analytics per video", "Embed anywhere via link or iframe"],
+                accent: GOLD,
+              },
+              {
+                icon: "✂️",
+                title: "AI Clip Finder",
+                desc: "Feed in any long-form video — a webinar replay, a podcast, a VSL. The AI scans the full timeline and extracts the highest-value clips ready to repurpose.",
+                bullets: ["Auto-detects high-energy moments", "Batch process multiple videos", "Clips exported and ready to post", "Works on webinar replays + long VSLs"],
+                accent: "#a78bfa",
+              },
+              {
+                icon: "🗂️",
+                title: "Video Library",
+                desc: "One organised library for all your content — VSLs, webinar recordings, and standard videos. Import via URL, file upload, or Google Drive.",
+                bullets: ["4 import methods: URL · file · Drive · embed", "Filter by type: VSL · Webinar · Standard", "Password protection + time-limited links", "White-label hosting pages (Pro add-on)"],
+                accent: "#34d399",
+              },
+            ].map((item, i) => (
+              <Anim key={item.title} delay={i * 80}>
+                <div className="feature-card" style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", transition: "border-color 0.3s, box-shadow 0.3s", display: "flex", flexDirection: "column", gap: 0 }}>
+                  <div style={{ fontSize: 28, marginBottom: 16 }}>{item.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: item.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Video Marketing</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.25 }}>{item.title}</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.42)", lineHeight: 1.75, marginBottom: 20, flex: 1 }}>{item.desc}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {item.bullets.map(b => (
+                      <div key={b} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <span style={{ color: item.accent, fontSize: 10, marginTop: 3, flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Anim>
+            ))}
+          </div>
+
+          {/* Add-on pricing callout */}
+          <Anim>
+            <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}30`, borderRadius: 24, padding: "40px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 28 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Optional Add-on · Growth & Pro Plans</div>
+                <h3 style={{ fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
+                  Add full video access<br />from <span style={{ color: GOLD }}>$29/mo</span>
+                </h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, maxWidth: 420 }}>
+                  Growth members add the Video Hosting + Webinar add-on for +$39/mo. Pro members get the full Video Pro Bundle for just +$29/mo — saving $10 vs the standalone price.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { const el = document.getElementById("pricing"); el?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
+                  See Plans & Add-ons →
+                </button>
+                <button
+                  onClick={() => window.open("/video-marketing-landing", "_blank")}
+                  style={{ background: "transparent", color: GOLD, fontWeight: 600, fontSize: 14, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
+                  Full Feature Overview
+                </button>
+              </div>
             </div>
           </Anim>
         </div>
