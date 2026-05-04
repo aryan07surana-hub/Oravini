@@ -22,7 +22,10 @@ export default function VideoMarketing() {
         return null;
     }
 
-    if (!hasVideoMarketingAccess(user.plan, (user as any).hasVideoMarketing)) {
+    // Admins always have full access
+    const isAdmin = (user as any).role === "admin";
+
+    if (!isAdmin && !hasVideoMarketingAccess(user.plan, (user as any).hasVideoMarketing)) {
         return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketing={(user as any).hasVideoMarketing} />;
     }
 

@@ -36,13 +36,13 @@ export default function Hero() {
                     All-in-one webinar, video, landing page & analytics suite. Turn viewers into customers with high-converting funnels, replays, and real-time engagement.
                 </p>
                 <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                    <Link href="/login">
+                    <Link href="/video-marketing">
                         <Button
                             size="lg"
                             className="px-8 font-semibold"
                             style={{ background: GOLD, color: "#000" }}
                         >
-                            Start Free — Login to Access
+                            Access the Platform
                             <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                     </Link>

@@ -32,29 +32,28 @@ export default function FinalCTA() {
                     business through live video.
                 </p>
                 <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                    <Link href="/login">
+                    <Link href="/video-marketing">
                         <Button
                             size="lg"
                             className="px-10 font-semibold text-base"
                             style={{ background: GOLD, color: "#000" }}
                         >
-                            Login to Access Platform
+                            Access the Platform
                             <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
                     </Link>
-                    <Link href="/login">
+                    <Link href="/video-marketing">
                         <Button
                             size="lg"
                             variant="outline"
                             className="px-10 border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-900"
                         >
-                            Create Free Account
+                            Get Started Free
                         </Button>
                     </Link>
                 </div>
                 <p className="mt-6 text-[11px] text-zinc-600">
-                    Free forever plan available · No credit card required · Upgrade
-                    anytime
+                    Free forever plan available · No credit card required · Upgrade anytime
                 </p>
             </div>
         </section>

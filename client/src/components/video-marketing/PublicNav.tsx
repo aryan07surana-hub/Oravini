@@ -14,7 +14,7 @@ export default function PublicNav() {
             }}
         >
             <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-                <Link href="/">
+                <Link href="/video-marketing">
                     <div className="flex items-center gap-2.5 cursor-pointer">
                         <img
                             src="/oravini-logo.png"
@@ -28,15 +28,16 @@ export default function PublicNav() {
                         >
                             ORAVINI
                         </span>
+                        <span className="text-xs text-zinc-500 hidden sm:inline">· Video Marketing</span>
                     </div>
                 </Link>
-                <Link href="/login">
+                <Link href="/video-marketing">
                     <Button
                         size="sm"
                         className="font-semibold gap-1.5"
                         style={{ background: GOLD, color: "#000" }}
                     >
-                        Get Started <ArrowRight className="w-3.5 h-3.5" />
+                        Access Platform <ArrowRight className="w-3.5 h-3.5" />
                     </Button>
                 </Link>
             </div>

@@ -132,7 +132,7 @@ export default function PricingCTA() {
                                         </li>
                                     ))}
                                 </ul>
-                                <Link href="/login">
+                                <Link href="/video-marketing">
                                     <Button
                                         className="w-full mt-6 font-semibold"
                                         style={
