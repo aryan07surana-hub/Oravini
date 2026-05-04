@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -211,7 +211,8 @@ const topNavItems = [
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
   { href: "/video-editor", label: "Video Editor", icon: Clapperboard },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
-  { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
+  { href: "/video-marketing-landing", label: "Video Marketing", icon: MonitorPlay },
+  { href: "/dm-automation", label: "DM Automation", icon: Workflow },
 ];
 
 const bottomNavItems = [
@@ -326,6 +327,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <Wrench className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">Tools</span>
                 {!toolsActive && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+              </Link>
+
+              {/* Content Intelligence — AI-powered content analysis */}
+              <Link
+                href="/content-intelligence"
+                data-testid="nav-content-intelligence"
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${location === "/content-intelligence"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+              >
+                <Sparkles className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1">Content Intelligence</span>
+                {location !== "/content-intelligence" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
               </Link>
             </div>
 

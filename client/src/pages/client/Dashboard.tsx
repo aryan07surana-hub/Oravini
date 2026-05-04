@@ -18,7 +18,7 @@ import {
   Trash2, Check, Sparkles, RefreshCw, ChevronRight, Zap, BarChart2,
   Lightbulb, Music2, Bot, Clapperboard, Map, Flame, Activity, Brain,
   Palette, ScanSearch, Layers, ImagePlay, Wand2, Mic2, Star, TrendingDown,
-  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck, MessageCircle
+  Megaphone, Rocket, Crown, Hash, Coffee, MonitorPlay, Gift, Copy, Link2, MousePointerClick, UserCheck, MessageCircle, X
 } from "lucide-react";
 import FeedbackModal from "@/components/FeedbackModal";
 import { TourButton } from "@/components/ui/TourGuide";
@@ -686,15 +686,47 @@ function ConnectedPlatforms() {
   const { data: twitter }   = useQuery<any>({ queryKey: ["/api/twitter/status"],  staleTime: 60000 });
   const { data: youtube }   = useQuery<any>({ queryKey: ["/api/youtube/status"],  staleTime: 60000 });
   const { data: linkedin }  = useQuery<any>({ queryKey: ["/api/linkedin/status"], staleTime: 60000 });
-  const { data: instagram } = useQuery<any>({ queryKey: ["/api/meta/account"],    staleTime: 60000 });
-  const { data: canva }     = useQuery<any>({ queryKey: ["/api/canva/status"],    staleTime: 60000 });
+  const { data: meta }      = useQuery<any>({ queryKey: ["/api/oauth/meta/status"], staleTime: 60000 });
+  const { toast } = useToast();
+
+  const disconnectMutation = useMutation({
+    mutationFn: async (platform: string) => {
+      const endpoints: Record<string, string> = {
+        instagram: "/api/oauth/meta/disconnect",
+        facebook: "/api/oauth/meta/disconnect",
+        twitter: "/api/oauth/twitter/disconnect",
+        linkedin: "/api/oauth/linkedin/disconnect",
+      };
+      const res = await fetch(endpoints[platform], { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("Disconnect failed");
+      return res.json();
+    },
+    onSuccess: (_data, platform) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/oauth/meta/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/twitter/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/linkedin/status"] });
+      toast({ title: `${platform} disconnected successfully` });
+    },
+    onError: () => {
+      toast({ title: "Disconnect failed", variant: "destructive" });
+    },
+  });
+
+  const handleConnect = (platform: string) => {
+    const endpoints: Record<string, string> = {
+      instagram: "/api/oauth/meta/connect",
+      facebook: "/api/oauth/meta/connect",
+      twitter: "/api/oauth/twitter/connect",
+      linkedin: "/api/oauth/linkedin/connect",
+    };
+    window.location.href = endpoints[platform];
+  };
 
   const platforms = [
-    { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", href: "/instagram-scheduler", connected: instagram?.connected ?? false },
-    { id: "youtube",   label: "YouTube",   icon: Youtube,       color: "#f87171", href: "/youtube-scheduler",   connected: youtube?.connected ?? false  },
-    { id: "twitter",   label: "Twitter/X", icon: MessageSquare, color: "#60a5fa", href: "/twitter-scheduler",   connected: twitter?.connected ?? false  },
-    { id: "linkedin",  label: "LinkedIn",  icon: Users,         color: "#818cf8", href: "/linkedin-scheduler",  connected: linkedin?.connected ?? false  },
-    { id: "canva",     label: "Canva",     icon: Palette,       color: "#a78bfa", href: "/video-editor",        connected: canva?.connected ?? false    },
+    { id: "instagram", label: "Instagram", icon: Instagram,     color: "#f472b6", connected: meta?.connected && meta?.igUsername ? true : false, username: meta?.igUsername },
+    { id: "youtube",   label: "YouTube",   icon: Youtube,      color: "#f87171", connected: youtube?.connected ?? false, username: youtube?.channelTitle },
+    { id: "linkedin",  label: "LinkedIn",  icon: Users,        color: "#0077b5", connected: linkedin?.connected ?? false, username: linkedin?.linkedinName },
+    { id: "twitter",   label: "X/Twitter", icon: MessageSquare, color: "#000000", connected: twitter?.connected ?? false, username: twitter?.twitterHandle },
   ];
 
   const connectedCount = platforms.filter(p => p.connected).length;
@@ -712,24 +744,47 @@ function ConnectedPlatforms() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-5 gap-2">
-        {platforms.map(({ id, label, icon: Icon, color, href, connected }) => (
-          <Link key={id} href={href}>
-            <div
-              data-testid={`platform-${id}`}
-              title={label}
-              className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl cursor-pointer transition-all group"
-              style={{
-                background: connected ? `${color}12` : "rgba(255,255,255,0.02)",
-                border: `1px solid ${connected ? `${color}35` : "rgba(255,255,255,0.05)"}`,
-                boxShadow: connected ? `0 0 12px ${color}18` : "none",
-              }}
-            >
-              <Icon className="w-5 h-5 transition-all group-hover:scale-110" style={{ color: connected ? color : "rgba(255,255,255,0.2)" }} />
-              <p className="text-[9px] font-semibold text-center leading-tight" style={{ color: connected ? color : "rgba(255,255,255,0.25)" }}>{label}</p>
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: connected ? color : "rgba(255,255,255,0.1)", boxShadow: connected ? `0 0 5px ${color}` : "none" }} />
+      <div className="space-y-3">
+        {platforms.map(({ id, label, icon: Icon, color, connected, username }) => (
+          <div
+            key={id}
+            data-testid={`platform-${id}`}
+            className="flex items-center justify-between p-3 rounded-xl transition-all"
+            style={{
+              background: connected ? `${color}12` : "rgba(255,255,255,0.02)",
+              border: `1px solid ${connected ? `${color}35` : "rgba(255,255,255,0.05)"}`,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Icon className="w-5 h-5" style={{ color: connected ? color : "rgba(255,255,255,0.2)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: connected ? color : "rgba(255,255,255,0.4)" }}>{label}</p>
+                {connected && username && <p className="text-xs text-zinc-500 mt-0.5">@{username}</p>}
+              </div>
             </div>
-          </Link>
+            <div className="flex items-center gap-2">
+              {connected ? (
+                <>
+                  <div className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+                  <button
+                    onClick={() => disconnectMutation.mutate(id)}
+                    disabled={disconnectMutation.isPending}
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:bg-red-500/20 text-red-400 border border-red-500/30"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => handleConnect(id)}
+                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
         ))}
       </div>
       {connectedCount < platforms.length && (
@@ -1779,6 +1834,7 @@ export default function ClientDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(() => localStorage.getItem("dash_auto_refresh") === "true");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [vmBannerDismissed, setVmBannerDismissed] = useState(() => localStorage.getItem("vm_addon_banner_dismissed") === "true");
   const autoRefreshRef = useRef(autoRefresh);
   const versionRef = useRef<string | null>(null);
 
@@ -1891,6 +1947,86 @@ export default function ClientDashboard() {
               )}
             </div>
           </div>
+
+          {/* ── VIDEO MARKETING ADD-ON UPGRADE BANNER ── */}
+          {!vmBannerDismissed && (
+            (user as any)?.plan === "pro" || (user as any)?.plan === "growth"
+          ) && (
+            <div
+              style={{
+                background: (user as any)?.plan === "pro"
+                  ? `linear-gradient(135deg, ${GOLD}0d 0%, rgba(212,180,97,0.04) 100%)`
+                  : "rgba(255,255,255,0.025)",
+                border: `1px solid ${(user as any)?.plan === "pro" ? `${GOLD}30` : "rgba(255,255,255,0.08)"}`,
+                borderRadius: 16,
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap" as const,
+                position: "relative" as const,
+              }}
+            >
+              {/* left: icon + copy */}
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                  background: (user as any)?.plan === "pro" ? `${GOLD}18` : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${(user as any)?.plan === "pro" ? `${GOLD}35` : "rgba(255,255,255,0.1)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <MonitorPlay className="w-5 h-5" style={{ color: (user as any)?.plan === "pro" ? GOLD : "rgba(255,255,255,0.5)" }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" as const }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+                      {(user as any)?.plan === "pro"
+                        ? "You qualify for Video Marketing at +$29/mo"
+                        : "Add Video Marketing to your Growth plan for +$39/mo"}
+                    </span>
+                    {(user as any)?.plan === "pro" && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, color: "#f87171",
+                        background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)",
+                        borderRadius: 99, padding: "2px 7px", letterSpacing: "0.05em"
+                      }}>
+                        EXCLUSIVE RATE · SAVE $10
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5, margin: 0 }}>
+                    {(user as any)?.plan === "pro"
+                      ? "Host webinars, upload videos, build VSL pages & track every viewer — all for $10 less than the standalone price."
+                      : "Host up to 3 webinars/mo, video hosting, registration pages & email reminders. Upgrade to Pro for an exclusive $29/mo rate."}
+                  </p>
+                </div>
+              </div>
+              {/* right: CTA + dismiss */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <Link href="/video-marketing-addon">
+                  <button style={{
+                    background: (user as any)?.plan === "pro" ? GOLD : "rgba(255,255,255,0.08)",
+                    border: (user as any)?.plan === "pro" ? "none" : "1px solid rgba(255,255,255,0.12)",
+                    color: (user as any)?.plan === "pro" ? "#000" : "#fff",
+                    fontWeight: 700, fontSize: 12, borderRadius: 10,
+                    padding: "9px 18px", cursor: "pointer", whiteSpace: "nowrap" as const,
+                    display: "flex", alignItems: "center", gap: 6,
+                  }}>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Add Video Marketing
+                  </button>
+                </Link>
+                <button
+                  onClick={() => { setVmBannerDismissed(true); localStorage.setItem("vm_addon_banner_dismissed", "true"); }}
+                  style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.2)", cursor: "pointer", padding: 4, borderRadius: 6, lineHeight: 1 }}
+                  title="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── TAKE THE TOUR BANNER ── */}
           <div

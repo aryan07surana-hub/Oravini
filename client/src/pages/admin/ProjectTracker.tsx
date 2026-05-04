@@ -207,6 +207,46 @@ export default function AdminProjectTracker() {
           ))}
         </div>
 
+        <Card className="border border-card-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4 items-center">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Selected Client</p>
+                <Select value={selectedClientId || selectedProject?.client.id || ""} onValueChange={setSelectedClientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a client mission" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(data?.projects || []).map((project) => (
+                      <SelectItem key={project.client.id} value={project.client.id}>
+                        {project.client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-xl border border-card-border bg-black/25 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.18em]">Phase</p>
+                  <p className="text-xs text-foreground mt-1 truncate">{selectedProject?.currentPhase?.title || "—"}</p>
+                </div>
+                <div className="rounded-xl border border-card-border bg-black/25 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.18em]">Progress</p>
+                  <p className="text-xs text-foreground mt-1">{selectedProject?.completion ?? 0}%</p>
+                </div>
+                <div className="rounded-xl border border-card-border bg-black/25 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.18em]">Approvals</p>
+                  <p className="text-xs text-foreground mt-1">{selectedProject?.summary.approvalCount ?? 0}</p>
+                </div>
+                <div className="rounded-xl border border-card-border bg-black/25 px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-[0.18em]">Blockers</p>
+                  <p className="text-xs text-foreground mt-1">{selectedProject?.summary.blockerCount ?? 0}</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-6">
           <Card className="border border-card-border shadow-sm overflow-hidden bg-card">
             <CardHeader className="border-b border-card-border bg-black/20">
@@ -475,8 +515,8 @@ export default function AdminProjectTracker() {
                               <div className="space-y-3">
                                 {step.actions.map((action, actionIndex) => (
                                   <div key={action.id} className="rounded-2xl border border-card-border bg-black/30 p-4">
-                                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_140px_140px_140px_160px] gap-3 items-start">
-                                      <div className="space-y-2">
+                                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-3 items-start">
+                                      <div className="space-y-2 min-w-0">
                                         <Input
                                           value={action.title}
                                           onChange={(e) =>
@@ -508,61 +548,61 @@ export default function AdminProjectTracker() {
                                         />
                                       </div>
 
-                                      <Select
-                                        value={action.owner}
-                                        onValueChange={(value: any) =>
-                                          updateDraft((current) => {
-                                            const phases = [...current.phases];
-                                            const steps = [...phase.steps];
-                                            const actions = [...step.actions];
-                                            actions[actionIndex] = { ...action, owner: value };
-                                            steps[stepIndex] = { ...step, actions };
-                                            phases[phaseIndex] = { ...phase, steps };
-                                            return { ...current, phases };
-                                          })
-                                        }
-                                      >
-                                        <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
-                                        <SelectContent>{ownerOptions.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent>
-                                      </Select>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <Select
+                                          value={action.owner}
+                                          onValueChange={(value: any) =>
+                                            updateDraft((current) => {
+                                              const phases = [...current.phases];
+                                              const steps = [...phase.steps];
+                                              const actions = [...step.actions];
+                                              actions[actionIndex] = { ...action, owner: value };
+                                              steps[stepIndex] = { ...step, actions };
+                                              phases[phaseIndex] = { ...phase, steps };
+                                              return { ...current, phases };
+                                            })
+                                          }
+                                        >
+                                          <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
+                                          <SelectContent>{ownerOptions.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent>
+                                        </Select>
 
-                                      <Select
-                                        value={action.status}
-                                        onValueChange={(value: any) =>
-                                          updateDraft((current) => {
-                                            const phases = [...current.phases];
-                                            const steps = [...phase.steps];
-                                            const actions = [...step.actions];
-                                            actions[actionIndex] = { ...action, status: value };
-                                            steps[stepIndex] = { ...step, actions };
-                                            phases[phaseIndex] = { ...phase, steps };
-                                            return { ...current, phases };
-                                          })
-                                        }
-                                      >
-                                        <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                                        <SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status.replace("_", " ")}</SelectItem>)}</SelectContent>
-                                      </Select>
+                                        <Select
+                                          value={action.status}
+                                          onValueChange={(value: any) =>
+                                            updateDraft((current) => {
+                                              const phases = [...current.phases];
+                                              const steps = [...phase.steps];
+                                              const actions = [...step.actions];
+                                              actions[actionIndex] = { ...action, status: value };
+                                              steps[stepIndex] = { ...step, actions };
+                                              phases[phaseIndex] = { ...phase, steps };
+                                              return { ...current, phases };
+                                            })
+                                          }
+                                        >
+                                          <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                                          <SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status.replace("_", " ")}</SelectItem>)}</SelectContent>
+                                        </Select>
 
-                                      <Select
-                                        value={action.priority}
-                                        onValueChange={(value: any) =>
-                                          updateDraft((current) => {
-                                            const phases = [...current.phases];
-                                            const steps = [...phase.steps];
-                                            const actions = [...step.actions];
-                                            actions[actionIndex] = { ...action, priority: value };
-                                            steps[stepIndex] = { ...step, actions };
-                                            phases[phaseIndex] = { ...phase, steps };
-                                            return { ...current, phases };
-                                          })
-                                        }
-                                      >
-                                        <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
-                                        <SelectContent>{priorityOptions.map((priority) => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}</SelectContent>
-                                      </Select>
+                                        <Select
+                                          value={action.priority}
+                                          onValueChange={(value: any) =>
+                                            updateDraft((current) => {
+                                              const phases = [...current.phases];
+                                              const steps = [...phase.steps];
+                                              const actions = [...step.actions];
+                                              actions[actionIndex] = { ...action, priority: value };
+                                              steps[stepIndex] = { ...step, actions };
+                                              phases[phaseIndex] = { ...phase, steps };
+                                              return { ...current, phases };
+                                            })
+                                          }
+                                        >
+                                          <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
+                                          <SelectContent>{priorityOptions.map((priority) => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}</SelectContent>
+                                        </Select>
 
-                                      <div className="space-y-2">
                                         <Input
                                           type="date"
                                           value={action.dueDate ? action.dueDate.slice(0, 10) : ""}
@@ -578,7 +618,8 @@ export default function AdminProjectTracker() {
                                             })
                                           }
                                         />
-                                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                      </div>
+                                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-2">
                                           <label className="flex items-center gap-2">
                                             <input
                                               type="checkbox"
@@ -615,7 +656,6 @@ export default function AdminProjectTracker() {
                                             />
                                             Approval
                                           </label>
-                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -870,33 +910,71 @@ export default function AdminProjectTracker() {
                   </CardHeader>
                   <CardContent>
                     <Tabs defaultValue="tasks">
-                      <TabsList className="bg-black/30 border border-card-border h-auto flex-wrap justify-start">
-                        <TabsTrigger value="tasks">Task Board</TabsTrigger>
-                        <TabsTrigger value="deliverables">Deliverables</TabsTrigger>
-                        <TabsTrigger value="crm">CRM</TabsTrigger>
-                        <TabsTrigger value="content">Content</TabsTrigger>
-                        <TabsTrigger value="comms">Comms</TabsTrigger>
-                        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                      <TabsList className="!grid !grid-cols-2 md:!grid-cols-3 xl:!grid-cols-6 bg-black/30 border border-card-border h-auto w-full gap-1 p-1">
+                        <TabsTrigger className="w-full" value="tasks">Sections Board</TabsTrigger>
+                        <TabsTrigger className="w-full" value="deliverables">Deliverables</TabsTrigger>
+                        <TabsTrigger className="w-full" value="crm">CRM</TabsTrigger>
+                        <TabsTrigger className="w-full" value="content">Content</TabsTrigger>
+                        <TabsTrigger className="w-full" value="comms">Comms</TabsTrigger>
+                        <TabsTrigger className="w-full" value="analytics">Analytics</TabsTrigger>
                       </TabsList>
 
                       <TabsContent value="tasks" className="mt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-                          {(["pending", "in_progress", "review", "completed"] as ActionStatus[]).map((status) => {
-                            const actions = (draft?.phases || [])
-                              .flatMap((phase) => phase.steps.flatMap((step) => step.actions.map((action) => ({ phase, step, action }))))
-                              .filter((x) => x.action.status === status);
-                            return (
-                              <div key={status} className="rounded-2xl border border-card-border bg-black/20 p-3 space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d4b461]">{status.replace("_", " ")}</p>
-                                {actions.slice(0, 8).map(({ action, phase }) => (
-                                  <div key={action.id} className="rounded-xl border border-card-border bg-black/25 p-2">
-                                    <p className="text-sm text-foreground">{action.title}</p>
-                                    <p className="text-[11px] text-muted-foreground mt-1">{phase.title}</p>
-                                  </div>
-                                ))}
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                          {(draft?.executionColumns || []).map((section, index) => (
+                            <div key={section.id} className="rounded-2xl border border-card-border bg-black/20 p-3 space-y-2">
+                              <Input
+                                value={section.title}
+                                onChange={(e) =>
+                                  updateDraft((current) => {
+                                    const executionColumns = [...current.executionColumns];
+                                    executionColumns[index] = { ...section, title: e.target.value };
+                                    return { ...current, executionColumns };
+                                  })
+                                }
+                                className="font-semibold"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                  value={section.status}
+                                  onValueChange={(value: any) =>
+                                    updateDraft((current) => {
+                                      const executionColumns = [...current.executionColumns];
+                                      executionColumns[index] = { ...section, status: value };
+                                      return { ...current, executionColumns };
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status.replace("_", " ")}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <Select
+                                  value={section.owner}
+                                  onValueChange={(value: any) =>
+                                    updateDraft((current) => {
+                                      const executionColumns = [...current.executionColumns];
+                                      executionColumns[index] = { ...section, owner: value };
+                                      return { ...current, executionColumns };
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>{ownerOptions.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent>
+                                </Select>
                               </div>
-                            );
-                          })}
+                              <Textarea
+                                rows={2}
+                                value={section.notes}
+                                onChange={(e) =>
+                                  updateDraft((current) => {
+                                    const executionColumns = [...current.executionColumns];
+                                    executionColumns[index] = { ...section, notes: e.target.value };
+                                    return { ...current, executionColumns };
+                                  })
+                                }
+                              />
+                            </div>
+                          ))}
                         </div>
                       </TabsContent>
 

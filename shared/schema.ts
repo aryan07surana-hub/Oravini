@@ -6,7 +6,7 @@ import { z } from "zod";
 export const roleEnum = pgEnum("role", ["admin", "client"]);
 export const docTypeEnum = pgEnum("doc_type", ["recording", "summary", "audit", "strategy", "worksheet", "contract", "material", "other"]);
 export const platformEnum = pgEnum("platform", ["instagram", "youtube"]);
-export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video"]);
+export const contentTypeEnum = pgEnum("content_type", ["reel", "carousel", "story", "video", "post"]);
 export const funnelStageEnum = pgEnum("funnel_stage", ["top", "middle", "bottom"]);
 export const planEnum = pgEnum("plan", ["free", "starter", "growth", "pro", "elite"]);
 export const sessionTypeEnum = pgEnum("session_type", ["recording", "live_qa", "workshop", "masterclass"]);
@@ -26,7 +26,9 @@ export const users = pgTable("users", {
   googleId: text("google_id").unique(),
   plan: planEnum("plan").notNull().default("free"),
   planConfirmed: boolean("plan_confirmed").notNull().default(false),
+  hasVideoMarketing: boolean("has_video_marketing").notNull().default(false),
   surveyCompleted: boolean("survey_completed").notNull().default(false),
+  hasVideoMarketingAddon: boolean("has_video_marketing_addon").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -163,18 +165,22 @@ export const contentPosts = pgTable("content_posts", {
   likes: integer("likes").notNull().default(0),
   comments: integer("comments").notNull().default(0),
   saves: integer("saves").notNull().default(0),
+  shares: integer("shares").notNull().default(0),
+  contentStyle: text("content_style"),
   followersGained: integer("followers_gained").notNull().default(0),
   subscribersGained: integer("subscribers_gained").notNull().default(0),
   views2w: integer("views_2w"),
   likes2w: integer("likes_2w"),
   comments2w: integer("comments_2w"),
   saves2w: integer("saves_2w"),
+  shares2w: integer("shares_2w"),
   followersGained2w: integer("followers_gained_2w"),
   subscribersGained2w: integer("subscribers_gained_2w"),
   views4w: integer("views_4w"),
   likes4w: integer("likes_4w"),
   comments4w: integer("comments_4w"),
   saves4w: integer("saves_4w"),
+  shares4w: integer("shares_4w"),
   followersGained4w: integer("followers_gained_4w"),
   subscribersGained4w: integer("subscribers_gained_4w"),
   metricsReminded: boolean("metrics_reminded").notNull().default(false),
@@ -262,6 +268,11 @@ export const dmLeads = pgTable("dm_leads", {
   lastContactAt: timestamp("last_contact_at"),
   followUpDate: timestamp("follow_up_date"),
   source: varchar("source"),
+  email: text("email"),
+  phone: text("phone"),
+  leadScore: integer("lead_score"),
+  leadScoreReason: text("lead_score_reason"),
+  isOptedOut: boolean("is_opted_out").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -347,20 +358,21 @@ export const insertVideoResourceSchema = createInsertSchema(videoResources).omit
 export type InsertVideoResource = z.infer<typeof insertVideoResourceSchema>;
 export type VideoResource = typeof videoResources.$inferSelect;
 
-export const canvaTokens = pgTable("canva_tokens", {
+// Meta (Instagram/Facebook) OAuth tokens
+export const metaTokens = pgTable("meta_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
   accessToken: text("access_token").notNull(),
-  refreshToken: text("refresh_token"),
-  expiresAt: timestamp("expires_at").notNull(),
+  expiresAt: timestamp("expires_at"),
   scope: text("scope"),
+  igAccountId: text("ig_account_id"),
+  igUsername: text("ig_username"),
+  fbPageId: text("fb_page_id"),
+  fbPageName: text("fb_page_name"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-export const insertCanvaTokenSchema = createInsertSchema(canvaTokens).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertCanvaToken = z.infer<typeof insertCanvaTokenSchema>;
-export type CanvaToken = typeof canvaTokens.$inferSelect;
+export type MetaToken = typeof metaTokens.$inferSelect;
 
 export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true, createdAt: true });
 export type InsertSession = z.infer<typeof insertSessionSchema>;
@@ -493,6 +505,18 @@ export const scheduledYoutubePosts = pgTable("scheduled_youtube_posts", {
 export const insertScheduledYoutubePostSchema = createInsertSchema(scheduledYoutubePosts).omit({ id: true, createdAt: true, youtubeVideoId: true, errorMessage: true, status: true });
 export type InsertScheduledYoutubePost = z.infer<typeof insertScheduledYoutubePostSchema>;
 export type ScheduledYoutubePost = typeof scheduledYoutubePosts.$inferSelect;
+
+export const scheduledInstagramPosts = pgTable("scheduled_instagram_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  caption: text("caption").notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: text("status").notNull().default("pending"), // pending | ready | posted
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertScheduledInstagramPostSchema = createInsertSchema(scheduledInstagramPosts).omit({ id: true, createdAt: true, status: true });
+export type InsertScheduledInstagramPost = z.infer<typeof insertScheduledInstagramPostSchema>;
+export type ScheduledInstagramPost = typeof scheduledInstagramPosts.$inferSelect;
 
 export const aiSessionHistory = pgTable("ai_session_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1038,7 +1062,20 @@ export const webinars = pgTable("webinars", {
   offerTitle: text("offer_title"),
   thumbnailUrl: text("thumbnail_url"),
   isPublic: boolean("is_public").notNull().default(false),
+  webinarType: text("webinar_type").notNull().default("live"),
+  replayVideoUrl: text("replay_video_url"),
+  presenterName: text("presenter_name"),
+  videoQuality: text("video_quality").default("1080p"),
   views: integer("views").notNull().default(0),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  peakViewers: integer("peak_viewers").notNull().default(0),
+  broadcastUrl: text("broadcast_url"),
+  livekitRoomName: text("livekit_room_name"),
+  seriesId: varchar("series_id"),
+  waitingRoomVideoUrl: text("waiting_room_video_url"),
+  waitingRoomMessage: text("waiting_room_message"),
+  emailReminderEnabled: boolean("email_reminder_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1073,11 +1110,106 @@ export const videoEvents = pgTable("video_events", {
   views: integer("views").notNull().default(0),
   isPublic: boolean("is_public").notNull().default(false),
   allowDownload: boolean("allow_download").notNull().default(false),
+  videoType: text("video_type").notNull().default("standard"), // standard | vsl | webinar
+  progressBarConfig: text("progress_bar_config"), // JSON stringified config
+  leadGateEnabled: boolean("lead_gate_enabled").notNull().default(false),
+  // Player branding
+  brandColor: text("brand_color"),
+  logoUrl: text("logo_url"),
+  captionUrl: text("caption_url"),
+  resumeEnabled: boolean("resume_enabled").notNull().default(false),
+  autoplayNextEnabled: boolean("autoplay_next_enabled").notNull().default(false),
+  // Protection
+  domainWhitelist: text("domain_whitelist").array().default(sql`'{}'::text[]`),
+  expiresAt: timestamp("expires_at"),
+  passwordHash: text("password_hash"),
+  // Urgency bar
+  urgencyText: text("urgency_text"),
+  urgencyEndsAt: timestamp("urgency_ends_at"),
+  // Player controls
+  defaultPlaybackSpeed: real("default_playback_speed").notNull().default(1.0),
+  allowSpeedControl: boolean("allow_speed_control").notNull().default(true),
+  allowQualityControl: boolean("allow_quality_control").notNull().default(true),
+  // Oravini watermark
+  showOraviniWatermark: boolean("show_oravini_watermark").notNull().default(true),
+  oraviniWatermarkPosition: text("oravini_watermark_position").notNull().default("bottom-right"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertVideoEventSchema = createInsertSchema(videoEvents).omit({ id: true, createdAt: true, views: true });
 export type InsertVideoEvent = z.infer<typeof insertVideoEventSchema>;
 export type VideoEvent = typeof videoEvents.$inferSelect;
+
+// ── Video Collections ─────────────────────────────────────────────────────────
+export const videoCollections = pgTable("video_collections", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url"),
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoCollectionSchema = createInsertSchema(videoCollections).omit({ id: true, createdAt: true });
+export type InsertVideoCollection = z.infer<typeof insertVideoCollectionSchema>;
+export type VideoCollection = typeof videoCollections.$inferSelect;
+
+export const videoCollectionItems = pgTable("video_collection_items", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").notNull().references(() => videoCollections.id, { onDelete: "cascade" }),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type VideoCollectionItem = typeof videoCollectionItems.$inferSelect;
+
+// ── Video Chapters ─────────────────────────────────────────────────────────────
+export const videoChapters = pgTable("video_chapters", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  startSeconds: integer("start_seconds").notNull().default(0),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoChapterSchema = createInsertSchema(videoChapters).omit({ id: true, createdAt: true });
+export type InsertVideoChapter = z.infer<typeof insertVideoChapterSchema>;
+export type VideoChapter = typeof videoChapters.$inferSelect;
+
+// ── Video CTAs (timed overlays) ───────────────────────────────────────────────
+export const videoCtas = pgTable("video_ctas", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("button"), // button | banner | urgency
+  text: text("text").notNull(),
+  url: text("url"),
+  appearAt: integer("appear_at").notNull().default(0), // seconds
+  disappearAt: integer("disappear_at"),
+  style: text("style").notNull().default("gold"), // gold | red | white
+  clicks: integer("clicks").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVideoCtaSchema = createInsertSchema(videoCtas).omit({ id: true, createdAt: true, clicks: true });
+export type InsertVideoCta = z.infer<typeof insertVideoCtaSchema>;
+export type VideoCta = typeof videoCtas.$inferSelect;
+
+// ── Video Viewer Sessions (watch heatmap / viewer CRM) ────────────────────────
+export const videoViewerSessions = pgTable("video_viewer_sessions", {
+  id: serial("id").primaryKey(),
+  videoEventId: varchar("video_event_id").notNull().references(() => videoEvents.id, { onDelete: "cascade" }),
+  visitorId: text("visitor_id").notNull(),
+  watchedSeconds: integer("watched_seconds").notNull().default(0),
+  completionPct: integer("completion_pct").notNull().default(0),
+  heatmapData: text("heatmap_data"), // JSON: {[second]: watchCount}
+  ctaClicked: boolean("cta_clicked").notNull().default(false),
+  country: text("country"),
+  referrer: text("referrer"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow(),
+});
+export const insertVideoViewerSessionSchema = createInsertSchema(videoViewerSessions).omit({ id: true, createdAt: true, lastSeenAt: true });
+export type InsertVideoViewerSession = z.infer<typeof insertVideoViewerSessionSchema>;
+export type VideoViewerSession = typeof videoViewerSessions.$inferSelect;
 
 export const webinarRecordings = pgTable("webinar_recordings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1198,3 +1330,410 @@ export const userFeedback = pgTable("user_feedback", {
 export const insertUserFeedbackSchema = createInsertSchema(userFeedback).omit({ id: true, submittedAt: true });
 export type InsertUserFeedback = z.infer<typeof insertUserFeedbackSchema>;
 export type UserFeedback = typeof userFeedback.$inferSelect;
+
+// ── CONTENT INTELLIGENCE ENGINE ────────────────────────────────────────────
+// Hook Library — Proven viral hooks trained from real data
+export const hookTypeEnum = pgEnum("hook_type", ["curiosity", "authority", "storytelling", "controversy", "pain_point", "education", "proof", "question"]);
+
+export const hookLibrary = pgTable("hook_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  hook: text("hook").notNull(),
+  hookType: hookTypeEnum("hook_type").notNull(),
+  platform: platformEnum("platform").notNull(),
+  niche: text("niche").notNull(),
+  viralScore: real("viral_score").notNull().default(0), // 0-10
+  avgViews: integer("avg_views").notNull().default(0),
+  avgEngagement: real("avg_engagement").notNull().default(0),
+  usageCount: integer("usage_count").notNull().default(0),
+  source: text("source").notNull().default("user_content"), // user_content | admin_curated | ai_generated
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertHookLibrarySchema = createInsertSchema(hookLibrary).omit({ id: true, createdAt: true });
+export type InsertHookLibrary = z.infer<typeof insertHookLibrarySchema>;
+export type HookLibrary = typeof hookLibrary.$inferSelect;
+
+// Winning Patterns — Content that performed well
+export const winningPatterns = pgTable("winning_patterns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  postId: varchar("post_id").references(() => contentPosts.id, { onDelete: "set null" }),
+  platform: platformEnum("platform").notNull(),
+  contentType: contentTypeEnum("content_type").notNull(),
+  funnelStage: funnelStageEnum("funnel_stage").notNull(),
+  hook: text("hook").notNull(),
+  hookType: hookTypeEnum("hook_type").notNull(),
+  structure: text("structure").notNull(), // "Hook → Problem → Solution → CTA"
+  cta: text("cta"),
+  niche: text("niche").notNull(),
+  views: integer("views").notNull().default(0),
+  likes: integer("likes").notNull().default(0),
+  comments: integer("comments").notNull().default(0),
+  saves: integer("saves").notNull().default(0),
+  engagementRate: real("engagement_rate").notNull().default(0),
+  viralScore: real("viral_score").notNull().default(0), // 0-10
+  performanceReason: text("performance_reason"), // Why it worked
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWinningPatternSchema = createInsertSchema(winningPatterns).omit({ id: true, createdAt: true });
+export type InsertWinningPattern = z.infer<typeof insertWinningPatternSchema>;
+export type WinningPattern = typeof winningPatterns.$inferSelect;
+
+// Brand Voice Profiles — User's unique voice extracted from their content
+export const brandVoiceProfiles = pgTable("brand_voice_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  tone: text("tone").notNull(), // authoritative | casual | inspirational | educational | humorous
+  vocabulary: text("vocabulary").array(), // Unique words they use often
+  sentenceStructure: text("sentence_structure").notNull(), // short punchy | long flowing | mix
+  punctuationStyle: text("punctuation_style").notNull(), // lots of emojis | minimal | professional
+  perspective: text("perspective").notNull(), // first person | second person | third person
+  uniquePatterns: text("unique_patterns").array(), // Signature phrases
+  voiceFingerprint: text("voice_fingerprint").notNull(), // One sentence summary
+  analyzedPostsCount: integer("analyzed_posts_count").notNull().default(0),
+  lastAnalyzedAt: timestamp("last_analyzed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertBrandVoiceProfileSchema = createInsertSchema(brandVoiceProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBrandVoiceProfile = z.infer<typeof insertBrandVoiceProfileSchema>;
+export type BrandVoiceProfile = typeof brandVoiceProfiles.$inferSelect;
+
+// Content Calendars — Monthly content plans
+export const contentCalendars = pgTable("content_calendars", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  month: text("month").notNull(), // "2025-10"
+  niche: text("niche").notNull(),
+  platform: platformEnum("platform").notNull(),
+  goal: text("goal").notNull(),
+  strategy: jsonb("strategy"), // TOFU/MOFU/BOFU distribution, posting frequency, content mix
+  posts: jsonb("posts"), // Array of 30 days of content
+  status: text("status").notNull().default("draft"), // draft | active | completed
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertContentCalendarSchema = createInsertSchema(contentCalendars).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContentCalendar = z.infer<typeof insertContentCalendarSchema>;
+export type ContentCalendar = typeof contentCalendars.$inferSelect;
+
+// Content Templates — Reusable content structures
+export const contentTemplates = pgTable("content_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  funnelStage: funnelStageEnum("funnel_stage").notNull(),
+  platform: platformEnum("platform").notNull(),
+  contentType: contentTypeEnum("content_type").notNull(),
+  template: jsonb("template"), // { hook, body, cta, structure }
+  usageCount: integer("usage_count").notNull().default(0),
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertContentTemplateSchema = createInsertSchema(contentTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertContentTemplate = z.infer<typeof insertContentTemplateSchema>;
+export type ContentTemplate = typeof contentTemplates.$inferSelect;
+
+// Platform Training Data — Platform-specific patterns that work
+export const platformTrainingData = pgTable("platform_training_data", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platform: platformEnum("platform").notNull(),
+  contentType: contentTypeEnum("content_type").notNull(),
+  pattern: text("pattern").notNull(), // "Hook in first 3 seconds", "Jump cuts every 2-3s"
+  category: text("category").notNull(), // "hook_rules" | "retention_tricks" | "cta_rules" | "structure"
+  description: text("description").notNull(),
+  examples: jsonb("examples"), // Array of real examples
+  effectiveness: real("effectiveness").notNull().default(0), // 0-10
+  source: text("source").notNull().default("admin_curated"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertPlatformTrainingDataSchema = createInsertSchema(platformTrainingData).omit({ id: true, createdAt: true });
+export type InsertPlatformTrainingData = z.infer<typeof insertPlatformTrainingDataSchema>;
+export type PlatformTrainingData = typeof platformTrainingData.$inferSelect;
+
+// Funnel Stage Training — Examples for each funnel stage
+export const funnelStageTraining = pgTable("funnel_stage_training", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  funnelStage: funnelStageEnum("funnel_stage").notNull(),
+  purpose: text("purpose").notNull(),
+  contentTypes: text("content_types").array().notNull(),
+  hookTypes: text("hook_types").array().notNull(),
+  ctaTypes: text("cta_types").array().notNull(),
+  examples: jsonb("examples"), // Array of proven examples
+  bestPractices: text("best_practices").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertFunnelStageTrainingSchema = createInsertSchema(funnelStageTraining).omit({ id: true, createdAt: true });
+export type InsertFunnelStageTraining = z.infer<typeof insertFunnelStageTrainingSchema>;
+export type FunnelStageTraining = typeof funnelStageTraining.$inferSelect;
+
+// ── Video Marketing: Custom Domains ──────────────────────────────────────────
+export const webinarDomains = pgTable("webinar_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  domain: text("domain").notNull().unique(),
+  status: text("status").notNull().default("pending"), // pending | active | failed
+  targetSlug: text("target_slug"),
+  verifyToken: text("verify_token"),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWebinarDomainSchema = createInsertSchema(webinarDomains).omit({ id: true, createdAt: true, verifiedAt: true });
+export type InsertWebinarDomain = z.infer<typeof insertWebinarDomainSchema>;
+export type WebinarDomain = typeof webinarDomains.$inferSelect;
+
+// ── Video Marketing: Broadcast / Livekit Settings (per user) ─────────────────
+export const videoMarketingSettings = pgTable("video_marketing_settings", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  livekitUrl: text("livekit_url"),
+  livekitKey: text("livekit_key"),
+  livekitSecret: text("livekit_secret"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type VideoMarketingSettings = typeof videoMarketingSettings.$inferSelect;
+
+// ── Webinar Live Events (analytics) ───────────────────────────────────────────
+export const webinarEvents = pgTable("webinar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // viewer_join | viewer_leave | chat | qa | reaction | raise_hand
+  viewerName: text("viewer_name"),
+  viewerId: text("viewer_id"),
+  data: jsonb("data"),
+  ts: timestamp("ts").defaultNow(),
+});
+export const insertWebinarEventSchema = createInsertSchema(webinarEvents).omit({ id: true, ts: true });
+export type InsertWebinarEvent = z.infer<typeof insertWebinarEventSchema>;
+export type WebinarEvent = typeof webinarEvents.$inferSelect;
+
+// ── Webinar Series ─────────────────────────────────────────────────────────────
+export const webinarSeries = pgTable("webinar_series", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  schedule: text("schedule").notNull().default("weekly"), // weekly | biweekly | monthly
+  dayOfWeek: integer("day_of_week").notNull().default(1), // 0=Sun…6=Sat
+  timeHour: integer("time_hour").notNull().default(19),
+  timeMinute: integer("time_minute").notNull().default(0),
+  timezone: text("timezone").notNull().default("America/New_York"),
+  durationMinutes: integer("duration_minutes").notNull().default(60),
+  maxAttendees: integer("max_attendees"),
+  presenterName: text("presenter_name"),
+  webinarType: text("webinar_type").notNull().default("live"),
+  registrationSlug: text("registration_slug"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertWebinarSeriesSchema = createInsertSchema(webinarSeries).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertWebinarSeries = z.infer<typeof insertWebinarSeriesSchema>;
+export type WebinarSeries = typeof webinarSeries.$inferSelect;
+
+// ── Webinar Polls ─────────────────────────────────────────────────────────────
+export const webinarPolls = pgTable("webinar_polls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }),
+  question: text("question").notNull(),
+  options: jsonb("options").notNull().$type<string[]>(),
+  isActive: boolean("is_active").notNull().default(false),
+  showResults: boolean("show_results").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertWebinarPollSchema = createInsertSchema(webinarPolls).omit({ id: true, createdAt: true });
+export type InsertWebinarPoll = z.infer<typeof insertWebinarPollSchema>;
+export type WebinarPoll = typeof webinarPolls.$inferSelect;
+
+export const webinarPollVotes = pgTable("webinar_poll_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pollId: varchar("poll_id").notNull().references(() => webinarPolls.id, { onDelete: "cascade" }),
+  webinarId: varchar("webinar_id").notNull(),
+  viewerId: text("viewer_id").notNull(),
+  viewerName: text("viewer_name"),
+  optionIndex: integer("option_index").notNull(),
+  ts: timestamp("ts").defaultNow(),
+});
+export type WebinarPollVote = typeof webinarPollVotes.$inferSelect;
+
+// ── DM Advanced Features ───────────────────────────────────────────────────
+
+export const commentAutoReplies = pgTable("comment_auto_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyword: text("keyword"),
+  postUrl: text("post_url"),
+  replyMessage: text("reply_message").notNull(),
+  alsoDm: boolean("also_dm").notNull().default(false),
+  dmMessage: text("dm_message"),
+  isActive: boolean("is_active").notNull().default(true),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCommentAutoReplySchema = createInsertSchema(commentAutoReplies).omit({ id: true, createdAt: true, triggerCount: true });
+export type InsertCommentAutoReply = z.infer<typeof insertCommentAutoReplySchema>;
+export type CommentAutoReply = typeof commentAutoReplies.$inferSelect;
+
+export const storyReplyConfigs = pgTable("story_reply_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  replyMessage: text("reply_message").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type StoryReplyConfig = typeof storyReplyConfigs.$inferSelect;
+
+export const dmFlows = pgTable("dm_flows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerKeyword: text("trigger_keyword"),
+  nodes: jsonb("nodes").notNull().default(sql`'[]'::jsonb`),
+  edges: jsonb("edges").notNull().default(sql`'[]'::jsonb`),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertDmFlowSchema = createInsertSchema(dmFlows).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDmFlow = z.infer<typeof insertDmFlowSchema>;
+export type DmFlow = typeof dmFlows.$inferSelect;
+
+export const dmContactTags = pgTable("dm_contact_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").notNull().references(() => dmLeads.id, { onDelete: "cascade" }),
+  tag: text("tag").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmContactTag = typeof dmContactTags.$inferSelect;
+
+export const aiBotConfigs = pgTable("ai_bot_configs", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").notNull().default(false),
+  personality: text("personality").notNull().default("friendly"),
+  instructions: text("instructions"),
+  fallbackMessage: text("fallback_message"),
+  keywordsOnly: boolean("keywords_only").notNull().default(false),
+  keywords: text("keywords").array(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AiBotConfig = typeof aiBotConfigs.$inferSelect;
+
+export const optInLinks = pgTable("opt_in_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  refCode: text("ref_code").notNull().unique(),
+  welcomeMessage: text("welcome_message"),
+  sequenceId: varchar("sequence_id").references(() => dmSequences.id, { onDelete: "set null" }),
+  clickCount: integer("click_count").notNull().default(0),
+  optInCount: integer("opt_in_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertOptInLinkSchema = createInsertSchema(optInLinks).omit({ id: true, createdAt: true, clickCount: true, optInCount: true });
+export type InsertOptInLink = z.infer<typeof insertOptInLinkSchema>;
+export type OptInLink = typeof optInLinks.$inferSelect;
+
+// ── Contact Custom Fields ───────────────────────────────────────────────────
+export const contactCustomFieldDefs = pgTable("contact_custom_field_defs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  fieldKey: text("field_key").notNull(),
+  fieldType: text("field_type").notNull().default("text"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ContactCustomFieldDef = typeof contactCustomFieldDefs.$inferSelect;
+
+export const contactCustomFieldValues = pgTable("contact_custom_field_values", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").notNull().references(() => dmLeads.id, { onDelete: "cascade" }),
+  fieldDefId: varchar("field_def_id").notNull().references(() => contactCustomFieldDefs.id, { onDelete: "cascade" }),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type ContactCustomFieldValue = typeof contactCustomFieldValues.$inferSelect;
+
+// ── Welcome DM ──────────────────────────────────────────────────────────────
+export const welcomeDmConfigs = pgTable("welcome_dm_configs", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").notNull().default(false),
+  message: text("message").notNull().default(""),
+  delayMinutes: integer("delay_minutes").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type WelcomeDmConfig = typeof welcomeDmConfigs.$inferSelect;
+
+// ── Outbound Webhooks ───────────────────────────────────────────────────────
+export const outboundWebhooks = pgTable("outbound_webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  triggerEvent: text("trigger_event").notNull(),
+  triggerValue: text("trigger_value"),
+  isActive: boolean("is_active").notNull().default(true),
+  fireCount: integer("fire_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type OutboundWebhook = typeof outboundWebhooks.$inferSelect;
+
+// ── Click Tracking Links ────────────────────────────────────────────────────
+export const dmClickLinks = pgTable("dm_click_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  originalUrl: text("original_url").notNull(),
+  shortCode: text("short_code").notNull().unique(),
+  label: text("label"),
+  clickCount: integer("click_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmClickLink = typeof dmClickLinks.$inferSelect;
+
+export const dmClickEvents = pgTable("dm_click_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  linkId: varchar("link_id").notNull().references(() => dmClickLinks.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").references(() => dmLeads.id, { onDelete: "set null" }),
+  clickedAt: timestamp("clicked_at").defaultNow(),
+  ipAddress: text("ip_address"),
+});
+export type DmClickEvent = typeof dmClickEvents.$inferSelect;
+
+// ── DM Funnel Events ────────────────────────────────────────────────────────
+export const dmFunnelEvents = pgTable("dm_funnel_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").references(() => dmLeads.id, { onDelete: "set null" }),
+  flowId: varchar("flow_id").references(() => dmFlows.id, { onDelete: "set null" }),
+  eventType: text("event_type").notNull(),
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmFunnelEvent = typeof dmFunnelEvents.$inferSelect;
+
+// ── Conversation Notes ──────────────────────────────────────────────────────
+export const conversationNotes = pgTable("conversation_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  igUserId: text("ig_user_id").notNull(),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ConversationNote = typeof conversationNotes.$inferSelect;
+
+// ── Scheduled Broadcasts ────────────────────────────────────────────────────
+export const dmScheduledBroadcasts = pgTable("dm_scheduled_broadcasts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  targetTag: text("target_tag"),
+  targetStatus: text("target_status"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmScheduledBroadcast = typeof dmScheduledBroadcasts.$inferSelect;

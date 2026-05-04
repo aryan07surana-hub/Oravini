@@ -1,0 +1,45 @@
+:root {
+  --bg: #f4efe4;
+  --panel: rgba(255, 252, 246, 0.86);
+  --panel-strong: #fffdf8;
+  --text: #1f1d1a;
+  --muted: #645d53;
+  --line: rgba(64, 52, 39, 0.12);
+  --accent: #cf5f38;
+  --accent-soft: #f6c28b;
+  --accent-deep: #8f3420;
+  --success: #2f6b52;
+  --shadow: 0 24px 80px rgba(92, 61, 34, 0.16);
+  --radius: 28px;
+  --font-sans: "Manrope", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(246, 194, 139, 0.6), transparent 30%),
+    radial-gradient(circle at top right, rgba(207, 95, 56, 0.12), transparent 25%),
+    linear-gradient(180deg, #f9f2e7 0%, var(--bg) 100%);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}

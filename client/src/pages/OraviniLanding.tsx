@@ -197,7 +197,7 @@ function SplashModal({ onDone }: { onDone: () => void }) {
         <div style={{ fontSize: "clamp(32px, 6vw, 64px)", fontWeight: 900, letterSpacing: "0.12em", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 50%, #b8962e 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", textTransform: "uppercase" }}>ORAVINI</div>
       </div>
       <div style={{ opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.7s ease" }}>
-        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Oravini</span>
+        <span style={{ fontSize: 13, letterSpacing: "0.25em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>Powered by Brandverse</span>
       </div>
       <div style={{ position: "absolute", bottom: 40, left: 0, right: 0 }}>
         <div style={{ width: 160, height: 2, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`, margin: "0 auto", opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s ease 0.5s" }} />
@@ -302,14 +302,16 @@ const FEATURES = [
   { icon: "🔥", title: "Virality Testing", desc: "Score your script before posting. See exactly what's weak, what's strong, and how to make it go viral.", tag: "AI Scoring" },
   { icon: "📊", title: "Content Tracking", desc: "Automatically log reels, views, and comments. Generate detailed performance reports with one click.", tag: "Auto-Logging" },
   { icon: "🎨", title: "AI Design Studio", desc: "Create professional carousels, lead magnets, SOPs, and Instagram story sequences in minutes.", tag: "4 Tools" },
-  { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Pro" },
+  { icon: "🧠", title: "AI Content Coach", desc: "Your personal AI mentor that analyzes scripts, rewrites hooks, and guides your content strategy in real-time.", tag: "Coming Soon" },
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
+  { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
+  { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
   { icon: "🗂️", title: "Board Builder", desc: "Drag-and-drop content boards to plan, organise, and visualise your entire content operation at a glance.", tag: "Visual Planning" },
   { icon: "📈", title: "IG Growth Tracker", desc: "Track follower growth, engagement rate, and profile metrics over time with automatic daily snapshots.", tag: "Analytics" },
-  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Oravini team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
+  { icon: "💬", title: "Private Support Chat", desc: "Direct line to the Brandverse team — ask anything, get answers fast, all inside the platform.", tag: "Elite & Pro" },
   { icon: "🏛️", title: "Community Forum", desc: "A private members-only community to share wins, swap strategies, and get feedback from other serious creators.", tag: "Members Only" },
 ];
 
@@ -321,10 +323,10 @@ const STATS = [
 
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
 const PRICING_TIERS = [
-  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas", "Virality Tester", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
-  { tier: "Tier 2", name: "Starter", price: "$29", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas", "Carousel Studio", "Story Generator", "Lead Magnet Generator", "Brand Kit Builder", "Virality Tester", "IG Growth Tracker", "Full Script Generator"], cta: "Get Started" },
-  { tier: "Tier 3", name: "Growth", price: "$59", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis", "Reel vs Reel Comparison", "Steal Strategy 30-Day Plan", "Niche Intelligence Engine", "ICP Builder", "Audience Psychology Map", "Content DNA Analysis", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$79", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "AI Video Editor", "Clip Finder & Download", "AI Content Coach", "SOP Generator", "AI Content Planner", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
+  { tier: "Tier 2", name: "Starter", price: "$19", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
+  { tier: "Tier 3", name: "Growth", price: "$49", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
+  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -449,7 +451,7 @@ export default function OraviniLanding() {
             ORAVINI
           </div>
           <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 48 }}>
-            Powered by Oravini
+            Powered by Brandverse
           </div>
           <div className="hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
             <button onClick={handleAuditClick}
@@ -664,6 +666,99 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── VIDEO MARKETING ──────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 80% 50% at 50% 100%, rgba(212,180,97,0.05) 0%, transparent 70%)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 72 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Video Marketing · Optional Add-on</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
+              Host webinars. Deploy VSLs.<br /><span style={{ color: GOLD }}>Convert with video.</span>
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.42)", fontSize: "clamp(14px, 1.6vw, 16px)", maxWidth: 520, margin: "0 auto", lineHeight: 1.8 }}>
+              Add the full video marketing suite to any Growth or Pro plan. Webinars, VSLs, video hosting, AI clip extraction — all in one place.
+            </p>
+          </Anim>
+
+          {/* Two-column feature blocks */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginBottom: 60 }}>
+            {[
+              {
+                icon: "📡",
+                title: "Live Webinars",
+                desc: "Host live or automated webinars. Registration pages are built automatically. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
+                bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+                accent: "#60a5fa",
+              },
+              {
+                icon: "🎯",
+                title: "VSL Engine",
+                desc: "Deploy video sales letters with a custom progress bar you fully control. Set precise timing to maximise watch-through and push conversion rates higher.",
+                bullets: ["Custom progress bar — any timing", "Email opt-in gating at any timestamp", "Watch-through analytics per video", "Embed anywhere via link or iframe"],
+                accent: GOLD,
+              },
+              {
+                icon: "✂️",
+                title: "AI Clip Finder",
+                desc: "Feed in any long-form video — a webinar replay, a podcast, a VSL. The AI scans the full timeline and extracts the highest-value clips ready to repurpose.",
+                bullets: ["Auto-detects high-energy moments", "Batch process multiple videos", "Clips exported and ready to post", "Works on webinar replays + long VSLs"],
+                accent: "#a78bfa",
+              },
+              {
+                icon: "🗂️",
+                title: "Video Library",
+                desc: "One organised library for all your content — VSLs, webinar recordings, and standard videos. Import via URL, file upload, or Google Drive.",
+                bullets: ["4 import methods: URL · file · Drive · embed", "Filter by type: VSL · Webinar · Standard", "Password protection + time-limited links", "White-label hosting pages (Pro add-on)"],
+                accent: "#34d399",
+              },
+            ].map((item, i) => (
+              <Anim key={item.title} delay={i * 80}>
+                <div className="feature-card" style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", transition: "border-color 0.3s, box-shadow 0.3s", display: "flex", flexDirection: "column", gap: 0 }}>
+                  <div style={{ fontSize: 28, marginBottom: 16 }}>{item.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: item.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Video Marketing</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.25 }}>{item.title}</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.42)", lineHeight: 1.75, marginBottom: 20, flex: 1 }}>{item.desc}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {item.bullets.map(b => (
+                      <div key={b} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <span style={{ color: item.accent, fontSize: 10, marginTop: 3, flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Anim>
+            ))}
+          </div>
+
+          {/* Add-on pricing callout */}
+          <Anim>
+            <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}30`, borderRadius: 24, padding: "40px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 28 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Optional Add-on · Growth & Pro Plans</div>
+                <h3 style={{ fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
+                  Add full video access<br />from <span style={{ color: GOLD }}>$20/mo</span>
+                </h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, maxWidth: 420 }}>
+                  Growth members add the Video Marketing Suite for +$20/mo. Pro members get the full Video Marketing Suite included FREE — a $49/mo value at no extra cost.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { const el = document.getElementById("pricing"); el?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ background: `linear-gradient(135deg, #f0c84b, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
+                  See Plans & Add-ons →
+                </button>
+                <button
+                  onClick={() => window.open("/video-marketing-landing", "_blank")}
+                  style={{ background: "transparent", color: GOLD, fontWeight: 600, fontSize: 14, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
+                  Full Feature Overview
+                </button>
+              </div>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
       {/* ── QUICK PREVIEW ────────────────────────────────────────────────────── */}
       <section style={{ padding: "100px 24px", background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(212,180,97,0.05) 0%, transparent 70%)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }} className="preview-grid">
@@ -803,7 +898,7 @@ export default function OraviniLanding() {
                   <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Elite & Pro</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.2 }}>Private Support Chat</div>
                   <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.75, marginBottom: 24 }}>
-                    A direct line to the Oravini team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
+                    A direct line to the Brandverse team — not a ticket system, not a chatbot. Real people responding inside the platform to your questions about strategy, content, and growth.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {["Direct messaging inside the dashboard", "Strategy & content Q&A support", "Platform help & troubleshooting", "Available to Pro & Elite members"].map(f => (
@@ -846,7 +941,7 @@ export default function OraviniLanding() {
                     {t.period && <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>{t.period}</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginBottom: 24, fontWeight: 500 }}>{t.credits}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, marginBottom: 28 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, marginBottom: 24 }}>
                     {t.features.map(f => (
                       <div key={f} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                         <span style={{ color: t.accent, fontSize: 12, marginTop: 1, flexShrink: 0 }}>✓</span>
@@ -854,6 +949,62 @@ export default function OraviniLanding() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Video Marketing add-on — Growth (+$20) and Pro (INCLUDED FREE) */}
+                  {t.name === "Growth" && (
+                    <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>Optional Add-on</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Video Marketing Suite</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>+$20</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>/mo</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+                        {["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder", "Email reminders + analytics"].map(f => (
+                          <div key={f} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.16)", lineHeight: 1.5 }}>
+                        Upgrade to Pro to get this FREE — $49/mo value included.
+                      </div>
+                    </div>
+                  )}
+                  {t.name === "Pro" && (
+                    <div style={{ background: `${GOLD}0c`, border: `1px solid ${GOLD}30`, borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: GOLD, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>✨ Included Free</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>🎬 Full Video Marketing Suite</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                            <span style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>FREE</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", textDecoration: "line-through" }}>$49/mo</span>
+                          </div>
+                        </div>
+                        <div style={{ background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.28)", borderRadius: 99, padding: "2px 8px" }}>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: "#34d399" }}>$49 Value</span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8 }}>
+                        {["Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "Priority video processing"].map(f => (
+                          <div key={f} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <span style={{ color: GOLD, fontSize: 9, marginTop: 3, flexShrink: 0 }}>✦</span>
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: GOLD, lineHeight: 1.5, fontWeight: 600 }}>
+                        Everything included at no extra cost.
+                      </div>
+                    </div>
+                  )}
+
                   <a href="/audit" style={{ display: "block", textAlign: "center", background: t.highlight ? `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})` : "rgba(255,255,255,0.06)", border: t.highlight ? "none" : `1px solid ${t.border}`, color: t.highlight ? "#000" : t.accent, fontWeight: 700, fontSize: 14, borderRadius: 10, padding: "12px 20px", textDecoration: "none", transition: "opacity 0.2s" }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                     onMouseLeave={e => (e.currentTarget.style.opacity = "1")}>
@@ -877,7 +1028,7 @@ export default function OraviniLanding() {
                 <div style={{ fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 900, color: GOLD, marginBottom: 8, lineHeight: 1 }}>Apply</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 28 }}>Unlimited credits · Custom pricing</div>
                 <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 24, marginBottom: 36 }}>
-                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Priority Oravini access", "Priority platform support"].map(f => (
+                  {["Unlimited AI credits", "Full done-with-you system", "Custom growth strategy", "Weekly team calls", "Direct Brandverse access", "Priority platform support"].map(f => (
                     <div key={f} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ color: GOLD, fontSize: 13 }}>✦</span>
                       <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{f}</span>
@@ -885,7 +1036,7 @@ export default function OraviniLanding() {
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                  <button onClick={() => nav("/apply")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
+                  <button onClick={() => nav("/brandverse")} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "15px 36px", cursor: "pointer", boxShadow: `0 0 40px rgba(212,180,97,0.25)` }}>
                     Learn About Tier 5 →
                   </button>
                   <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.04)", border: `1.5px solid ${GOLD}55`, color: GOLD, fontWeight: 700, fontSize: 15, borderRadius: 12, padding: "15px 32px", cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, transition: "background 0.2s" }}
@@ -929,7 +1080,7 @@ export default function OraviniLanding() {
 
           <Anim delay={150}>
             <p style={{ fontSize: 16, color: "rgba(255,255,255,0.42)", textAlign: "center", maxWidth: 560, margin: "0 auto 32px", lineHeight: 1.75 }}>
-              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you both get 25 credits</strong> instantly. When they upgrade to a paid plan — <strong style={{ color: "#34d399" }}>you both get 100 bonus credits</strong>.
+              Every member gets a personal referral link. When a friend joins — <strong style={{ color: GOLD }}>you get 50 credits</strong> and <strong style={{ color: "#34d399" }}>they get 25 bonus credits</strong> as a welcome gift.
             </p>
           </Anim>
 
@@ -938,11 +1089,11 @@ export default function OraviniLanding() {
             <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginBottom: 56 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}12`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "8px 20px" }}>
                 <span style={{ fontSize: 16 }}>🤝</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You both get 25 credits on signup</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>You earn 50 credits per referral</span>
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 99, padding: "8px 20px" }}>
-                <span style={{ fontSize: 16 }}>🚀</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>You both get 100 bonus credits when they upgrade</span>
+                <span style={{ fontSize: 16 }}>🎁</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Your friend gets 25 welcome credits</span>
               </div>
             </div>
           </Anim>
@@ -966,7 +1117,7 @@ export default function OraviniLanding() {
                 step: "03",
                 icon: "⚡",
                 title: "Both sides win",
-                desc: "You both get 25 credits when they join free. You both get 100 bonus credits when they upgrade to a paid plan.",
+                desc: "You get 50 credits when they join. They get 25 welcome credits automatically.",
               },
             ].map(({ step, icon, title, desc }, i) => (
               <Anim key={step} delay={i * 80}>
@@ -1029,9 +1180,9 @@ export default function OraviniLanding() {
               </div>
               <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
                 {[
-                  { n: "1", label: "referral", credits: "25" },
-                  { n: "5", label: "referrals", credits: "125" },
-                  { n: "10", label: "referrals", credits: "250" },
+                  { n: "1", label: "referral", credits: "50" },
+                  { n: "5", label: "referrals", credits: "250" },
+                  { n: "10", label: "referrals", credits: "500" },
                 ].map(({ n, label, credits }) => (
                   <div key={n} style={{ textAlign: "center", padding: "12px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12 }}>
                     <p style={{ fontSize: 22, fontWeight: 900, color: GOLD, margin: 0, lineHeight: 1 }}>{credits}</p>
@@ -1140,7 +1291,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 30, width: 30, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Brandverse</span>
           </div>
           <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
             {[["Privacy", "/privacy"], ["Terms", "/terms"], ["Login", "/login"]].map(([label, href]) => (

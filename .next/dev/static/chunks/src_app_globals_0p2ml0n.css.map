@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["file:///Users/aryansurana/Documents/New%20project/src/app/globals.css"],"sourcesContent":[":root {\n  --bg: #f4efe4;\n  --panel: rgba(255, 252, 246, 0.86);\n  --panel-strong: #fffdf8;\n  --text: #1f1d1a;\n  --muted: #645d53;\n  --line: rgba(64, 52, 39, 0.12);\n  --accent: #cf5f38;\n  --accent-soft: #f6c28b;\n  --accent-deep: #8f3420;\n  --success: #2f6b52;\n  --shadow: 0 24px 80px rgba(92, 61, 34, 0.16);\n  --radius: 28px;\n  --font-sans: \"Manrope\", \"Segoe UI\", sans-serif;\n}\n\n* {\n  box-sizing: border-box;\n}\n\nhtml {\n  scroll-behavior: smooth;\n}\n\nbody {\n  margin: 0;\n  min-height: 100vh;\n  color: var(--text);\n  background:\n    radial-gradient(circle at top left, rgba(246, 194, 139, 0.6), transparent 30%),\n    radial-gradient(circle at top right, rgba(207, 95, 56, 0.12), transparent 25%),\n    linear-gradient(180deg, #f9f2e7 0%, var(--bg) 100%);\n  font-family: var(--font-sans);\n}\n\na {\n  color: inherit;\n}\n\nbutton,\ninput,\ntextarea,\nselect {\n  font: inherit;\n}\n"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;AAgBA;;;;AAIA;;;;AAIA;;;;;;;;AAWA;;;;AAIA"}}]
+}

@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
+import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
 import Brandverse from "@/pages/Brandverse";
 import Login from "@/pages/Login";
 import DashboardPreview from "@/pages/DashboardPreview";
@@ -36,6 +37,8 @@ import AIDesign from "@/pages/client/AIDesign";
 import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
+import DMHub from "@/pages/client/DMHub";
+import DMAutomation from "@/pages/client/DMAutomation";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -68,14 +71,20 @@ import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import WebinarStudio from "@/pages/client/WebinarStudio";
+import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
+import WatchWebinar from "@/pages/public/WatchWebinar";
+import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
+import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
 import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ViralityTester from "@/pages/client/ViralityTester";
 import EverydayRead from "@/pages/client/EverydayRead";
+import ContentIntelligence from "@/pages/ContentIntelligence";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -124,7 +133,7 @@ function HomeRedirect() {
       <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
     </div>
   );
-  if (!user) return <Landing />;
+  if (!user) return <OraviniLanding />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -137,6 +146,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
       <Route path="/register">{() => { window.location.replace("/login?tab=register"); return null; }}</Route>
@@ -150,6 +160,9 @@ function Router() {
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/f/:slug">{() => <PublicForm />}</Route>
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
+      <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/join/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
@@ -180,10 +193,14 @@ function Router() {
       <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
+      <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
+      <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
+      <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
+      <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
       <Route path="/ig-bot">{() => <Guard component={IgCommentBot} />}</Route>
       <Route path="/ig-tracker">{() => { window.location.replace("/tracking/content/instagram"); return null; }}</Route>
@@ -197,6 +214,7 @@ function Router() {
       <Route path="/credits">{() => <Guard component={Credits} />}</Route>
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
+      <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
@@ -210,6 +228,7 @@ function Router() {
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
+      <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
@@ -219,7 +238,9 @@ function Router() {
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/dm-automation">{() => <Guard component={DMAutomation} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-tracker">{() => <Guard component={DMTracker} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/dm-hub">{() => <Guard component={DMHub} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/calendar">{() => <Guard component={AdminCalendar} adminOnly />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
       <Route path="/admin/course-modules">{() => <Guard component={AdminCourseModules} adminOnly />}</Route>

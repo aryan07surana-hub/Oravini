@@ -9,11 +9,12 @@ import {
   users, documents, messages, progress, callFeedback, tasks, notifications,
   contentPosts, incomeGoals, callBookings, aiIdeaLogs, competitorAnalyses, nicheAnalyses,
   dmLeads, dmQuickReplies, dmTriggers, dmSequences, dmSequenceSteps, dmSequenceEnrollments,
-  instagramProfileReports, appSettings, canvaTokens, videoResources, otpCodes,
+  commentAutoReplies, storyReplyConfigs, dmFlows, dmContactTags, aiBotConfigs, optInLinks, metaTokens,
+  instagramProfileReports, appSettings, videoResources, otpCodes,
   sessions, freeAiUsage, creditBalances, creditTransactions, landingLeads,
   emailSequences, sequenceEmails, emailEnrollments, emailLogs, emailBroadcasts, emailUnsubscribes,
   twitterTokens, scheduledTweets, linkedinTokens, scheduledLinkedinPosts, aiSessionHistory,
-  youtubeTokens, scheduledYoutubePosts,
+  youtubeTokens, scheduledYoutubePosts, scheduledInstagramPosts,
   referralCodes, referralClicks, referralConversions,
   forms, formQuestions, formSubmissions, formAnswers, formViews,
   meetings,
@@ -21,11 +22,14 @@ import {
   brollClips,
   meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens,
   readingMaterials, readingHighlights, readingStreaks, dailyReadings,
-  webinars, webinarRegistrations, videoEvents, webinarRecordings, webinarLandingPages,
+  webinars, webinarRegistrations, videoEvents, webinarRecordings, webinarLandingPages, webinarEvents,
+  webinarDomains, videoMarketingSettings,
+  type WebinarDomain, type InsertWebinarDomain, type VideoMarketingSettings,
   type GoogleCalendarToken,
   type TwitterToken, type ScheduledTweet, type InsertScheduledTweet,
   type LinkedinToken, type ScheduledLinkedinPost, type InsertScheduledLinkedinPost,
   type YoutubeToken, type ScheduledYoutubePost, type InsertScheduledYoutubePost,
+  type ScheduledInstagramPost, type InsertScheduledInstagramPost,
   type AiSessionHistory, type InsertAiSessionHistory,
   type User, type InsertUser, type Document, type InsertDocument,
   type Message, type InsertMessage, type Progress, type InsertProgress,
@@ -41,7 +45,6 @@ import {
   type DmSequenceStep, type InsertDmSequenceStep,
   type DmSequenceEnrollment,
   type InstagramProfileReport, type InsertInstagramProfileReport,
-  type CanvaToken, type InsertCanvaToken,
   type VideoResource, type InsertVideoResource,
   type OtpCode,
   type Session, type InsertSession,
@@ -69,23 +72,37 @@ import {
   type WebinarRecording, type InsertWebinarRecording,
   type WebinarLandingPage, type InsertWebinarLandingPage,
   type WebinarContact, type InsertWebinarContact,
+  type WebinarEvent, type InsertWebinarEvent,
   type VideoAnalyticsEvent, type InsertVideoAnalyticsEvent,
   type UserFeedback, type InsertUserFeedback,
   webinarContacts, videoAnalyticsEvents, userFeedback,
+  // Content Intelligence Engine
+  hookLibrary, winningPatterns, brandVoiceProfiles, contentCalendars, contentTemplates,
+  platformTrainingData, funnelStageTraining,
+  type HookLibrary, type InsertHookLibrary,
+  type WinningPattern, type InsertWinningPattern,
+  type BrandVoiceProfile, type InsertBrandVoiceProfile,
+  type ContentCalendar, type InsertContentCalendar,
+  type ContentTemplate, type InsertContentTemplate,
+  type PlatformTrainingData, type InsertPlatformTrainingData,
+  type FunnelStageTraining, type InsertFunnelStageTraining,
+  webinarPolls, webinarPollVotes, webinarSeries,
+  type WebinarPoll, type InsertWebinarPoll,
+  type WebinarSeries, type InsertWebinarSeries,
+  videoCollections, videoCollectionItems, videoChapters, videoCtas, videoViewerSessions,
+  type VideoCollection, type InsertVideoCollection, type VideoCollectionItem,
+  type VideoChapter, type InsertVideoChapter,
+  type VideoCta, type InsertVideoCta,
+  type VideoViewerSession, type InsertVideoViewerSession,
 } from "@shared/schema";
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const db = drizzle(pool);
+export const db = drizzle(pool);
 
 export interface IStorage {
   // App Settings
   getAppSetting(key: string): Promise<string | undefined>;
   setAppSetting(key: string, value: string): Promise<void>;
-
-  // Canva OAuth tokens
-  getCanvaToken(userId: string): Promise<CanvaToken | undefined>;
-  upsertCanvaToken(data: InsertCanvaToken): Promise<CanvaToken>;
-  deleteCanvaToken(userId: string): Promise<void>;
 
   // Video Resource Library
   getVideoResources(): Promise<VideoResource[]>;
@@ -200,6 +217,7 @@ export interface IStorage {
   getDueScheduledNotifications(): Promise<Notification[]>;
 
   // Content Posts
+  getContentPosts(userId: string, filters?: { limit?: number }): Promise<ContentPost[]>;
   getContentPostsByClient(clientId: string): Promise<ContentPost[]>;
   getContentPost(id: string): Promise<ContentPost | undefined>;
   createContentPost(post: InsertContentPost): Promise<ContentPost>;
@@ -263,6 +281,13 @@ export interface IStorage {
   createScheduledYoutubePost(data: InsertScheduledYoutubePost): Promise<ScheduledYoutubePost>;
   updateScheduledYoutubePost(id: string, data: Partial<ScheduledYoutubePost>): Promise<void>;
   deleteScheduledYoutubePost(id: string, userId: string): Promise<void>;
+
+  // Instagram scheduled posts (caption reminders — no direct publish)
+  getScheduledInstagramPosts(userId: string): Promise<ScheduledInstagramPost[]>;
+  getPendingDueInstagramPosts(): Promise<ScheduledInstagramPost[]>;
+  createScheduledInstagramPost(data: InsertScheduledInstagramPost): Promise<ScheduledInstagramPost>;
+  updateScheduledInstagramPost(id: string, data: Partial<ScheduledInstagramPost>): Promise<void>;
+  deleteScheduledInstagramPost(id: string, userId: string): Promise<void>;
 
   // Forms
   getForms(userId: string): Promise<Form[]>;
@@ -363,9 +388,12 @@ export interface IStorage {
   deleteVideoEvent(id: string): Promise<void>;
   getWebinarRecordings(userId: string): Promise<WebinarRecording[]>;
   getWebinarRecording(id: string): Promise<WebinarRecording | undefined>;
+  getWebinarRecordingsByWebinarId(webinarId: string): Promise<WebinarRecording[]>;
   createWebinarRecording(data: InsertWebinarRecording): Promise<WebinarRecording>;
   updateWebinarRecording(id: string, data: Partial<InsertWebinarRecording>): Promise<WebinarRecording | undefined>;
   deleteWebinarRecording(id: string): Promise<void>;
+  createWebinarEvent(data: InsertWebinarEvent): Promise<WebinarEvent>;
+  getWebinarEvents(webinarId: string): Promise<WebinarEvent[]>;
   getWebinarLandingPage(webinarId: string): Promise<WebinarLandingPage | undefined>;
   getWebinarLandingPageBySlug(slug: string): Promise<WebinarLandingPage | undefined>;
   getWebinarLandingPageWithWebinar(slug: string): Promise<{ landingPage: WebinarLandingPage; webinar: Webinar } | undefined>;
@@ -385,6 +413,49 @@ export interface IStorage {
   createVideoAnalyticsEvent(data: InsertVideoAnalyticsEvent): Promise<VideoAnalyticsEvent>;
   getVideoAnalyticsEvents(videoId: string): Promise<VideoAnalyticsEvent[]>;
   getVideoAnalyticsSummary(videoId: string): Promise<{ totalViews: number; totalCompletions: number; avgWatchTime: number }>;
+  // Video Collections
+  getVideoCollections(userId: string): Promise<VideoCollection[]>;
+  createVideoCollection(data: InsertVideoCollection): Promise<VideoCollection>;
+  updateVideoCollection(id: number, data: Partial<InsertVideoCollection>): Promise<VideoCollection | undefined>;
+  deleteVideoCollection(id: number): Promise<void>;
+  getVideoCollectionItems(collectionId: number): Promise<VideoCollectionItem[]>;
+  addVideoToCollection(collectionId: number, videoEventId: string, sortOrder?: number): Promise<VideoCollectionItem>;
+  removeVideoFromCollection(id: number): Promise<void>;
+  // Video Chapters
+  getVideoChapters(videoEventId: string): Promise<VideoChapter[]>;
+  createVideoChapter(data: InsertVideoChapter): Promise<VideoChapter>;
+  updateVideoChapter(id: number, data: Partial<InsertVideoChapter>): Promise<VideoChapter | undefined>;
+  deleteVideoChapter(id: number): Promise<void>;
+  // Video CTAs
+  getVideoCtas(videoEventId: string): Promise<VideoCta[]>;
+  createVideoCta(data: InsertVideoCta): Promise<VideoCta>;
+  updateVideoCta(id: number, data: Partial<InsertVideoCta>): Promise<VideoCta | undefined>;
+  deleteVideoCta(id: number): Promise<void>;
+  incrementCtaClicks(id: number): Promise<void>;
+  // Video Viewer Sessions
+  createViewerSession(data: InsertVideoViewerSession): Promise<VideoViewerSession>;
+  getVideoViewerSessions(videoEventId: string): Promise<VideoViewerSession[]>;
+  updateViewerSession(id: number, data: Partial<InsertVideoViewerSession>): Promise<void>;
+  // Custom Domains
+  getWebinarDomains(userId: string): Promise<WebinarDomain[]>;
+  getWebinarDomainByDomain(domain: string): Promise<WebinarDomain | undefined>;
+  createWebinarDomain(data: InsertWebinarDomain): Promise<WebinarDomain>;
+  updateWebinarDomain(id: string, data: Partial<WebinarDomain>): Promise<WebinarDomain | undefined>;
+  deleteWebinarDomain(id: string): Promise<void>;
+  // Video Marketing Settings (Livekit)
+  getVideoMarketingSettings(userId: string): Promise<VideoMarketingSettings | undefined>;
+  upsertVideoMarketingSettings(userId: string, data: Partial<VideoMarketingSettings>): Promise<VideoMarketingSettings>;
+  // Webinar Polls
+  getWebinarPolls(webinarId: string): Promise<WebinarPoll[]>;
+  createWebinarPoll(data: InsertWebinarPoll): Promise<WebinarPoll>;
+  updateWebinarPoll(id: string, data: Partial<WebinarPoll>): Promise<WebinarPoll | undefined>;
+  deleteWebinarPoll(id: string): Promise<void>;
+  // Webinar Series
+  getWebinarSeries(userId: string): Promise<WebinarSeries[]>;
+  getWebinarSeriesById(id: string): Promise<WebinarSeries | undefined>;
+  createWebinarSeries(data: InsertWebinarSeries): Promise<WebinarSeries>;
+  updateWebinarSeries(id: string, data: Partial<InsertWebinarSeries>): Promise<WebinarSeries | undefined>;
+  deleteWebinarSeries(id: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -453,7 +524,6 @@ class DatabaseStorage implements IStorage {
     await db.delete(instagramProfileReports).where(eq(instagramProfileReports.clientId, id));
     await db.delete(nicheAnalyses).where(eq(nicheAnalyses.clientId, id));
     await db.delete(competitorAnalyses).where(eq(competitorAnalyses.clientId, id));
-    await db.delete(canvaTokens).where(eq(canvaTokens.userId, id));
     await db.delete(creditTransactions).where(eq(creditTransactions.userId, id));
     await db.delete(creditBalances).where(eq(creditBalances.userId, id));
     await db.delete(notifications).where(eq(notifications.clientId, id));
@@ -658,6 +728,12 @@ class DatabaseStorage implements IStorage {
     );
   }
 
+  async getContentPosts(userId: string, filters?: { limit?: number }): Promise<ContentPost[]> {
+    let query = db.select().from(contentPosts).where(eq(contentPosts.clientId, userId)).orderBy(desc(contentPosts.postDate));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    return query;
+  }
+
   async getContentPostsByClient(clientId: string) {
     return db.select().from(contentPosts).where(eq(contentPosts.clientId, clientId)).orderBy(desc(contentPosts.postDate));
   }
@@ -845,22 +921,6 @@ class DatabaseStorage implements IStorage {
   async setAppSetting(key: string, value: string): Promise<void> {
     await db.insert(appSettings).values({ key, value })
       .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-  }
-
-  async getCanvaToken(userId: string): Promise<CanvaToken | undefined> {
-    const [row] = await db.select().from(canvaTokens).where(eq(canvaTokens.userId, userId));
-    return row;
-  }
-
-  async upsertCanvaToken(data: InsertCanvaToken): Promise<CanvaToken> {
-    const [row] = await db.insert(canvaTokens).values(data)
-      .onConflictDoUpdate({ target: canvaTokens.userId, set: { accessToken: data.accessToken, refreshToken: data.refreshToken, expiresAt: data.expiresAt, scope: data.scope, updatedAt: new Date() } })
-      .returning();
-    return row;
-  }
-
-  async deleteCanvaToken(userId: string): Promise<void> {
-    await db.delete(canvaTokens).where(eq(canvaTokens.userId, userId));
   }
 
   async getVideoResources(): Promise<VideoResource[]> {
@@ -1293,6 +1353,28 @@ class DatabaseStorage implements IStorage {
 
   async deleteScheduledYoutubePost(id: string, userId: string): Promise<void> {
     await db.delete(scheduledYoutubePosts).where(and(eq(scheduledYoutubePosts.id, id), eq(scheduledYoutubePosts.userId, userId)));
+  }
+
+  async getScheduledInstagramPosts(userId: string): Promise<ScheduledInstagramPost[]> {
+    return db.select().from(scheduledInstagramPosts).where(eq(scheduledInstagramPosts.userId, userId)).orderBy(desc(scheduledInstagramPosts.scheduledFor));
+  }
+
+  async getPendingDueInstagramPosts(): Promise<ScheduledInstagramPost[]> {
+    return db.select().from(scheduledInstagramPosts)
+      .where(and(eq(scheduledInstagramPosts.status, "pending"), lte(scheduledInstagramPosts.scheduledFor, new Date())));
+  }
+
+  async createScheduledInstagramPost(data: InsertScheduledInstagramPost): Promise<ScheduledInstagramPost> {
+    const [row] = await db.insert(scheduledInstagramPosts).values(data).returning();
+    return row;
+  }
+
+  async updateScheduledInstagramPost(id: string, data: Partial<ScheduledInstagramPost>): Promise<void> {
+    await db.update(scheduledInstagramPosts).set(data).where(eq(scheduledInstagramPosts.id, id));
+  }
+
+  async deleteScheduledInstagramPost(id: string, userId: string): Promise<void> {
+    await db.delete(scheduledInstagramPosts).where(and(eq(scheduledInstagramPosts.id, id), eq(scheduledInstagramPosts.userId, userId)));
   }
 
   // ── Forms ──────────────────────────────────────────────────────────────────
@@ -1999,6 +2081,16 @@ class DatabaseStorage implements IStorage {
   async deleteWebinarRecording(id: string): Promise<void> {
     await db.delete(webinarRecordings).where(eq(webinarRecordings.id, id));
   }
+  async getWebinarRecordingsByWebinarId(webinarId: string): Promise<WebinarRecording[]> {
+    return db.select().from(webinarRecordings).where(eq(webinarRecordings.webinarId, webinarId)).orderBy(desc(webinarRecordings.createdAt));
+  }
+  async createWebinarEvent(data: InsertWebinarEvent): Promise<WebinarEvent> {
+    const [row] = await db.insert(webinarEvents).values(data).returning();
+    return row;
+  }
+  async getWebinarEvents(webinarId: string): Promise<WebinarEvent[]> {
+    return db.select().from(webinarEvents).where(eq(webinarEvents.webinarId, webinarId)).orderBy(webinarEvents.ts);
+  }
   async getWebinarLandingPage(webinarId: string): Promise<WebinarLandingPage | undefined> {
     const [row] = await db.select().from(webinarLandingPages).where(eq(webinarLandingPages.webinarId, webinarId));
     return row;
@@ -2074,6 +2166,94 @@ class DatabaseStorage implements IStorage {
     return { totalViews: uniqueSessions.size, totalCompletions: completions, avgWatchTime };
   }
 
+  // ── Video Collections ─────────────────────────────────────────────────────
+  async getVideoCollections(userId: string): Promise<VideoCollection[]> {
+    return db.select().from(videoCollections).where(eq(videoCollections.userId, userId)).orderBy(desc(videoCollections.createdAt));
+  }
+  async createVideoCollection(data: InsertVideoCollection): Promise<VideoCollection> {
+    const [row] = await db.insert(videoCollections).values(data).returning();
+    return row;
+  }
+  async updateVideoCollection(id: number, data: Partial<InsertVideoCollection>): Promise<VideoCollection | undefined> {
+    const [row] = await db.update(videoCollections).set(data).where(eq(videoCollections.id, id)).returning();
+    return row;
+  }
+  async deleteVideoCollection(id: number): Promise<void> {
+    await db.delete(videoCollections).where(eq(videoCollections.id, id));
+  }
+  async getVideoCollectionItems(collectionId: number): Promise<VideoCollectionItem[]> {
+    return db.select().from(videoCollectionItems).where(eq(videoCollectionItems.collectionId, collectionId)).orderBy(videoCollectionItems.sortOrder);
+  }
+  async addVideoToCollection(collectionId: number, videoEventId: string, sortOrder = 0): Promise<VideoCollectionItem> {
+    const [row] = await db.insert(videoCollectionItems).values({ collectionId, videoEventId, sortOrder }).returning();
+    return row;
+  }
+  async removeVideoFromCollection(id: number): Promise<void> {
+    await db.delete(videoCollectionItems).where(eq(videoCollectionItems.id, id));
+  }
+
+  // ── Video Chapters ────────────────────────────────────────────────────────
+  async getVideoChapters(videoEventId: string): Promise<VideoChapter[]> {
+    return db.select().from(videoChapters).where(eq(videoChapters.videoEventId, videoEventId)).orderBy(videoChapters.startSeconds);
+  }
+  async createVideoChapter(data: InsertVideoChapter): Promise<VideoChapter> {
+    const [row] = await db.insert(videoChapters).values(data).returning();
+    return row;
+  }
+  async updateVideoChapter(id: number, data: Partial<InsertVideoChapter>): Promise<VideoChapter | undefined> {
+    const [row] = await db.update(videoChapters).set(data).where(eq(videoChapters.id, id)).returning();
+    return row;
+  }
+  async deleteVideoChapter(id: number): Promise<void> {
+    await db.delete(videoChapters).where(eq(videoChapters.id, id));
+  }
+
+  // ── Video CTAs ────────────────────────────────────────────────────────────
+  async getVideoCtas(videoEventId: string): Promise<VideoCta[]> {
+    return db.select().from(videoCtas).where(eq(videoCtas.videoEventId, videoEventId)).orderBy(videoCtas.appearAt);
+  }
+  async createVideoCta(data: InsertVideoCta): Promise<VideoCta> {
+    const [row] = await db.insert(videoCtas).values(data).returning();
+    return row;
+  }
+  async updateVideoCta(id: number, data: Partial<InsertVideoCta>): Promise<VideoCta | undefined> {
+    const [row] = await db.update(videoCtas).set(data).where(eq(videoCtas.id, id)).returning();
+    return row;
+  }
+  async deleteVideoCta(id: number): Promise<void> {
+    await db.delete(videoCtas).where(eq(videoCtas.id, id));
+  }
+  async incrementCtaClicks(id: number): Promise<void> {
+    await db.update(videoCtas).set({ clicks: sqlExpr`clicks + 1` }).where(eq(videoCtas.id, id));
+  }
+
+  // ── Video Viewer Sessions ─────────────────────────────────────────────────
+  async createViewerSession(data: InsertVideoViewerSession): Promise<VideoViewerSession> {
+    const [row] = await db.insert(videoViewerSessions).values(data).returning();
+    return row;
+  }
+  async getVideoViewerSessions(videoEventId: string): Promise<VideoViewerSession[]> {
+    return db.select().from(videoViewerSessions).where(eq(videoViewerSessions.videoEventId, videoEventId)).orderBy(desc(videoViewerSessions.createdAt));
+  }
+  async updateViewerSession(id: number, data: Partial<InsertVideoViewerSession>): Promise<void> {
+    await db.update(videoViewerSessions).set(data).where(eq(videoViewerSessions.id, id));
+  }
+
+  // ── Canva Integration ─────────────────────────────────────────────────────
+  async getCanvaToken(userId: string): Promise<any | null> {
+    // Placeholder - implement when canva_tokens table exists
+    return null;
+  }
+
+  async upsertCanvaToken(data: { userId: string; accessToken: string; refreshToken?: string; expiresAt?: Date; scope?: string }): Promise<any> {
+    // Placeholder - implement when canva_tokens table exists
+    return data;
+  }
+
+  async deleteCanvaToken(userId: string): Promise<void> {
+    // Placeholder - implement when canva_tokens table exists
+  }
+
   // ── User Feedback ─────────────────────────────────────────────────────────
   async createUserFeedback(data: InsertUserFeedback): Promise<UserFeedback> {
     const [row] = await db.insert(userFeedback).values(data).returning();
@@ -2093,6 +2273,215 @@ class DatabaseStorage implements IStorage {
   }
   async getUserFeedback(userId: string): Promise<UserFeedback[]> {
     return db.select().from(userFeedback).where(eq(userFeedback.userId, userId)).orderBy(desc(userFeedback.submittedAt));
+  }
+
+  // ── CONTENT INTELLIGENCE ENGINE ──────────────────────────────────────────
+  // Hook Library
+  async getHookLibrary(filters?: { platform?: string; niche?: string; hookType?: string; limit?: number }): Promise<HookLibrary[]> {
+    let query = db.select().from(hookLibrary).orderBy(desc(hookLibrary.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(h => {
+      if (filters?.platform && h.platform !== filters.platform) return false;
+      if (filters?.niche && !h.niche.toLowerCase().includes(filters.niche.toLowerCase())) return false;
+      if (filters?.hookType && h.hookType !== filters.hookType) return false;
+      return true;
+    });
+  }
+  async createHook(data: InsertHookLibrary): Promise<HookLibrary> {
+    const [row] = await db.insert(hookLibrary).values(data).returning();
+    return row;
+  }
+  async incrementHookUsage(id: string): Promise<void> {
+    await db.update(hookLibrary).set({ usageCount: sqlExpr`${hookLibrary.usageCount} + 1` }).where(eq(hookLibrary.id, id));
+  }
+
+  // Winning Patterns
+  async getWinningPatterns(userId: string, filters?: { platform?: string; funnelStage?: string; limit?: number }): Promise<WinningPattern[]> {
+    let query = db.select().from(winningPatterns).where(eq(winningPatterns.userId, userId)).orderBy(desc(winningPatterns.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(p => {
+      if (filters?.platform && p.platform !== filters.platform) return false;
+      if (filters?.funnelStage && p.funnelStage !== filters.funnelStage) return false;
+      return true;
+    });
+  }
+  async createWinningPattern(data: InsertWinningPattern): Promise<WinningPattern> {
+    const [row] = await db.insert(winningPatterns).values(data).returning();
+    return row;
+  }
+  async getTopWinningPatterns(filters?: { platform?: string; niche?: string; limit?: number }): Promise<WinningPattern[]> {
+    let query = db.select().from(winningPatterns).orderBy(desc(winningPatterns.viralScore));
+    if (filters?.limit) query = query.limit(filters.limit) as any;
+    const results = await query;
+    return results.filter(p => {
+      if (filters?.platform && p.platform !== filters.platform) return false;
+      if (filters?.niche && !p.niche.toLowerCase().includes(filters.niche.toLowerCase())) return false;
+      return true;
+    });
+  }
+
+  // Brand Voice Profiles
+  async getBrandVoiceProfile(userId: string): Promise<BrandVoiceProfile | undefined> {
+    const [row] = await db.select().from(brandVoiceProfiles).where(eq(brandVoiceProfiles.userId, userId));
+    return row;
+  }
+  async createBrandVoiceProfile(data: InsertBrandVoiceProfile): Promise<BrandVoiceProfile> {
+    const [row] = await db.insert(brandVoiceProfiles).values(data).returning();
+    return row;
+  }
+  async updateBrandVoiceProfile(userId: string, data: Partial<InsertBrandVoiceProfile>): Promise<BrandVoiceProfile> {
+    const [row] = await db.update(brandVoiceProfiles).set({ ...data, updatedAt: new Date() }).where(eq(brandVoiceProfiles.userId, userId)).returning();
+    return row;
+  }
+  async upsertBrandVoiceProfile(data: InsertBrandVoiceProfile): Promise<BrandVoiceProfile> {
+    const existing = await this.getBrandVoiceProfile(data.userId);
+    if (existing) {
+      const [row] = await db.update(brandVoiceProfiles).set({ ...data, updatedAt: new Date() }).where(eq(brandVoiceProfiles.userId, data.userId)).returning();
+      return row;
+    }
+    const [row] = await db.insert(brandVoiceProfiles).values(data).returning();
+    return row;
+  }
+
+  // Content Calendars
+  async getContentCalendars(userId: string): Promise<ContentCalendar[]> {
+    return db.select().from(contentCalendars).where(eq(contentCalendars.userId, userId)).orderBy(desc(contentCalendars.createdAt));
+  }
+  async getContentCalendar(id: string): Promise<ContentCalendar | undefined> {
+    const [row] = await db.select().from(contentCalendars).where(eq(contentCalendars.id, id));
+    return row;
+  }
+  async createContentCalendar(data: InsertContentCalendar): Promise<ContentCalendar> {
+    const [row] = await db.insert(contentCalendars).values(data).returning();
+    return row;
+  }
+  async updateContentCalendar(id: string, data: Partial<InsertContentCalendar>): Promise<ContentCalendar> {
+    const [row] = await db.update(contentCalendars).set({ ...data, updatedAt: new Date() }).where(eq(contentCalendars.id, id)).returning();
+    return row;
+  }
+  async deleteContentCalendar(id: string): Promise<void> {
+    await db.delete(contentCalendars).where(eq(contentCalendars.id, id));
+  }
+
+  // Content Templates
+  async getContentTemplates(userId: string): Promise<ContentTemplate[]> {
+    return db.select().from(contentTemplates).where(eq(contentTemplates.userId, userId)).orderBy(desc(contentTemplates.createdAt));
+  }
+  async getPublicContentTemplates(): Promise<ContentTemplate[]> {
+    return db.select().from(contentTemplates).where(eq(contentTemplates.isPublic, true)).orderBy(desc(contentTemplates.usageCount));
+  }
+  async createContentTemplate(data: InsertContentTemplate): Promise<ContentTemplate> {
+    const [row] = await db.insert(contentTemplates).values(data).returning();
+    return row;
+  }
+  async updateContentTemplate(id: string, data: Partial<InsertContentTemplate>): Promise<ContentTemplate> {
+    const [row] = await db.update(contentTemplates).set({ ...data, updatedAt: new Date() }).where(eq(contentTemplates.id, id)).returning();
+    return row;
+  }
+  async deleteContentTemplate(id: string): Promise<void> {
+    await db.delete(contentTemplates).where(eq(contentTemplates.id, id));
+  }
+  async incrementTemplateUsage(id: string): Promise<void> {
+    await db.update(contentTemplates).set({ usageCount: sqlExpr`${contentTemplates.usageCount} + 1` }).where(eq(contentTemplates.id, id));
+  }
+
+  // Platform Training Data
+  async getPlatformTrainingData(platform: string, contentType?: string): Promise<PlatformTrainingData[]> {
+    let query = db.select().from(platformTrainingData).where(eq(platformTrainingData.platform, platform as any));
+    const results = await query;
+    if (contentType) {
+      return results.filter(p => p.contentType === contentType);
+    }
+    return results;
+  }
+  async createPlatformTrainingData(data: InsertPlatformTrainingData): Promise<PlatformTrainingData> {
+    const [row] = await db.insert(platformTrainingData).values(data).returning();
+    return row;
+  }
+
+  // Funnel Stage Training
+  async getFunnelStageTraining(funnelStage: string): Promise<FunnelStageTraining | undefined> {
+    const [row] = await db.select().from(funnelStageTraining).where(eq(funnelStageTraining.funnelStage, funnelStage as any));
+    return row;
+  }
+  async getAllFunnelStageTraining(): Promise<FunnelStageTraining[]> {
+    return db.select().from(funnelStageTraining);
+  }
+  async createFunnelStageTraining(data: InsertFunnelStageTraining): Promise<FunnelStageTraining> {
+    const [row] = await db.insert(funnelStageTraining).values(data).returning();
+    return row;
+  }
+
+  // ── Custom Domains ──────────────────────────────────────────────────────
+  async getWebinarDomains(userId: string): Promise<WebinarDomain[]> {
+    return db.select().from(webinarDomains).where(eq(webinarDomains.userId, userId)).orderBy(desc(webinarDomains.createdAt));
+  }
+  async getWebinarDomainByDomain(domain: string): Promise<WebinarDomain | undefined> {
+    const [row] = await db.select().from(webinarDomains).where(eq(webinarDomains.domain, domain.toLowerCase().trim()));
+    return row;
+  }
+  async createWebinarDomain(data: InsertWebinarDomain): Promise<WebinarDomain> {
+    const [row] = await db.insert(webinarDomains).values(data).returning();
+    return row;
+  }
+  async updateWebinarDomain(id: string, data: Partial<WebinarDomain>): Promise<WebinarDomain | undefined> {
+    const [row] = await db.update(webinarDomains).set(data).where(eq(webinarDomains.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarDomain(id: string): Promise<void> {
+    await db.delete(webinarDomains).where(eq(webinarDomains.id, id));
+  }
+
+  // ── Video Marketing Settings (Livekit) ─────────────────────────────────
+  async getVideoMarketingSettings(userId: string): Promise<VideoMarketingSettings | undefined> {
+    const [row] = await db.select().from(videoMarketingSettings).where(eq(videoMarketingSettings.userId, userId));
+    return row;
+  }
+  async upsertVideoMarketingSettings(userId: string, data: Partial<VideoMarketingSettings>): Promise<VideoMarketingSettings> {
+    const [row] = await db
+      .insert(videoMarketingSettings)
+      .values({ userId, livekitUrl: null, livekitKey: null, livekitSecret: null, ...data })
+      .onConflictDoUpdate({ target: videoMarketingSettings.userId, set: { ...data, updatedAt: new Date() } })
+      .returning();
+    return row;
+  }
+
+  // ── Webinar Polls ──────────────────────────────────────────────────────
+  async getWebinarPolls(webinarId: string): Promise<WebinarPoll[]> {
+    return db.select().from(webinarPolls).where(eq(webinarPolls.webinarId, webinarId)).orderBy(desc(webinarPolls.createdAt));
+  }
+  async createWebinarPoll(data: InsertWebinarPoll): Promise<WebinarPoll> {
+    const [row] = await db.insert(webinarPolls).values(data).returning();
+    return row;
+  }
+  async updateWebinarPoll(id: string, data: Partial<WebinarPoll>): Promise<WebinarPoll | undefined> {
+    const [row] = await db.update(webinarPolls).set(data).where(eq(webinarPolls.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarPoll(id: string): Promise<void> {
+    await db.delete(webinarPolls).where(eq(webinarPolls.id, id));
+  }
+
+  // ── Webinar Series ──────────────────────────────────────────────────────
+  async getWebinarSeries(userId: string): Promise<WebinarSeries[]> {
+    return db.select().from(webinarSeries).where(eq(webinarSeries.userId, userId)).orderBy(desc(webinarSeries.createdAt));
+  }
+  async getWebinarSeriesById(id: string): Promise<WebinarSeries | undefined> {
+    const [row] = await db.select().from(webinarSeries).where(eq(webinarSeries.id, id));
+    return row;
+  }
+  async createWebinarSeries(data: InsertWebinarSeries): Promise<WebinarSeries> {
+    const [row] = await db.insert(webinarSeries).values(data).returning();
+    return row;
+  }
+  async updateWebinarSeries(id: string, data: Partial<InsertWebinarSeries>): Promise<WebinarSeries | undefined> {
+    const [row] = await db.update(webinarSeries).set({ ...data, updatedAt: new Date() }).where(eq(webinarSeries.id, id)).returning();
+    return row;
+  }
+  async deleteWebinarSeries(id: string): Promise<void> {
+    await db.delete(webinarSeries).where(eq(webinarSeries.id, id));
   }
 }
 

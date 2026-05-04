@@ -23,7 +23,8 @@ import PublishModal from "@/components/PublishModal";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
-  FileText, Wand2, Hash, Plus, X, Clock, Linkedin, Twitter, Send, History, RotateCcw
+  FileText, Wand2, Hash, Plus, X, Clock, Linkedin, Twitter, Send, History, RotateCcw,
+  CalendarDays, Video, Bell, AlertCircle
 } from "lucide-react";
 
 // ─── AI hashtag suggestions hook ───────────────────────────────────────────────
@@ -552,201 +553,522 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
   );
 }
 
+// ─── Shared helpers ────────────────────────────────────────────────────────────
+function SchedulerModeTabs({
+  mode, setMode, queueCount, color,
+}: { mode: "post" | "schedule" | "queue"; setMode: (m: "post" | "schedule" | "queue") => void; queueCount: number; color: string; }) {
+  const tabs = [
+    { id: "post" as const, label: "Post Now", icon: Send },
+    { id: "schedule" as const, label: "Schedule", icon: CalendarDays },
+    { id: "queue" as const, label: `Queue${queueCount > 0 ? ` (${queueCount})` : ""}`, icon: Clock },
+  ];
+  return (
+    <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border">
+      {tabs.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => setMode(id)}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${mode === id ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          style={mode === id ? { background: color } : {}}
+        >
+          <Icon className="w-3.5 h-3.5" />{label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DateTimeInputs({ date, time, onDate, onTime, color }: { date: string; time: string; onDate: (v: string) => void; onTime: (v: string) => void; color: string; }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted-foreground font-medium">Date</p>
+        <input type="date" value={date} onChange={e => onDate(e.target.value)}
+          min={new Date().toISOString().split("T")[0]}
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-xs text-muted-foreground font-medium">Time (local)</p>
+        <input type="time" value={time} onChange={e => onTime(e.target.value)}
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Platform Schedule Panel ────────────────────────────────────────────────────
 function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" | "youtube" | "instagram" }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [mode, setMode] = useState<"post" | "schedule" | "queue">("post");
   const [postText, setPostText] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [scheduleText, setScheduleText] = useState("");
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [copied, setCopied] = useState<string | false>(false);
+  // YouTube-specific
+  const [ytTitle, setYtTitle] = useState("");
+  const [ytDesc, setYtDesc] = useState("");
+  const [ytVideoUrl, setYtVideoUrl] = useState("");
+  const [ytPrivacy, setYtPrivacy] = useState("public");
 
+  // ── Status queries ────────────────────────────────────────────────────────────
   const { data: twitterStatus, isLoading: twitterLoading } = useQuery<{ connected: boolean; handle: string | null }>({
-    queryKey: ["/api/twitter/status"],
-    enabled: platform === "twitter",
+    queryKey: ["/api/twitter/status"], enabled: platform === "twitter",
   });
   const { data: linkedinStatus, isLoading: linkedinLoading } = useQuery<{ connected: boolean; name: string | null }>({
-    queryKey: ["/api/linkedin/status"],
-    enabled: platform === "linkedin",
+    queryKey: ["/api/linkedin/status"], enabled: platform === "linkedin",
   });
   const { data: youtubeStatus, isLoading: youtubeLoading } = useQuery<any>({
-    queryKey: ["/api/youtube/status"],
-    enabled: platform === "youtube",
+    queryKey: ["/api/youtube/status"], enabled: platform === "youtube",
   });
 
+  // ── Queue queries ─────────────────────────────────────────────────────────────
+  const { data: twitterQueue = [] } = useQuery<any[]>({
+    queryKey: ["/api/twitter/scheduled"], enabled: platform === "twitter",
+  });
+  const { data: linkedinQueue = [] } = useQuery<any[]>({
+    queryKey: ["/api/linkedin/scheduled"], enabled: platform === "linkedin",
+  });
+  const { data: youtubeQueue = [] } = useQuery<any[]>({
+    queryKey: ["/api/youtube/scheduled"], enabled: platform === "youtube",
+  });
+  const { data: instagramQueue = [] } = useQuery<any[]>({
+    queryKey: ["/api/instagram/scheduled"], enabled: platform === "instagram",
+  });
+
+  // ── Twitter mutations ─────────────────────────────────────────────────────────
   const twitterConnect = useMutation({
-    mutationFn: async () => { const d = await apiRequest("GET", "/api/twitter/connect"); return d; },
-    onSuccess: (d: any) => { window.open(d.url, "_blank", "width=600,height=700,scrollbars=yes"); },
+    mutationFn: async () => apiRequest("GET", "/api/twitter/connect"),
+    onSuccess: (d: any) => window.open(d.url, "_blank", "width=600,height=700,scrollbars=yes"),
     onError: (e: any) => toast({ title: "Connection failed", description: e.message, variant: "destructive" }),
   });
-
   const twitterPost = useMutation({
     mutationFn: (content: string) => apiRequest("POST", "/api/twitter/post", { content }),
     onSuccess: () => { setPostText(""); toast({ title: "Tweet posted!", description: "Your tweet is live on X / Twitter." }); },
     onError: (e: any) => toast({ title: "Failed to post", description: e.message, variant: "destructive" }),
   });
-
+  const twitterSchedule = useMutation({
+    mutationFn: (body: { content: string; scheduledFor: string }) => apiRequest("POST", "/api/twitter/scheduled", body),
+    onSuccess: () => { setScheduleText(""); setScheduleDate(""); setScheduleTime(""); qc.invalidateQueries({ queryKey: ["/api/twitter/scheduled"] }); toast({ title: "Tweet scheduled!", description: "It will post automatically." }); },
+    onError: (e: any) => toast({ title: "Failed to schedule", description: e.message, variant: "destructive" }),
+  });
+  const twitterDelete = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/twitter/scheduled/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/twitter/scheduled"] }); toast({ title: "Removed" }); },
+  });
   const twitterDisconnect = useMutation({
     mutationFn: () => apiRequest("DELETE", "/api/twitter/disconnect"),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/twitter/status"] }); toast({ title: "X / Twitter disconnected" }); },
   });
 
+  // ── LinkedIn mutations ────────────────────────────────────────────────────────
   const linkedinPost = useMutation({
     mutationFn: (content: string) => apiRequest("POST", "/api/linkedin/post", { content }),
     onSuccess: () => { setPostText(""); toast({ title: "Post published!", description: "Your post is live on LinkedIn." }); },
     onError: (e: any) => toast({ title: "Failed to post", description: e.message, variant: "destructive" }),
   });
-
+  const linkedinSchedule = useMutation({
+    mutationFn: (body: { content: string; scheduledFor: string }) => apiRequest("POST", "/api/linkedin/scheduled", body),
+    onSuccess: () => { setScheduleText(""); setScheduleDate(""); setScheduleTime(""); qc.invalidateQueries({ queryKey: ["/api/linkedin/scheduled"] }); toast({ title: "Post scheduled!" }); },
+    onError: (e: any) => toast({ title: "Failed to schedule", description: e.message, variant: "destructive" }),
+  });
+  const linkedinDelete = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/linkedin/scheduled/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/linkedin/scheduled"] }); toast({ title: "Removed" }); },
+  });
   const linkedinDisconnect = useMutation({
     mutationFn: () => apiRequest("DELETE", "/api/linkedin/disconnect"),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/linkedin/status"] }); toast({ title: "LinkedIn disconnected" }); },
   });
 
-  function copyText() {
-    if (!postText.trim()) return;
-    navigator.clipboard.writeText(postText.trim());
-    setCopied(true);
+  // ── YouTube mutations ─────────────────────────────────────────────────────────
+  const youtubePost = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/post", { title: ytTitle.trim(), description: ytDesc, videoUrl: ytVideoUrl.trim(), privacyStatus: ytPrivacy }),
+    onSuccess: (d: any) => { setYtTitle(""); setYtDesc(""); setYtVideoUrl(""); toast({ title: "Video uploaded!", description: d.videoId ? `Live at youtube.com/watch?v=${d.videoId}` : "Upload complete." }); },
+    onError: (e: any) => toast({ title: "Upload failed", description: e.message, variant: "destructive" }),
+  });
+  const youtubeSchedule = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/schedule", { title: ytTitle.trim(), description: ytDesc, videoUrl: ytVideoUrl.trim(), privacyStatus: ytPrivacy, scheduledFor: new Date(`${scheduleDate}T${scheduleTime}`).toISOString() }),
+    onSuccess: () => { setYtTitle(""); setYtDesc(""); setYtVideoUrl(""); setScheduleDate(""); setScheduleTime(""); qc.invalidateQueries({ queryKey: ["/api/youtube/scheduled"] }); toast({ title: "Video scheduled!" }); },
+    onError: (e: any) => toast({ title: "Schedule failed", description: e.message, variant: "destructive" }),
+  });
+  const youtubeDelete = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/youtube/scheduled/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/youtube/scheduled"] }); toast({ title: "Removed" }); },
+  });
+
+  // ── Instagram mutations ───────────────────────────────────────────────────────
+  const instagramSchedule = useMutation({
+    mutationFn: (body: { caption: string; scheduledFor: string }) => apiRequest("POST", "/api/instagram/scheduled", body),
+    onSuccess: () => { setScheduleText(""); setScheduleDate(""); setScheduleTime(""); qc.invalidateQueries({ queryKey: ["/api/instagram/scheduled"] }); toast({ title: "Caption scheduled!", description: "We'll alert you when it's time to post." }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+  const instagramMarkPosted = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/instagram/scheduled/${id}`, { status: "posted" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/instagram/scheduled"] }); toast({ title: "Marked as posted!" }); },
+  });
+  const instagramDelete = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/instagram/scheduled/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/instagram/scheduled"] }); toast({ title: "Removed" }); },
+  });
+
+  function copyCaption(text: string, key: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
     setTimeout(() => setCopied(false), 2000);
-    toast({ title: "Copied to clipboard", description: "Paste it directly into the platform." });
+    toast({ title: "Copied!", description: "Paste it into Instagram." });
   }
 
-  // ── Instagram — only scheduling is "coming soon"; idea generation works ──────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ── INSTAGRAM ────────────────────────────────────────────────────────────────
   if (platform === "instagram") {
+    const pending = (instagramQueue as any[]).filter(p => p.status === "pending");
+    const ready = (instagramQueue as any[]).filter(p => p.status === "ready");
+    const posted = (instagramQueue as any[]).filter(p => p.status === "posted");
+    const queueCount = pending.length + ready.length;
+
     return (
       <Card className="border border-card-border">
-        <CardContent className="p-6 space-y-5">
-          <div className="flex items-center gap-3 mb-1">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
               <Instagram className="w-5 h-5 text-pink-400" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Instagram Auto-Scheduling</p>
-              <p className="text-xs text-muted-foreground">Coming soon — generate ideas above and post manually for now</p>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">Instagram</p>
+              <p className="text-xs text-muted-foreground">Schedule captions — we'll remind you when it's time to post</p>
             </div>
           </div>
-          <div className="rounded-xl border border-dashed border-pink-500/20 bg-pink-500/5 p-4 text-center space-y-2">
-            <p className="text-xs text-pink-400 font-semibold">Auto-scheduling to Instagram is coming soon</p>
-            <p className="text-[11px] text-muted-foreground">Generate ideas in the Generate tab, copy them here, and post to Instagram yourself in the meantime.</p>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground font-medium">Paste your content here to copy it:</label>
-            <Textarea
-              value={postText}
-              onChange={e => setPostText(e.target.value)}
-              placeholder="Paste or type your Instagram caption here…"
-              className="min-h-[100px] resize-none text-sm"
-              data-testid="instagram-manual-textarea"
-            />
-          </div>
-          <Button onClick={copyText} variant="outline" className="w-full gap-2" disabled={!postText.trim()}>
-            {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            {copied ? "Copied!" : "Copy & Post Yourself on Instagram"}
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 
-  // ── YouTube — video-based; redirect to full scheduler ────────────────────────
-  if (platform === "youtube") {
-    const isLoading = youtubeLoading;
-    const isConnected = youtubeStatus?.connected;
-    const channelTitle = youtubeStatus?.channelTitle;
-    return (
-      <Card className="border border-card-border">
-        <CardContent className="p-6 space-y-5">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <Youtube className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">YouTube</p>
-              <p className="text-xs text-muted-foreground">Upload & schedule videos to your channel</p>
-            </div>
-          </div>
-          {isLoading ? (
-            <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" /></div>
-          ) : isConnected ? (
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">Connected{channelTitle ? `: ${channelTitle}` : ""}</p>
-                <p className="text-xs text-muted-foreground">Go to YouTube Scheduler to upload and schedule videos.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-center space-y-3">
-              <p className="text-xs text-muted-foreground">Connect your YouTube channel to schedule video uploads directly from this platform.</p>
+          <SchedulerModeTabs mode={mode} setMode={setMode} queueCount={queueCount} color="#e1306c" />
+
+          {/* Post Now */}
+          {mode === "post" && (
+            <div className="space-y-3">
+              <Textarea
+                value={postText}
+                onChange={e => setPostText(e.target.value)}
+                placeholder="Write or paste your Instagram caption…"
+                className="min-h-[120px] resize-none text-sm"
+                data-testid="instagram-post-textarea"
+              />
               <Button
-                onClick={() => { window.location.href = "/api/auth/youtube"; }}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold gap-2"
-                data-testid="schedule-connect-youtube"
+                onClick={() => copyCaption(postText, "post")}
+                disabled={!postText.trim()}
+                className="w-full gap-2 font-bold bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:opacity-90"
+                data-testid="instagram-copy-post"
               >
-                <Youtube className="w-4 h-4" /> Connect YouTube Channel
+                {copied === "post" ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copied === "post" ? "Copied! Go post it on Instagram" : "Copy Caption & Post on Instagram"}
               </Button>
             </div>
           )}
-          <Button
-            onClick={() => { window.location.href = "/youtube-scheduler"; }}
-            variant="outline"
-            className="w-full gap-2 border-red-500/20 text-red-400 hover:bg-red-500/10"
-            data-testid="open-youtube-scheduler"
-          >
-            <Send className="w-4 h-4" /> Open Full YouTube Scheduler
-          </Button>
-          <div className="border-t border-border pt-4 space-y-2">
-            <label className="text-xs text-muted-foreground font-medium">Or copy your video script / description:</label>
-            <Textarea
-              value={postText}
-              onChange={e => setPostText(e.target.value)}
-              placeholder="Paste your YouTube description or script here…"
-              className="min-h-[80px] resize-none text-sm"
-              data-testid="youtube-manual-textarea"
-            />
-            <Button onClick={copyText} variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-foreground" disabled={!postText.trim()}>
-              {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              {copied ? "Copied!" : "Copy & Use in YouTube Studio"}
-            </Button>
-          </div>
+
+          {/* Schedule */}
+          {mode === "schedule" && (
+            <div className="space-y-3">
+              <Textarea
+                value={scheduleText}
+                onChange={e => setScheduleText(e.target.value)}
+                placeholder="Write your caption to schedule…"
+                className="min-h-[120px] resize-none text-sm"
+                data-testid="instagram-schedule-textarea"
+              />
+              <DateTimeInputs date={scheduleDate} time={scheduleTime} onDate={setScheduleDate} onTime={setScheduleTime} color="#e1306c" />
+              <Button
+                onClick={() => { if (!scheduleText.trim() || !scheduleDate || !scheduleTime) return; instagramSchedule.mutate({ caption: scheduleText.trim(), scheduledFor: new Date(`${scheduleDate}T${scheduleTime}`).toISOString() }); }}
+                disabled={instagramSchedule.isPending || !scheduleText.trim() || !scheduleDate || !scheduleTime}
+                className="w-full gap-2 font-bold bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:opacity-90"
+                data-testid="instagram-schedule-btn"
+              >
+                {instagramSchedule.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
+                {instagramSchedule.isPending ? "Scheduling…" : "Schedule Caption"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground text-center">We'll mark it as ready when the time arrives — then you copy and post.</p>
+            </div>
+          )}
+
+          {/* Queue */}
+          {mode === "queue" && (
+            <div className="space-y-3">
+              {ready.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold text-pink-400 uppercase tracking-wider flex items-center gap-1"><Bell className="w-3 h-3" /> Ready to Post</p>
+                  {ready.map((p: any) => (
+                    <div key={p.id} className="rounded-xl p-4 space-y-3 border border-pink-500/30 bg-pink-500/5">
+                      <p className="text-sm text-foreground leading-relaxed">{p.caption}</p>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={() => copyCaption(p.caption, p.id)} className="flex-1 gap-1.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-bold">
+                          {copied === p.id ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copied === p.id ? "Copied!" : "Copy & Post"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => instagramMarkPosted.mutate(p.id)} className="gap-1.5 text-xs text-emerald-400 border-emerald-500/30">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Posted
+                        </Button>
+                        <button onClick={() => instagramDelete.mutate(p.id)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pending.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Upcoming</p>
+                  {pending.map((p: any) => (
+                    <div key={p.id} className="rounded-xl p-4 space-y-2 border border-border bg-card/50">
+                      <p className="text-sm text-foreground leading-relaxed line-clamp-3">{p.caption}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Clock className="w-3 h-3" />
+                          {new Date(p.scheduledFor).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                        </div>
+                        <button onClick={() => instagramDelete.mutate(p.id)} className="text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {posted.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">Posted</p>
+                  {posted.map((p: any) => (
+                    <div key={p.id} className="rounded-xl p-3 border border-border opacity-50 flex items-start justify-between gap-3">
+                      <p className="text-xs text-muted-foreground line-clamp-2 flex-1">{p.caption}</p>
+                      <button onClick={() => instagramDelete.mutate(p.id)} className="text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {queueCount === 0 && posted.length === 0 && (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Instagram className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No scheduled captions yet</p>
+                  <p className="text-xs mt-1">Switch to Schedule to add one</p>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
   }
 
-  // ── Twitter / LinkedIn — text posting ────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ── YOUTUBE ──────────────────────────────────────────────────────────────────
+  if (platform === "youtube") {
+    const pending = (youtubeQueue as any[]).filter(p => p.status === "pending");
+    const done = (youtubeQueue as any[]).filter(p => p.status !== "pending");
+    const isConnected = youtubeStatus?.connected;
+
+    return (
+      <Card className="border border-card-border">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <Youtube className="w-5 h-5 text-red-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">YouTube</p>
+              <p className="text-xs text-muted-foreground">
+                {youtubeLoading ? "Checking…" : isConnected ? `Connected: ${youtubeStatus?.channelTitle ?? "Your channel"}` : "Connect your channel to upload & schedule"}
+              </p>
+            </div>
+            {isConnected && (
+              <span className="flex items-center gap-1 text-[10px] text-emerald-400"><CheckCircle2 className="w-3 h-3" /> Connected</span>
+            )}
+          </div>
+
+          {!isConnected ? (
+            <div className="rounded-xl border border-dashed border-red-500/20 bg-red-500/5 p-5 text-center space-y-3">
+              <p className="text-xs text-muted-foreground">Connect your YouTube channel to upload and schedule videos directly.</p>
+              <Button onClick={() => { window.location.href = "/api/auth/youtube"; }} className="gap-2 bg-red-600 hover:bg-red-700 text-white font-bold" data-testid="schedule-connect-youtube">
+                <Youtube className="w-4 h-4" /> Connect YouTube
+              </Button>
+            </div>
+          ) : (
+            <>
+              <SchedulerModeTabs mode={mode} setMode={setMode} queueCount={pending.length} color="#ff0000" />
+
+              {/* Post Now */}
+              {mode === "post" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Video Title</p>
+                    <Input value={ytTitle} onChange={e => setYtTitle(e.target.value)} placeholder="My awesome video" className="text-sm" data-testid="yt-title" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Description</p>
+                    <Textarea value={ytDesc} onChange={e => setYtDesc(e.target.value)} placeholder="Video description…" className="min-h-[80px] resize-none text-sm" data-testid="yt-desc" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Video URL (publicly hosted)</p>
+                    <Input value={ytVideoUrl} onChange={e => setYtVideoUrl(e.target.value)} placeholder="https://…" className="text-sm font-mono" data-testid="yt-video-url" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Privacy</p>
+                      <select value={ytPrivacy} onChange={e => setYtPrivacy(e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none">
+                        <option value="public">Public</option>
+                        <option value="unlisted">Unlisted</option>
+                        <option value="private">Private</option>
+                      </select>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => youtubePost.mutate()}
+                    disabled={youtubePost.isPending || !ytTitle.trim() || !ytVideoUrl.trim()}
+                    className="w-full gap-2 font-bold bg-red-600 hover:bg-red-700 text-white"
+                    data-testid="yt-upload-now"
+                  >
+                    {youtubePost.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
+                    {youtubePost.isPending ? "Uploading…" : "Upload Now"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Schedule */}
+              {mode === "schedule" && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Video Title</p>
+                    <Input value={ytTitle} onChange={e => setYtTitle(e.target.value)} placeholder="My awesome video" className="text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Description</p>
+                    <Textarea value={ytDesc} onChange={e => setYtDesc(e.target.value)} placeholder="Video description…" className="min-h-[60px] resize-none text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium">Video URL</p>
+                    <Input value={ytVideoUrl} onChange={e => setYtVideoUrl(e.target.value)} placeholder="https://…" className="text-sm font-mono" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Privacy</p>
+                      <select value={ytPrivacy} onChange={e => setYtPrivacy(e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none">
+                        <option value="public">Public</option>
+                        <option value="unlisted">Unlisted</option>
+                        <option value="private">Private</option>
+                      </select>
+                    </div>
+                  </div>
+                  <DateTimeInputs date={scheduleDate} time={scheduleTime} onDate={setScheduleDate} onTime={setScheduleTime} color="#ff0000" />
+                  <Button
+                    onClick={() => youtubeSchedule.mutate()}
+                    disabled={youtubeSchedule.isPending || !ytTitle.trim() || !ytVideoUrl.trim() || !scheduleDate || !scheduleTime}
+                    className="w-full gap-2 font-bold bg-red-600 hover:bg-red-700 text-white"
+                    data-testid="yt-schedule-btn"
+                  >
+                    {youtubeSchedule.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
+                    {youtubeSchedule.isPending ? "Scheduling…" : "Schedule Upload"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground text-center">Upload is triggered automatically at the scheduled time.</p>
+                </div>
+              )}
+
+              {/* Queue */}
+              {mode === "queue" && (
+                <div className="space-y-3">
+                  {pending.length === 0 && done.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <Youtube className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">No scheduled videos yet</p>
+                      <p className="text-xs mt-1">Switch to Schedule to add one</p>
+                    </div>
+                  ) : (
+                    <>
+                      {pending.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Upcoming</p>
+                          {pending.map((v: any) => (
+                            <div key={v.id} className="rounded-xl p-4 space-y-2 border border-red-500/15 bg-red-500/5">
+                              <div className="flex items-start justify-between gap-3">
+                                <p className="text-sm font-semibold text-foreground truncate flex-1">{v.title}</p>
+                                <button onClick={() => youtubeDelete.mutate(v.id)} className="text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <Clock className="w-3 h-3" />
+                                {new Date(v.scheduledFor).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {done.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">History</p>
+                          {done.map((v: any) => (
+                            <div key={v.id} className="rounded-xl p-3 border border-border opacity-50 flex items-center justify-between gap-3">
+                              <p className="text-xs text-muted-foreground truncate flex-1">{v.title}</p>
+                              <button onClick={() => youtubeDelete.mutate(v.id)} className="text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ── TWITTER / LINKEDIN ───────────────────────────────────────────────────────
   const isTwitter = platform === "twitter";
-  const isLoading = isTwitter ? twitterLoading : linkedinLoading;
+  const statusLoading = isTwitter ? twitterLoading : linkedinLoading;
   const status = isTwitter ? twitterStatus : linkedinStatus;
   const isConnected = status?.connected;
   const accountLabel = isTwitter ? (twitterStatus?.handle ? `@${twitterStatus.handle}` : "Connected") : (linkedinStatus?.name ?? "Connected");
   const charLimit = isTwitter ? 280 : 3000;
-  const charOver = postText.length > charLimit;
-  const charNear = postText.length > charLimit * 0.85;
   const platformColor = isTwitter ? "#1d9bf0" : "#0a66c2";
   const platformLabel = isTwitter ? "X / Twitter" : "LinkedIn";
-
-  const handlePost = () => {
-    if (!postText.trim()) return;
-    if (isTwitter) twitterPost.mutate(postText.trim());
-    else linkedinPost.mutate(postText.trim());
-  };
-
-  const handleDisconnect = () => {
-    if (isTwitter) twitterDisconnect.mutate();
-    else linkedinDisconnect.mutate();
-  };
+  const queue = isTwitter ? twitterQueue : linkedinQueue;
+  const pending = (queue as any[]).filter(p => p.status === "pending");
+  const done = (queue as any[]).filter(p => p.status !== "pending");
+  const postCharOver = postText.length > charLimit;
+  const scheduleCharOver = scheduleText.length > charLimit;
 
   const handleConnect = () => {
     if (isTwitter) twitterConnect.mutate();
     else window.location.href = "/api/linkedin/connect";
   };
+  const handleDisconnect = () => {
+    if (isTwitter) twitterDisconnect.mutate();
+    else linkedinDisconnect.mutate();
+  };
+  const handlePostNow = () => {
+    if (!postText.trim()) return;
+    if (isTwitter) twitterPost.mutate(postText.trim());
+    else linkedinPost.mutate(postText.trim());
+  };
+  const handleSchedule = () => {
+    if (!scheduleText.trim() || !scheduleDate || !scheduleTime) return;
+    const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+    if (isTwitter) twitterSchedule.mutate({ content: scheduleText.trim(), scheduledFor });
+    else linkedinSchedule.mutate({ content: scheduleText.trim(), scheduledFor });
+  };
+  const handleDelete = (id: string) => {
+    if (isTwitter) twitterDelete.mutate(id);
+    else linkedinDelete.mutate(id);
+  };
 
   const isPosting = isTwitter ? twitterPost.isPending : linkedinPost.isPending;
-  const isDisconnecting = isTwitter ? twitterDisconnect.isPending : linkedinDisconnect.isPending;
+  const isScheduling = isTwitter ? twitterSchedule.isPending : linkedinSchedule.isPending;
   const isConnecting = isTwitter ? twitterConnect.isPending : false;
+  const isDisconnecting = isTwitter ? twitterDisconnect.isPending : linkedinDisconnect.isPending;
 
   return (
     <Card className="border border-card-border">
-      <CardContent className="p-6 space-y-5">
-        {/* Header */}
+      <CardContent className="p-6 space-y-4">
+        {/* Header + connection status */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${platformColor}18`, border: `1px solid ${platformColor}33` }}>
             {isTwitter ? <Twitter className="w-5 h-5" style={{ color: platformColor }} /> : <Linkedin className="w-5 h-5" style={{ color: platformColor }} />}
@@ -754,7 +1076,7 @@ function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" 
           <div className="flex-1">
             <p className="text-sm font-semibold text-foreground">{platformLabel}</p>
             <p className="text-xs text-muted-foreground">
-              {isLoading ? "Checking connection…" : isConnected ? `Connected as ${accountLabel}` : `Connect your ${platformLabel} account to post directly`}
+              {statusLoading ? "Checking connection…" : isConnected ? `Connected as ${accountLabel}` : `Connect to post and schedule directly`}
             </p>
           </div>
           {isConnected && (
@@ -764,93 +1086,130 @@ function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" 
           )}
         </div>
 
-        {/* Connection state */}
-        {isLoading ? (
-          <div className="flex justify-center py-4">
-            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-          </div>
-        ) : !isConnected ? (
+        {/* Connect prompt */}
+        {!statusLoading && !isConnected && (
           <div className="rounded-xl border border-dashed p-5 text-center space-y-3" style={{ borderColor: `${platformColor}33`, background: `${platformColor}08` }}>
-            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-              Connect your {platformLabel} account first — then you can post content directly from here without leaving the platform.
-            </p>
-            <Button
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="font-bold gap-2"
-              style={{ background: platformColor, color: "#fff" }}
-              data-testid={`connect-${platform}`}
-            >
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">Connect your {platformLabel} account to post and schedule content directly.</p>
+            <Button onClick={handleConnect} disabled={isConnecting} className="font-bold gap-2" style={{ background: platformColor, color: "#fff" }} data-testid={`connect-${platform}`}>
               {isTwitter ? <Twitter className="w-4 h-4" /> : <Linkedin className="w-4 h-4" />}
               {isConnecting ? "Connecting…" : `Connect ${platformLabel}`}
             </Button>
           </div>
-        ) : (
-          <>
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <p className="text-xs text-emerald-400 font-medium">Account connected — you can post directly below</p>
-            </div>
-          </>
         )}
 
-        {/* Post composer — shown always, but disabled when not connected */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs text-muted-foreground font-medium">
-              {isConnected ? "Write or paste your post:" : "Compose your post (connect to enable posting):"}
-            </label>
-            <span className={`text-xs font-mono tabular-nums ${charOver ? "text-red-400" : charNear ? "text-yellow-400" : "text-muted-foreground"}`}>
-              {postText.length}/{charLimit}
-            </span>
-          </div>
-          <Textarea
-            value={postText}
-            onChange={e => setPostText(e.target.value)}
-            placeholder={`Write your ${platformLabel} post here — or generate ideas above and paste your favourite…`}
-            className="min-h-[120px] resize-none text-sm"
-            data-testid={`${platform}-post-textarea`}
-          />
-          {charOver && <p className="text-[11px] text-red-400">Post exceeds character limit — please shorten it.</p>}
-        </div>
+        {isConnected && (
+          <>
+            <SchedulerModeTabs mode={mode} setMode={setMode} queueCount={pending.length} color={platformColor} />
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          {isConnected ? (
-            <Button
-              onClick={handlePost}
-              disabled={isPosting || !postText.trim() || charOver}
-              className="flex-1 gap-2 font-bold"
-              style={{ background: platformColor, color: "#fff" }}
-              data-testid={`${platform}-post-button`}
-            >
-              {isPosting ? (
-                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Posting…</>
-              ) : (
-                <><Send className="w-4 h-4" /> Post Now to {platformLabel}</>
-              )}
-            </Button>
-          ) : (
-            <Button disabled className="flex-1 gap-2 font-bold opacity-40" data-testid={`${platform}-post-disabled`}>
-              <Send className="w-4 h-4" /> Connect account to post
-            </Button>
-          )}
-          <Button
-            onClick={copyText}
-            variant="outline"
-            className="gap-2 px-4"
-            disabled={!postText.trim()}
-            data-testid={`${platform}-copy-button`}
-            title="Copy & post yourself"
-          >
-            {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            {copied ? "Copied!" : "Copy"}
-          </Button>
-        </div>
-        {!isConnected && (
-          <p className="text-[11px] text-muted-foreground/60 text-center">
-            You can also compose here, copy, and paste directly into {platformLabel}.
-          </p>
+            {/* Post Now */}
+            {mode === "post" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-muted-foreground font-medium">Compose your post</label>
+                  <span className={`text-xs font-mono tabular-nums ${postCharOver ? "text-red-400" : postText.length > charLimit * 0.85 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                    {postText.length}/{charLimit}
+                  </span>
+                </div>
+                <Textarea
+                  value={postText}
+                  onChange={e => setPostText(e.target.value)}
+                  placeholder={`Write your ${platformLabel} post here…`}
+                  className="min-h-[120px] resize-none text-sm"
+                  data-testid={`${platform}-post-textarea`}
+                />
+                {postCharOver && <p className="text-[11px] text-red-400">Exceeds character limit — please shorten.</p>}
+                <AiRefineButton text={postText} onAccept={setPostText} context={`${platformLabel} post${isTwitter ? " — max 280 characters, punchy and engaging" : ""}`} />
+                <Button
+                  onClick={handlePostNow}
+                  disabled={isPosting || !postText.trim() || postCharOver}
+                  className="w-full gap-2 font-bold"
+                  style={{ background: platformColor, color: "#fff" }}
+                  data-testid={`${platform}-post-button`}
+                >
+                  {isPosting ? <><RefreshCw className="w-4 h-4 animate-spin" /> Posting…</> : <><Send className="w-4 h-4" /> Post Now to {platformLabel}</>}
+                </Button>
+              </div>
+            )}
+
+            {/* Schedule */}
+            {mode === "schedule" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-muted-foreground font-medium">Post content</label>
+                  <span className={`text-xs font-mono tabular-nums ${scheduleCharOver ? "text-red-400" : scheduleText.length > charLimit * 0.85 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                    {scheduleText.length}/{charLimit}
+                  </span>
+                </div>
+                <Textarea
+                  value={scheduleText}
+                  onChange={e => setScheduleText(e.target.value)}
+                  placeholder={`Write the post you want to schedule…`}
+                  className="min-h-[120px] resize-none text-sm"
+                  data-testid={`${platform}-schedule-textarea`}
+                />
+                {scheduleCharOver && <p className="text-[11px] text-red-400">Exceeds character limit — please shorten.</p>}
+                <AiRefineButton text={scheduleText} onAccept={setScheduleText} context={`${platformLabel} post${isTwitter ? " — max 280 characters, punchy and engaging" : ""}`} />
+                <DateTimeInputs date={scheduleDate} time={scheduleTime} onDate={setScheduleDate} onTime={setScheduleTime} color={platformColor} />
+                <Button
+                  onClick={handleSchedule}
+                  disabled={isScheduling || !scheduleText.trim() || scheduleCharOver || !scheduleDate || !scheduleTime}
+                  className="w-full gap-2 font-bold"
+                  style={{ background: platformColor, color: "#fff" }}
+                  data-testid={`${platform}-schedule-button`}
+                >
+                  {isScheduling ? <><RefreshCw className="w-4 h-4 animate-spin" /> Scheduling…</> : <><CalendarDays className="w-4 h-4" /> Schedule Post</>}
+                </Button>
+                <p className="text-[11px] text-muted-foreground text-center">Posts are checked every 5 minutes and published automatically.</p>
+              </div>
+            )}
+
+            {/* Queue */}
+            {mode === "queue" && (
+              <div className="space-y-3">
+                {pending.length === 0 && done.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <Clock className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No scheduled posts yet</p>
+                    <p className="text-xs mt-1">Switch to Schedule to create one</p>
+                  </div>
+                ) : (
+                  <>
+                    {pending.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Upcoming</p>
+                        {pending.map((p: any) => (
+                          <div key={p.id} className="rounded-xl p-4 space-y-2 border" style={{ borderColor: `${platformColor}25`, background: `${platformColor}07` }}>
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm text-foreground leading-relaxed flex-1">{p.content}</p>
+                              <button onClick={() => handleDelete(p.id)} className="text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <Clock className="w-3 h-3" />
+                              {new Date(p.scheduledFor).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {done.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider pt-1">History</p>
+                        {done.slice(0, 5).map((p: any) => (
+                          <div key={p.id} className="rounded-xl p-3 border border-border opacity-50 flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground line-clamp-2">{p.content}</p>
+                              <p className="text-[10px] text-muted-foreground/60 mt-0.5">{p.status} · {new Date(p.scheduledFor).toLocaleDateString()}</p>
+                            </div>
+                            <button onClick={() => handleDelete(p.id)} className="text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"><Trash2 className="w-3 h-3" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

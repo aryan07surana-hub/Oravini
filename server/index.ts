@@ -8,6 +8,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
+import { registerOAuthRoutes } from "./oauth";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
@@ -120,6 +121,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             planConfirmed: false,
             phoneVerified: true,
             surveyCompleted: false,
+            hasVideoMarketingAddon: false,
           } as any);
           (user as any)._isNewGoogleUser = true;
         }
@@ -177,8 +179,45 @@ app.use((req, res, next) => {
   next();
 });
 
+async function runMigrations() {
+  try {
+    await pool.query(`
+      ALTER TABLE content_posts
+        ADD COLUMN IF NOT EXISTS shares INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS content_style TEXT,
+        ADD COLUMN IF NOT EXISTS shares_2w INTEGER,
+        ADD COLUMN IF NOT EXISTS shares_4w INTEGER
+    `);
+    console.log("[migration] content_posts columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] content_posts skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_video_marketing BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    console.log("[migration] users.has_video_marketing ensured");
+  } catch (e: any) {
+    console.warn("[migration] users.has_video_marketing skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS has_video_marketing_addon BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    console.log("[migration] users.has_video_marketing_addon ensured");
+  } catch (e: any) {
+    console.warn("[migration] users.has_video_marketing_addon skipped:", e.message);
+  }
+}
+
 (async () => {
+  await runMigrations();
   await registerRoutes(httpServer, app);
+  registerOAuthRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

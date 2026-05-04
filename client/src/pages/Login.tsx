@@ -93,6 +93,7 @@ export default function Login() {
     if (!isLoading && user) {
       if (user.role === "admin") return navigate("/admin");
       if (redirectTo === "audit") return navigate("/audit");
+      if (redirectTo && redirectTo.startsWith("/")) return navigate(redirectTo);
       navigate(!(user as any).surveyCompleted ? "/onboarding" : user.planConfirmed ? "/dashboard" : "/select-plan");
     }
   }, [user, isLoading]);
@@ -111,6 +112,7 @@ export default function Login() {
     queryClient.setQueryData(["/api/auth/me"], u);
     if (u.role === "admin") return navigate("/admin");
     if (redirectTo === "audit") return navigate("/audit");
+    if (redirectTo && redirectTo.startsWith("/")) return navigate(redirectTo);
     navigate(!u.surveyCompleted ? "/onboarding" : u.planConfirmed ? "/dashboard" : "/select-plan");
   };
 
