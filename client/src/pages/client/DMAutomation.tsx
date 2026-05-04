@@ -46,6 +46,12 @@ const NAV_SECTIONS = [
   { id: "overview",      label: "Overview",      icon: LayoutDashboard },
   { id: "automations",   label: "Automations",   icon: GitBranch },
   { id: "keywords",      label: "Keywords",      icon: Hash },
+  { id: "comment-bot",   label: "Comment Bot",   icon: MessageSquare },
+  { id: "story-reply",   label: "Story Reply",   icon: Radio },
+  { id: "flow-builder",  label: "Flow Builder",  icon: Workflow },
+  { id: "live-chat",     label: "Live Chat",     icon: MessageCircle },
+  { id: "ai-bot",        label: "AI Bot",        icon: Activity },
+  { id: "opt-in-links",  label: "Opt-in Links",  icon: Link2 },
   { id: "broadcast",     label: "Broadcast",     icon: Megaphone },
   { id: "contacts",      label: "Contacts",      icon: Users },
   { id: "quick-replies", label: "Quick Replies", icon: Zap },
@@ -1240,6 +1246,783 @@ function SettingsSection() {
   );
 }
 
+// ── Section: Comment Bot ──────────────────────────────────────────────────
+function CommentBotSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", keyword: "", postUrl: "", replyMessage: "", alsoDm: false, dmMessage: "", isActive: true });
+  const [editing, setEditing] = useState<any>(null);
+
+  const { data: rules = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/comment-replies", userId],
+    queryFn: () => fetch(`/api/dm/comment-replies${userId ? `?userId=${userId}` : ""}`).then(r => r.json()),
+  });
+
+  const resetForm = () => setForm({ name: "", keyword: "", postUrl: "", replyMessage: "", alsoDm: false, dmMessage: "", isActive: true });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/comment-replies", { ...data, userId }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/comment-replies", userId] }); toast({ title: "Rule created!" }); setOpen(false); resetForm(); },
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: any) => apiRequest("PATCH", `/api/dm/comment-replies/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/comment-replies", userId] }); toast({ title: "Rule updated!" }); setEditing(null); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/comment-replies/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/comment-replies", userId] }),
+  });
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: any) => apiRequest("PATCH", `/api/dm/comment-replies/${id}`, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/comment-replies", userId] }),
+  });
+
+  const F = editing ? editing : form;
+  const setF = (patch: any) => editing ? setEditing((p: any) => ({ ...p, ...patch })) : setForm(p => ({ ...p, ...patch }));
+
+  const handleSave = () => {
+    if (!F.name || !F.replyMessage) return;
+    if (editing) updateMutation.mutate({ id: editing.id, data: editing });
+    else createMutation.mutate(form);
+  };
+
+  const RuleForm = (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2 space-y-1">
+          <Label className="text-xs">Rule name</Label>
+          <Input value={F.name} onChange={e => setF({ name: e.target.value })} placeholder="e.g. Reel info trigger" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Trigger keyword (optional)</Label>
+          <Input value={F.keyword} onChange={e => setF({ keyword: e.target.value })} placeholder='"info", "price", any' />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Specific post URL (optional)</Label>
+          <Input value={F.postUrl} onChange={e => setF({ postUrl: e.target.value })} placeholder="https://instagram.com/p/..." />
+        </div>
+        <div className="col-span-2 space-y-1">
+          <Label className="text-xs">Comment reply message</Label>
+          <Textarea value={F.replyMessage} onChange={e => setF({ replyMessage: e.target.value })} placeholder="Write the reply to the comment..." rows={3} className="resize-none" />
+        </div>
+        <div className="col-span-2 flex items-center gap-2 p-3 rounded-xl bg-muted/30 border border-border">
+          <button onClick={() => setF({ alsoDm: !F.alsoDm })}
+            className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${F.alsoDm ? "bg-primary" : "bg-muted"}`}>
+            <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${F.alsoDm ? "translate-x-4" : ""}`} />
+          </button>
+          <span className="text-xs text-muted-foreground">Also send a DM to the commenter</span>
+        </div>
+        {F.alsoDm && (
+          <div className="col-span-2 space-y-1">
+            <Label className="text-xs">DM message</Label>
+            <Textarea value={F.dmMessage} onChange={e => setF({ dmMessage: e.target.value })} placeholder="Write the DM to send..." rows={2} className="resize-none" />
+          </div>
+        )}
+      </div>
+      <Button onClick={handleSave} disabled={!F.name || !F.replyMessage || createMutation.isPending || updateMutation.isPending} className="w-full gap-2">
+        <Zap className="w-3.5 h-3.5" />{editing ? "Save Changes" : "Create Rule"}
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Comment Auto-Reply</h2>
+          <p className="text-sm text-muted-foreground">Auto-reply to comments — with optional DM follow-up.</p>
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); resetForm(); setOpen(v => !v); }} className="gap-2">
+          <Plus className="w-3.5 h-3.5" />Add Rule
+        </Button>
+      </div>
+
+      {open && !editing && (
+        <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-3">New Rule</p>
+          {RuleForm}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+      ) : rules.length === 0 && !open ? (
+        <div className="text-center py-14 border border-dashed border-border rounded-xl">
+          <MessageSquare className="w-9 h-9 text-muted-foreground mx-auto mb-2 opacity-30" />
+          <p className="text-sm text-muted-foreground">No rules yet — click "Add Rule" to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rules.map((r: any) => (
+            <div key={r.id}>
+              {editing?.id === r.id ? (
+                <div className="p-5 border border-primary/30 bg-primary/5 rounded-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-primary uppercase tracking-wide">Editing Rule</p>
+                    <button onClick={() => setEditing(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                  </div>
+                  {RuleForm}
+                </div>
+              ) : (
+                <div className="p-4 border border-border bg-card rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => toggleMutation.mutate({ id: r.id, isActive: !r.isActive })}
+                        className={`w-8 h-4 rounded-full flex items-center px-0.5 transition-colors ${r.isActive ? "bg-green-500" : "bg-muted"}`}>
+                        <span className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${r.isActive ? "translate-x-4" : ""}`} />
+                      </button>
+                      <p className="text-sm font-semibold text-foreground">{r.name}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {r.triggerCount > 0 && <Badge variant="secondary" className="text-[10px]">{r.triggerCount} fires</Badge>}
+                      <button onClick={() => setEditing(r)} className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"><Edit2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => { if (confirm("Delete this rule?")) deleteMutation.mutate(r.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                    {r.keyword && <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">keyword: "{r.keyword}"</span>}
+                    {r.postUrl && <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 truncate max-w-[180px]">post: {r.postUrl}</span>}
+                    {r.alsoDm && <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">+ DM follow-up</span>}
+                    {!r.keyword && !r.postUrl && <span className="opacity-60">Matches all comments</span>}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2">{r.replyMessage}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Story Reply ───────────────────────────────────────────────────
+function StoryReplySection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [message, setMessage] = useState("");
+  const [isActive, setIsActive] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const { data: config, isLoading } = useQuery<any>({
+    queryKey: ["/api/dm/story-reply", userId],
+    queryFn: () => fetch("/api/dm/story-reply").then(r => r.json()),
+  });
+
+  if (!loaded && config) { setMessage(config.replyMessage || ""); setIsActive(config.isActive ?? false); setLoaded(true); }
+
+  const saveMutation = useMutation({
+    mutationFn: () => apiRequest("PUT", "/api/dm/story-reply", { replyMessage: message, isActive }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/story-reply", userId] }); toast({ title: "Story reply saved!" }); },
+  });
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Story Mention Reply</h2>
+        <p className="text-sm text-muted-foreground">Auto-reply when someone mentions you in their story.</p>
+      </div>
+
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${isActive ? "border-green-500/30 bg-green-500/5" : "border-border bg-card/30"}`}>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Story mention auto-reply</p>
+          <p className="text-xs text-muted-foreground">{isActive ? "Active — replies will be sent automatically" : "Inactive — no replies will be sent"}</p>
+        </div>
+        <button onClick={() => setIsActive(v => !v)}
+          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${isActive ? "bg-green-500" : "bg-muted"}`}>
+          <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${isActive ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Reply message</Label>
+        <Textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Hey! Thanks for mentioning me 🙌 What's up?" rows={5} className="resize-none" />
+        <AiRefineButton text={message} onAccept={setMessage} context="Instagram story mention reply message" />
+      </div>
+
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+        <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-relaxed">Instagram sends a story mention notification when someone tags you. This reply is triggered by that webhook event. Requires your Instagram to be connected and <strong>instagram_manage_messages</strong> permission.</p>
+      </div>
+
+      <Button onClick={() => saveMutation.mutate()} disabled={!message.trim() || saveMutation.isPending} className="w-full gap-2">
+        <Check className="w-3.5 h-3.5" />{saveMutation.isPending ? "Saving..." : "Save Story Reply Config"}
+      </Button>
+    </div>
+  );
+}
+
+// ── Section: Flow Builder ─────────────────────────────────────────────────
+const NODE_TYPES = [
+  { type: "trigger",   label: "Trigger",    color: "bg-amber-500/10 border-amber-500/30 text-amber-400",   icon: Zap },
+  { type: "message",   label: "Message",    color: "bg-blue-500/10 border-blue-500/30 text-blue-400",      icon: MessageSquare },
+  { type: "wait",      label: "Wait",       color: "bg-purple-500/10 border-purple-500/30 text-purple-400", icon: Clock },
+  { type: "condition", label: "Condition",  color: "bg-orange-500/10 border-orange-500/30 text-orange-400", icon: GitBranch },
+  { type: "add_tag",   label: "Add Tag",    color: "bg-green-500/10 border-green-500/30 text-green-400",   icon: Tag },
+  { type: "end",       label: "End",        color: "bg-muted/30 border-border text-muted-foreground",       icon: CheckCircle2 },
+] as const;
+
+function FlowNode({ node, idx, total, onEdit, onDelete, onMove }: any) {
+  const cfg = NODE_TYPES.find(n => n.type === node.type) || NODE_TYPES[0];
+  const Icon = cfg.icon;
+  return (
+    <div className="relative flex flex-col items-center">
+      <div className={`w-full max-w-xs border rounded-xl p-3 bg-card ${cfg.color.split(" ").slice(0, 2).join(" ")}`}>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <Icon className={`w-3.5 h-3.5 ${cfg.color.split(" ")[2]}`} />
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${cfg.color.split(" ")[2]}`}>{cfg.label}</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            {idx > 0 && <button onClick={() => onMove(idx, -1)} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors text-[10px]">↑</button>}
+            {idx < total - 1 && <button onClick={() => onMove(idx, 1)} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors text-[10px]">↓</button>}
+            <button onClick={() => onEdit(idx)} className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"><Edit2 className="w-3 h-3" /></button>
+            <button onClick={() => onDelete(idx)} className="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground line-clamp-2">
+          {node.type === "trigger" && (node.data?.keyword ? `Keyword: "${node.data.keyword}"` : "Matches any DM")}
+          {node.type === "message" && (node.data?.text || "No message set")}
+          {node.type === "wait" && `Wait ${node.data?.hours || 1} hour${(node.data?.hours || 1) !== 1 ? "s" : ""}`}
+          {node.type === "condition" && (node.data?.tagCheck ? `If contact has tag "${node.data.tagCheck}"` : "If condition...")}
+          {node.type === "add_tag" && (node.data?.tag ? `Add tag: "${node.data.tag}"` : "Set tag...")}
+          {node.type === "end" && "Flow complete"}
+        </p>
+        {node.type === "condition" && (
+          <div className="flex gap-2 mt-2">
+            <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 text-[10px] font-medium">YES →</span>
+            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-medium">NO →</span>
+          </div>
+        )}
+      </div>
+      {idx < total - 1 && (
+        <div className="flex flex-col items-center my-1">
+          <div className="w-0.5 h-4 bg-border" />
+          <ArrowRight className="w-3 h-3 text-muted-foreground rotate-90" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlowBuilderSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [selectedFlow, setSelectedFlow] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [newFlowName, setNewFlowName] = useState("");
+  const [editNodeIdx, setEditNodeIdx] = useState<number | null>(null);
+  const [nodeEdit, setNodeEdit] = useState<any>({});
+
+  const { data: flows = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/flows", userId],
+    queryFn: () => fetch(`/api/dm/flows${userId ? `?userId=${userId}` : ""}`).then(r => r.json()),
+  });
+
+  const createFlow = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/flows", { ...data, userId }),
+    onSuccess: (newFlow: any) => { queryClient.invalidateQueries({ queryKey: ["/api/dm/flows", userId] }); setSelectedFlow(newFlow); setCreating(false); setNewFlowName(""); toast({ title: "Flow created!" }); },
+  });
+  const updateFlow = useMutation({
+    mutationFn: ({ id, data }: any) => apiRequest("PATCH", `/api/dm/flows/${id}`, data),
+    onSuccess: (updated: any) => { queryClient.invalidateQueries({ queryKey: ["/api/dm/flows", userId] }); setSelectedFlow(updated); toast({ title: "Flow saved!" }); },
+  });
+  const deleteFlow = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/flows/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/flows", userId] }); setSelectedFlow(null); },
+  });
+
+  const nodes: any[] = selectedFlow?.nodes || [];
+
+  const addNode = (type: string) => {
+    const newNode = { id: Date.now().toString(), type, data: {} };
+    const updated = [...nodes, newNode];
+    updateFlow.mutate({ id: selectedFlow.id, data: { nodes: updated } });
+    setSelectedFlow((p: any) => ({ ...p, nodes: updated }));
+  };
+
+  const deleteNode = (idx: number) => {
+    const updated = nodes.filter((_: any, i: number) => i !== idx);
+    updateFlow.mutate({ id: selectedFlow.id, data: { nodes: updated } });
+    setSelectedFlow((p: any) => ({ ...p, nodes: updated }));
+  };
+
+  const moveNode = (idx: number, dir: number) => {
+    const arr = [...nodes];
+    const tmp = arr[idx]; arr[idx] = arr[idx + dir]; arr[idx + dir] = tmp;
+    updateFlow.mutate({ id: selectedFlow.id, data: { nodes: arr } });
+    setSelectedFlow((p: any) => ({ ...p, nodes: arr }));
+  };
+
+  const saveNodeEdit = () => {
+    if (editNodeIdx === null) return;
+    const updated = nodes.map((n: any, i: number) => i === editNodeIdx ? { ...n, data: nodeEdit } : n);
+    updateFlow.mutate({ id: selectedFlow.id, data: { nodes: updated } });
+    setSelectedFlow((p: any) => ({ ...p, nodes: updated }));
+    setEditNodeIdx(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Visual Flow Builder</h2>
+        <p className="text-sm text-muted-foreground">Build branching DM flows with triggers, messages, conditions, and tags.</p>
+      </div>
+      <div className="flex gap-4 h-[calc(100vh-200px)]">
+        {/* Flow list */}
+        <div className="w-52 flex-shrink-0 border border-border rounded-xl bg-card/30 flex flex-col overflow-hidden">
+          <div className="p-3 border-b border-border flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Flows</span>
+            <button onClick={() => setCreating(v => !v)} className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/80 transition-colors">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {creating && (
+            <div className="p-3 border-b border-border space-y-2">
+              <Input value={newFlowName} onChange={e => setNewFlowName(e.target.value)} placeholder="Flow name..." className="h-8 text-xs" autoFocus />
+              <Button size="sm" className="w-full h-7 text-xs" onClick={() => { if (newFlowName.trim()) createFlow.mutate({ name: newFlowName.trim(), nodes: [{ id: "1", type: "trigger", data: {} }] }); }} disabled={!newFlowName.trim()}>Create</Button>
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {isLoading ? [1,2].map(i => <Skeleton key={i} className="h-10 rounded-lg" />) : flows.map((f: any) => (
+              <button key={f.id} onClick={() => { setSelectedFlow(f); setEditNodeIdx(null); }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${selectedFlow?.id === f.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <p className="truncate">{f.name}</p>
+                <p className={`text-[9px] mt-0.5 ${selectedFlow?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground/60"}`}>{f.nodes?.length || 0} nodes</p>
+              </button>
+            ))}
+            {!isLoading && flows.length === 0 && !creating && (
+              <p className="text-[11px] text-muted-foreground text-center py-4 px-2">Click + to create your first flow</p>
+            )}
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className="flex-1 border border-border rounded-xl bg-card/20 overflow-y-auto">
+          {!selectedFlow ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center opacity-40">
+                <Workflow className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Select or create a flow to start building</p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">{selectedFlow.name}</h3>
+                  <p className="text-[11px] text-muted-foreground">{nodes.length} node{nodes.length !== 1 ? "s" : ""}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { if (confirm("Delete this flow?")) deleteFlow.mutate(selectedFlow.id); }} className="p-2 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Node canvas */}
+              <div className="flex flex-col items-center gap-0 py-4">
+                {nodes.map((node: any, idx: number) => (
+                  <FlowNode key={node.id} node={node} idx={idx} total={nodes.length}
+                    onEdit={(i: number) => { setEditNodeIdx(i); setNodeEdit(nodes[i]?.data || {}); }}
+                    onDelete={deleteNode} onMove={moveNode} />
+                ))}
+              </div>
+
+              {/* Node editor */}
+              {editNodeIdx !== null && nodes[editNodeIdx] && (
+                <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-primary uppercase tracking-wide">Edit {nodes[editNodeIdx].type} node</p>
+                    <button onClick={() => setEditNodeIdx(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                  </div>
+                  {nodes[editNodeIdx].type === "trigger" && (
+                    <Input value={nodeEdit.keyword || ""} onChange={e => setNodeEdit((p: any) => ({ ...p, keyword: e.target.value }))} placeholder='Trigger keyword (e.g. "info", "price")' />
+                  )}
+                  {nodes[editNodeIdx].type === "message" && (
+                    <Textarea value={nodeEdit.text || ""} onChange={e => setNodeEdit((p: any) => ({ ...p, text: e.target.value }))} placeholder="Write your message..." rows={3} className="resize-none" />
+                  )}
+                  {nodes[editNodeIdx].type === "wait" && (
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min={1} max={168} value={nodeEdit.hours || 1} onChange={e => setNodeEdit((p: any) => ({ ...p, hours: Number(e.target.value) }))} className="w-24" />
+                      <span className="text-xs text-muted-foreground">hours to wait before next node</span>
+                    </div>
+                  )}
+                  {nodes[editNodeIdx].type === "condition" && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">Check if contact has tag</Label>
+                      <Input value={nodeEdit.tagCheck || ""} onChange={e => setNodeEdit((p: any) => ({ ...p, tagCheck: e.target.value }))} placeholder='Tag name (e.g. "customer", "interested")' />
+                      <p className="text-[11px] text-muted-foreground">YES branch continues to next node. NO branch ends the flow (or add another end node).</p>
+                    </div>
+                  )}
+                  {nodes[editNodeIdx].type === "add_tag" && (
+                    <Input value={nodeEdit.tag || ""} onChange={e => setNodeEdit((p: any) => ({ ...p, tag: e.target.value }))} placeholder='Tag to add (e.g. "interested", "booked")' />
+                  )}
+                  {nodes[editNodeIdx].type === "end" && (
+                    <Input value={nodeEdit.label || ""} onChange={e => setNodeEdit((p: any) => ({ ...p, label: e.target.value }))} placeholder='End label (e.g. "Converted", "Dropped off")' />
+                  )}
+                  <Button size="sm" onClick={saveNodeEdit} className="gap-2"><Check className="w-3.5 h-3.5" />Save Node</Button>
+                </div>
+              )}
+
+              {/* Add node buttons */}
+              <div className="border-t border-border pt-4">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">Add node</p>
+                <div className="flex flex-wrap gap-2">
+                  {NODE_TYPES.filter(n => n.type !== "end" || nodes.every((nd: any) => nd.type !== "end")).map(({ type, label, color, icon: Icon }) => (
+                    <button key={type} onClick={() => addNode(type)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border ${color} hover:opacity-80 transition-opacity`}>
+                      <Icon className="w-3 h-3" />{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Section: Live Chat ─────────────────────────────────────────────────────
+function LiveChatSection() {
+  const { toast } = useToast();
+  const [selected, setSelected] = useState<any>(null);
+  const [reply, setReply] = useState("");
+
+  const { data: convData, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["/api/dm/conversations"],
+    queryFn: () => fetch("/api/dm/conversations").then(r => r.json()),
+    refetchInterval: 15000,
+  });
+
+  const conversations: any[] = convData?.conversations || [];
+  const connected = convData?.connected;
+
+  const sendMutation = useMutation({
+    mutationFn: ({ recipientId, message }: any) => apiRequest("POST", "/api/meta/send-dm", { recipientId, message }),
+    onSuccess: () => { setReply(""); toast({ title: "Message sent!" }); refetch(); },
+    onError: (e: any) => toast({ title: "Send failed", description: e.message, variant: "destructive" }),
+  });
+
+  const msgs = selected?.messages?.data || [];
+  const otherParticipant = selected?.participants?.data?.find((p: any) => p.name !== "Me") || selected?.participants?.data?.[0];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Live Chat Inbox</h2>
+          <p className="text-sm text-muted-foreground">Real-time DM inbox — reply directly from here.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium border ${connected ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
+            {connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            {connected ? "Connected" : "Not connected"}
+          </div>
+          <button onClick={() => refetch()} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {!connected ? (
+        <div className="py-16 text-center border border-dashed border-border rounded-xl">
+          <WifiOff className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-sm text-muted-foreground">Connect your Instagram in Settings to see live DMs</p>
+        </div>
+      ) : (
+        <div className="flex gap-4 h-[calc(100vh-220px)] border border-border rounded-xl overflow-hidden">
+          {/* Conversation list */}
+          <div className="w-64 flex-shrink-0 border-r border-border bg-card/30 flex flex-col">
+            <div className="p-3 border-b border-border">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Conversations</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {isLoading ? (
+                <div className="p-3 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+              ) : conversations.length === 0 ? (
+                <div className="text-center py-12 px-4"><MessageCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-30" /><p className="text-xs text-muted-foreground">No conversations yet</p></div>
+              ) : conversations.map((c: any) => {
+                const other = c.participants?.data?.find((p: any) => p.name !== "Me") || c.participants?.data?.[0];
+                const lastMsg = c.messages?.data?.[0];
+                return (
+                  <button key={c.id} onClick={() => setSelected(c)}
+                    className={`w-full p-3 text-left border-b border-border/50 hover:bg-muted/30 transition-colors ${selected?.id === c.id ? "bg-primary/5 border-l-2 border-l-primary" : ""}`}>
+                    <p className="text-xs font-semibold text-foreground truncate">{other?.name || "User"}</p>
+                    {lastMsg && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{lastMsg.message}</p>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Message thread */}
+          <div className="flex-1 flex flex-col">
+            {!selected ? (
+              <div className="flex-1 flex items-center justify-center opacity-30">
+                <div className="text-center"><MessageCircle className="w-10 h-10 text-muted-foreground mx-auto mb-2" /><p className="text-sm text-muted-foreground">Select a conversation</p></div>
+              </div>
+            ) : (
+              <>
+                <div className="p-3 border-b border-border bg-card/30">
+                  <p className="text-sm font-semibold text-foreground">{otherParticipant?.name || "User"}</p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col-reverse">
+                  {[...msgs].reverse().map((m: any, i: number) => {
+                    const isMe = m.from?.id !== otherParticipant?.id;
+                    return (
+                      <div key={i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[70%] px-3 py-2 rounded-xl text-xs ${isMe ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+                          <p>{m.message}</p>
+                          {m.created_time && <p className={`text-[9px] mt-1 opacity-60`}>{new Date(m.created_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="p-3 border-t border-border bg-card/30 flex items-end gap-2">
+                  <Textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Type a message..." rows={2} className="resize-none text-xs flex-1"
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (reply.trim() && otherParticipant?.id) sendMutation.mutate({ recipientId: otherParticipant.id, message: reply.trim() }); } }} />
+                  <Button size="sm" className="h-10 gap-2 flex-shrink-0" disabled={!reply.trim() || sendMutation.isPending}
+                    onClick={() => { if (otherParticipant?.id) sendMutation.mutate({ recipientId: otherParticipant.id, message: reply.trim() }); }}>
+                    <Send className="w-3.5 h-3.5" />{sendMutation.isPending ? "..." : "Send"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: AI Bot ────────────────────────────────────────────────────────
+function AIBotSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [cfg, setCfg] = useState({ isActive: false, personality: "friendly", instructions: "", fallbackMessage: "", keywordsOnly: false, keywords: [] as string[] });
+  const [loaded, setLoaded] = useState(false);
+  const [testMsg, setTestMsg] = useState("");
+  const [testReply, setTestReply] = useState("");
+  const [newKw, setNewKw] = useState("");
+
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/dm/ai-bot", userId], queryFn: () => fetch("/api/dm/ai-bot").then(r => r.json()) });
+  if (!loaded && data && !isLoading) { setCfg({ isActive: data.isActive || false, personality: data.personality || "friendly", instructions: data.instructions || "", fallbackMessage: data.fallbackMessage || "", keywordsOnly: data.keywordsOnly || false, keywords: data.keywords || [] }); setLoaded(true); }
+
+  const saveMutation = useMutation({
+    mutationFn: () => apiRequest("PUT", "/api/dm/ai-bot", cfg),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/ai-bot", userId] }); toast({ title: "AI Bot saved!" }); },
+  });
+  const testMutation = useMutation({
+    mutationFn: (message: string) => apiRequest("POST", "/api/dm/ai-bot/test", { message }),
+    onSuccess: (data: any) => setTestReply(data.reply || ""),
+    onError: (e: any) => toast({ title: "Test failed", description: e.message, variant: "destructive" }),
+  });
+
+  const addKw = () => { if (newKw.trim() && !cfg.keywords.includes(newKw.trim())) { setCfg(p => ({ ...p, keywords: [...p.keywords, newKw.trim()] })); setNewKw(""); } };
+  const rmKw = (kw: string) => setCfg(p => ({ ...p, keywords: p.keywords.filter(k => k !== kw) }));
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">AI-Powered Bot</h2>
+        <p className="text-sm text-muted-foreground">Claude (Haiku) replies to DMs automatically based on your instructions.</p>
+      </div>
+
+      {/* Active toggle */}
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${cfg.isActive ? "border-green-500/30 bg-green-500/5" : "border-border bg-card/30"}`}>
+        <div>
+          <p className="text-sm font-semibold text-foreground">AI Bot {cfg.isActive ? "Active" : "Inactive"}</p>
+          <p className="text-xs text-muted-foreground">{cfg.isActive ? "Auto-replying to incoming DMs with AI" : "AI bot is off — DMs will not be auto-replied"}</p>
+        </div>
+        <button onClick={() => setCfg(p => ({ ...p, isActive: !p.isActive }))}
+          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${cfg.isActive ? "bg-green-500" : "bg-muted"}`}>
+          <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${cfg.isActive ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+
+      {/* Personality */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Personality</Label>
+        <div className="grid grid-cols-4 gap-2">
+          {["friendly", "professional", "casual", "salesy"].map(p => (
+            <button key={p} onClick={() => setCfg(prev => ({ ...prev, personality: p }))}
+              className={`px-3 py-2 rounded-xl border text-xs font-semibold capitalize transition-all ${cfg.personality === p ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Bot instructions</Label>
+        <Textarea value={cfg.instructions} onChange={e => setCfg(p => ({ ...p, instructions: e.target.value }))}
+          placeholder="e.g. You help potential coaching clients. Always mention the free discovery call. Never reveal pricing." rows={4} className="resize-none" />
+      </div>
+
+      {/* Fallback */}
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Fallback message (when AI can't respond)</Label>
+        <Input value={cfg.fallbackMessage} onChange={e => setCfg(p => ({ ...p, fallbackMessage: e.target.value }))} placeholder="Hey! I'll get back to you soon 🙌" />
+      </div>
+
+      {/* Keywords only */}
+      <div className="space-y-3 p-4 border border-border rounded-xl bg-card/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Keywords-only mode</p>
+            <p className="text-xs text-muted-foreground">Only reply when message contains specific keywords</p>
+          </div>
+          <button onClick={() => setCfg(p => ({ ...p, keywordsOnly: !p.keywordsOnly }))}
+            className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-colors ${cfg.keywordsOnly ? "bg-primary" : "bg-muted"}`}>
+            <span className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${cfg.keywordsOnly ? "translate-x-5" : ""}`} />
+          </button>
+        </div>
+        {cfg.keywordsOnly && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input value={newKw} onChange={e => setNewKw(e.target.value)} placeholder="Add keyword..." className="h-8 text-xs" onKeyDown={e => e.key === "Enter" && addKw()} />
+              <Button size="sm" onClick={addKw} disabled={!newKw.trim()} className="h-8 gap-1"><Plus className="w-3 h-3" />Add</Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {cfg.keywords.map(kw => (
+                <span key={kw} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[11px] font-medium">
+                  {kw}
+                  <button onClick={() => rmKw(kw)} className="hover:text-red-400 transition-colors"><XCircle className="w-3 h-3" /></button>
+                </span>
+              ))}
+              {cfg.keywords.length === 0 && <p className="text-[11px] text-muted-foreground">No keywords yet</p>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="w-full gap-2">
+        <Check className="w-3.5 h-3.5" />{saveMutation.isPending ? "Saving..." : "Save AI Bot Config"}
+      </Button>
+
+      {/* Test panel */}
+      <div className="p-4 border border-border rounded-xl bg-card/30 space-y-3">
+        <p className="text-xs font-semibold text-foreground">Test Bot Response</p>
+        <div className="flex gap-2">
+          <Input value={testMsg} onChange={e => setTestMsg(e.target.value)} placeholder="Type a test message..." className="text-xs" onKeyDown={e => e.key === "Enter" && testMsg.trim() && testMutation.mutate(testMsg)} />
+          <Button size="sm" onClick={() => testMutation.mutate(testMsg)} disabled={!testMsg.trim() || testMutation.isPending} className="gap-2 flex-shrink-0">
+            <Play className="w-3.5 h-3.5" />{testMutation.isPending ? "..." : "Test"}
+          </Button>
+        </div>
+        {testReply && (
+          <div className="p-3 rounded-xl bg-muted/30 border border-border">
+            <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1"><Activity className="w-3 h-3 text-purple-400" />AI Reply</p>
+            <p className="text-xs text-foreground">{testReply}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Section: Opt-in Links ─────────────────────────────────────────────────
+function OptInLinksSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [welcome, setWelcome] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  const { data: links = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/opt-in-links", userId],
+    queryFn: () => fetch("/api/dm/opt-in-links").then(r => r.json()),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/opt-in-links", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/opt-in-links", userId] }); setName(""); setWelcome(""); toast({ title: "Opt-in link created!" }); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/opt-in-links/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/opt-in-links", userId] }),
+  });
+
+  const copy = (text: string, id: string) => { navigator.clipboard.writeText(text); setCopiedId(id); toast({ title: "Copied!" }); setTimeout(() => setCopiedId(null), 2000); };
+  const getUrl = (refCode: string) => `${origin}/start?ref=${refCode}`;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Opt-in Links</h2>
+        <p className="text-sm text-muted-foreground">Generate unique ref links for your bio — track clicks and opt-ins.</p>
+      </div>
+
+      <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Create New Link</p>
+        <Input value={name} onChange={e => setName(e.target.value)} placeholder="Link name (e.g. Bio Link, Story CTA)" />
+        <Textarea value={welcome} onChange={e => setWelcome(e.target.value)} placeholder="Welcome DM message when someone opts in..." rows={3} className="resize-none" />
+        <Button onClick={() => { if (!name.trim()) return; createMutation.mutate({ name: name.trim(), welcomeMessage: welcome.trim() }); }} disabled={!name.trim() || createMutation.isPending} className="w-full gap-2">
+          <Link2 className="w-3.5 h-3.5" />{createMutation.isPending ? "Creating..." : "Generate Link"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
+      ) : links.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <Link2 className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No links yet — create one above</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {links.map((l: any) => {
+            const url = getUrl(l.refCode);
+            const htmlSnippet = `<a href="${url}">Send me a DM</a>`;
+            return (
+              <div key={l.id} className="p-4 border border-border bg-card rounded-xl space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">{l.name}</p>
+                  <button onClick={() => { if (confirm("Delete this link?")) deleteMutation.mutate(l.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Clicks", val: l.clickCount || 0, color: "text-blue-400" },
+                    { label: "Opt-ins", val: l.optInCount || 0, color: "text-green-400" },
+                  ].map(s => (
+                    <div key={s.label} className="p-3 rounded-xl bg-muted/20 border border-border text-center">
+                      <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-muted/30 border border-border rounded-lg px-3 py-2 font-mono text-[10px] text-muted-foreground truncate">{url}</div>
+                    <button onClick={() => copy(url, l.id + "-url")} className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors flex-shrink-0">
+                      {copiedId === l.id + "-url" ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-muted/30 border border-border rounded-lg px-3 py-2 font-mono text-[10px] text-muted-foreground truncate">{htmlSnippet}</div>
+                    <button onClick={() => copy(htmlSnippet, l.id + "-html")} className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors flex-shrink-0">
+                      {copiedId === l.id + "-html" ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {l.welcomeMessage && (
+                  <p className="text-[11px] text-muted-foreground border-t border-border pt-2">Welcome DM: {l.welcomeMessage}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
@@ -1334,6 +2117,12 @@ export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean 
           {section === "overview" && <OverviewSection leads={leads} triggers={triggers} sequences={sequences} setSection={setSection} />}
           {section === "automations" && <AutomationsSection sequences={sequences} userId={userId} />}
           {section === "keywords" && <KeywordsSection triggers={triggers} userId={userId} />}
+          {section === "comment-bot" && <CommentBotSection userId={userId} />}
+          {section === "story-reply" && <StoryReplySection userId={userId} />}
+          {section === "flow-builder" && <FlowBuilderSection userId={userId} />}
+          {section === "live-chat" && <LiveChatSection />}
+          {section === "ai-bot" && <AIBotSection userId={userId} />}
+          {section === "opt-in-links" && <OptInLinksSection userId={userId} />}
           {section === "broadcast" && <BroadcastSection leads={leads} userId={userId} />}
           {section === "contacts" && <ContactsSection leads={leads} isLoading={leadsLoading} clientId={activeClientId} clients={clients} isAdmin={isAdmin} />}
           {section === "quick-replies" && <QuickRepliesSection clientId={activeClientId} />}

@@ -3772,14 +3772,14 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.patch("/api/dm/comment-replies/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const [row] = await db.update(commentAutoReplies).set(req.body).where(eq(commentAutoReplies.id, req.params.id)).returning();
+      const [row] = await db.update(commentAutoReplies).set(req.body).where(eq(commentAutoReplies.id, String(req.params.id))).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/comment-replies/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await db.delete(commentAutoReplies).where(eq(commentAutoReplies.id, req.params.id));
+      await db.delete(commentAutoReplies).where(eq(commentAutoReplies.id, String(req.params.id)));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3828,14 +3828,14 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.patch("/api/dm/flows/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const [row] = await db.update(dmFlows).set({ ...req.body, updatedAt: new Date() }).where(eq(dmFlows.id, req.params.id)).returning();
+      const [row] = await db.update(dmFlows).set({ ...req.body, updatedAt: new Date() }).where(eq(dmFlows.id, String(req.params.id))).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/flows/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await db.delete(dmFlows).where(eq(dmFlows.id, req.params.id));
+      await db.delete(dmFlows).where(eq(dmFlows.id, String(req.params.id)));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3843,21 +3843,21 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
   // ── Contact Tags ───────────────────────────────────────────────────────────
   app.get("/api/dm/leads/:leadId/tags", requireAuth, async (req: Request, res: Response) => {
     try {
-      const rows = await db.select().from(dmContactTags).where(eq(dmContactTags.leadId, req.params.leadId));
+      const rows = await db.select().from(dmContactTags).where(eq(dmContactTags.leadId, String(req.params.leadId)));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/dm/leads/:leadId/tags", requireAuth, async (req: Request, res: Response) => {
     try {
-      const [row] = await db.insert(dmContactTags).values({ leadId: req.params.leadId, tag: String(req.body.tag) }).returning();
+      const [row] = await db.insert(dmContactTags).values({ leadId: String(req.params.leadId), tag: String(req.body.tag) }).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/leads/:leadId/tags/:tag", requireAuth, async (req: Request, res: Response) => {
     try {
-      await db.delete(dmContactTags).where(and(eq(dmContactTags.leadId, req.params.leadId), eq(dmContactTags.tag, req.params.tag)));
+      await db.delete(dmContactTags).where(and(eq(dmContactTags.leadId, String(req.params.leadId)), eq(dmContactTags.tag, String(req.params.tag))));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3927,7 +3927,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.delete("/api/dm/opt-in-links/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      await db.delete(optInLinks).where(eq(optInLinks.id, req.params.id));
+      await db.delete(optInLinks).where(eq(optInLinks.id, String(req.params.id)));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
