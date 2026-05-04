@@ -1,10 +1,126 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styles from "./tier5.module.css";
 
 export default function Tier5Page() {
   const [activeTab, setActiveTab] = useState<"30" | "60" | "90">("30");
+  
+  // ROI Calculator State
+  const [monthlyRevenue, setMonthlyRevenue] = useState(50000);
+  const [hoursOnContent, setHoursOnContent] = useState(20);
+  const [hourlyRate, setHourlyRate] = useState(250);
+  const [monthlyLeads, setMonthlyLeads] = useState(100);
+  const [closeRate, setCloseRate] = useState(10);
+  const [showROI, setShowROI] = useState(false);
+  
+  // Chatbot State
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'bot' | 'user', text: string}>>([{
+    role: 'bot',
+    text: "Hey! 👋 I'm here to help you understand Oravini Enterprise. What questions do you have?"
+  }]);
+  const [userInput, setUserInput] = useState("");
+  
+  // ROI Calculations
+  const timeSaved = hoursOnContent * 0.75; // Save 75% of time
+  const timeSavedValue = (timeSaved * 4 * hourlyRate); // Monthly value
+  const currentSales = (monthlyLeads * closeRate) / 100;
+  const improvedCloseRate = closeRate * 1.3; // 30% improvement
+  const newSales = (monthlyLeads * improvedCloseRate) / 100;
+  const extraSales = newSales - currentSales;
+  const avgDealSize = monthlyRevenue / currentSales || 5000;
+  const extraRevenue = extraSales * avgDealSize;
+  const totalValue = timeSavedValue + extraRevenue;
+  const netProfit = totalValue - 99;
+  const roiMultiplier = Math.round(netProfit / 99);
+  
+  const calculateROI = () => {
+    setShowROI(true);
+  };
+  
+  // Chatbot Logic
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userInput.trim()) return;
+    
+    const newMessages = [...chatMessages, { role: 'user' as const, text: userInput }];
+    setChatMessages(newMessages);
+    
+    // Simple keyword-based responses
+    const response = getBotResponse(userInput.toLowerCase());
+    
+    setTimeout(() => {
+      setChatMessages([...newMessages, { role: 'bot' as const, text: response }]);
+    }, 500);
+    
+    setUserInput("");
+  };
+  
+  const getBotResponse = (input: string): string => {
+    // Pricing questions
+    if (input.includes('price') || input.includes('cost') || input.includes('how much')) {
+      return "Enterprise is $99/month with unlimited AI credits, dedicated account manager, and white-glove support. No hidden fees, cancel anytime. Want to see the ROI calculator to see your personalized value?";
+    }
+    
+    // Features questions
+    if (input.includes('feature') || input.includes('include') || input.includes('what do i get')) {
+      return "You get: Unlimited AI credits, Video Marketing Platform, Sales CRM & automation, Course hosting, Dedicated account manager, White-glove onboarding, Custom SLA, Quarterly strategy sessions, Advanced analytics, and more! Which feature interests you most?";
+    }
+    
+    // Support questions
+    if (input.includes('support') || input.includes('help') || input.includes('account manager')) {
+      return "You get a dedicated account manager with direct access (email, Slack, or phone), custom SLA with guaranteed response times, and quarterly strategy sessions. You're not just a customer—you're a partner.";
+    }
+    
+    // Comparison questions
+    if (input.includes('difference') || input.includes('pro') || input.includes('tier') || input.includes('compare')) {
+      return "Enterprise includes unlimited AI credits (vs 500 in Pro), dedicated account manager, custom SLA, white-glove onboarding, quarterly strategy sessions, and custom feature development. Check out the comparison table below for full details!";
+    }
+    
+    // Onboarding questions
+    if (input.includes('onboard') || input.includes('start') || input.includes('setup') || input.includes('how long')) {
+      return "Most clients are fully onboarded within 2-3 weeks. Week 1: Discovery & setup. Week 2: Integration. Week 3: Training. Week 4: Go live! We move as fast as you do.";
+    }
+    
+    // Contract questions
+    if (input.includes('contract') || input.includes('cancel') || input.includes('commitment')) {
+      return "No long-term contracts required. You can cancel anytime. We also offer a 30-day money-back guarantee—if you're not seeing value, we'll refund you, no questions asked.";
+    }
+    
+    // ROI questions
+    if (input.includes('roi') || input.includes('return') || input.includes('worth it') || input.includes('value')) {
+      return "On average, Enterprise clients save 15+ hours/week (worth $12,000+/month) and see a 30% increase in sales conversion. That's a 120x+ ROI. Use the calculator above to see YOUR personalized ROI!";
+    }
+    
+    // Migration questions
+    if (input.includes('migrate') || input.includes('switch') || input.includes('move') || input.includes('transfer')) {
+      return "Absolutely! Our white-glove onboarding includes full migration support. We'll help you move your content, courses, client data, and integrations. Our team handles the heavy lifting.";
+    }
+    
+    // Integration questions
+    if (input.includes('integrat') || input.includes('connect') || input.includes('zapier') || input.includes('api')) {
+      return "We integrate with all major platforms: Stripe, PayPal, Calendly, Zoom, Slack, HubSpot, Salesforce, Zapier, and more. Need a custom integration? We'll build it for you as part of Enterprise.";
+    }
+    
+    // Who is it for
+    if (input.includes('who') || input.includes('right for me') || input.includes('qualify')) {
+      return "Enterprise is for established info entrepreneurs, coaches, course creators, and digital product sellers doing $10K+/month who are ready to scale. If you're feeling the growing pains of manual processes, Enterprise is for you.";
+    }
+    
+    // Strategy call questions
+    if (input.includes('call') || input.includes('demo') || input.includes('meeting')) {
+      return "The strategy call is a free 30-minute session where we dive deep into your business, understand your goals, and create a custom roadmap. No pressure, no sales pitch—just value. Ready to book? Click the button above!";
+    }
+    
+    // Results questions
+    if (input.includes('result') || input.includes('success') || input.includes('work')) {
+      return "Our clients see an average of 5x content output increase, 30% sales conversion lift, and 15+ hours saved per week. 98% client satisfaction rate. Check out the testimonials below for real stories!";
+    }
+    
+    // Default response
+    return "Great question! I'd recommend booking a free strategy call so we can dive deeper into your specific situation. Or feel free to ask me about: pricing, features, support, onboarding, ROI, integrations, or anything else!";
+  };
 
   return (
     <main className={styles.page}>
@@ -436,6 +552,253 @@ export default function Tier5Page() {
         </div>
       </section>
 
+      {/* Comparison Table */}
+      <section className={styles.comparisonSection}>
+        <div className={styles.sectionHeader}>
+          <h2>Pro vs Enterprise: What's the Difference?</h2>
+          <p className={styles.subtitle}>See exactly what you're getting with the upgrade</p>
+        </div>
+
+        <div className={styles.comparisonTable}>
+          <div className={styles.comparisonHeader}>
+            <div className={styles.comparisonCell}></div>
+            <div className={styles.comparisonCell}>
+              <h3>Pro</h3>
+              <p className={styles.comparisonPrice}>$59/mo</p>
+            </div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>
+              <h3>Enterprise</h3>
+              <p className={styles.comparisonPrice}>$99/mo</p>
+              <span className={styles.recommendedBadge}>Recommended</span>
+            </div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>AI Credits</strong></div>
+            <div className={styles.comparisonCell}>500/month</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>♾️ Unlimited</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Video Marketing</strong></div>
+            <div className={styles.comparisonCell}>✓ Included</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ Included</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Team Members</strong></div>
+            <div className={styles.comparisonCell}>Unlimited</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>Unlimited</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Support</strong></div>
+            <div className={styles.comparisonCell}>Priority</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>White-Glove + Custom SLA</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Account Manager</strong></div>
+            <div className={styles.comparisonCell}>✗</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ Dedicated</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Onboarding</strong></div>
+            <div className={styles.comparisonCell}>Self-service</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ White-Glove</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Strategy Sessions</strong></div>
+            <div className={styles.comparisonCell}>✗</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ Quarterly</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Custom Features</strong></div>
+            <div className={styles.comparisonCell}>✗</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ Available</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Migration Support</strong></div>
+            <div className={styles.comparisonCell}>Basic</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>✓ Full Service</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Response Time</strong></div>
+            <div className={styles.comparisonCell}>24 hours</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>Custom SLA (2-4 hours)</div>
+          </div>
+
+          <div className={styles.comparisonRow}>
+            <div className={styles.comparisonCell}><strong>Best For</strong></div>
+            <div className={styles.comparisonCell}>Growing businesses</div>
+            <div className={`${styles.comparisonCell} ${styles.highlighted}`}>Scaling enterprises</div>
+          </div>
+        </div>
+
+        <div className={styles.comparisonCTA}>
+          <p>Ready to upgrade to unlimited everything?</p>
+          <a href="https://calendly.com/your-link" className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
+            Book Your Strategy Call
+          </a>
+        </div>
+      </section>
+
+      {/* Interactive ROI Calculator */}
+      <section className={styles.roiCalculatorSection}>
+        <div className={styles.sectionHeader}>
+          <h2>Calculate Your Personalized ROI</h2>
+          <p className={styles.subtitle}>See exactly how much value Enterprise will bring to YOUR business</p>
+        </div>
+
+        <div className={styles.calculatorCard}>
+          <div className={styles.calculatorInputs}>
+            <h3>Tell us about your business:</h3>
+            
+            <div className={styles.inputGroup}>
+              <label>
+                💰 Monthly Revenue:
+                <div className={styles.inputWrapper}>
+                  <span className={styles.inputPrefix}>$</span>
+                  <input 
+                    type="number" 
+                    value={monthlyRevenue} 
+                    onChange={(e) => setMonthlyRevenue(Number(e.target.value))}
+                    min="0"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                ⏰ Hours/week on content creation:
+                <div className={styles.inputWrapper}>
+                  <input 
+                    type="number" 
+                    value={hoursOnContent} 
+                    onChange={(e) => setHoursOnContent(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>hours</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                💵 Your hourly rate:
+                <div className={styles.inputWrapper}>
+                  <span className={styles.inputPrefix}>$</span>
+                  <input 
+                    type="number" 
+                    value={hourlyRate} 
+                    onChange={(e) => setHourlyRate(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>/hr</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                📊 Monthly leads:
+                <div className={styles.inputWrapper}>
+                  <input 
+                    type="number" 
+                    value={monthlyLeads} 
+                    onChange={(e) => setMonthlyLeads(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>leads</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                📈 Current close rate:
+                <div className={styles.inputWrapper}>
+                  <input 
+                    type="number" 
+                    value={closeRate} 
+                    onChange={(e) => setCloseRate(Number(e.target.value))}
+                    min="0"
+                    max="100"
+                  />
+                  <span className={styles.inputSuffix}>%</span>
+                </div>
+              </label>
+            </div>
+
+            <button className={styles.calculateButton} onClick={calculateROI}>
+              Calculate My ROI
+            </button>
+          </div>
+
+          {showROI && (
+            <div className={styles.calculatorResults}>
+              <h3>🎯 Your Personalized ROI</h3>
+              
+              <div className={styles.resultCard}>
+                <div className={styles.resultRow}>
+                  <span>💰 Time Saved Value:</span>
+                  <strong>${timeSavedValue.toLocaleString()}/mo</strong>
+                </div>
+                <p className={styles.resultDetail}>
+                  Save {timeSaved.toFixed(1)} hours/week × ${hourlyRate}/hr = ${(timeSaved * hourlyRate).toLocaleString()}/week
+                </p>
+              </div>
+
+              <div className={styles.resultCard}>
+                <div className={styles.resultRow}>
+                  <span>📈 Extra Revenue:</span>
+                  <strong>${extraRevenue.toLocaleString()}/mo</strong>
+                </div>
+                <p className={styles.resultDetail}>
+                  {extraSales.toFixed(1)} extra sales/month × ${avgDealSize.toLocaleString()} avg deal size
+                </p>
+              </div>
+
+              <div className={styles.resultDivider}></div>
+
+              <div className={styles.resultRow}>
+                <span>✅ Total Monthly Value:</span>
+                <strong className={styles.totalValue}>${totalValue.toLocaleString()}</strong>
+              </div>
+
+              <div className={styles.resultRow}>
+                <span>💳 Enterprise Cost:</span>
+                <strong>-$99/mo</strong>
+              </div>
+
+              <div className={styles.resultDivider}></div>
+
+              <div className={styles.resultRow}>
+                <span>🚀 NET PROFIT:</span>
+                <strong className={styles.netProfit}>${netProfit.toLocaleString()}/mo</strong>
+              </div>
+
+              <div className={styles.roiHighlight}>
+                <p>That's a <strong>{roiMultiplier}x</strong> return on investment! 🎉</p>
+                <p className={styles.roiNote}>
+                  And we haven't even counted the time saved on sales automation, client management, and all the other features.
+                </p>
+              </div>
+
+              <a href="https://calendly.com/your-link" className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
+                Book My Strategy Call Now →
+              </a>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Pricing Transparency */}
       <section className={styles.pricingSection}>
         <div className={styles.sectionHeader}>
@@ -636,6 +999,52 @@ export default function Tier5Page() {
       {/* Back to Pricing Link */}
       <div className={styles.backLink}>
         <a href="/pricing">← Back to All Plans</a>
+      </div>
+
+      {/* Chatbot */}
+      <div className={`${styles.chatbot} ${chatOpen ? styles.chatbotOpen : ''}`}>
+        {!chatOpen ? (
+          <button className={styles.chatbotToggle} onClick={() => setChatOpen(true)}>
+            💬
+            <span className={styles.chatbotBadge}>Ask me anything!</span>
+          </button>
+        ) : (
+          <div className={styles.chatbotWindow}>
+            <div className={styles.chatbotHeader}>
+              <div>
+                <h4>Enterprise Assistant</h4>
+                <p>Usually replies instantly</p>
+              </div>
+              <button className={styles.chatbotClose} onClick={() => setChatOpen(false)}>✕</button>
+            </div>
+            
+            <div className={styles.chatbotMessages}>
+              {chatMessages.map((msg, idx) => (
+                <div key={idx} className={`${styles.chatMessage} ${styles[msg.role]}`}>
+                  {msg.role === 'bot' && <div className={styles.chatAvatar}>🤖</div>}
+                  <div className={styles.chatBubble}>{msg.text}</div>
+                  {msg.role === 'user' && <div className={styles.chatAvatar}>👤</div>}
+                </div>
+              ))}
+            </div>
+            
+            <form className={styles.chatbotInput} onSubmit={handleChatSubmit}>
+              <input 
+                type="text" 
+                placeholder="Ask about pricing, features, support..."
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+              />
+              <button type="submit">Send</button>
+            </form>
+            
+            <div className={styles.chatbotQuickActions}>
+              <button onClick={() => setUserInput("What's included in Enterprise?")}>What's included?</button>
+              <button onClick={() => setUserInput("How much does it cost?")}>Pricing</button>
+              <button onClick={() => setUserInput("What's the difference from Pro?")}>Pro vs Enterprise</button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
