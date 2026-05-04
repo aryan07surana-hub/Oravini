@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronLeft, FileText, Copy, Check, Dumbbell, Briefcase, DollarSign,
   TrendingUp, Heart, Home, ShoppingCart, Video, Cpu, Apple, Brain, Share2,
-  Instagram, Linkedin, Twitter
+  Instagram, Linkedin, Twitter, Music, Trophy, Building2, Sparkles, Baby,
+  Flower2, Camera, Palette, Car, Newspaper, Scale, Microscope, Leaf, Users2,
+  Hammer, PawPrint, Plane
 } from "lucide-react";
 
 interface Template {
@@ -186,6 +188,330 @@ const TEMPLATES: Template[] = [
       { key: "link", label: "Link", placeholder: "yoursite.com" },
     ],
     example: "Social Media Strategist | Growing brands on Instagram & TikTok\n100M+ views generated | Worked with 50+ brands\nDM me 'GROW' to get started\nyoursite.com"
+  },
+  {
+    id: "beauty-fashion",
+    name: "Beauty & Fashion",
+    category: "Beauty & Fashion",
+    icon: Sparkles,
+    color: "#f472b6",
+    structure: "{specialty} | Helping {audience} {outcome}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "specialty", label: "Your specialty", placeholder: "Makeup artist & beauty educator" },
+      { key: "audience", label: "Who you help", placeholder: "women over 40" },
+      { key: "outcome", label: "Outcome", placeholder: "look & feel confident" },
+      { key: "socialProof", label: "Social proof", placeholder: "Featured in Vogue | 200K+ followers" },
+      { key: "cta", label: "Call to action", placeholder: "Shop my favorites below" },
+      { key: "link", label: "Link", placeholder: "linktr.ee/yourname" },
+    ],
+    example: "Makeup artist & beauty educator\nHelping women over 40 look & feel confident\nFeatured in Vogue | 200K+ followers\nShop my favorites below\nlinktr.ee/beauty"
+  },
+  {
+    id: "lifestyle",
+    name: "Lifestyle Creator",
+    category: "Lifestyle",
+    icon: Heart,
+    color: "#fb923c",
+    structure: "{tagline}\n{niche}\n{socialProof}\n{link}",
+    fields: [
+      { key: "tagline", label: "Your tagline", placeholder: "Living intentionally & sharing the journey" },
+      { key: "niche", label: "Content focus", placeholder: "Minimalism, wellness & slow living" },
+      { key: "socialProof", label: "Social proof", placeholder: "100K+ community | Featured in Apartment Therapy" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Living intentionally & sharing the journey\nMinimalism, wellness & slow living\n100K+ community | Featured in Apartment Therapy\nyoursite.com"
+  },
+  {
+    id: "tech-software",
+    name: "Tech & Software",
+    category: "Tech",
+    icon: Cpu,
+    color: "#8b5cf6",
+    structure: "{role} | {specialty}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "role", label: "Your role", placeholder: "Software Engineer" },
+      { key: "specialty", label: "Specialty", placeholder: "Teaching web development & AI" },
+      { key: "socialProof", label: "Social proof", placeholder: "500K+ students | Ex-Google" },
+      { key: "cta", label: "Call to action", placeholder: "Free coding course below" },
+      { key: "link", label: "Link", placeholder: "yoursite.com/course" },
+    ],
+    example: "Software Engineer | Teaching web development & AI\n500K+ students | Ex-Google\nFree coding course below\nyoursite.com/course"
+  },
+  {
+    id: "education-coaching",
+    name: "Education & Coaching",
+    category: "Education",
+    icon: Brain,
+    color: "#0ea5e9",
+    structure: "{credentials} | Helping {audience} {outcome}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "credentials", label: "Credentials", placeholder: "Certified Life Coach" },
+      { key: "audience", label: "Who you help", placeholder: "professionals" },
+      { key: "outcome", label: "Outcome", placeholder: "find clarity & take action" },
+      { key: "socialProof", label: "Social proof", placeholder: "1000+ clients coached | ICF Certified" },
+      { key: "cta", label: "Call to action", placeholder: "Book your discovery call" },
+      { key: "link", label: "Link", placeholder: "calendly.com/yourname" },
+    ],
+    example: "Certified Life Coach\nHelping professionals find clarity & take action\n1000+ clients coached | ICF Certified\nBook your discovery call\ncalendly.com/coach"
+  },
+  {
+    id: "food-travel",
+    name: "Food & Travel",
+    category: "Food & Travel",
+    icon: Plane,
+    color: "#10b981",
+    structure: "{niche} | {mission}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "niche", label: "Your niche", placeholder: "Food & travel blogger" },
+      { key: "mission", label: "Mission", placeholder: "Discovering hidden gems around the world" },
+      { key: "socialProof", label: "Social proof", placeholder: "50+ countries visited | 300K+ followers" },
+      { key: "cta", label: "Call to action", placeholder: "Get my travel guides" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Food & travel blogger\nDiscovering hidden gems around the world\n50+ countries visited | 300K+ followers\nGet my travel guides\nyoursite.com"
+  },
+  {
+    id: "gaming-entertainment",
+    name: "Gaming & Entertainment",
+    category: "Gaming & Entertainment",
+    icon: Video,
+    color: "#a855f7",
+    structure: "{platform} {game} streamer\n{stats}\n{tagline}\n{link}",
+    fields: [
+      { key: "platform", label: "Platform", placeholder: "Twitch" },
+      { key: "game", label: "Game/genre", placeholder: "Valorant" },
+      { key: "stats", label: "Stats", placeholder: "Radiant rank | 100K+ followers" },
+      { key: "tagline", label: "Tagline", placeholder: "Vibes & high-level gameplay" },
+      { key: "link", label: "Link", placeholder: "twitch.tv/yourname" },
+    ],
+    example: "Twitch Valorant streamer\nRadiant rank | 100K+ followers\nVibes & high-level gameplay\ntwitch.tv/gamer"
+  },
+  {
+    id: "art-creativity",
+    name: "Art & Creativity",
+    category: "Art & Creativity",
+    icon: Palette,
+    color: "#ec4899",
+    structure: "{medium} artist | {style}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "medium", label: "Medium", placeholder: "Digital" },
+      { key: "style", label: "Style", placeholder: "Fantasy & character design" },
+      { key: "socialProof", label: "Social proof", placeholder: "Worked with Netflix, Disney | 500K+ followers" },
+      { key: "cta", label: "Call to action", placeholder: "Commissions open" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Digital artist | Fantasy & character design\nWorked with Netflix, Disney | 500K+ followers\nCommissions open\nyoursite.com"
+  },
+  {
+    id: "sports-athletics",
+    name: "Sports & Athletics",
+    category: "Sports & Athletics",
+    icon: Trophy,
+    color: "#eab308",
+    structure: "{sport} {level} | {specialty}\n{achievement}\n{cta}\n{link}",
+    fields: [
+      { key: "sport", label: "Sport", placeholder: "Basketball" },
+      { key: "level", label: "Level", placeholder: "Pro trainer" },
+      { key: "specialty", label: "Specialty", placeholder: "Vertical jump & explosiveness" },
+      { key: "achievement", label: "Achievement", placeholder: "Trained 50+ D1 athletes" },
+      { key: "cta", label: "Call to action", placeholder: "Get my training program" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Basketball pro trainer | Vertical jump & explosiveness\nTrained 50+ D1 athletes\nGet my training program\nyoursite.com"
+  },
+  {
+    id: "music-entertainment",
+    name: "Music & Entertainment",
+    category: "Music & Entertainment",
+    icon: Music,
+    color: "#f43f5e",
+    structure: "{role} | {genre}\n{achievement}\n{cta}\n{link}",
+    fields: [
+      { key: "role", label: "Role", placeholder: "Producer & DJ" },
+      { key: "genre", label: "Genre", placeholder: "House & Techno" },
+      { key: "achievement", label: "Achievement", placeholder: "10M+ streams | Played Coachella" },
+      { key: "cta", label: "Call to action", placeholder: "Listen to my latest track" },
+      { key: "link", label: "Link", placeholder: "linktr.ee/yourname" },
+    ],
+    example: "Producer & DJ | House & Techno\n10M+ streams | Played Coachella\nListen to my latest track\nlinktr.ee/music"
+  },
+  {
+    id: "parenting-family",
+    name: "Parenting & Family",
+    category: "Parenting & Family",
+    icon: Baby,
+    color: "#fbbf24",
+    structure: "{role} | {specialty}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "role", label: "Role", placeholder: "Mom of 3" },
+      { key: "specialty", label: "Specialty", placeholder: "Positive parenting & family routines" },
+      { key: "socialProof", label: "Social proof", placeholder: "Helping 100K+ parents | Certified parent coach" },
+      { key: "cta", label: "Call to action", placeholder: "Get my free routine guide" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Mom of 3 | Positive parenting & family routines\nHelping 100K+ parents | Certified parent coach\nGet my free routine guide\nyoursite.com"
+  },
+  {
+    id: "spirituality-mindfulness",
+    name: "Spirituality & Mindfulness",
+    category: "Spirituality & Mindfulness",
+    icon: Flower2,
+    color: "#c084fc",
+    structure: "{practice} teacher | Helping {audience} {outcome}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "practice", label: "Practice", placeholder: "Meditation & breathwork" },
+      { key: "audience", label: "Who you help", placeholder: "busy professionals" },
+      { key: "outcome", label: "Outcome", placeholder: "find inner peace" },
+      { key: "socialProof", label: "Social proof", placeholder: "500+ students | 20 years practice" },
+      { key: "cta", label: "Call to action", placeholder: "Join my free meditation" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Meditation & breathwork teacher\nHelping busy professionals find inner peace\n500+ students | 20 years practice\nJoin my free meditation\nyoursite.com"
+  },
+  {
+    id: "photography-videography",
+    name: "Photography & Videography",
+    category: "Photography & Videography",
+    icon: Camera,
+    color: "#06b6d4",
+    structure: "{specialty} photographer | {style}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "specialty", label: "Specialty", placeholder: "Wedding" },
+      { key: "style", label: "Style", placeholder: "Cinematic & editorial" },
+      { key: "socialProof", label: "Social proof", placeholder: "500+ weddings shot | Published in Brides" },
+      { key: "cta", label: "Call to action", placeholder: "Book your date" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Wedding photographer | Cinematic & editorial\n500+ weddings shot | Published in Brides\nBook your date\nyoursite.com"
+  },
+  {
+    id: "automotive",
+    name: "Automotive",
+    category: "Automotive",
+    icon: Car,
+    color: "#ef4444",
+    structure: "{niche} | {specialty}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "niche", label: "Niche", placeholder: "Car enthusiast & reviewer" },
+      { key: "specialty", label: "Specialty", placeholder: "Supercars & exotic builds" },
+      { key: "socialProof", label: "Social proof", placeholder: "1M+ followers | 100M+ views" },
+      { key: "cta", label: "Call to action", placeholder: "Watch my latest review" },
+      { key: "link", label: "Link", placeholder: "youtube.com/@yourname" },
+    ],
+    example: "Car enthusiast & reviewer | Supercars & exotic builds\n1M+ followers | 100M+ views\nWatch my latest review\nyoutube.com/@cars"
+  },
+  {
+    id: "news-journalism",
+    name: "News & Journalism",
+    category: "News & Journalism",
+    icon: Newspaper,
+    color: "#64748b",
+    structure: "{role} | {beat}\n{credentials}\n{cta}\n{link}",
+    fields: [
+      { key: "role", label: "Role", placeholder: "Investigative journalist" },
+      { key: "beat", label: "Beat", placeholder: "Tech & policy" },
+      { key: "credentials", label: "Credentials", placeholder: "Published in NYT, WSJ | Pulitzer nominee" },
+      { key: "cta", label: "Call to action", placeholder: "Subscribe to my newsletter" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Investigative journalist | Tech & policy\nPublished in NYT, WSJ | Pulitzer nominee\nSubscribe to my newsletter\nyoursite.com"
+  },
+  {
+    id: "law-legal",
+    name: "Law & Legal",
+    category: "Law & Legal",
+    icon: Scale,
+    color: "#475569",
+    structure: "{credentials} | {specialty}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "credentials", label: "Credentials", placeholder: "Attorney at Law" },
+      { key: "specialty", label: "Specialty", placeholder: "Business law & contracts" },
+      { key: "socialProof", label: "Social proof", placeholder: "15 years experience | 500+ clients" },
+      { key: "cta", label: "Call to action", placeholder: "Book a consultation" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Attorney at Law | Business law & contracts\n15 years experience | 500+ clients\nBook a consultation\nyoursite.com"
+  },
+  {
+    id: "science-research",
+    name: "Science & Research",
+    category: "Science & Research",
+    icon: Microscope,
+    color: "#0891b2",
+    structure: "{credentials} | {field}\n{focus}\n{cta}\n{link}",
+    fields: [
+      { key: "credentials", label: "Credentials", placeholder: "PhD in Neuroscience" },
+      { key: "field", label: "Field", placeholder: "Brain health researcher" },
+      { key: "focus", label: "Focus", placeholder: "Making science accessible to everyone" },
+      { key: "cta", label: "Call to action", placeholder: "Read my latest research" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "PhD in Neuroscience | Brain health researcher\nMaking science accessible to everyone\nRead my latest research\nyoursite.com"
+  },
+  {
+    id: "environmental-sustainability",
+    name: "Environmental & Sustainability",
+    category: "Environmental & Sustainability",
+    icon: Leaf,
+    color: "#16a34a",
+    structure: "{role} | {mission}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "role", label: "Role", placeholder: "Sustainability advocate" },
+      { key: "mission", label: "Mission", placeholder: "Teaching zero-waste living" },
+      { key: "socialProof", label: "Social proof", placeholder: "200K+ followers | Featured in National Geographic" },
+      { key: "cta", label: "Call to action", placeholder: "Start your eco journey" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Sustainability advocate | Teaching zero-waste living\n200K+ followers | Featured in National Geographic\nStart your eco journey\nyoursite.com"
+  },
+  {
+    id: "relationships-dating",
+    name: "Relationships & Dating",
+    category: "Relationships & Dating",
+    icon: Users2,
+    color: "#f43f5e",
+    structure: "{credentials} | Helping {audience} {outcome}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "credentials", label: "Credentials", placeholder: "Licensed therapist" },
+      { key: "audience", label: "Who you help", placeholder: "singles" },
+      { key: "outcome", label: "Outcome", placeholder: "find healthy relationships" },
+      { key: "socialProof", label: "Social proof", placeholder: "1000+ clients | 20 years experience" },
+      { key: "cta", label: "Call to action", placeholder: "Get my dating guide" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Licensed therapist | Helping singles find healthy relationships\n1000+ clients | 20 years experience\nGet my dating guide\nyoursite.com"
+  },
+  {
+    id: "diy-home-improvement",
+    name: "DIY & Home Improvement",
+    category: "DIY & Home Improvement",
+    icon: Hammer,
+    color: "#f97316",
+    structure: "{specialty} | {tagline}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "specialty", label: "Specialty", placeholder: "DIY home renovations" },
+      { key: "tagline", label: "Tagline", placeholder: "Transforming spaces on a budget" },
+      { key: "socialProof", label: "Social proof", placeholder: "500K+ followers | Featured on HGTV" },
+      { key: "cta", label: "Call to action", placeholder: "Get my project plans" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "DIY home renovations | Transforming spaces on a budget\n500K+ followers | Featured on HGTV\nGet my project plans\nyoursite.com"
+  },
+  {
+    id: "animals-pets",
+    name: "Animals & Pets",
+    category: "Animals & Pets",
+    icon: PawPrint,
+    color: "#fb923c",
+    structure: "{specialty} | {mission}\n{socialProof}\n{cta}\n{link}",
+    fields: [
+      { key: "specialty", label: "Specialty", placeholder: "Certified dog trainer" },
+      { key: "mission", label: "Mission", placeholder: "Building better bonds with your pup" },
+      { key: "socialProof", label: "Social proof", placeholder: "5000+ dogs trained | 15 years experience" },
+      { key: "cta", label: "Call to action", placeholder: "Get my free training guide" },
+      { key: "link", label: "Link", placeholder: "yoursite.com" },
+    ],
+    example: "Certified dog trainer | Building better bonds with your pup\n5000+ dogs trained | 15 years experience\nGet my free training guide\nyoursite.com"
   },
 ];
 

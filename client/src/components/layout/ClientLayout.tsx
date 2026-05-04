@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
-  LayoutDashboard, FileText, MessageSquare,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, MessageCircle, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow
+  LayoutDashboard, FileText,
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -345,32 +345,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               </Link>
             </div>
 
-            {/* ── DMHub Section ── */}
-            <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>DMHub</p>
-              {[
-                { href: "/dm-tracker", label: "DM Tracker", icon: MessageCircle },
-                { href: "/send-dm", label: "Send DM", icon: MessageSquare },
-              ].map(({ href, label, icon: Icon }) => {
-                const active = location === href;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      }`}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                    {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                  </Link>
-                );
-              })}
-            </div>
 
 
             {/* ── Settings ── */}
