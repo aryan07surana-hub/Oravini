@@ -11152,9 +11152,6 @@ Rules:
     }
   });
 
-  return httpServer;
-}
-
   // ── Bio Generator ─────────────────────────────────────────────────────────
   app.post("/api/tools/bio-generator/generate", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -11345,6 +11342,12 @@ Return ONLY valid JSON in this exact format:
       return res.status(500).json({ message: err.message });
     }
   });
+
+  // ── Modular route registrations ──────────────────────────────────────────────
+  // Routes split into server/routes/ for maintainability
+  registerWebinarPollRoutes(app, requireAuth);
+  registerWebinarSeriesRoutes(app, requireAuth);
+  registerVideoHostingRoutes(app, requireAuth);
 
   return httpServer;
 }
