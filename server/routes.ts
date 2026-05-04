@@ -19,6 +19,7 @@ import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } from "./contentIntelligence";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
+import { registerDMAdvancedRoutes } from "./dmAdvancedRoutes";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -12055,6 +12056,9 @@ Rules:
       return res.status(500).json({ message: err.message });
     }
   });
+
+  // ── DM ADVANCED ROUTES ────────────────────────────────────────────────────
+  registerDMAdvancedRoutes(app);
 
   // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
   app.use(contentWorkflowRoutes);

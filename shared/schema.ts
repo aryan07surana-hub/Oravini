@@ -268,6 +268,11 @@ export const dmLeads = pgTable("dm_leads", {
   lastContactAt: timestamp("last_contact_at"),
   followUpDate: timestamp("follow_up_date"),
   source: varchar("source"),
+  email: text("email"),
+  phone: text("phone"),
+  leadScore: integer("lead_score"),
+  leadScoreReason: text("lead_score_reason"),
+  isOptedOut: boolean("is_opted_out").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1629,3 +1634,106 @@ export const optInLinks = pgTable("opt_in_links", {
 export const insertOptInLinkSchema = createInsertSchema(optInLinks).omit({ id: true, createdAt: true, clickCount: true, optInCount: true });
 export type InsertOptInLink = z.infer<typeof insertOptInLinkSchema>;
 export type OptInLink = typeof optInLinks.$inferSelect;
+
+// ── Contact Custom Fields ───────────────────────────────────────────────────
+export const contactCustomFieldDefs = pgTable("contact_custom_field_defs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  fieldKey: text("field_key").notNull(),
+  fieldType: text("field_type").notNull().default("text"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ContactCustomFieldDef = typeof contactCustomFieldDefs.$inferSelect;
+
+export const contactCustomFieldValues = pgTable("contact_custom_field_values", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").notNull().references(() => dmLeads.id, { onDelete: "cascade" }),
+  fieldDefId: varchar("field_def_id").notNull().references(() => contactCustomFieldDefs.id, { onDelete: "cascade" }),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type ContactCustomFieldValue = typeof contactCustomFieldValues.$inferSelect;
+
+// ── Welcome DM ──────────────────────────────────────────────────────────────
+export const welcomeDmConfigs = pgTable("welcome_dm_configs", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").notNull().default(false),
+  message: text("message").notNull().default(""),
+  delayMinutes: integer("delay_minutes").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type WelcomeDmConfig = typeof welcomeDmConfigs.$inferSelect;
+
+// ── Outbound Webhooks ───────────────────────────────────────────────────────
+export const outboundWebhooks = pgTable("outbound_webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  triggerEvent: text("trigger_event").notNull(),
+  triggerValue: text("trigger_value"),
+  isActive: boolean("is_active").notNull().default(true),
+  fireCount: integer("fire_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type OutboundWebhook = typeof outboundWebhooks.$inferSelect;
+
+// ── Click Tracking Links ────────────────────────────────────────────────────
+export const dmClickLinks = pgTable("dm_click_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  originalUrl: text("original_url").notNull(),
+  shortCode: text("short_code").notNull().unique(),
+  label: text("label"),
+  clickCount: integer("click_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmClickLink = typeof dmClickLinks.$inferSelect;
+
+export const dmClickEvents = pgTable("dm_click_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  linkId: varchar("link_id").notNull().references(() => dmClickLinks.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").references(() => dmLeads.id, { onDelete: "set null" }),
+  clickedAt: timestamp("clicked_at").defaultNow(),
+  ipAddress: text("ip_address"),
+});
+export type DmClickEvent = typeof dmClickEvents.$inferSelect;
+
+// ── DM Funnel Events ────────────────────────────────────────────────────────
+export const dmFunnelEvents = pgTable("dm_funnel_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").references(() => dmLeads.id, { onDelete: "set null" }),
+  flowId: varchar("flow_id").references(() => dmFlows.id, { onDelete: "set null" }),
+  eventType: text("event_type").notNull(),
+  metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmFunnelEvent = typeof dmFunnelEvents.$inferSelect;
+
+// ── Conversation Notes ──────────────────────────────────────────────────────
+export const conversationNotes = pgTable("conversation_notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  igUserId: text("ig_user_id").notNull(),
+  note: text("note").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type ConversationNote = typeof conversationNotes.$inferSelect;
+
+// ── Scheduled Broadcasts ────────────────────────────────────────────────────
+export const dmScheduledBroadcasts = pgTable("dm_scheduled_broadcasts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  targetTag: text("target_tag"),
+  targetStatus: text("target_status"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type DmScheduledBroadcast = typeof dmScheduledBroadcasts.$inferSelect;

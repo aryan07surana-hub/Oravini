@@ -24,7 +24,9 @@ import {
   CheckCircle2, XCircle, Search, Filter, LayoutGrid, List, GitBranch,
   Workflow, Eye, MousePointerClick, Radio, Tag, Info, Link2, ShieldCheck,
   RefreshCw, ExternalLink, Wifi, WifiOff, EyeOff, TrendingUp, MessageCircle,
-  Play, Clock, ArrowRight, Hash
+  Play, Clock, ArrowRight, Hash, Database, UserPlus, Globe, Download, Bot,
+  Crosshair, BarChart2, SlidersHorizontal, Bell, PhoneCall, Mail, FileText,
+  Sparkles
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -52,6 +54,13 @@ const NAV_SECTIONS = [
   { id: "live-chat",     label: "Live Chat",     icon: MessageCircle },
   { id: "ai-bot",        label: "AI Bot",        icon: Activity },
   { id: "opt-in-links",  label: "Opt-in Links",  icon: Link2 },
+  { id: "custom-fields", label: "Custom Fields", icon: Database },
+  { id: "welcome-dm",    label: "Welcome DM",    icon: UserPlus },
+  { id: "webhooks",      label: "Webhooks",      icon: Globe },
+  { id: "click-links",   label: "Click Links",   icon: MousePointerClick },
+  { id: "scheduled",     label: "Scheduled",     icon: Calendar },
+  { id: "competitor",    label: "Competitor",    icon: Crosshair },
+  { id: "funnel-stats",  label: "Funnel Stats",  icon: BarChart2 },
   { id: "broadcast",     label: "Broadcast",     icon: Megaphone },
   { id: "contacts",      label: "Contacts",      icon: Users },
   { id: "quick-replies", label: "Quick Replies", icon: Zap },
@@ -2023,6 +2032,625 @@ function OptInLinksSection({ userId }: { userId: string }) {
   );
 }
 
+// ── Section: Custom Fields ────────────────────────────────────────────────
+function CustomFieldsSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [label, setLabel] = useState("");
+  const [fieldType, setFieldType] = useState("text");
+
+  const { data: defs = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/custom-field-defs", userId],
+    queryFn: () => fetch("/api/dm/custom-field-defs").then(r => r.json()),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/custom-field-defs", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/custom-field-defs", userId] }); setLabel(""); toast({ title: "Field created!" }); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/custom-field-defs/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/custom-field-defs", userId] }),
+  });
+
+  const FIELD_TYPES = [
+    { value: "text", label: "Text", icon: FileText },
+    { value: "email", label: "Email", icon: Mail },
+    { value: "phone", label: "Phone", icon: PhoneCall },
+    { value: "number", label: "Number", icon: Hash },
+    { value: "url", label: "URL", icon: Link2 },
+  ];
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Custom Fields</h2>
+        <p className="text-sm text-muted-foreground">Define extra fields to store on each contact — email, budget, city, interest, anything.</p>
+      </div>
+
+      <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add Field</p>
+        <div className="flex gap-2">
+          <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Field label (e.g. Email, Budget, City)" className="flex-1" />
+          <Select value={fieldType} onValueChange={setFieldType}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { if (label.trim()) createMutation.mutate({ label: label.trim(), fieldType }); }} disabled={!label.trim() || createMutation.isPending} className="gap-2">
+            <Plus className="w-4 h-4" />Add
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">These fields appear on every contact card. Use <code className="bg-muted px-1 rounded text-[10px]">{"{{field_key}}"}</code> in messages to personalize.</p>
+      </div>
+
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+        <Sparkles className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-relaxed">
+          Built-in tokens: <code className="bg-muted/40 px-1 rounded text-[10px]">{"{{first_name}}"}</code> <code className="bg-muted/40 px-1 rounded text-[10px]">{"{{last_name}}"}</code> <code className="bg-muted/40 px-1 rounded text-[10px]">{"{{instagram}}"}</code> <code className="bg-muted/40 px-1 rounded text-[10px]">{"{{email}}"}</code> <code className="bg-muted/40 px-1 rounded text-[10px]">{"{{phone}}"}</code> — available on all contacts automatically.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
+      ) : defs.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <Database className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No custom fields yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {defs.map((d: any) => {
+            const T = FIELD_TYPES.find(t => t.value === d.fieldType) || FIELD_TYPES[0];
+            const TIcon = T.icon;
+            return (
+              <div key={d.id} className="flex items-center justify-between p-3 border border-border bg-card rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center"><TIcon className="w-4 h-4 text-primary" /></div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{d.label}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">{"{{" + d.fieldKey + "}}"} · {T.label}</p>
+                  </div>
+                </div>
+                <button onClick={() => { if (confirm("Delete this field? All stored values will be lost.")) deleteMutation.mutate(d.id); }}
+                  className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Welcome DM ───────────────────────────────────────────────────
+function WelcomeDMSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [cfg, setCfg] = useState({ isActive: false, message: "", delayMinutes: 0 });
+  const [loaded, setLoaded] = useState(false);
+
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/dm/welcome-dm", userId], queryFn: () => fetch("/api/dm/welcome-dm").then(r => r.json()) });
+  if (!loaded && data && !isLoading) { setCfg({ isActive: data.isActive || false, message: data.message || "", delayMinutes: data.delayMinutes || 0 }); setLoaded(true); }
+
+  const saveMutation = useMutation({
+    mutationFn: () => apiRequest("PUT", "/api/dm/welcome-dm", cfg),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/welcome-dm", userId] }); toast({ title: "Welcome DM saved!" }); },
+  });
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Welcome DM for New Followers</h2>
+        <p className="text-sm text-muted-foreground">Auto-send a DM when someone new follows your account. ManyChat's biggest growth hack.</p>
+      </div>
+
+      <div className={`flex items-center justify-between p-4 rounded-xl border ${cfg.isActive ? "border-green-500/30 bg-green-500/5" : "border-border bg-card/30"}`}>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Welcome DM {cfg.isActive ? "Active" : "Inactive"}</p>
+          <p className="text-xs text-muted-foreground">{cfg.isActive ? "New followers will receive this DM automatically" : "Off — no welcome DM will be sent"}</p>
+        </div>
+        <button onClick={() => setCfg(p => ({ ...p, isActive: !p.isActive }))}
+          className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${cfg.isActive ? "bg-green-500" : "bg-muted"}`}>
+          <span className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${cfg.isActive ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Welcome message</Label>
+        <Textarea value={cfg.message} onChange={e => setCfg(p => ({ ...p, message: e.target.value }))}
+          placeholder="Hey {{first_name}}! Thanks for following! 🙌 I help people with [your niche]. Click the link in my bio to get started!" rows={5} className="resize-none" />
+        <AiRefineButton text={cfg.message} onAccept={m => setCfg(p => ({ ...p, message: m }))} context="Instagram welcome DM for new followers" />
+        <p className="text-[11px] text-muted-foreground">Use <code className="bg-muted px-1 rounded text-[10px]">{"{{first_name}}"}</code> to personalize.</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Delay before sending</Label>
+        <div className="flex items-center gap-3">
+          <Input type="number" min={0} max={1440} value={cfg.delayMinutes} onChange={e => setCfg(p => ({ ...p, delayMinutes: Number(e.target.value) }))} className="w-24" />
+          <span className="text-xs text-muted-foreground">minutes after follow (0 = instant)</span>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+        <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-relaxed">Requires your Instagram webhook to be subscribed to <strong>follow</strong> events in Facebook Developer Console. Once that's set up and your account is connected in Settings, this will trigger automatically.</p>
+      </div>
+
+      <Button onClick={() => saveMutation.mutate()} disabled={!cfg.message.trim() || saveMutation.isPending} className="w-full gap-2">
+        <Check className="w-3.5 h-3.5" />{saveMutation.isPending ? "Saving..." : "Save Welcome DM"}
+      </Button>
+    </div>
+  );
+}
+
+// ── Section: Webhooks ─────────────────────────────────────────────────────
+const WEBHOOK_EVENTS = [
+  { value: "tag_added",       label: "Tag Added",         desc: "Fires when a tag is added to a contact" },
+  { value: "status_changed",  label: "Status Changed",    desc: "Fires when contact status changes" },
+  { value: "lead_created",    label: "Lead Created",      desc: "Fires when a new contact is added" },
+  { value: "opted_out",       label: "Opted Out",         desc: "Fires when a contact unsubscribes (STOP)" },
+  { value: "converted",       label: "Converted",         desc: "Fires when contact is marked converted" },
+];
+
+function WebhooksSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: "", url: "", triggerEvent: "tag_added", triggerValue: "", isActive: true });
+  const [creating, setCreating] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+
+  const { data: hooks = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/webhooks", userId],
+    queryFn: () => fetch("/api/dm/webhooks").then(r => r.json()),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/webhooks", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/webhooks", userId] }); setCreating(false); setForm({ name: "", url: "", triggerEvent: "tag_added", triggerValue: "", isActive: true }); toast({ title: "Webhook created!" }); },
+  });
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isActive }: any) => apiRequest("PATCH", `/api/dm/webhooks/${id}`, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/webhooks", userId] }),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/webhooks/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/webhooks", userId] }),
+  });
+  const testMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("POST", `/api/dm/webhooks/${id}/test`),
+    onSuccess: (data: any) => { setTesting(null); toast({ title: data.ok ? "Test sent! ✓" : `Test failed (status ${data.status})`, variant: data.ok ? "default" : "destructive" }); },
+    onError: () => { setTesting(null); toast({ title: "Test failed", variant: "destructive" }); },
+  });
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Outbound Webhooks</h2>
+          <p className="text-sm text-muted-foreground">Send data to Zapier, Make, n8n, or any URL when events happen.</p>
+        </div>
+        <Button size="sm" onClick={() => setCreating(v => !v)} className="gap-2"><Plus className="w-3.5 h-3.5" />Add Webhook</Button>
+      </div>
+
+      {creating && (
+        <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wide">New Webhook</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1"><Label className="text-xs">Name</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Zapier CRM sync" /></div>
+            <div className="col-span-2 space-y-1"><Label className="text-xs">Webhook URL</Label><Input value={form.url} onChange={e => setForm(p => ({ ...p, url: e.target.value }))} placeholder="https://hooks.zapier.com/..." /></div>
+            <div className="space-y-1">
+              <Label className="text-xs">Trigger event</Label>
+              <Select value={form.triggerEvent} onValueChange={v => setForm(p => ({ ...p, triggerEvent: v }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>{WEBHOOK_EVENTS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1"><Label className="text-xs">Filter value (optional)</Label><Input value={form.triggerValue} onChange={e => setForm(p => ({ ...p, triggerValue: e.target.value }))} placeholder='e.g. specific tag name' /></div>
+          </div>
+          <Button onClick={() => { if (form.name && form.url) createMutation.mutate(form); }} disabled={!form.name || !form.url || createMutation.isPending} className="w-full gap-2">
+            <Globe className="w-3.5 h-3.5" />Create Webhook
+          </Button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+      ) : hooks.length === 0 && !creating ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <Globe className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No webhooks yet — connect Zapier, Make, or any endpoint</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {hooks.map((h: any) => {
+            const evDef = WEBHOOK_EVENTS.find(e => e.value === h.triggerEvent);
+            return (
+              <div key={h.id} className="p-4 border border-border bg-card rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => toggleMutation.mutate({ id: h.id, isActive: !h.isActive })}
+                      className={`w-8 h-4 rounded-full flex items-center px-0.5 transition-colors ${h.isActive ? "bg-green-500" : "bg-muted"}`}>
+                      <span className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${h.isActive ? "translate-x-4" : ""}`} />
+                    </button>
+                    <p className="text-sm font-semibold text-foreground">{h.name}</p>
+                    {h.fireCount > 0 && <Badge variant="secondary" className="text-[10px]">{h.fireCount} fires</Badge>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => { setTesting(h.id); testMutation.mutate(h.id); }} disabled={testing === h.id}>
+                      <Play className="w-3 h-3" />{testing === h.id ? "Testing..." : "Test"}
+                    </Button>
+                    <button onClick={() => { if (confirm("Delete?")) deleteMutation.mutate(h.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+                <p className="text-[10px] font-mono text-muted-foreground truncate">{h.url}</p>
+                <div className="flex gap-2 text-[10px]">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">{evDef?.label || h.triggerEvent}</span>
+                  {h.triggerValue && <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">filter: "{h.triggerValue}"</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Click Links ──────────────────────────────────────────────────
+function ClickLinksSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  const { data: links = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dm/click-links", userId],
+    queryFn: () => fetch("/api/dm/click-links").then(r => r.json()),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/click-links", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/click-links", userId] }); setLabel(""); setUrl(""); toast({ title: "Tracking link created!" }); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/click-links/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/click-links", userId] }),
+  });
+
+  const copy = (text: string, id: string) => { navigator.clipboard.writeText(text); setCopiedId(id); toast({ title: "Copied!" }); setTimeout(() => setCopiedId(null), 2000); };
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Click Tracking Links</h2>
+        <p className="text-sm text-muted-foreground">Wrap any URL — see exactly who clicked and when. Use in DM messages.</p>
+      </div>
+
+      <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wide">New Tracking Link</p>
+        <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Label (e.g. Free Guide, Sales Page, Booking Link)" />
+        <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="Destination URL (https://...)" />
+        <Button onClick={() => { if (label.trim() && url.trim()) createMutation.mutate({ label: label.trim(), originalUrl: url.trim() }); }} disabled={!label.trim() || !url.trim() || createMutation.isPending} className="w-full gap-2">
+          <MousePointerClick className="w-3.5 h-3.5" />{createMutation.isPending ? "Creating..." : "Create Link"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
+      ) : links.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <MousePointerClick className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No tracking links yet</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {links.map((l: any) => {
+            const trackUrl = `${origin}/r/${l.shortCode}`;
+            return (
+              <div key={l.id} className="p-4 border border-border bg-card rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{l.label}</p>
+                    <p className="text-[10px] text-muted-foreground truncate max-w-xs">{l.originalUrl}</p>
+                  </div>
+                  <button onClick={() => { if (confirm("Delete?")) deleteMutation.mutate(l.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 text-center p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xl font-bold text-blue-400">{l.clickCount}</p>
+                    <p className="text-[10px] text-muted-foreground">clicks</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-muted/30 border border-border rounded-lg px-3 py-2 font-mono text-[10px] text-muted-foreground truncate">{trackUrl}</div>
+                  <button onClick={() => copy(trackUrl, l.id)} className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors flex-shrink-0">
+                    {copiedId === l.id ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Scheduled Broadcasts ─────────────────────────────────────────
+function ScheduledSection({ userId }: { userId: string }) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: "", message: "", targetTag: "", targetStatus: "", scheduledAt: "" });
+  const [creating, setCreating] = useState(false);
+
+  const { data: broadcasts = [], isLoading, refetch } = useQuery<any[]>({
+    queryKey: ["/api/dm/scheduled-broadcasts", userId],
+    queryFn: () => fetch("/api/dm/scheduled-broadcasts").then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dm/scheduled-broadcasts", data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/scheduled-broadcasts", userId] }); setCreating(false); setForm({ name: "", message: "", targetTag: "", targetStatus: "", scheduledAt: "" }); toast({ title: "Broadcast scheduled!" }); },
+  });
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/scheduled-broadcasts/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/scheduled-broadcasts", userId] }),
+  });
+  const processMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/dm/scheduled-broadcasts/process"),
+    onSuccess: (data: any) => { refetch(); toast({ title: `Processed ${data.processed} due broadcast(s)` }); },
+  });
+
+  const STATUS_COLORS: Record<string, string> = { pending: "text-amber-400 bg-amber-500/10 border-amber-500/30", sent: "text-green-400 bg-green-500/10 border-green-500/30", cancelled: "text-muted-foreground bg-muted/20 border-border", failed: "text-red-400 bg-red-500/10 border-red-500/30" };
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Scheduled Broadcasts</h2>
+          <p className="text-sm text-muted-foreground">Schedule DM blasts for a specific date and time — perfect for launches.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => processMutation.mutate()} disabled={processMutation.isPending} className="gap-2 h-8 text-xs">
+            <RefreshCw className={`w-3.5 h-3.5 ${processMutation.isPending ? "animate-spin" : ""}`} />Process Due
+          </Button>
+          <Button size="sm" onClick={() => setCreating(v => !v)} className="gap-2 h-8"><Plus className="w-3.5 h-3.5" />Schedule</Button>
+        </div>
+      </div>
+
+      {creating && (
+        <div className="p-5 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wide">New Scheduled Broadcast</p>
+          <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Broadcast name (e.g. Launch Day DM)" />
+          <Textarea value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} placeholder="DM message... Use {{first_name}} to personalize." rows={4} className="resize-none" />
+          <AiRefineButton text={form.message} onAccept={m => setForm(p => ({ ...p, message: m }))} context="Instagram DM broadcast message for a launch" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Filter by tag (optional)</Label><Input value={form.targetTag} onChange={e => setForm(p => ({ ...p, targetTag: e.target.value }))} placeholder='e.g. "interested"' /></div>
+            <div className="space-y-1">
+              <Label className="text-xs">Filter by status (optional)</Label>
+              <Select value={form.targetStatus} onValueChange={v => setForm(p => ({ ...p, targetStatus: v }))}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="All statuses" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All statuses</SelectItem>
+                  {["new", "warm", "hot", "cold", "converted"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Schedule date & time</Label>
+              <Input type="datetime-local" value={form.scheduledAt} onChange={e => setForm(p => ({ ...p, scheduledAt: e.target.value }))} />
+            </div>
+          </div>
+          <Button onClick={() => { if (form.name && form.message && form.scheduledAt) createMutation.mutate(form); }} disabled={!form.name || !form.message || !form.scheduledAt || createMutation.isPending} className="w-full gap-2">
+            <Calendar className="w-3.5 h-3.5" />Schedule Broadcast
+          </Button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+      ) : broadcasts.length === 0 && !creating ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No scheduled broadcasts yet</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {broadcasts.map((b: any) => (
+            <div key={b.id} className="p-4 border border-border bg-card rounded-xl space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_COLORS[b.status] || STATUS_COLORS.pending}`}>{b.status}</span>
+                  <p className="text-sm font-semibold text-foreground">{b.name}</p>
+                </div>
+                {b.status === "pending" && (
+                  <button onClick={() => { if (confirm("Cancel this broadcast?")) cancelMutation.mutate(b.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"><XCircle className="w-3.5 h-3.5" /></button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground line-clamp-2">{b.message}</p>
+              <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(b.scheduledAt).toLocaleString()}</span>
+                {b.status === "sent" && <span className="flex items-center gap-1 text-green-400"><CheckCircle2 className="w-3 h-3" />{b.recipientCount} sent</span>}
+                {b.targetTag && <span>tag: "{b.targetTag}"</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Competitor Comment Scraper ───────────────────────────────────
+function CompetitorSection() {
+  const { toast } = useToast();
+  const [postUrl, setPostUrl] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [scraping, setScraping] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [dmMsg, setDmMsg] = useState("");
+
+  const scrape = async () => {
+    if (!postUrl.trim()) return;
+    setScraping(true);
+    try {
+      const data = await apiRequest("POST", "/api/dm/competitor-scrape", { postUrl: postUrl.trim() });
+      setResults(data.comments || []);
+      if (data.message) toast({ title: "Note", description: data.message });
+      else toast({ title: `Found ${data.total} commenters` });
+    } catch (e: any) {
+      toast({ title: "Scrape failed", description: e.message, variant: "destructive" });
+    } finally { setScraping(false); }
+  };
+
+  const sendDM = async (from: any) => {
+    if (!dmMsg.trim() || !from?.id) return;
+    setSendingTo(from.id);
+    try {
+      await apiRequest("POST", "/api/meta/send-dm", { recipientId: from.id, message: dmMsg.trim() });
+      toast({ title: `DM sent to ${from.username || from.id}!` });
+    } catch (e: any) {
+      toast({ title: "DM failed", description: e.message, variant: "destructive" });
+    } finally { setSendingTo(null); }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">Competitor Comment Scraper</h2>
+        <p className="text-sm text-muted-foreground">Pull commenters from any post on your account — then DM them directly.</p>
+      </div>
+
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+        <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-relaxed">Instagram's API only allows fetching comments from <strong>your own posts</strong>. Paste any of your post URLs to pull the commenters and send targeted DMs to people who engaged with your content.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <Input value={postUrl} onChange={e => setPostUrl(e.target.value)} placeholder="https://www.instagram.com/p/..." className="flex-1" />
+          <Button onClick={scrape} disabled={!postUrl.trim() || scraping} className="gap-2 flex-shrink-0">
+            <Crosshair className="w-3.5 h-3.5" />{scraping ? "Scraping..." : "Scrape"}
+          </Button>
+        </div>
+        {results.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">DM to send to commenters</Label>
+            <Textarea value={dmMsg} onChange={e => setDmMsg(e.target.value)} placeholder="Hey {{first_name}}! I saw you commented on my post..." rows={3} className="resize-none" />
+          </div>
+        )}
+      </div>
+
+      {results.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{results.length} commenters found</p>
+          <div className="border border-border rounded-xl overflow-hidden">
+            {results.map((c: any, i: number) => (
+              <div key={i} className={`flex items-center justify-between p-3 ${i < results.length - 1 ? "border-b border-border/50" : ""}`}>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{c.from?.username || c.from?.name || "User"}</p>
+                  <p className="text-[10px] text-muted-foreground line-clamp-1">{c.text}</p>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 flex-shrink-0" disabled={!dmMsg.trim() || sendingTo === c.from?.id}
+                  onClick={() => sendDM(c.from)}>
+                  <Send className="w-3 h-3" />{sendingTo === c.from?.id ? "..." : "DM"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {results.length === 0 && !scraping && postUrl && (
+        <div className="text-center py-10 border border-dashed border-border rounded-xl">
+          <Crosshair className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-30" />
+          <p className="text-sm text-muted-foreground">Paste a post URL and click Scrape to see commenters</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Funnel Stats ─────────────────────────────────────────────────
+function FunnelStatsSection({ userId }: { userId: string }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/dm/funnel-analytics", userId],
+    queryFn: () => fetch("/api/dm/funnel-analytics").then(r => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const logMutation = useMutation({
+    mutationFn: (eventType: string) => apiRequest("POST", "/api/dm/funnel-events", { eventType }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/funnel-analytics", userId] }),
+  });
+
+  const funnel = data?.funnel || [];
+  const maxCount = Math.max(...funnel.map((s: any) => s.count), 1);
+
+  const STAGE_COLORS = ["text-amber-400 bg-amber-500/10 border-amber-500/30", "text-blue-400 bg-blue-500/10 border-blue-500/30", "text-purple-400 bg-purple-500/10 border-purple-500/30", "text-green-400 bg-green-500/10 border-green-500/30", "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"];
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-lg font-bold text-foreground">DM Funnel Analytics</h2>
+        <p className="text-sm text-muted-foreground">Track your full DM funnel — from trigger to conversion — with drop-off rates.</p>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+      ) : funnel.length === 0 || data?.total === 0 ? (
+        <div className="text-center py-14 border border-dashed border-border rounded-xl">
+          <BarChart2 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-30" />
+          <p className="text-sm text-muted-foreground mb-2">No funnel events yet</p>
+          <p className="text-xs text-muted-foreground">Events are logged automatically as contacts move through your flows. You can also log test events below.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {funnel.map((stage: any, i: number) => {
+            const pct = maxCount > 0 ? Math.round((stage.count / maxCount) * 100) : 0;
+            const clr = STAGE_COLORS[i] || STAGE_COLORS[0];
+            const [textClr, bgClr, borderClr] = clr.split(" ");
+            return (
+              <div key={stage.key} className={`p-4 rounded-xl border ${bgClr} ${borderClr}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${textClr}`}>{i + 1}</span>
+                    <span className="text-sm font-semibold text-foreground">{stage.stage}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-lg font-bold ${textClr}`}>{stage.count}</span>
+                    {i > 0 && stage.dropOff > 0 && <span className="text-[10px] text-red-400 ml-2">-{stage.dropOff}%</span>}
+                  </div>
+                </div>
+                <div className="h-1.5 bg-black/10 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${textClr.replace("text-", "bg-")}`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+          <div className="p-3 rounded-xl border border-border bg-card/30 text-center">
+            <p className="text-xs text-muted-foreground">Total events tracked: <span className="font-bold text-foreground">{data?.total || 0}</span></p>
+          </div>
+        </div>
+      )}
+
+      <div className="p-4 border border-border rounded-xl bg-card/30 space-y-2">
+        <p className="text-xs font-semibold text-foreground">Log Test Event</p>
+        <p className="text-[11px] text-muted-foreground">Use this to test your funnel tracking. In production, events are logged automatically by your flows.</p>
+        <div className="flex flex-wrap gap-2">
+          {["trigger_fired", "message_sent", "reply_received", "tag_added", "converted"].map(et => (
+            <Button key={et} size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={() => logMutation.mutate(et)}>
+              <Plus className="w-3 h-3" />{et.replace("_", " ")}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
@@ -2123,6 +2751,13 @@ export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean 
           {section === "live-chat" && <LiveChatSection />}
           {section === "ai-bot" && <AIBotSection userId={userId} />}
           {section === "opt-in-links" && <OptInLinksSection userId={userId} />}
+          {section === "custom-fields" && <CustomFieldsSection userId={userId} />}
+          {section === "welcome-dm" && <WelcomeDMSection userId={userId} />}
+          {section === "webhooks" && <WebhooksSection userId={userId} />}
+          {section === "click-links" && <ClickLinksSection userId={userId} />}
+          {section === "scheduled" && <ScheduledSection userId={userId} />}
+          {section === "competitor" && <CompetitorSection />}
+          {section === "funnel-stats" && <FunnelStatsSection userId={userId} />}
           {section === "broadcast" && <BroadcastSection leads={leads} userId={userId} />}
           {section === "contacts" && <ContactsSection leads={leads} isLoading={leadsLoading} clientId={activeClientId} clients={clients} isAdmin={isAdmin} />}
           {section === "quick-replies" && <QuickRepliesSection clientId={activeClientId} />}
