@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
