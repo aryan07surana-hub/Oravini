@@ -74,6 +74,7 @@ import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
+import WatchVideo from "@/pages/public/WatchVideo";
 import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
@@ -162,6 +163,7 @@ function Router() {
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
       <Route path="/join/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/watch-video/:id">{() => <WatchVideo />}</Route>
       <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
 
       {/* Client — protected */}

@@ -386,6 +386,7 @@ export interface IStorage {
   createVideoEvent(data: InsertVideoEvent): Promise<VideoEvent>;
   updateVideoEvent(id: string, data: Partial<InsertVideoEvent>): Promise<VideoEvent | undefined>;
   deleteVideoEvent(id: string): Promise<void>;
+  incrementVideoViews(id: string): Promise<void>;
   getWebinarRecordings(userId: string): Promise<WebinarRecording[]>;
   getWebinarRecording(id: string): Promise<WebinarRecording | undefined>;
   getWebinarRecordingsByWebinarId(webinarId: string): Promise<WebinarRecording[]>;
@@ -2062,6 +2063,9 @@ class DatabaseStorage implements IStorage {
   }
   async deleteVideoEvent(id: string): Promise<void> {
     await db.delete(videoEvents).where(eq(videoEvents.id, id));
+  }
+  async incrementVideoViews(id: string): Promise<void> {
+    await db.update(videoEvents).set({ views: sqlExpr`${videoEvents.views} + 1` }).where(eq(videoEvents.id, id));
   }
   async getWebinarRecordings(userId: string): Promise<WebinarRecording[]> {
     return db.select().from(webinarRecordings).where(eq(webinarRecordings.userId, userId)).orderBy(desc(webinarRecordings.createdAt));

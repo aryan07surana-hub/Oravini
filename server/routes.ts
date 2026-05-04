@@ -162,13 +162,184 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
+  // Webinar rooms: webinarId → { host, viewers }
+  const webinarRooms = new Map<string, { host: WebSocket | null; viewers: Map<string, { ws: WebSocket; name: string }> }>();
+
+  function getOrCreateRoom(webinarId: string) {
+    if (!webinarRooms.has(webinarId)) webinarRooms.set(webinarId, { host: null, viewers: new Map() });
+    return webinarRooms.get(webinarId)!;
+  }
+
+  function broadcastToViewers(webinarId: string, data: object) {
+    const room = webinarRooms.get(webinarId);
+    if (!room) return;
+    const json = JSON.stringify(data);
+    room.viewers.forEach(({ ws: vws }) => { if (vws.readyState === WebSocket.OPEN) vws.send(json); });
+  }
+
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://localhost`);
     const userId = url.searchParams.get("userId");
     if (userId) clients.set(userId, ws);
 
+    let currentRoom: string | null = null;
+    let currentRole: "host" | "viewer" | null = null;
+    let currentViewerId: string | null = null;
+
+    ws.on("message", (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        const { type, webinarId } = msg;
+        if (!type || !webinarId) return;
+
+        switch (type) {
+          // ── HOST ─────────────────────────────────────────────────────────
+          case "wr_host_join": {
+            const room = getOrCreateRoom(webinarId);
+            room.host = ws;
+            currentRoom = webinarId;
+            currentRole = "host";
+            ws.send(JSON.stringify({ type: "wr_host_ready" }));
+            break;
+          }
+          case "wr_offer": {
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_offer", sdp: msg.sdp }));
+            break;
+          }
+          case "wr_ice_host": {
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_ice", candidate: msg.candidate }));
+            break;
+          }
+          case "wr_host_end": {
+            broadcastToViewers(webinarId, { type: "wr_host_left" });
+            const room = webinarRooms.get(webinarId);
+            if (room) { room.host = null; room.viewers.clear(); webinarRooms.delete(webinarId); }
+            break;
+          }
+          case "wr_cta_launch":
+            broadcastToViewers(webinarId, { type: "wr_cta_show", title: msg.title, url: msg.url, buttonText: msg.buttonText });
+            break;
+          case "wr_cta_hide":
+            broadcastToViewers(webinarId, { type: "wr_cta_hidden" });
+            break;
+          case "wr_poll_launch":
+            broadcastToViewers(webinarId, { type: "wr_poll_show", pollId: msg.pollId, question: msg.question, options: msg.options });
+            break;
+          case "wr_poll_end":
+            broadcastToViewers(webinarId, { type: "wr_poll_ended", pollId: msg.pollId, votes: msg.votes });
+            break;
+          case "wr_lower_hand": {
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_hand_lowered" }));
+            break;
+          }
+
+          // ── VIEWER ───────────────────────────────────────────────────────
+          case "wr_viewer_join": {
+            const room = getOrCreateRoom(webinarId);
+            const viewerId: string = msg.viewerId;
+            const name: string = msg.name || "Anonymous";
+            room.viewers.set(viewerId, { ws, name });
+            currentRoom = webinarId;
+            currentRole = "viewer";
+            currentViewerId = viewerId;
+            ws.send(JSON.stringify({ type: "wr_viewer_ready" }));
+            const attendeeList = [...room.viewers.entries()].map(([id, v]) => ({ id, name: v.name }));
+            if (room.host?.readyState === WebSocket.OPEN) {
+              room.host.send(JSON.stringify({ type: "wr_viewer_joined", viewerId, name }));
+              room.host.send(JSON.stringify({ type: "wr_attendee_update", count: room.viewers.size, list: attendeeList }));
+            }
+            break;
+          }
+          case "wr_answer": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_answer", viewerId: msg.viewerId, sdp: msg.sdp }));
+            break;
+          }
+          case "wr_ice_viewer": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_ice", viewerId: msg.viewerId, candidate: msg.candidate }));
+            break;
+          }
+          case "wr_poll_vote": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_poll_results", pollId: msg.pollId, votes: msg.votes }));
+            break;
+          }
+
+          // ── SHARED ───────────────────────────────────────────────────────
+          case "wr_chat": {
+            const room = webinarRooms.get(webinarId);
+            if (!room) break;
+            const message = { name: msg.name, text: msg.text, ts: msg.ts, isHost: msg.isHost };
+            if (currentRole === "viewer") {
+              if (room.host?.readyState === WebSocket.OPEN)
+                room.host.send(JSON.stringify({ type: "wr_chat", message }));
+              room.viewers.forEach(({ ws: vws }) => {
+                if (vws !== ws && vws.readyState === WebSocket.OPEN)
+                  vws.send(JSON.stringify({ type: "wr_chat", message }));
+              });
+            } else {
+              broadcastToViewers(webinarId, { type: "wr_chat", message });
+            }
+            break;
+          }
+          case "wr_qa": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_qa", question: { id: msg.id, name: msg.name, text: msg.text, ts: msg.ts } }));
+            break;
+          }
+          case "wr_reaction": {
+            const room = webinarRooms.get(webinarId);
+            if (!room) break;
+            const reactionData = { type: "wr_reaction", emoji: msg.emoji };
+            if (currentRole === "viewer" && room.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify(reactionData));
+            room.viewers.forEach(({ ws: vws }) => {
+              if (vws !== ws && vws.readyState === WebSocket.OPEN) vws.send(JSON.stringify(reactionData));
+            });
+            break;
+          }
+          case "wr_raise_hand": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_raise_hand", name: msg.name }));
+            break;
+          }
+        }
+      } catch {}
+    });
+
     ws.on("close", () => {
       if (userId) clients.delete(userId);
+      if (currentRoom && currentRole === "viewer" && currentViewerId) {
+        const room = webinarRooms.get(currentRoom);
+        if (room) {
+          room.viewers.delete(currentViewerId);
+          const attendeeList = [...room.viewers.entries()].map(([id, v]) => ({ id, name: v.name }));
+          if (room.host?.readyState === WebSocket.OPEN)
+            room.host.send(JSON.stringify({ type: "wr_attendee_update", count: room.viewers.size, list: attendeeList }));
+          if (room.viewers.size === 0 && !room.host) webinarRooms.delete(currentRoom);
+        }
+      } else if (currentRoom && currentRole === "host") {
+        const room = webinarRooms.get(currentRoom);
+        if (room) {
+          room.host = null;
+          if (room.viewers.size === 0) webinarRooms.delete(currentRoom);
+        }
+      }
     });
   });
 
@@ -10693,8 +10864,20 @@ Rules:
   }
 
   // Webinars
-  // IMPORTANT: public route MUST be declared before "/api/webinars/:id"
+  // IMPORTANT: public routes MUST be declared before "/api/webinars/:id"
   // so Express doesn't treat "public" as an :id param.
+
+  // Public: get a single webinar by meeting code (used by the watch page)
+  app.get("/api/webinars/public/:code", async (req: Request, res: Response) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(p(req.params.code));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      res.json(webinar);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/webinars/public", async (_req, res) => {
     try {
       const limit = 20;
@@ -10831,6 +11014,227 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Public video routes (no auth — used by /watch-video/:id embed page) ──────
+
+  // Public: fetch video metadata (strips private fields)
+  app.get("/api/video/:id/public", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      // Strip internal-only fields
+      const { passwordHash, domainWhitelist, userId, ...safe } = video as any;
+      res.json(safe);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: get chapters for a video
+  app.get("/api/video/:id/chapters", async (req: Request, res: Response) => {
+    try {
+      const chapters = await storage.getVideoChapters(p(req.params.id));
+      res.json(chapters);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: get active CTAs for a video
+  app.get("/api/video/:id/ctas", async (req: Request, res: Response) => {
+    try {
+      const ctas = await storage.getVideoCtas(p(req.params.id));
+      res.json(ctas.filter((c: any) => c.isActive));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: lead gate — capture viewer before unlocking video
+  app.post("/api/video/:id/gate", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      const { name, email } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      await storage.createViewerSession({
+        videoEventId: video.id,
+        visitorId: email,
+        watchedSeconds: 0,
+        completionPct: 0,
+        referrer: `lead_gate:${name}`,
+      }).catch(() => {});
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: increment view count when video starts playing
+  app.post("/api/video-events/:id/view", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Not found" });
+      await storage.incrementVideoViews(p(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Chapters (management) ───────────────────────────────────────────
+  app.get("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const chapters = await storage.getVideoChapters(p(req.params.id));
+      res.json(chapters);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { title, description, startSeconds } = req.body;
+      if (!title) return res.status(400).json({ message: "title required" });
+      const chapter = await storage.createVideoChapter({ videoEventId: p(req.params.id), title, description: description || null, startSeconds: startSeconds ?? null });
+      res.status(201).json(chapter);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const chapter = await storage.updateVideoChapter(Number(req.params.id), req.body);
+      res.json(chapter);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoChapter(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video CTAs (management) ────────────────────────────────────────────────
+  app.get("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const ctas = await storage.getVideoCtas(p(req.params.id));
+      res.json(ctas);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, url, type, style, appearAt, disappearAt, isActive } = req.body;
+      if (!text) return res.status(400).json({ message: "text required" });
+      const cta = await storage.createVideoCta({ videoEventId: p(req.params.id), text, url: url || null, type: type || "button", style: style || "gold", appearAt: appearAt ?? 0, disappearAt: disappearAt ?? null, isActive: isActive ?? true });
+      res.status(201).json(cta);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const cta = await storage.updateVideoCta(Number(req.params.id), req.body);
+      res.json(cta);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoCta(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: track CTA click
+  app.post("/api/video-ctas/:id/click", async (req: Request, res: Response) => {
+    try {
+      await storage.incrementCtaClicks(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Viewer Sessions ─────────────────────────────────────────────────
+  app.get("/api/video-events/:id/viewers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getVideoViewerSessions(p(req.params.id));
+      res.json(sessions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Alias: PATCH /api/video-events/:id/settings → same as PATCH /api/video-events/:id
+  app.patch("/api/video-events/:id/settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Marketing Settings ───────────────────────────────────────────────
+  app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      res.json(settings || {});
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.upsertVideoMarketingSettings(user.id, req.body);
+      res.json(settings);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Webinar Domains ────────────────────────────────────────────────────────
+  app.get("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const domains = await storage.getWebinarDomains(user.id);
+      res.json(domains);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { domain, targetSlug } = req.body;
+      if (!domain) return res.status(400).json({ message: "domain is required" });
+      const verifyToken = `oravini-verify=${Math.random().toString(36).slice(2, 18)}`;
+      const d = await storage.createWebinarDomain({
+        userId: user.id,
+        domain: domain.toLowerCase().trim(),
+        targetSlug: targetSlug || null,
+        verifyToken,
+        status: "pending",
+      });
+      res.status(201).json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const d = await storage.updateWebinarDomain(p(req.params.id), req.body);
+      res.json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarDomain(p(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Verify a webinar domain by checking DNS TXT record
+  app.post("/api/webinar-domains/:id/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domains = await storage.getWebinarDomains((req.user as any).id);
+      const domain = domains.find(d => d.id === req.params.id);
+      if (!domain) return res.status(404).json({ message: "Domain not found" });
+      const dns = await import("dns").then(m => m.promises);
+      let verified = false;
+      try {
+        const records = await dns.resolveTxt(domain.domain);
+        verified = records.flat().some(r => r === domain.verifyToken);
+      } catch {}
+      if (verified) {
+        await storage.updateWebinarDomain(domain.id, { status: "active", verifiedAt: new Date() });
+        res.json({ verified: true });
+      } else {
+        res.json({ verified: false, hint: `Add TXT record: ${domain.verifyToken}` });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
     try {
       const video = await storage.updateVideoEvent(p(req.params.id), req.body);
@@ -10871,6 +11275,33 @@ Rules:
     try {
       await storage.deleteWebinarRecording(p(req.params.id));
       res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Upload a webinar recording from the studio (multipart form with a video file)
+  app.post("/api/webinars/:id/recording/upload", requireAuth, videoUpload.single("file"), async (req: any, res: Response) => {
+    try {
+      const user = req.user as any;
+      const webinarId = p(req.params.id);
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const recordingUrl = `/uploads/${req.file.filename}`;
+      const title = (req.body.title as string) || "Webinar Recording";
+      const duration = req.body.duration ? Number(req.body.duration) : null;
+      const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const rec = await storage.createWebinarRecording({
+        webinarId, userId: user.id, title, recordingUrl,
+        thumbnailUrl: null, duration, fileSize: req.file.size, shareToken, isPublic: false,
+      });
+      res.status(201).json(rec);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Upload a video file for hosting (returns a URL)
+  app.post("/api/upload/video", requireAuth, videoUpload.single("file"), async (req: any, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const videoUrl = `/uploads/${req.file.filename}`;
+      res.json({ url: videoUrl, filename: req.file.filename, size: req.file.size });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
