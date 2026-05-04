@@ -22,8 +22,8 @@ export default function VideoMarketing() {
         return null;
     }
 
-    if (!hasVideoMarketingAccess(user.plan, user.hasVideoMarketingAddon)) {
-        return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketingAddon={user.hasVideoMarketingAddon} />;
+    if (!hasVideoMarketingAccess(user.plan, (user as any).hasVideoMarketing)) {
+        return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketing={(user as any).hasVideoMarketing} />;
     }
 
     return <PlatformView />;

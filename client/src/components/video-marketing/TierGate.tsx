@@ -1,224 +1,687 @@
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Lock, Sparkles, Crown, Check, ArrowRight } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useLocation } from "wouter";
 
 const GOLD = "#d4b461";
+const GOLD_BRIGHT = "#f0c84b";
 
-// Growth with addon, Pro, or Elite can access
-export function hasVideoMarketingAccess(plan: string | undefined | null, hasAddon: boolean = false): boolean {
+// Growth with video marketing purchased, Pro, or Elite can access
+export function hasVideoMarketingAccess(plan: string | undefined | null, hasVideoMarketing: boolean = false): boolean {
     if (!plan) return false;
-    // Pro and Elite always have access
     if (plan === "pro" || plan === "elite") return true;
-    // Growth has access only if they purchased the addon
-    if (plan === "growth" && hasAddon) return true;
+    if (plan === "growth" && hasVideoMarketing) return true;
     return false;
 }
+
+// ── Particle Canvas ──────────────────────────────────────────────────────────
+function ParticleCanvas() {
+    const ref = useRef<HTMLCanvasElement>(null);
+    const mouseRef = useRef({ x: -9999, y: -9999 });
+    const activeRef = useRef(false);
+
+    useEffect(() => {
+        const canvas = ref.current!;
+        const ctx = canvas.getContext("2d")!;
+        let raf: number;
+
+        const resize = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
+        resize();
+        window.addEventListener("resize", resize);
+
+        const N = 80;
+        const CONNECT_DIST = 140;
+        const CURSOR_PULL_DIST = 150;
+        const CURSOR_PUSH_DIST = 50;
+
+        type P = { x: number; y: number; vx: number; vy: number; r: number; o: number };
+        const ps: P[] = Array.from({ length: N }, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            vx: (Math.random() - 0.5) * 0.3,
+            vy: (Math.random() - 0.5) * 0.3,
+            r: Math.random() * 1.5 + 0.4,
+            o: Math.random() * 0.4 + 0.1,
+        }));
+
+        const onMouse = (e: MouseEvent) => { mouseRef.current = { x: e.clientX, y: e.clientY }; activeRef.current = true; };
+        window.addEventListener("mousemove", onMouse);
+
+        const draw = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const mx = mouseRef.current.x;
+            const my = mouseRef.current.y;
+            const active = activeRef.current;
+
+            ps.forEach(p => {
+                if (active) {
+                    const dx = p.x - mx, dy = p.y - my;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < CURSOR_PUSH_DIST && dist > 0) {
+                        const force = (CURSOR_PUSH_DIST - dist) / CURSOR_PUSH_DIST;
+                        p.vx += (dx / dist) * force * 0.6;
+                        p.vy += (dy / dist) * force * 0.6;
+                    } else if (dist < CURSOR_PULL_DIST && dist > 0) {
+                        const pull = (1 - dist / CURSOR_PULL_DIST) * 0.015;
+                        p.vx -= (dx / dist) * pull;
+                        p.vy -= (dy / dist) * pull;
+                    }
+                }
+                p.vx *= 0.97; p.vy *= 0.97;
+                p.x += p.vx; p.y += p.vy;
+                if (p.x < 0) p.x = canvas.width;
+                if (p.x > canvas.width) p.x = 0;
+                if (p.y < 0) p.y = canvas.height;
+                if (p.y > canvas.height) p.y = 0;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(212,180,97,${p.o})`;
+                ctx.fill();
+            });
+
+            for (let i = 0; i < ps.length; i++) {
+                for (let j = i + 1; j < ps.length; j++) {
+                    const dx = ps[i].x - ps[j].x, dy = ps[i].y - ps[j].y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < CONNECT_DIST) {
+                        ctx.beginPath();
+                        ctx.moveTo(ps[i].x, ps[i].y);
+                        ctx.lineTo(ps[j].x, ps[j].y);
+                        ctx.strokeStyle = `rgba(212,180,97,${0.2 * (1 - d / CONNECT_DIST)})`;
+                        ctx.lineWidth = 0.6;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            if (active) {
+                ps.forEach(p => {
+                    const dx = p.x - mx, dy = p.y - my;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < CURSOR_PULL_DIST) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(mx, my);
+                        ctx.strokeStyle = `rgba(212,180,97,${0.25 * (1 - d / CURSOR_PULL_DIST)})`;
+                        ctx.lineWidth = 0.4;
+                        ctx.stroke();
+                    }
+                });
+            }
+
+            raf = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener("resize", resize);
+            window.removeEventListener("mousemove", onMouse);
+        };
+    }, []);
+
+    return <canvas ref={ref} style={{ position: "absolute", inset: 0, zIndex: 0, display: "block" }} />;
+}
+
+// ── Scroll Animate ────────────────────────────────────────────────────────────
+function useScrollAnim() {
+    useEffect(() => {
+        const els = document.querySelectorAll("[data-vm-anim]");
+        const obs = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    (e.target as HTMLElement).style.opacity = "1";
+                    (e.target as HTMLElement).style.transform = "none";
+                }
+            });
+        }, { threshold: 0.1 });
+        els.forEach(el => obs.observe(el));
+        return () => obs.disconnect();
+    }, []);
+}
+
+function Anim({ children, delay = 0, from = "translateY(36px)", style = {} }: { children: React.ReactNode; delay?: number; from?: string; style?: React.CSSProperties }) {
+    return (
+        <div data-vm-anim="1" style={{ opacity: 0, transform: from, transition: `opacity 0.8s ease ${delay}ms, transform 0.8s ease ${delay}ms`, ...style }}>
+            {children}
+        </div>
+    );
+}
+
+// ── Counter ───────────────────────────────────────────────────────────────────
+function Counter({ to, suffix = "", prefix = "" }: { to: number; suffix?: string; prefix?: string }) {
+    const [val, setVal] = useState(0);
+    const ref = useRef<HTMLSpanElement>(null);
+    const started = useRef(false);
+    useEffect(() => {
+        const obs = new IntersectionObserver(([e]) => {
+            if (e.isIntersecting && !started.current) {
+                started.current = true;
+                const dur = 1800, start = Date.now();
+                const tick = () => {
+                    const p = Math.min((Date.now() - start) / dur, 1);
+                    setVal(Math.round(p * to));
+                    if (p < 1) requestAnimationFrame(tick);
+                };
+                tick();
+            }
+        }, { threshold: 0.5 });
+        if (ref.current) obs.observe(ref.current);
+        return () => obs.disconnect();
+    }, [to]);
+    return <span ref={ref}>{prefix}{val}{suffix}</span>;
+}
+
+// ── Tilt Card ─────────────────────────────────────────────────────────────────
+function TiltCard({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const onMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        const el = ref.current!;
+        const r = el.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        el.style.transform = `perspective(600px) rotateY(${x * 12}deg) rotateX(${-y * 12}deg) scale(1.03)`;
+    }, []);
+    const onLeave = useCallback(() => {
+        if (ref.current) ref.current.style.transform = "perspective(600px) rotateY(0) rotateX(0) scale(1)";
+    }, []);
+    return (
+        <div ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} style={{ transition: "transform 0.2s ease", transformStyle: "preserve-3d", ...style }}>
+            {children}
+        </div>
+    );
+}
+
+// ── Feature data ──────────────────────────────────────────────────────────────
+const VM_FEATURES = [
+    {
+        icon: "📡",
+        title: "Live Webinars",
+        desc: "Host live or automated webinars with auto-built registration pages. Attendees get email reminders at 24h, 1h, and 10 minutes before go-time.",
+        bullets: ["Auto-built registration pages", "Email reminders — 24h · 1h · 10min", "Live attendee CRM + attendance tracking", "Recordings auto-saved after every session"],
+        accent: "#60a5fa",
+        tag: "Core Feature",
+    },
+    {
+        icon: "🎯",
+        title: "VSL Engine",
+        desc: "Deploy video sales letters with a fully custom progress bar you control. Set precise timing to maximise watch-through and push conversions past 70%.",
+        bullets: ["Custom progress bar — any timing", "Email opt-in gating at any timestamp", "Watch-through analytics per video", "Embed anywhere via link or iframe"],
+        accent: GOLD,
+        tag: "High Converting",
+    },
+    {
+        icon: "✂️",
+        title: "AI Clip Finder",
+        desc: "Feed in any long-form video — a webinar replay, podcast, or VSL. The AI scans the full timeline and extracts the highest-value clips ready to repurpose.",
+        bullets: ["Auto-detects high-energy moments", "Batch process multiple videos", "Clips exported ready to post", "Works on webinar replays + long VSLs"],
+        accent: "#a78bfa",
+        tag: "AI Powered",
+    },
+    {
+        icon: "🗂️",
+        title: "Video Library",
+        desc: "One organised library for all your content — VSLs, webinar recordings, and standard videos. Import via URL, file upload, or Google Drive.",
+        bullets: ["4 import methods: URL · file · Drive · embed", "Filter by type: VSL · Webinar · Standard", "Password protection + time-limited links", "White-label hosting pages"],
+        accent: "#34d399",
+        tag: "Organised",
+    },
+    {
+        icon: "📊",
+        title: "Webinar Analytics",
+        desc: "See exactly how your webinar performed — attendee counts, drop-off points, watch-through rates, and engagement spikes — all in one dashboard.",
+        bullets: ["Real-time attendee dashboard", "Drop-off timeline analysis", "Engagement heatmap per session", "Exportable attendance reports"],
+        accent: "#f87171",
+        tag: "Data-Driven",
+    },
+    {
+        icon: "📧",
+        title: "Email Automation",
+        desc: "Pre-load your entire email sequence once. Confirmations, reminders, follow-ups, and replay links — all sent automatically without touching anything.",
+        bullets: ["Registration confirmation emails", "Multi-step reminder sequences", "Post-webinar replay delivery", "Custom sender name + branding"],
+        accent: "#fb923c",
+        tag: "Automated",
+    },
+];
+
+const VM_STATS = [
+    { val: 70, suffix: "%+", label: "Avg. Watch-Through Rate", prefix: "" },
+    { val: 3, suffix: "×", label: "Higher Conversion vs Static Pages", prefix: "" },
+    { val: 6, suffix: "", label: "Powerful Video Tools", prefix: "" },
+];
 
 interface TierGateProps {
     currentPlan?: string;
     userName?: string;
-    hasVideoMarketingAddon?: boolean;
+    hasVideoMarketing?: boolean;
 }
 
-export default function TierGate({ currentPlan, userName, hasVideoMarketingAddon = false }: TierGateProps) {
-    const planLabel = (currentPlan || "free").replace(/^./, (c) => c.toUpperCase());
-    const isGrowth = currentPlan === "growth";
-    const needsAddon = isGrowth && !hasVideoMarketingAddon;
+export default function TierGate({ currentPlan, userName, hasVideoMarketing = false }: TierGateProps) {
+    const [, nav] = useLocation();
+    const [scrolled, setScrolled] = useState(false);
+
+    useScrollAnim();
+
+    useEffect(() => {
+        const fn = () => setScrolled(window.scrollY > 60);
+        window.addEventListener("scroll", fn);
+        return () => window.removeEventListener("scroll", fn);
+    }, []);
+
+    const plan = (currentPlan || "free").toLowerCase();
+    const isGrowth = plan === "growth";
+    const needsAddon = isGrowth && !hasVideoMarketing;
+    const firstName = userName ? userName.split(" ")[0] : null;
+
+    const handleUpgrade = () => {
+        if (needsAddon) nav("/video-marketing-addon");
+        else nav("/select-plan");
+    };
 
     return (
-        <div
-            className="min-h-screen"
-            style={{
-                background:
-                    "linear-gradient(180deg, #0a0910 0%, #12101a 50%, #0a0910 100%)",
-                color: "#fff",
-            }}
-        >
-            {/* Header */}
-            <header
-                className="sticky top-0 z-50 backdrop-blur-xl"
-                style={{
-                    background: "rgba(10,10,15,0.7)",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
-                }}
-            >
-                <div className="max-w-7xl mx-auto px-5 lg:px-8 h-16 flex items-center justify-between">
-                    <Link href="/dashboard">
-                        <div className="flex items-center gap-2.5 cursor-pointer">
-                            <img
-                                src="/oravini-logo.png"
-                                alt="Oravini"
-                                className="w-8 h-8 rounded-lg object-cover"
-                                style={{ objectPosition: "50% 32%" }}
-                            />
-                            <span className="text-sm font-black tracking-[0.18em] uppercase text-white">
-                                ORAVINI
-                            </span>
-                            <span className="text-xs text-zinc-500 ml-2">
-                                · Video Marketing
-                            </span>
-                        </div>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                        <Badge
-                            className="border-0"
-                            style={{
-                                background: "rgba(255,255,255,0.06)",
-                                color: "rgba(255,255,255,0.7)",
-                            }}
+        <div style={{ background: "#000", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", overflowX: "hidden" }}>
+            <style>{`
+                @keyframes vm-fadeUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:none; } }
+                @keyframes vm-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(212,180,97,0.4); } 70% { box-shadow:0 0 0 18px rgba(212,180,97,0); } }
+                @keyframes vm-floatY { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-14px); } }
+                .vm-hero-tag { animation: vm-fadeUp 0.9s ease 0.2s both; }
+                .vm-hero-title { animation: vm-fadeUp 0.9s ease 0.4s both; }
+                .vm-hero-sub { animation: vm-fadeUp 0.9s ease 0.6s both; }
+                .vm-hero-cta { animation: vm-fadeUp 0.9s ease 0.8s both; }
+                .vm-feature-card:hover { border-color: rgba(212,180,97,0.38) !important; box-shadow: 0 0 36px rgba(212,180,97,0.07) !important; }
+            `}</style>
+
+            {/* ── Navbar ── */}
+            <nav style={{
+                position: "fixed", top: 0, left: 0, right: 0, zIndex: 500,
+                background: scrolled ? "rgba(0,0,0,0.92)" : "transparent",
+                backdropFilter: scrolled ? "blur(20px)" : "none",
+                borderBottom: scrolled ? "1px solid rgba(212,180,97,0.1)" : "none",
+                transition: "all 0.4s ease",
+            }}>
+                <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <img src="/oravini-logo.png" alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 8 }} />
+                        <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: "#fff" }}>ORAVINI</span>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginLeft: 4 }}>· Video Marketing</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <button
+                            onClick={() => document.getElementById("vm-features")?.scrollIntoView({ behavior: "smooth" })}
+                            style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: 600, padding: "8px 14px", cursor: "pointer", transition: "color 0.2s" }}
+                            onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+                            onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.5)")}
+                        >Features</button>
+                        <button
+                            onClick={() => nav("/dashboard")}
+                            style={{ background: "none", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "rgba(255,255,255,0.65)", fontSize: 13, fontWeight: 600, padding: "8px 18px", cursor: "pointer", transition: "all 0.2s" }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.color = "rgba(255,255,255,0.65)"; }}
+                        >Dashboard</button>
+                        <button
+                            onClick={handleUpgrade}
+                            style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, border: "none", borderRadius: 8, color: "#000", fontSize: 13, fontWeight: 800, padding: "9px 20px", cursor: "pointer" }}
                         >
-                            Current plan: {planLabel}
-                        </Badge>
-                        <Link href="/dashboard">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-zinc-400 hover:text-white"
-                            >
-                                Dashboard
-                            </Button>
-                        </Link>
+                            {needsAddon ? "Add Video Marketing" : "Upgrade Now"}
+                        </button>
                     </div>
                 </div>
-            </header>
+            </nav>
 
-            {/* Gate content */}
-            <main className="max-w-4xl mx-auto px-5 lg:px-8 py-20 lg:py-28">
-                <div className="text-center">
-                    <div
-                        className="mx-auto w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
-                        style={{
-                            background: `linear-gradient(135deg, ${GOLD}33, ${GOLD}11)`,
-                            border: `1px solid ${GOLD}55`,
-                            boxShadow: `0 0 40px ${GOLD}22`,
-                        }}
-                    >
-                        <Lock className="w-9 h-9" style={{ color: GOLD }} />
+            {/* ── HERO ── */}
+            <section style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", textAlign: "center", overflow: "hidden" }}>
+                <ParticleCanvas />
+                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(212,180,97,0.08) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 }} />
+
+                <div style={{ position: "relative", zIndex: 2, padding: "0 24px", maxWidth: 900 }}>
+                    <div className="vm-hero-tag" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}14`, border: `1px solid ${GOLD}30`, borderRadius: 99, padding: "6px 16px", marginBottom: 28 }}>
+                        <span style={{ fontSize: 13 }}>🎬</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: GOLD, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                            {needsAddon ? "Video Marketing · Growth Add-on" : "Video Marketing · Pro & Elite Feature"}
+                        </span>
                     </div>
 
-                    <Badge
-                        className="mb-4 border-0"
-                        style={{
-                            background: `${GOLD}18`,
-                            color: GOLD,
-                            border: `1px solid ${GOLD}33`,
-                        }}
-                    >
-                        <Crown className="w-3 h-3 mr-1.5" /> Pro & Elite Only
-                    </Badge>
-
-                    <h1 className="text-4xl md:text-5xl font-black leading-tight tracking-tight text-white">
-                        {userName ? `Hey ${userName.split(" ")[0]}, ` : ""}
-                        {needsAddon ? (
-                            <>
-                                Video Marketing is an{" "}
-                                <span style={{ color: GOLD }}>optional add-on</span>
-                            </>
-                        ) : (
-                            <>
-                                Video Marketing is a{" "}
-                                <span style={{ color: GOLD }}>Pro & Elite</span> feature
-                            </>
-                        )}
+                    <h1 className="vm-hero-title" style={{ fontSize: "clamp(42px, 8vw, 96px)", fontWeight: 900, letterSpacing: "-0.03em", lineHeight: 0.92, textTransform: "uppercase", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 45%, #b8962e 80%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, filter: "drop-shadow(0 0 60px rgba(212,180,97,0.2))" }}>
+                        Video<br />Marketing
                     </h1>
-                    <p className="mt-5 text-base md:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-                        {needsAddon ? (
-                            <>
-                                You're on the <strong className="text-white">Growth</strong> plan.
-                                Add the Video Marketing Suite for just{" "}
-                                <strong style={{ color: GOLD }}>+$20/mo</strong> to unlock
-                                webinars, VSLs, video hosting, and analytics.
-                            </>
-                        ) : (
-                            <>
-                                Hosting webinars, uploading videos, building landing pages, and
-                                accessing the full video marketing analytics suite is reserved for
-                                our <strong className="text-white">Pro</strong> and{" "}
-                                <strong className="text-white">Elite</strong> members.
-                            </>
-                        )}
+
+                    <p className="vm-hero-sub" style={{ fontSize: "clamp(15px, 2vw, 18px)", color: "rgba(255,255,255,0.5)", lineHeight: 1.75, maxWidth: 600, margin: "0 auto 16px" }}>
+                        {firstName ? `Hey ${firstName} — ` : ""}
+                        {needsAddon
+                            ? "You're one step away. Add the Video Marketing Suite to your Growth plan for just +$20/mo."
+                            : "Host webinars. Deploy VSLs. Build video funnels that convert."}
+                    </p>
+                    <p className="vm-hero-sub" style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 48 }}>
+                        Powered by Brandverse
                     </p>
 
-                    {/* Feature bullets */}
-                    <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
-                        {[
-                            "Host unlimited live webinars",
-                            "Upload & host videos with analytics",
-                            "High-converting landing pages",
-                            "Automated email follow-ups",
-                            "Built-in CRM for webinar leads",
-                            "Real-time engagement tracking",
-                        ].map((f) => (
-                            <div
-                                key={f}
-                                className="flex items-center gap-3 p-3 rounded-lg"
-                                style={{
-                                    background: "rgba(255,255,255,0.03)",
-                                    border: "1px solid rgba(255,255,255,0.06)",
-                                }}
-                            >
-                                <div
-                                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: `${GOLD}22` }}
-                                >
-                                    <Check
-                                        className="w-3.5 h-3.5"
-                                        style={{ color: GOLD }}
-                                    />
-                                </div>
-                                <span className="text-sm text-zinc-300">{f}</span>
+                    <div className="vm-hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+                        <button
+                            onClick={handleUpgrade}
+                            style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "16px 36px", cursor: "pointer", animation: "vm-pulse 2.5s ease 1.5s infinite" }}
+                        >
+                            {needsAddon ? "Add Video Marketing (+$20/mo) →" : "Upgrade to Pro →"}
+                        </button>
+                        <button
+                            onClick={() => document.getElementById("vm-features")?.scrollIntoView({ behavior: "smooth" })}
+                            style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+                        >See What's Inside</button>
+                    </div>
+                </div>
+
+                <div style={{ position: "absolute", bottom: 36, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 2 }}>
+                    <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Scroll</div>
+                    <div style={{ width: 1, height: 40, background: `linear-gradient(to bottom, ${GOLD}66, transparent)`, animation: "vm-floatY 1.8s ease-in-out infinite" }} />
+                </div>
+            </section>
+
+            {/* ── WHAT IS VIDEO MARKETING ── */}
+            <section style={{ padding: "120px 24px", maxWidth: 960, margin: "0 auto", textAlign: "center" }}>
+                <Anim>
+                    <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 16 }}>The Platform</div>
+                </Anim>
+                <Anim delay={100}>
+                    <h2 style={{ fontSize: "clamp(30px, 5vw, 56px)", fontWeight: 900, lineHeight: 1.1, marginBottom: 24, letterSpacing: "-0.025em" }}>
+                        Your entire video funnel,<br /><span style={{ color: GOLD }}>built inside Oravini.</span>
+                    </h2>
+                </Anim>
+                <Anim delay={200}>
+                    <p style={{ fontSize: 17, color: "rgba(255,255,255,0.48)", lineHeight: 1.8, maxWidth: 680, margin: "0 auto 56px" }}>
+                        The Video Marketing Suite turns Oravini into a complete video sales machine — webinars, VSLs, video hosting, AI clip extraction, and automated email follow-ups. All in one dashboard. No new logins, no extra tools.
+                    </p>
+                </Anim>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20 }}>
+                    {[
+                        { icon: "📡", title: "Webinars", desc: "Host live and automated webinars with built-in registration, reminders, and CRM." },
+                        { icon: "🎯", title: "VSL Pages", desc: "Deploy high-converting video sales letters with controlled progress bars and email gates." },
+                        { icon: "✂️", title: "AI Clip Finder", desc: "Repurpose any long-form video into viral clips automatically." },
+                    ].map(({ icon, title, desc }) => (
+                        <Anim key={title} delay={150}>
+                            <TiltCard style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, padding: "32px 28px" }}>
+                                <div style={{ fontSize: 36, marginBottom: 16 }}>{icon}</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{title}</div>
+                                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.43)", lineHeight: 1.7 }}>{desc}</div>
+                            </TiltCard>
+                        </Anim>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── STATS ── */}
+            <section style={{ borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "80px 24px", background: "rgba(212,180,97,0.02)" }}>
+                <div style={{ maxWidth: 1000, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 40, textAlign: "center" }}>
+                    {VM_STATS.map(s => (
+                        <Anim key={s.label}>
+                            <div style={{ fontSize: "clamp(38px, 5vw, 60px)", fontWeight: 900, color: GOLD, lineHeight: 1 }}>
+                                <Counter to={s.val} prefix={s.prefix} suffix={s.suffix} />
                             </div>
+                            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 8, letterSpacing: "0.04em" }}>{s.label}</div>
+                        </Anim>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── FEATURES ── */}
+            <section id="vm-features" style={{ padding: "120px 24px" }}>
+                <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+                    <Anim style={{ textAlign: "center", marginBottom: 64 }}>
+                        <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Toolkit</div>
+                        <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
+                            6 video tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite conversion leverage.</span>
+                        </h2>
+                    </Anim>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
+                        {VM_FEATURES.map((f, i) => (
+                            <Anim key={f.title} delay={i * 60}>
+                                <TiltCard>
+                                    <div className="vm-feature-card" style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 18, padding: "30px 28px", height: "100%", transition: "border-color 0.3s, box-shadow 0.3s" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+                                            <div style={{ fontSize: 32 }}>{f.icon}</div>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: f.accent, background: `${f.accent}18`, border: `1px solid ${f.accent}30`, borderRadius: 99, padding: "3px 10px", letterSpacing: "0.06em", textTransform: "uppercase" }}>{f.tag}</span>
+                                        </div>
+                                        <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{f.title}</div>
+                                        <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.43)", lineHeight: 1.7, marginBottom: 18 }}>{f.desc}</p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                                            {f.bullets.map(b => (
+                                                <div key={b} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                                                    <span style={{ color: f.accent, fontSize: 10, marginTop: 3, flexShrink: 0 }}>✓</span>
+                                                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>{b}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </TiltCard>
+                            </Anim>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* ── HOW IT WORKS ── */}
+            <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(212,180,97,0.04) 0%, transparent 65%)" }}>
+                <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+                    <Anim style={{ textAlign: "center", marginBottom: 80 }}>
+                        <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>How It Works</div>
+                        <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
+                            Launch a full video funnel<br /><span style={{ color: GOLD }}>in under 10 minutes.</span>
+                        </h2>
+                        <p style={{ color: "rgba(255,255,255,0.42)", fontSize: "clamp(15px, 1.8vw, 17px)", maxWidth: 540, margin: "0 auto", lineHeight: 1.75 }}>
+                            From registration page to post-webinar follow-up — the entire funnel is built, automated, and tracked inside Oravini.
+                        </p>
+                    </Anim>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
+                        {[
+                            {
+                                num: "01", icon: "🎬",
+                                title: "Create Your Event",
+                                body: "Set up a webinar or VSL in minutes. Title, date, cover image — Oravini auto-generates your registration page, reminder emails, and replay link before you even go live.",
+                                bullets: ["Webinar or VSL mode", "Auto registration page", "Email sequence pre-loaded"],
+                            },
+                            {
+                                num: "02", icon: "📣",
+                                title: "Share & Get Registrants",
+                                body: "Copy your registration link and share it anywhere — Instagram bio, DMs, email list. Every sign-up lands in your attendee CRM automatically with full contact info.",
+                                bullets: ["One link to share anywhere", "Auto CRM tagging", "Real-time registrant feed"],
+                            },
+                            {
+                                num: "03", icon: "📡",
+                                title: "Go Live & Convert",
+                                body: "Run your live session directly inside the platform. Monitor attendance in real-time, see drop-off points, and trigger your email follow-ups automatically at the end.",
+                                bullets: ["Live attendance dashboard", "Auto post-webinar emails", "Instant replay delivery"],
+                            },
+                            {
+                                num: "04", icon: "✂️",
+                                title: "Repurpose With AI",
+                                body: "Upload your replay to AI Clip Finder. It scans the full video and extracts the highest-value moments — ready to post on Instagram, TikTok, YouTube Shorts, and LinkedIn.",
+                                bullets: ["AI clip extraction", "Multi-platform ready", "Batch export clips"],
+                            },
+                        ].map((step, i) => (
+                            <Anim key={step.num} delay={i * 100}>
+                                <div style={{
+                                    position: "relative",
+                                    background: i === 1 ? `rgba(212,180,97,0.04)` : "rgba(255,255,255,0.015)",
+                                    border: i === 1 ? `1px solid rgba(212,180,97,0.22)` : "1px solid rgba(255,255,255,0.06)",
+                                    borderRadius: 20, padding: "36px 30px", height: "100%",
+                                    display: "flex", flexDirection: "column", overflow: "hidden",
+                                }}>
+                                    <div style={{ position: "absolute", top: -12, right: 20, fontSize: 110, fontWeight: 900, lineHeight: 1, color: i === 1 ? "rgba(212,180,97,0.07)" : "rgba(255,255,255,0.04)", userSelect: "none", pointerEvents: "none", letterSpacing: "-0.04em" }}>{step.num}</div>
+                                    <div style={{ fontSize: 30, marginBottom: 16 }}>{step.icon}</div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10, color: i === 1 ? GOLD : "rgba(255,255,255,0.28)" }}>Step {step.num}</div>
+                                    <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", marginBottom: 14, lineHeight: 1.25 }}>{step.title}</div>
+                                    <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.8, margin: "0 0 22px", flex: 1 }}>{step.body}</p>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                                        {step.bullets.map(b => (
+                                            <div key={b} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                <div style={{ width: 5, height: 5, borderRadius: "50%", background: i === 1 ? GOLD : "rgba(255,255,255,0.22)", flexShrink: 0 }} />
+                                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.36)", fontWeight: 500 }}>{b}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </Anim>
                         ))}
                     </div>
 
-                    {/* CTAs */}
-                    <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <Anim style={{ textAlign: "center", marginTop: 64 }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 12, background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.18)", borderRadius: 99, padding: "12px 28px" }}>
+                            <span style={{ fontSize: 16 }}>🤖</span>
+                            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.58)", fontWeight: 500 }}>
+                                Email reminders, replay delivery, and CRM updates run automatically — you just show up and present.
+                            </span>
+                        </div>
+                    </Anim>
+                </div>
+            </section>
+
+            {/* ── PRICING / UPGRADE CTA ── */}
+            <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 80% 50% at 50% 100%, rgba(212,180,97,0.06) 0%, transparent 70%)" }}>
+                <div style={{ maxWidth: 900, margin: "0 auto" }}>
+                    <Anim style={{ textAlign: "center", marginBottom: 64 }}>
+                        <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>
+                            {needsAddon ? "Add-on Pricing" : "Upgrade Now"}
+                        </div>
+                        <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
+                            {needsAddon ? (
+                                <>Add video access<br /><span style={{ color: GOLD }}>from +$20/mo</span></>
+                            ) : (
+                                <>Get Video Marketing<br /><span style={{ color: GOLD }}>free on Pro</span></>
+                            )}
+                        </h2>
+                        <p style={{ fontSize: 16, color: "rgba(255,255,255,0.4)", marginTop: 18, maxWidth: 540, margin: "18px auto 0", lineHeight: 1.75 }}>
+                            {needsAddon
+                                ? "You're on the Growth plan. Add the full Video Marketing Suite for just +$20/mo — webinars, VSLs, AI clips, analytics, and email automation."
+                                : "Pro and Elite members get the full Video Marketing Suite included FREE. Upgrade your plan to unlock everything."}
+                        </p>
+                    </Anim>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
                         {needsAddon ? (
                             <>
-                                <Link href="/select-plan?addon=video">
-                                    <Button
-                                        size="lg"
-                                        className="px-8 font-semibold"
-                                        style={{ background: GOLD, color: "#000" }}
-                                    >
-                                        <Sparkles className="w-4 h-4 mr-2" />
-                                        Add Video Marketing (+$20/mo)
-                                        <ArrowRight className="w-4 h-4 ml-2" />
-                                    </Button>
-                                </Link>
+                                {/* Growth + addon */}
+                                <Anim delay={0}>
+                                    <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}35`, borderRadius: 22, padding: "36px 32px", position: "relative", overflow: "hidden", boxShadow: `0 0 60px ${GOLD}10` }}>
+                                        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                                        <div style={{ position: "absolute", top: 14, right: 14, fontSize: 9, fontWeight: 800, color: "#000", background: GOLD, borderRadius: 99, padding: "3px 8px", textTransform: "uppercase" }}>Recommended</div>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Growth + Add-on</div>
+                                        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Video Marketing Suite</div>
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 20 }}>
+                                            <span style={{ fontSize: 46, fontWeight: 900, color: GOLD, lineHeight: 1 }}>+$20</span>
+                                            <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>/mo</span>
+                                        </div>
+                                        {["Live webinars (3/mo)", "VSL pages", "Email sequences", "Registration CRM", "Video hosting", "Basic analytics"].map(f => (
+                                            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                                                <span style={{ color: GOLD, fontSize: 12, flexShrink: 0 }}>✓</span>
+                                                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{f}</span>
+                                            </div>
+                                        ))}
+                                        <button onClick={handleUpgrade} style={{ width: "100%", marginTop: 24, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
+                                            Add Video Marketing →
+                                        </button>
+                                    </div>
+                                </Anim>
+
+                                {/* Upgrade to Pro */}
+                                <Anim delay={80}>
+                                    <div style={{ background: "rgba(52,211,153,0.04)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 22, padding: "36px 32px" }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: "#34d399", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Pro Plan</div>
+                                        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Video Marketing INCLUDED</div>
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 20 }}>
+                                            <span style={{ fontSize: 46, fontWeight: 900, color: "#34d399", lineHeight: 1 }}>$59</span>
+                                            <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>/mo</span>
+                                        </div>
+                                        {["Unlimited live webinars", "VSL pages + AI Clip Finder", "Full attendee CRM", "White-label video pages", "Unlimited video storage", "500 AI credits / month"].map(f => (
+                                            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                                                <span style={{ color: "#34d399", fontSize: 12, flexShrink: 0 }}>✓</span>
+                                                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{f}</span>
+                                            </div>
+                                        ))}
+                                        <div style={{ fontSize: 11, color: "rgba(52,211,153,0.8)", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 8, padding: "8px 12px", marginTop: 16, marginBottom: 20, textAlign: "center", fontWeight: 600 }}>
+                                            Video Marketing Suite FREE — $49/mo value
+                                        </div>
+                                        <button onClick={() => nav("/select-plan")} style={{ width: "100%", background: "rgba(52,211,153,0.1)", color: "#34d399", fontWeight: 800, fontSize: 14, border: "1px solid rgba(52,211,153,0.3)", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
+                                            Upgrade to Pro →
+                                        </button>
+                                    </div>
+                                </Anim>
                             </>
                         ) : (
-                            <Link href="/select-plan">
-                                <Button
-                                    size="lg"
-                                    className="px-8 font-semibold"
-                                    style={{ background: GOLD, color: "#000" }}
-                                >
-                                    <Sparkles className="w-4 h-4 mr-2" />
-                                    Upgrade to Pro or Elite
-                                    <ArrowRight className="w-4 h-4 ml-2" />
-                                </Button>
-                            </Link>
+                            <>
+                                {/* Pro plan */}
+                                <Anim delay={0}>
+                                    <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}35`, borderRadius: 22, padding: "36px 32px", position: "relative", overflow: "hidden", boxShadow: `0 0 60px ${GOLD}10` }}>
+                                        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                                        <div style={{ position: "absolute", top: 14, right: 14, fontSize: 9, fontWeight: 800, color: "#000", background: GOLD, borderRadius: 99, padding: "3px 8px", textTransform: "uppercase" }}>Most Popular</div>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Pro</div>
+                                        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Video Marketing INCLUDED FREE</div>
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 20 }}>
+                                            <span style={{ fontSize: 46, fontWeight: 900, color: GOLD, lineHeight: 1 }}>$59</span>
+                                            <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>/mo</span>
+                                        </div>
+                                        {["Unlimited live webinars", "VSL Engine + progress bar control", "AI Clip Finder", "Full attendee CRM", "White-label video pages", "500 AI credits / month", "Private team support chat"].map(f => (
+                                            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                                                <span style={{ color: GOLD, fontSize: 12, flexShrink: 0 }}>✓</span>
+                                                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{f}</span>
+                                            </div>
+                                        ))}
+                                        <button onClick={handleUpgrade} style={{ width: "100%", marginTop: 24, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
+                                            Upgrade to Pro →
+                                        </button>
+                                    </div>
+                                </Anim>
+
+                                {/* Elite plan */}
+                                <Anim delay={80}>
+                                    <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.22)", borderRadius: 22, padding: "36px 32px" }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, color: "#c084fc", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Elite</div>
+                                        <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 8 }}>Everything + White Glove</div>
+                                        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 20 }}>
+                                            <span style={{ fontSize: 46, fontWeight: 900, color: "#c084fc", lineHeight: 1 }}>$99</span>
+                                            <span style={{ fontSize: 14, color: "rgba(255,255,255,0.35)", paddingBottom: 4 }}>/mo</span>
+                                        </div>
+                                        {["Everything in Pro", "Unlimited AI credits", "1-on-1 strategy sessions", "Done-for-you content audits", "Priority video rendering", "White-label platform branding"].map(f => (
+                                            <div key={f} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                                                <span style={{ color: "#c084fc", fontSize: 12, flexShrink: 0 }}>✓</span>
+                                                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{f}</span>
+                                            </div>
+                                        ))}
+                                        <button onClick={() => nav("/select-plan")} style={{ width: "100%", marginTop: 24, background: "rgba(168,85,247,0.12)", color: "#c084fc", fontWeight: 800, fontSize: 14, border: "1px solid rgba(168,85,247,0.3)", borderRadius: 12, padding: "14px 0", cursor: "pointer" }}>
+                                            Upgrade to Elite →
+                                        </button>
+                                    </div>
+                                </Anim>
+                            </>
                         )}
-                        <Link href="/dashboard">
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                className="px-8 border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-900"
-                            >
-                                Back to Dashboard
-                            </Button>
-                        </Link>
                     </div>
 
-                    <p className="mt-6 text-xs text-zinc-500">
-                        {needsAddon
-                            ? "Upgrade to Pro to get Video Marketing included FREE — a $49/mo value."
-                            : "Already on Pro or Elite? Contact support — this might be a provisioning delay."}
-                    </p>
+                    {/* Bottom note */}
+                    <Anim style={{ textAlign: "center", marginTop: 48 }}>
+                        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.22)" }}>
+                            Monthly billing · cancel anytime · no lock-in contracts
+                        </p>
+                        <button
+                            onClick={() => nav("/dashboard")}
+                            style={{ marginTop: 14, background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 13, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}
+                        >
+                            Go back to dashboard
+                        </button>
+                    </Anim>
                 </div>
-            </main>
+            </section>
+
+            {/* ── FOOTER ── */}
+            <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "40px 24px", textAlign: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 14 }}>
+                    <img src="/oravini-logo.png" alt="Oravini" style={{ height: 28, width: 28, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6, opacity: 0.7 }} />
+                    <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>ORAVINI</span>
+                </div>
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
+                    © 2025 Oravini by Brandverse. All rights reserved.
+                </p>
+            </footer>
         </div>
     );
 }

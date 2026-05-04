@@ -359,9 +359,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Confirm plan (mark user as onboarded after choosing a plan) ──────────
   app.post("/api/auth/confirm-plan", requireAuth, async (req, res) => {
     const userId = (req.user as any).id;
-    const { plan } = req.body;
+    const { plan, hasVideoMarketing } = req.body;
     const update: any = { planConfirmed: true };
     if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
+    if (typeof hasVideoMarketing === "boolean") update.hasVideoMarketing = hasVideoMarketing;
+    // Pro and Elite always include video marketing
+    if (update.plan === "pro" || update.plan === "elite") update.hasVideoMarketing = true;
     await storage.updateUser(userId, update);
     // Immediately activate the correct credit allowance for the new plan
     const activatedPlan = update.plan || "free";
