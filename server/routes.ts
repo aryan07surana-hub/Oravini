@@ -3415,13 +3415,15 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       const user = req.user as any;
       const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
       const seqs = await storage.getDmSequences(userId);
-      // Attach steps + enrollment count to each sequence
-      const result = await Promise.all(seqs.map(async (s) => {
-        const steps = await storage.getDmSequenceSteps(s.id);
-        const enrollments = await storage.getDmSequenceEnrollments(s.id);
-        return { ...s, steps, enrollmentCount: enrollments.length };
-      }));
-      return res.json(result);
+      return res.json(seqs);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const seq = await storage.getDmSequence(p(req.params.id));
+      if (!seq) return res.status(404).json({ message: "Sequence not found" });
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -3429,32 +3431,59 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     try {
       const user = req.user as any;
       const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
-      const { name, description, steps } = req.body;
+      const { name, description } = req.body;
       if (!name?.trim()) return res.status(400).json({ message: "name is required" });
       const seq = await storage.createDmSequence({ userId, name: name.trim(), description: description?.trim() || null, isActive: true });
-      if (Array.isArray(steps) && steps.length > 0) {
-        await storage.upsertDmSequenceSteps(seq.id, steps);
-      }
-      const savedSteps = await storage.getDmSequenceSteps(seq.id);
-      return res.json({ ...seq, steps: savedSteps });
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
   app.patch("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { steps, ...data } = req.body;
-      const seq = await storage.updateDmSequence(p(req.params.id), data);
-      if (Array.isArray(steps)) {
-        await storage.upsertDmSequenceSteps(p(req.params.id), steps);
-      }
-      const savedSteps = await storage.getDmSequenceSteps(p(req.params.id));
-      return res.json({ ...seq, steps: savedSteps });
+      const seq = await storage.updateDmSequence(p(req.params.id), req.body);
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await storage.deleteDmSequence(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Sequence Steps
+  app.get("/api/dm/sequences/:id/steps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const steps = await storage.getDmSequenceSteps(p(req.params.id));
+      return res.json(steps);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/sequences/:id/steps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { delayDays, message, stepOrder } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      const step = await storage.createDmSequenceStep({
+        sequenceId: p(req.params.id),
+        stepOrder: stepOrder ?? 0,
+        delayDays: delayDays ?? 0,
+        message: message.trim(),
+      });
+      return res.json(step);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/sequences/:seqId/steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const step = await storage.updateDmSequenceStep(p(req.params.stepId), req.body);
+      return res.json(step);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/sequences/:seqId/steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmSequenceStep(p(req.params.stepId));
       return res.json({ success: true });
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
@@ -11120,6 +11149,200 @@ Rules:
       res.json(feedback);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  return httpServer;
+}
+
+  // ── Bio Generator ─────────────────────────────────────────────────────────
+  app.post("/api/tools/bio-generator/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, platform, whatYouDo, whoYouHelp, socialProof, cta, linkUrl } = req.body;
+
+      if (!niche || !whatYouDo) {
+        return res.status(400).json({ error: "Niche and what you do are required" });
+      }
+
+      const platformLimits: Record<string, number> = {
+        instagram: 150,
+        twitter: 160,
+        linkedin: 220,
+      };
+
+      const charLimit = platformLimits[platform] || 150;
+
+      const prompt = `You are an expert bio writer who understands the psychology of social media bios. A prospect decides in under 10 seconds whether to follow or ignore based on the bio.
+
+**THE 4-LINE BIO FRAMEWORK:**
+
+**Line 1 (Attract/Repel):** This line should be SPECIFIC about what you do and who you help. It should attract your ideal audience and repel everyone else. Use concrete numbers, specific outcomes, and clear positioning.
+
+**Line 2 (Social Proof):** Show credibility through numbers - how many people you've helped, results you've delivered, or transformations you've created. Make it tangible and impressive.
+
+**Line 3 (CTA):** Clear call to action that tells them exactly what to do next. Should create urgency or curiosity.
+
+**Line 4 (Link):** The actual link (user provides this).
+
+**USER INPUT:**
+- Niche: ${niche}
+- Platform: ${platform} (${charLimit} character limit)
+- What they do: ${whatYouDo}
+${whoYouHelp ? `- Who they help: ${whoYouHelp}` : ""}
+${socialProof ? `- Social proof: ${socialProof}` : ""}
+${cta ? `- CTA idea: ${cta}` : ""}
+${linkUrl ? `- Link: ${linkUrl}` : ""}
+
+**YOUR TASK:**
+Generate 3 variations for each of the first 3 lines. Each variation should be different in tone and approach:
+- Variation 1: Bold and direct
+- Variation 2: Storytelling/relatable
+- Variation 3: Data-driven/authoritative
+
+Also provide profile picture tips specific to their niche.
+
+**CRITICAL RULES:**
+1. Line 1 must be HYPER-SPECIFIC. No generic statements like "I help people succeed." Instead: "I help 30-40 year old coaches go from $5k/mo to $50k/mo in 90 days"
+2. Line 2 must include NUMBERS. "Helped 6,000+ men" or "500+ transformations in 2024"
+3. Line 3 must be ACTION-ORIENTED. "DM me 'START'" or "Get my free training below"
+4. Keep each line concise - the full bio should be under ${charLimit} characters
+5. Make it platform-appropriate for ${platform}
+
+Return ONLY valid JSON in this exact format:
+{
+  "line1Options": ["option1", "option2", "option3"],
+  "line2Options": ["option1", "option2", "option3"],
+  "line3Options": ["option1", "option2", "option3"],
+  "line4": "${linkUrl || ""}",
+  "profilePictureTips": {
+    "dos": ["tip1", "tip2", "tip3"],
+    "donts": ["tip1", "tip2", "tip3"],
+    "specificTips": ["niche-specific tip1", "niche-specific tip2"]
+  }
+}`;
+
+      const message = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 2000,
+        temperature: 0.8,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const content = message.content[0];
+      if (content.type !== "text") {
+        throw new Error("Unexpected response type from Claude");
+      }
+
+      // Parse JSON from response
+      let jsonText = content.text.trim();
+      
+      // Remove markdown code blocks if present
+      if (jsonText.startsWith("```json")) {
+        jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+      } else if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```\n?/g, "");
+      }
+
+      const result = JSON.parse(jsonText);
+
+      // Calculate character count for first variation
+      const sampleBio = `${result.line1Options[0]}\n${result.line2Options[0]}\n${result.line3Options[0]}\n${result.line4}`;
+      result.characterCount = sampleBio.length;
+      result.platformOptimized = result.characterCount <= charLimit;
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Bio generation error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate bio" });
+    }
+  });
+
+
+  // ── Bio Generator Tools ────────────────────────────────────────────────────
+
+  // 1. Generate from Scratch (existing endpoint - already in routes.ts)
+  // /api/tools/bio-generator/generate
+
+  // 2. Improve Existing Bio
+  app.post("/api/tools/bio-generator/improve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { currentBio, platform } = req.body;
+      if (!currentBio?.trim()) return res.status(400).json({ message: "currentBio is required" });
+
+      const _uBioImp = req.user as any;
+      if (_uBioImp.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioImp.id, 5, "bio_improve", "Bio Improve analysis", _uBioImp.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
+      }
+
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
+
+      const systemPrompt = `You are an elite bio optimization expert. Analyze Instagram/Twitter/LinkedIn bios and provide detailed scoring + improvements. Return ONLY valid JSON.`;
+      
+      const userPrompt = `Analyze this ${platform} bio and return improvements:\n\nCurrent bio:\n"${currentBio}"\n\nPlatform: ${platform} (${limit} char limit)\n\nReturn this EXACT JSON:\n{\n  "score": 75,\n  "breakdown": {\n    "clarity": { "score": 15, "feedback": "specific feedback" },\n    "hook": { "score": 12, "feedback": "specific feedback" },\n    "cta": { "score": 14, "feedback": "specific feedback" },\n    "characterEfficiency": { "score": 16, "feedback": "specific feedback" },\n    "nicheSpecificity": { "score": 18, "feedback": "specific feedback" }\n  },\n  "improvedVersions": ["improved bio 1 under ${limit} chars", "improved bio 2", "improved bio 3"],\n  "whatChanged": ["change 1", "change 2", "change 3"]\n}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // 3. Polish Template
+  app.post("/api/tools/bio-generator/polish-template", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filledBio, platform, templateName } = req.body;
+      if (!filledBio?.trim()) return res.status(400).json({ message: "filledBio is required" });
+
+      const _uBioTpl = req.user as any;
+      if (_uBioTpl.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioTpl.id, 3, "bio_template", "Bio Template Polish", _uBioTpl.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
+      }
+
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
+
+      const systemPrompt = `You are an expert bio writer. Polish and optimize filled bio templates. Return ONLY valid JSON.`;
+      
+      const userPrompt = `Polish this ${templateName} bio for ${platform}:\n\n"${filledBio}"\n\nPlatform limit: ${limit} characters\n\nReturn this EXACT JSON:\n{\n  "polishedVersions": ["polished version 1 under ${limit} chars", "polished version 2", "polished version 3"]\n}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 1500);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // 4. Analyze Competitors
+  app.post("/api/tools/bio-generator/analyze-competitors", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { competitorBios, platform, userNiche } = req.body;
+      if (!Array.isArray(competitorBios) || competitorBios.length < 2) {
+        return res.status(400).json({ message: "At least 2 competitor bios required" });
+      }
+
+      const _uBioComp = req.user as any;
+      if (_uBioComp.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioComp.id, 8, "bio_competitor", "Bio Competitor Analysis", _uBioComp.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
+      }
+
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
+
+      const systemPrompt = `You are an elite bio strategist. Analyze competitor bios, extract patterns, and generate unique bios. Return ONLY valid JSON.`;
+      
+      const userPrompt = `Analyze these ${competitorBios.length} competitor bios in the "${userNiche}" niche:\n\n${competitorBios.map((bio: string, i: number) => `Bio ${i + 1}: "${bio}"`).join("\n\n")}\n\nPlatform: ${platform} (${limit} char limit)\nUser's niche: ${userNiche}\n\nReturn this EXACT JSON:\n{\n  "patterns": {\n    "commonStructure": "what structure they all use",\n    "toneAnalysis": "tone they use",\n    "keywordFrequency": ["keyword1", "keyword2", "keyword3"],\n    "ctaPatterns": ["cta pattern 1", "cta pattern 2"],\n    "lengthAverage": 120\n  },\n  "insights": ["insight 1", "insight 2", "insight 3"],\n  "generatedBios": ["unique bio 1 for user under ${limit} chars", "unique bio 2", "unique bio 3"]\n}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
     }
   });
 

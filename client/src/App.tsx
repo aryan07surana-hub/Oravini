@@ -58,6 +58,11 @@ import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
 import BoardBuilder from "@/pages/client/BoardBuilder";
+import BioGeneratorHub from "@/pages/client/BioGeneratorHub";
+import BioGenerateFromScratch from "@/pages/client/BioGenerateFromScratch";
+import BioImprove from "@/pages/client/BioImprove";
+import BioTemplates from "@/pages/client/BioTemplates";
+import BioCompetitor from "@/pages/client/BioCompetitor";
 import FormResponses from "@/pages/client/FormResponses";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
@@ -196,6 +201,11 @@ function Router() {
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
       <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
+      <Route path="/tools/bio-generator/generate">{() => <Guard component={BioGenerateFromScratch} />}</Route>
+      <Route path="/tools/bio-generator/improve">{() => <Guard component={BioImprove} />}</Route>
+      <Route path="/tools/bio-generator/templates">{() => <Guard component={BioTemplates} />}</Route>
+      <Route path="/tools/bio-generator/competitor">{() => <Guard component={BioCompetitor} />}</Route>
+      <Route path="/tools/bio-generator">{() => <Guard component={BioGeneratorHub} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
