@@ -1930,7 +1930,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
 
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -1957,7 +1957,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -2791,7 +2791,7 @@ Requirements:
         if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
       }
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let lastErr: any;
       for (const model of GROQ_MODELS) {
         try {
@@ -3007,7 +3007,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const GROQ_API_KEY = process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
 
-      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let script = "";
 
       for (const model of models) {
@@ -4419,7 +4419,7 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
         ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
         : "";
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
       let prompt = "";
 
       if (tool === "improve") {
@@ -4680,7 +4680,7 @@ Return ONLY a JSON array of 5 strings:
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 500,
           temperature: 0.8,
@@ -4736,7 +4736,7 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -4796,7 +4796,7 @@ Return ONLY this JSON (no markdown, no explanation):
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
             { role: "user", content: prompt },
@@ -4895,7 +4895,7 @@ Only include analysis when content is provided. Never produce generic filler con
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.75,
           max_tokens: 2000,
@@ -4926,7 +4926,7 @@ Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrit
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -4951,7 +4951,7 @@ Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
       });
       const data: any = await r.json();
       return res.json({ script: data.choices?.[0]?.message?.content || "" });
@@ -4990,7 +4990,7 @@ Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
@@ -5024,7 +5024,7 @@ Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5042,7 +5042,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5060,7 +5060,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5078,7 +5078,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5114,7 +5114,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5155,7 +5155,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5222,7 +5222,7 @@ Return ONLY this JSON:
       method: "POST",
       headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.75,
         max_tokens: maxTokens,
@@ -6964,7 +6964,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
       });
       const groqData = await groqResp.json() as any;
       const text = groqData.choices?.[0]?.message?.content || "[]";
@@ -8830,7 +8830,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.55,
           max_tokens: 400,
@@ -8995,7 +8995,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
             { role: "user", content: userPrompt },
@@ -9115,7 +9115,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
             { role: "user", content: igPrompt },
@@ -9408,7 +9408,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
@@ -9484,7 +9484,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
