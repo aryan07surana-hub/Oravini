@@ -3048,30 +3048,81 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
 
-      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
+      const systemPrompt = `You are a world-class Instagram carousel copywriter and marketing psychologist. You understand:
+- Curiosity gaps and pattern interrupts
+- Social proof and authority triggers
+- FOMO and scarcity psychology
+- Storytelling frameworks (Hero's Journey, Problem-Agitate-Solve)
+- Viral content mechanics (controversy, relatability, aspiration)
+
+You write carousels that STOP the scroll, deliver massive value, and convert viewers into followers/customers.
+Return ONLY valid JSON — no markdown, no code fences.`;
+      
       const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
 Tone: ${toneStr}
 
-Return a JSON object with this EXACT structure:
+**MARKETING PSYCHOLOGY RULES:**
+1. Slide 1 (HOOK): Use pattern interrupt — bold claim, controversial statement, curiosity gap, or "you're doing X wrong" angle. Make it IMPOSSIBLE to scroll past.
+2. Slide 2 (PROBLEM/PAIN): Agitate the pain point. Make them feel "this is exactly me." Use specific, relatable scenarios.
+3. Middle Slides (VALUE): Deliver actionable insights, frameworks, or steps. Each slide = one clear idea. Use numbers, specifics, not vague advice.
+4. Second-to-last (PROOF/BENEFIT): Show the transformation or result. "When you do this, here's what happens."
+5. Last Slide (CTA): One clear action. Use urgency or exclusivity. Examples: "Follow for daily tips", "DM me 'READY'", "Save this before you forget".
+
+**FORMATTING RULES:**
+- Headline: 5-8 words MAX, bold statement, no punctuation at end
+- Body: 15-30 words, punchy sentences, use line breaks for readability
+- Use power words: proven, secret, mistake, truth, reality, exposed, blueprint
+- Avoid: generic advice, corporate speak, obvious statements
+- Include: specific numbers, concrete examples, actionable steps
+
+**SLIDE ROLES TO USE:**
+Hook → Problem/Pain → Agitate → Insight → Solution → Framework → Benefit → Social Proof → CTA
+
+Return JSON:
 {
   "slides": [
-    { "role": "Hook", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" },
-    { "role": "Problem", "headline": "...", "body": "..." },
-    ...more slides...
-    { "role": "CTA", "headline": "call to action headline", "body": "clear single action for audience to take" }
+    { 
+      "role": "Hook", 
+      "headline": "Stop doing [X] wrong", 
+      "body": "Most people think [common belief].\n\nBut here's the truth nobody tells you.\n\nSwipe to see what actually works →" 
+    },
+    { 
+      "role": "Problem", 
+      "headline": "The real issue", 
+      "body": "You're stuck because [specific pain point].\n\nThis costs you [specific consequence].\n\nHere's why it happens." 
+    }
   ]
 }
 
-Rules:
-- Slide 1 is always the HOOK — make it impossible to scroll past, use a bold claim or question
-- Middle slides = value/insight/steps — each self-contained
-- Last slide is always the CTA — one clear action (Follow, DM [word], Save this, etc.)
-- Headlines: max 8 words, punchy, no punctuation at end
-- Body: max 30 words, concrete not vague
-- Vary the roles: Hook → Problem → Insight → Solution/Steps → Benefit → CTA
-- Write for viral reach, not corporate speak`;
+Generate ${count} slides following this psychology framework.`;
 
-      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      // Try OpenAI first for better quality, fallback to Groq
+      let raw: string;
+      const openaiKey = process.env.OPENAI_API_KEY;
+      
+      if (openaiKey) {
+        try {
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.8,
+              max_tokens: 2000,
+              response_format: { type: "json_object" }
+            })
+          });
+          const data = await response.json();
+          raw = data.choices[0].message.content;
+        } catch (e) {
+          console.warn("OpenAI failed, using Groq:", e);
+          raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+        }
+      } else {
+        raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      }
+
       const parsed = JSON.parse(raw);
       if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
       res.json({ slides: parsed.slides, creditsUsed: 3, balance: creditResult.balance });
