@@ -11653,20 +11653,15 @@ Return ONLY valid JSON in this exact format:
   }
 }`;
 
-      const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2000,
-        temperature: 0.8,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const content = message.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type from Claude");
-      }
+      // Use Groq instead of Anthropic for bio generation
+      const raw = await callGroqJson(
+        "You are an expert bio writer who understands the psychology of social media bios. Return ONLY valid JSON.",
+        prompt,
+        2000
+      );
 
       // Parse JSON from response
-      let jsonText = content.text.trim();
+      let jsonText = raw.trim();
       
       // Remove markdown code blocks if present
       if (jsonText.startsWith("```json")) {
