@@ -42,9 +42,11 @@
 }
 
 .heroCTA {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 12px;
+  align-items: center;
 }
 
 .ctaNote {
@@ -105,6 +107,26 @@
 .primaryButton:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(207, 95, 56, 0.4);
+}
+
+.secondaryButton {
+  display: inline-block;
+  padding: 16px 28px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent-deep);
+  font-weight: 700;
+  font-size: 1rem;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.secondaryButton:hover {
+  background: rgba(207, 95, 56, 0.07);
+  transform: translateY(-2px);
 }
 
 /* Section Headers */
@@ -984,7 +1006,7 @@
 }
 
 .calculatorCard {
-  max-width: 1000px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 48px;
   border: 2px solid var(--accent);
@@ -992,10 +1014,14 @@
   background: var(--panel);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
 }
 
 .calculatorInputs {
-  margin-bottom: 40px;
+  margin-bottom: 0;
 }
 
 .calculatorInputs h3 {
@@ -1171,40 +1197,70 @@
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 1000;
+  z-index: 9999;
+}
+
+.chatbotLauncher {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.chatLabel {
+  background: white;
+  color: var(--accent-deep);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .chatbotToggle {
-  width: 70px;
-  height: 70px;
+  width: 80px;
+  height: 80px;
   border: 0;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent) 0%, #df8d53 100%);
   color: white;
-  font-size: 2rem;
+  font-size: 2.2rem;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(207, 95, 56, 0.4);
+  box-shadow: 0 8px 32px rgba(207, 95, 56, 0.5);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   position: relative;
+  animation: chatBounce 2.5s ease-in-out infinite;
+}
+
+@keyframes chatBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 .chatbotToggle:hover {
-  transform: scale(1.1);
-  box-shadow: 0 12px 32px rgba(207, 95, 56, 0.5);
+  animation: none;
+  transform: scale(1.12);
+  box-shadow: 0 12px 40px rgba(207, 95, 56, 0.6);
 }
 
 .chatbotBadge {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  top: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   background: var(--success);
   color: white;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 2px solid white;
   animation: pulse 2s infinite;
 }
 
@@ -1382,7 +1438,8 @@
 @media (max-width: 920px) {
   .hero,
   .pricingContent,
-  .beforeAfterGrid {
+  .beforeAfterGrid,
+  .calculatorCard {
     grid-template-columns: 1fr;
   }
 

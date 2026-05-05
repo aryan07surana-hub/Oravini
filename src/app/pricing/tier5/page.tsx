@@ -13,7 +13,7 @@ export default function Tier5Page() {
   const [hourlyRate, setHourlyRate] = useState(250);
   const [monthlyLeads, setMonthlyLeads] = useState(100);
   const [closeRate, setCloseRate] = useState(10);
-  const [showROI, setShowROI] = useState(false);
+  const [showROI, setShowROI] = useState(true);
   
   // Chatbot State
   const [chatOpen, setChatOpen] = useState(false);
@@ -97,6 +97,9 @@ export default function Tier5Page() {
             <a href="https://calendly.com/your-link" className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
               📅 Book Your Strategy Call
             </a>
+            <a href="#roi-calculator" className={styles.secondaryButton}>
+              📊 Calculate Your ROI ↓
+            </a>
             <p className={styles.ctaNote}>Free 30-minute consultation • No pressure, just value</p>
           </div>
         </div>
@@ -107,6 +110,145 @@ export default function Tier5Page() {
               <p>Your VSL Video Goes Here</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Interactive ROI Calculator */}
+      <section id="roi-calculator" className={styles.roiCalculatorSection}>
+        <div className={styles.sectionHeader}>
+          <h2>Calculate Your Platform ROI</h2>
+          <p className={styles.subtitle}>See how much value a custom platform brings to YOUR business</p>
+        </div>
+
+        <div className={styles.calculatorCard}>
+          <div className={styles.calculatorInputs}>
+            <h3>Tell us about your business:</h3>
+
+            <div className={styles.inputGroup}>
+              <label>
+                💰 Monthly Revenue:
+                <div className={styles.inputWrapper}>
+                  <span className={styles.inputPrefix}>$</span>
+                  <input
+                    type="number"
+                    value={monthlyRevenue}
+                    onChange={(e) => setMonthlyRevenue(Number(e.target.value))}
+                    min="0"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                ⏰ Hours/week on manual tasks:
+                <div className={styles.inputWrapper}>
+                  <input
+                    type="number"
+                    value={hoursOnContent}
+                    onChange={(e) => setHoursOnContent(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>hours</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                💵 Your hourly rate:
+                <div className={styles.inputWrapper}>
+                  <span className={styles.inputPrefix}>$</span>
+                  <input
+                    type="number"
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>/hr</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                📊 Monthly leads:
+                <div className={styles.inputWrapper}>
+                  <input
+                    type="number"
+                    value={monthlyLeads}
+                    onChange={(e) => setMonthlyLeads(Number(e.target.value))}
+                    min="0"
+                  />
+                  <span className={styles.inputSuffix}>leads</span>
+                </div>
+              </label>
+            </div>
+
+            <div className={styles.inputGroup}>
+              <label>
+                📈 Current close rate:
+                <div className={styles.inputWrapper}>
+                  <input
+                    type="number"
+                    value={closeRate}
+                    onChange={(e) => setCloseRate(Number(e.target.value))}
+                    min="0"
+                    max="100"
+                  />
+                  <span className={styles.inputSuffix}>%</span>
+                </div>
+              </label>
+            </div>
+
+            <button className={styles.calculateButton} onClick={calculateROI}>
+              Recalculate My ROI
+            </button>
+          </div>
+
+          {showROI && (
+            <div className={styles.calculatorResults}>
+              <h3>🎯 Your Platform ROI</h3>
+
+              <div className={styles.resultCard}>
+                <div className={styles.resultRow}>
+                  <span>💰 Time Saved Value:</span>
+                  <strong>${timeSavedValue.toLocaleString()}/mo</strong>
+                </div>
+                <p className={styles.resultDetail}>
+                  Save {timeSaved.toFixed(1)} hours/week × ${hourlyRate}/hr = ${(timeSaved * hourlyRate).toLocaleString()}/week
+                </p>
+              </div>
+
+              <div className={styles.resultCard}>
+                <div className={styles.resultRow}>
+                  <span>📈 Extra Revenue:</span>
+                  <strong>${extraRevenue.toLocaleString()}/mo</strong>
+                </div>
+                <p className={styles.resultDetail}>
+                  {extraSales.toFixed(1)} extra sales/month × ${avgDealSize.toLocaleString()} avg deal size
+                </p>
+              </div>
+
+              <div className={styles.resultDivider}></div>
+
+              <div className={styles.resultRow}>
+                <span>✅ Total Monthly Value:</span>
+                <strong className={styles.totalValue}>${totalValue.toLocaleString()}</strong>
+              </div>
+
+              <div className={styles.roiHighlight}>
+                <p>That&apos;s massive value from automation and AI workers! 🎉</p>
+                <p className={styles.roiNote}>
+                  And this doesn&apos;t even count the competitive advantage of having your own proprietary platform.
+                </p>
+              </div>
+
+              <a href="https://calendly.com/your-link" className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
+                Book My Platform Discovery Call →
+              </a>
+            </div>
+          )}
         </div>
       </section>
 
@@ -681,145 +823,6 @@ export default function Tier5Page() {
         </div>
       </section>
 
-      {/* Interactive ROI Calculator */}
-      <section className={styles.roiCalculatorSection}>
-        <div className={styles.sectionHeader}>
-          <h2>Calculate Your Platform ROI</h2>
-          <p className={styles.subtitle}>See how much value a custom platform brings to YOUR business</p>
-        </div>
-
-        <div className={styles.calculatorCard}>
-          <div className={styles.calculatorInputs}>
-            <h3>Tell us about your business:</h3>
-            
-            <div className={styles.inputGroup}>
-              <label>
-                💰 Monthly Revenue:
-                <div className={styles.inputWrapper}>
-                  <span className={styles.inputPrefix}>$</span>
-                  <input 
-                    type="number" 
-                    value={monthlyRevenue} 
-                    onChange={(e) => setMonthlyRevenue(Number(e.target.value))}
-                    min="0"
-                  />
-                </div>
-              </label>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label>
-                ⏰ Hours/week on manual tasks:
-                <div className={styles.inputWrapper}>
-                  <input 
-                    type="number" 
-                    value={hoursOnContent} 
-                    onChange={(e) => setHoursOnContent(Number(e.target.value))}
-                    min="0"
-                  />
-                  <span className={styles.inputSuffix}>hours</span>
-                </div>
-              </label>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label>
-                💵 Your hourly rate:
-                <div className={styles.inputWrapper}>
-                  <span className={styles.inputPrefix}>$</span>
-                  <input 
-                    type="number" 
-                    value={hourlyRate} 
-                    onChange={(e) => setHourlyRate(Number(e.target.value))}
-                    min="0"
-                  />
-                  <span className={styles.inputSuffix}>/hr</span>
-                </div>
-              </label>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label>
-                📊 Monthly leads:
-                <div className={styles.inputWrapper}>
-                  <input 
-                    type="number" 
-                    value={monthlyLeads} 
-                    onChange={(e) => setMonthlyLeads(Number(e.target.value))}
-                    min="0"
-                  />
-                  <span className={styles.inputSuffix}>leads</span>
-                </div>
-              </label>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label>
-                📈 Current close rate:
-                <div className={styles.inputWrapper}>
-                  <input 
-                    type="number" 
-                    value={closeRate} 
-                    onChange={(e) => setCloseRate(Number(e.target.value))}
-                    min="0"
-                    max="100"
-                  />
-                  <span className={styles.inputSuffix}>%</span>
-                </div>
-              </label>
-            </div>
-
-            <button className={styles.calculateButton} onClick={calculateROI}>
-              Calculate My ROI
-            </button>
-          </div>
-
-          {showROI && (
-            <div className={styles.calculatorResults}>
-              <h3>🎯 Your Platform ROI</h3>
-              
-              <div className={styles.resultCard}>
-                <div className={styles.resultRow}>
-                  <span>💰 Time Saved Value:</span>
-                  <strong>${timeSavedValue.toLocaleString()}/mo</strong>
-                </div>
-                <p className={styles.resultDetail}>
-                  Save {timeSaved.toFixed(1)} hours/week × ${hourlyRate}/hr = ${(timeSaved * hourlyRate).toLocaleString()}/week
-                </p>
-              </div>
-
-              <div className={styles.resultCard}>
-                <div className={styles.resultRow}>
-                  <span>📈 Extra Revenue:</span>
-                  <strong>${extraRevenue.toLocaleString()}/mo</strong>
-                </div>
-                <p className={styles.resultDetail}>
-                  {extraSales.toFixed(1)} extra sales/month × ${avgDealSize.toLocaleString()} avg deal size
-                </p>
-              </div>
-
-              <div className={styles.resultDivider}></div>
-
-              <div className={styles.resultRow}>
-                <span>✅ Total Monthly Value:</span>
-                <strong className={styles.totalValue}>${totalValue.toLocaleString()}</strong>
-              </div>
-
-              <div className={styles.roiHighlight}>
-                <p>That's massive value from automation and AI workers! 🎉</p>
-                <p className={styles.roiNote}>
-                  And this doesn't even count the competitive advantage of having your own proprietary platform.
-                </p>
-              </div>
-
-              <a href="https://calendly.com/your-link" className={styles.primaryButton} target="_blank" rel="noopener noreferrer">
-                Book My Platform Discovery Call →
-              </a>
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* Final CTA Section */}
       <section className={styles.finalCTA}>
         <div className={styles.ctaContent}>
@@ -880,10 +883,13 @@ export default function Tier5Page() {
       {/* Chatbot */}
       <div className={`${styles.chatbot} ${chatOpen ? styles.chatbotOpen : ''}`}>
         {!chatOpen ? (
-          <button className={styles.chatbotToggle} onClick={() => setChatOpen(true)}>
-            💬
-            <span className={styles.chatbotBadge}>Ask me anything!</span>
-          </button>
+          <div className={styles.chatbotLauncher}>
+            <button className={styles.chatbotToggle} onClick={() => setChatOpen(true)}>
+              💬
+              <span className={styles.chatbotBadge}>1</span>
+            </button>
+            <span className={styles.chatLabel}>Need help?</span>
+          </div>
         ) : (
           <div className={styles.chatbotWindow}>
             <div className={styles.chatbotHeader}>
