@@ -3054,6 +3054,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
 - FOMO and scarcity psychology
 - Storytelling frameworks (Hero's Journey, Problem-Agitate-Solve)
 - Viral content mechanics (controversy, relatability, aspiration)
+- Visual hierarchy and readability
 
 You write carousels that STOP the scroll, deliver massive value, and convert viewers into followers/customers.
 Return ONLY valid JSON — no markdown, no code fences.`;
@@ -3061,19 +3062,27 @@ Return ONLY valid JSON — no markdown, no code fences.`;
       const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
 Tone: ${toneStr}
 
-**MARKETING PSYCHOLOGY RULES:**
-1. Slide 1 (HOOK): Use pattern interrupt — bold claim, controversial statement, curiosity gap, or "you're doing X wrong" angle. Make it IMPOSSIBLE to scroll past.
-2. Slide 2 (PROBLEM/PAIN): Agitate the pain point. Make them feel "this is exactly me." Use specific, relatable scenarios.
-3. Middle Slides (VALUE): Deliver actionable insights, frameworks, or steps. Each slide = one clear idea. Use numbers, specifics, not vague advice.
-4. Second-to-last (PROOF/BENEFIT): Show the transformation or result. "When you do this, here's what happens."
-5. Last Slide (CTA): One clear action. Use urgency or exclusivity. Examples: "Follow for daily tips", "DM me 'READY'", "Save this before you forget".
+**SLIDE TEMPLATES AVAILABLE:**
+1. "text-only" - Pure text, no image needed (great for quotes, insights)
+2. "image-text" - Image at top, text below (most common)
+3. "quote" - Large quote with attribution
+4. "list" - Numbered or bulleted list format
+5. "stats" - Big number/stat with context
 
-**FORMATTING RULES:**
-- Headline: 5-8 words MAX, bold statement, no punctuation at end
-- Body: 15-30 words, punchy sentences, use line breaks for readability
-- Use power words: proven, secret, mistake, truth, reality, exposed, blueprint
+**MARKETING PSYCHOLOGY RULES:**
+1. Slide 1 (HOOK): Use pattern interrupt — bold claim, controversial statement, curiosity gap, or "you're doing X wrong" angle. Make it IMPOSSIBLE to scroll past. Template: image-text or text-only.
+2. Slide 2 (PROBLEM/PAIN): Agitate the pain point. Make them feel "this is exactly me." Use specific, relatable scenarios. Template: text-only or image-text.
+3. Middle Slides (VALUE): Deliver actionable insights, frameworks, or steps. Each slide = one clear idea. Use numbers, specifics, not vague advice. Templates: list, stats, or image-text.
+4. Second-to-last (PROOF/BENEFIT): Show the transformation or result. "When you do this, here's what happens." Template: image-text or stats.
+5. Last Slide (CTA): One clear action. Use urgency or exclusivity. Examples: "Follow for daily tips", "DM me 'READY'", "Save this before you forget". Template: text-only or image-text.
+
+**CONTENT RULES:**
+- Headline: 10-15 words MAX, bold statement, no punctuation at end
+- Body: 50-100 words, detailed and specific, use line breaks (\\n) for readability
+- Use power words: proven, secret, mistake, truth, reality, exposed, blueprint, framework
 - Avoid: generic advice, corporate speak, obvious statements
-- Include: specific numbers, concrete examples, actionable steps
+- Include: specific numbers, concrete examples, actionable steps, mini-stories
+- Write like you're texting a friend, not writing a corporate memo
 
 **SLIDE ROLES TO USE:**
 Hook → Problem/Pain → Agitate → Insight → Solution → Framework → Benefit → Social Proof → CTA
@@ -3082,19 +3091,71 @@ Return JSON:
 {
   "slides": [
     { 
-      "role": "Hook", 
-      "headline": "Stop doing [X] wrong", 
-      "body": "Most people think [common belief].\n\nBut here's the truth nobody tells you.\n\nSwipe to see what actually works →" 
+      "role": "Hook",
+      "template": "image-text",
+      "headline": "Stop doing [X] wrong in 2024",
+      "body": "Most people think [common belief].\\n\\nBut here's the truth nobody tells you.\\n\\nI spent 3 years making this mistake and it cost me [specific consequence].\\n\\nSwipe to see what actually works →",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
     },
-    { 
-      "role": "Problem", 
-      "headline": "The real issue", 
-      "body": "You're stuck because [specific pain point].\n\nThis costs you [specific consequence].\n\nHere's why it happens." 
+    {
+      "role": "Problem",
+      "template": "text-only",
+      "headline": "The real issue nobody talks about",
+      "body": "You're stuck because [specific pain point].\\n\\nThis costs you [specific consequence] every single day.\\n\\nHere's why it happens: [root cause explanation with specific details].\\n\\nAnd here's the worst part: [agitate the pain more].",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Solution",
+      "template": "list",
+      "headline": "The 5-step framework that changes everything",
+      "body": "Here's the exact system I use (and teach to 1000+ students):",
+      "listItems": ["Step 1: Specific action with context", "Step 2: Another specific action", "Step 3: ...", "Step 4: ...", "Step 5: ..."],
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Stats",
+      "template": "stats",
+      "headline": "The results speak for themselves",
+      "body": "After implementing this framework:",
+      "listItems": null,
+      "statNumber": "347%",
+      "statContext": "average increase in [specific metric] within 90 days",
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "CTA",
+      "template": "text-only",
+      "headline": "Ready to get started?",
+      "body": "Follow @username for daily [niche] tips that actually work.\\n\\nDM me 'READY' and I'll send you the full framework PDF (free).\\n\\nSave this carousel so you can come back to it later.",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
     }
-  ]
+  ],
+  "caption": "Full Instagram caption here (3-5 lines of value + CTA + 15-20 hashtags)",
+  "metadata": {
+    "totalSlides": 5,
+    "estimatedReadTime": "45 seconds",
+    "primaryEmotion": "curiosity",
+    "targetAudience": "people struggling with [topic]"
+  }
 }
 
-Generate ${count} slides following this psychology framework.`;
+Generate ${count} slides following this psychology framework. Mix templates strategically. Make it RICH with detail and specifics.`;
 
       // Try OpenAI first for better quality, fallback to Groq
       let raw: string;
