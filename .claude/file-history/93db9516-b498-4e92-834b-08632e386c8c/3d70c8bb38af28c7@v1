@@ -8,16 +8,12 @@ Oravini is a Creator Growth Platform being actively built and shipped.
 
 **Stack:** React (client at `/Users/aryansurana/client/`), Express/Node backend (`/Users/aryansurana/server/`), PostgreSQL with Drizzle ORM (`/Users/aryansurana/shared/schema.ts`), deployed on Render.
 
-**Also at repo root:** A Next.js app lives in `/Users/aryansurana/src/` (config: `next.config.ts` at root). It serves public-facing pages like `/pricing`, `/pricing/tier5`, `/dashboard`, `/video-marketing`. Run via `npx next dev`. Separate from the Vite client app.
-
 **Key features built so far:**
 - DM Automation (unified page with Leads, Auto-Replies, Sequences, Send DM, Quick Replies, Instagram tabs)
 - Bio Generator Suite
-- Video Marketing — fully functional: WebRTC webinars (WebSocket relay, offer/answer/ICE), video hosting with file upload to `/uploads/`, public watch page at `/watch-video/:id` (lead gate, chapters, CTAs, urgency bar), all management APIs (chapters/CTAs CRUD, viewer sessions, view tracking, settings), real analytics replacing fake seeded data
+- Video Marketing with tier gating
 - Content Intelligence, AI Coach, Clip Finder, Video Editor
 - Admin + Client layouts with sidebar nav
-
-**Known gotcha:** `client/src/pages/public/` is blocked by global `~/.gitignore` (Public/ rule). New files there need `git add -f` to commit.
 
 **Why:** The user is building and iterating on this product — features get merged directly to main and deployed.
 

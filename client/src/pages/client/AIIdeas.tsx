@@ -113,45 +113,55 @@ interface WorkflowPlan {
 }
 
 const IG_CONTENT_TYPES = [
-  { value: "reels", label: "Reels" },
-  { value: "carousels", label: "Carousels" },
-  { value: "stories", label: "Stories" },
-  { value: "posts", label: "Static Posts" },
-  { value: "mix", label: "Mix of all types" },
+  { value: "reels", label: "Reels", emoji: "🎬" },
+  { value: "carousels", label: "Carousels", emoji: "📸" },
+  { value: "stories", label: "Stories", emoji: "⚡" },
+  { value: "posts", label: "Static Posts", emoji: "🖼️" },
+  { value: "mix", label: "Mix of all types", emoji: "🎨" },
 ];
 
 const YT_CONTENT_TYPES = [
-  { value: "Short Form (Shorts, quick tips, viral hooks, micro lessons)", label: "Short Form — Shorts & Quick Tips" },
-  { value: "Long Form (deep educational videos, tutorials, case studies, step-by-step guides)", label: "Long Form — Tutorials & Deep Dives" },
-  { value: "Value Based (educational breakdowns, framework explanations, strategy videos)", label: "Value Based — Education & Frameworks" },
-  { value: "VSL Style (problem-solution videos, authority videos, story-based persuasion)", label: "VSL Style — Sales & Authority" },
-  { value: "mix of all YouTube formats", label: "Mix of all formats" },
+  { value: "Short Form (Shorts, quick tips, viral hooks, micro lessons)", label: "Short Form — Shorts & Quick Tips", emoji: "⚡" },
+  { value: "Long Form (deep educational videos, tutorials, case studies, step-by-step guides)", label: "Long Form — Tutorials & Deep Dives", emoji: "📚" },
+  { value: "Value Based (educational breakdowns, framework explanations, strategy videos)", label: "Value Based — Education & Frameworks", emoji: "💡" },
+  { value: "VSL Style (problem-solution videos, authority videos, story-based persuasion)", label: "VSL Style — Sales & Authority", emoji: "🎯" },
+  { value: "mix of all YouTube formats", label: "Mix of all formats", emoji: "🎨" },
 ];
 
 const LI_CONTENT_TYPES = [
-  { value: "Thought Leadership post", label: "Thought Leadership" },
-  { value: "List post (numbered insights)", label: "List Post — Numbered Insights" },
-  { value: "Personal story post", label: "Personal Story" },
-  { value: "How-to carousel post", label: "How-To Carousel" },
-  { value: "Controversial opinion post", label: "Controversial Opinion / Hot Take" },
-  { value: "mix of all LinkedIn formats", label: "Mix of all formats" },
+  { value: "Thought Leadership post", label: "Thought Leadership", emoji: "💼" },
+  { value: "List post (numbered insights)", label: "List Post — Numbered Insights", emoji: "📝" },
+  { value: "Personal story post", label: "Personal Story", emoji: "✨" },
+  { value: "How-to carousel post", label: "How-To Carousel", emoji: "📸" },
+  { value: "Controversial opinion post", label: "Controversial Opinion / Hot Take", emoji: "🔥" },
+  { value: "mix of all LinkedIn formats", label: "Mix of all formats", emoji: "🎨" },
 ];
 
 const TW_CONTENT_TYPES = [
-  { value: "Twitter thread (multi-tweet educational breakdown)", label: "Twitter Thread" },
-  { value: "Single tweet hot take or opinion", label: "Single Tweet — Hot Take" },
-  { value: "Quote thread (series of powerful one-liners)", label: "Quote Thread" },
-  { value: "Poll tweet with engagement question", label: "Poll Tweet" },
-  { value: "mix of threads and single tweets", label: "Mix of all formats" },
+  { value: "Twitter thread (multi-tweet educational breakdown)", label: "Twitter Thread", emoji: "🧵" },
+  { value: "Single tweet hot take or opinion", label: "Single Tweet — Hot Take", emoji: "🔥" },
+  { value: "Quote thread (series of powerful one-liners)", label: "Quote Thread", emoji: "💬" },
+  { value: "Poll tweet with engagement question", label: "Poll Tweet", emoji: "📊" },
+  { value: "mix of threads and single tweets", label: "Mix of all formats", emoji: "🎨" },
 ];
 
 const GOALS = [
-  { value: "grow followers/subscribers fast", label: "Grow Followers / Subscribers" },
-  { value: "drive sales and conversions", label: "Drive Sales & Conversions" },
-  { value: "boost engagement and comments", label: "Boost Engagement & Comments" },
-  { value: "build brand authority and trust", label: "Build Authority & Trust" },
-  { value: "go viral and reach new audiences", label: "Go Viral" },
-  { value: "educate my audience", label: "Educate My Audience" },
+  { value: "grow followers/subscribers fast", label: "Grow Followers / Subscribers", emoji: "📈" },
+  { value: "drive sales and conversions", label: "Drive Sales & Conversions", emoji: "💰" },
+  { value: "boost engagement and comments", label: "Boost Engagement & Comments", emoji: "❤️" },
+  { value: "build brand authority and trust", label: "Build Authority & Trust", emoji: "👑" },
+  { value: "go viral and reach new audiences", label: "Go Viral", emoji: "🚀" },
+  { value: "educate my audience", label: "Educate My Audience", emoji: "📚" },
+];
+
+// ─── Inspiration Templates ────────────────────────────────────────────────────
+const INSPIRATIONS = [
+  { id: "viral-growth", emoji: "🚀", label: "Viral Growth", desc: "High-reach content for fast follower growth", niche: "Personal Brand", goal: "grow followers/subscribers fast", contentType: "", color: "#ec4899" },
+  { id: "authority-builder", emoji: "👑", label: "Authority Builder", desc: "Establish yourself as the go-to expert", niche: "Business", goal: "build brand authority and trust", contentType: "", color: "#7c3aed" },
+  { id: "sales-funnel", emoji: "💰", label: "Sales Funnel", desc: "Convert followers into paying customers", niche: "E-commerce", goal: "drive sales and conversions", contentType: "", color: "#10b981" },
+  { id: "engagement-boost", emoji: "❤️", label: "Engagement Boost", desc: "Spark conversations and build community", niche: "Lifestyle", goal: "boost engagement and comments", contentType: "", color: "#f59e0b" },
+  { id: "educational", emoji: "📚", label: "Educational", desc: "Teach and provide massive value", niche: "Coaching", goal: "educate my audience", contentType: "", color: "#3b82f6" },
+  { id: "trending-topics", emoji: "🔥", label: "Trending Topics", desc: "Ride the wave of what's hot right now", niche: "Marketing", goal: "go viral and reach new audiences", contentType: "", color: "#ef4444" },
 ];
 
 function extractHandle(url: string, platform: "instagram" | "youtube"): string | null {
@@ -1283,6 +1293,7 @@ export default function AIIdeas() {
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
   const [publishIdea, setPublishIdea] = useState<ContentIdea | null>(null);
+  const [selectedInspo, setSelectedInspo] = useState<string | null>(null);
   const qc = useQueryClient();
 
   // Auto-run ref — set when Jarvis navigates here with autoRun=true
@@ -1478,6 +1489,13 @@ export default function AIIdeas() {
 
   const isProfileLinked = !!detectedHandle;
 
+  const applyInspo = (ins: typeof INSPIRATIONS[0]) => {
+    setSelectedInspo(ins.id);
+    setGoal(ins.goal);
+    setNiche(ins.niche);
+    if (ins.contentType) setContentType(ins.contentType);
+  };
+
   return (
     <ClientLayout>
       {screenVisible && (
@@ -1511,70 +1529,114 @@ export default function AIIdeas() {
 
         {/* Platform Tabs */}
         <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
+          <Label className="text-sm font-semibold text-white mb-3 block">Platform</Label>
           <div className="flex gap-2 flex-wrap">
             {/* X / Twitter */}
             <button
-              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+              onClick={() => {
+                setPlatform("twitter");
+                setContentType("");
+                setProfileUrl("");
+                setIdeas([]);
+                setContentMix(null);
+                setStrategyBrief(null);
+                setIdeaBuckets([]);
+                setWorkflow(null);
+              }}
               data-testid="platform-twitter"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "twitter"
                   ? "bg-zinc-100/10 border-zinc-400/40 text-zinc-200"
-                  : "border-border text-muted-foreground hover:border-zinc-400/30 hover:text-zinc-300"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300"
               }`}
             >
               <Twitter className="w-4 h-4" />
               <span>X / Twitter</span>
               {loadLiked("twitter").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">
+                  {loadLiked("twitter").length}
+                </Badge>
               )}
             </button>
             {/* LinkedIn */}
             <button
-              onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+              onClick={() => {
+                setPlatform("linkedin");
+                setContentType("");
+                setProfileUrl("");
+                setIdeas([]);
+                setContentMix(null);
+                setStrategyBrief(null);
+                setIdeaBuckets([]);
+                setWorkflow(null);
+              }}
               data-testid="platform-linkedin"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "linkedin"
                   ? "bg-blue-600/10 border-blue-600/40 text-blue-400"
-                  : "border-border text-muted-foreground hover:border-blue-600/30 hover:text-blue-400"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-blue-600/30 hover:text-blue-400"
               }`}
             >
               <Linkedin className="w-4 h-4" />
               <span>LinkedIn</span>
               {loadLiked("linkedin").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">
+                  {loadLiked("linkedin").length}
+                </Badge>
               )}
             </button>
             {/* YouTube */}
             <button
-              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+              onClick={() => {
+                setPlatform("youtube");
+                setContentType("");
+                setProfileUrl("");
+                setIdeas([]);
+                setContentMix(null);
+                setStrategyBrief(null);
+                setIdeaBuckets([]);
+                setWorkflow(null);
+              }}
               data-testid="platform-youtube"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "youtube"
                   ? "bg-red-500/10 border-red-500/40 text-red-400"
-                  : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-red-500/30 hover:text-red-400"
               }`}
             >
               <Youtube className="w-4 h-4" />
               <span>YouTube</span>
               {loadLiked("youtube").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">
+                  {loadLiked("youtube").length}
+                </Badge>
               )}
             </button>
             {/* Instagram */}
             <button
-              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+              onClick={() => {
+                setPlatform("instagram");
+                setContentType("");
+                setProfileUrl("");
+                setIdeas([]);
+                setContentMix(null);
+                setStrategyBrief(null);
+                setIdeaBuckets([]);
+                setWorkflow(null);
+              }}
               data-testid="platform-instagram"
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                 platform === "instagram"
                   ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
-                  : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
+                  : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-pink-500/30 hover:text-pink-400"
               }`}
             >
               <Instagram className="w-4 h-4" />
               <span>Instagram</span>
               {loadLiked("instagram").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-pink-500/20 text-pink-400 border-0">{loadLiked("instagram").length}</Badge>
+                <Badge className="h-4 px-1.5 text-[10px] bg-pink-500/20 text-pink-400 border-0">
+                  {loadLiked("instagram").length}
+                </Badge>
               )}
             </button>
           </div>
@@ -1753,25 +1815,73 @@ export default function AIIdeas() {
           </TabsContent>
 
           <TabsContent value="generate" className="space-y-6 mt-0">
+            {/* Header */}
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+                <Sparkles className="w-3.5 h-3.5" />AI Content Ideas Generator
+              </div>
+              <h1 className="text-3xl font-black text-white tracking-tight">
+                Generate <span className="text-primary">Viral-Ready</span> Content Ideas
+              </h1>
+              <p className="text-zinc-400 text-sm max-w-md mx-auto">
+                AI analyses your niche, audience, and goals to create personalised content ideas that actually perform.
+              </p>
+            </div>
+
+            {/* Inspirations */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />Start with an Inspiration
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {INSPIRATIONS.map(ins => (
+                  <button
+                    key={ins.id}
+                    onClick={() => applyInspo(ins)}
+                    data-testid={`inspo-${ins.id}`}
+                    className={`relative rounded-xl border p-3 text-left transition-all hover:scale-[1.02] ${
+                      selectedInspo === ins.id
+                        ? "border-primary bg-primary/8"
+                        : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
+                    }`}
+                  >
+                    {selectedInspo === ins.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />}
+                    <div className="text-xl mb-1">{ins.emoji}</div>
+                    <div style={{ color: ins.color }} className="text-[9px] font-bold uppercase tracking-wide mb-0.5">
+                      {ins.niche}
+                    </div>
+                    <div className="text-xs font-bold text-white leading-tight">{ins.label}</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5 leading-tight">{ins.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-800/60" />
+
         <Card className="border border-card-border">
           <CardContent className="p-6 space-y-5">
+            {/* Profile URL */}
             {showProfileUrl && (
               <div className="space-y-1.5">
-                <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Link className="w-3 h-3" />
+                <Label htmlFor="profileUrl" className="text-xs font-semibold text-zinc-300">
                   {platform === "instagram" ? "Instagram Profile Link" : "YouTube Channel Link"}
-                  <span className="text-muted-foreground font-normal normal-case">(optional — helps personalise ideas)</span>
+                  <span className="text-zinc-600 font-normal"> (optional — helps personalise ideas)</span>
                 </Label>
                 <div className="relative">
                   <Input
                     id="profileUrl"
                     value={profileUrl}
                     onChange={e => setProfileUrl(e.target.value)}
-                    placeholder={platform === "instagram"
-                      ? "https://instagram.com/yourhandle  or  @yourhandle"
-                      : "https://youtube.com/@yourchannel  or  @yourchannel"}
+                    placeholder={
+                      platform === "instagram"
+                        ? "https://instagram.com/yourhandle  or  @yourhandle"
+                        : "https://youtube.com/@yourchannel  or  @yourchannel"
+                    }
                     data-testid="input-profile-url"
-                    className={`bg-card border-card-border pr-10 transition-colors ${isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""}`}
+                    className={`bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 pr-10 transition-colors ${
+                      isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""
+                    }`}
                   />
                   {isProfileLinked && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1782,7 +1892,11 @@ export default function AIIdeas() {
                 {isProfileLinked && (
                   <div className="flex items-center gap-2 pt-0.5">
                     <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30 border">
-                      {platform === "instagram" ? <Instagram className="w-2.5 h-2.5 mr-1" /> : <Youtube className="w-2.5 h-2.5 mr-1" />}
+                      {platform === "instagram" ? (
+                        <Instagram className="w-2.5 h-2.5 mr-1" />
+                      ) : (
+                        <Youtube className="w-2.5 h-2.5 mr-1" />
+                      )}
                       {detectedHandle} detected
                     </Badge>
                     {platformPosts.length > 0 && (
@@ -1794,17 +1908,45 @@ export default function AIIdeas() {
                   </div>
                 )}
                 {!isProfileLinked && platformPosts.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to generate smarter, personalised ideas.
+                  <p className="text-[11px] text-zinc-500">
+                    Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to
+                    generate smarter, personalised ideas.
                   </p>
                 )}
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-tour="ai-ideas-form">
+            {/* Goal */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-white">Goal <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {GOALS.map(opt => (
+                  <button
+                    key={opt.value}
+                    data-testid={`goal-${opt.value}`}
+                    onClick={() => setGoal(opt.value)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
+                      goal === opt.value
+                        ? "border-primary bg-primary/10"
+                        : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"
+                    }`}
+                  >
+                    <span className="text-xl">{opt.emoji}</span>
+                    <span className={`text-xs font-semibold ${
+                      goal === opt.value ? "text-primary" : "text-zinc-300"
+                    }`}>
+                      {opt.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Niche + Audience */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="niche" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Lightbulb className="w-3 h-3" /> Your Niche *
+                <Label htmlFor="niche" className="text-xs font-semibold text-zinc-300">
+                  Your Niche <span className="text-red-400">*</span>
                 </Label>
                 <Input
                   id="niche"
@@ -1812,45 +1954,13 @@ export default function AIIdeas() {
                   onChange={e => setNiche(e.target.value)}
                   placeholder="e.g. fitness, personal finance, cooking..."
                   data-testid="input-niche"
-                  className="bg-card border-card-border"
+                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Target className="w-3 h-3" /> Content Type
-                </Label>
-                <Select value={contentType} onValueChange={setContentType}>
-                  <SelectTrigger className="bg-card border-card-border" data-testid="select-content-type">
-                    <SelectValue placeholder="Any type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contentTypes.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap className="w-3 h-3" /> Goal
-                </Label>
-                <Select value={goal} onValueChange={setGoal}>
-                  <SelectTrigger className="bg-card border-card-border" data-testid="select-goal">
-                    <SelectValue placeholder="Select your goal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GOALS.map(g => (
-                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="audience" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-3 h-3" /> Target Audience
+                <Label htmlFor="audience" className="text-xs font-semibold text-zinc-300">
+                  Target Audience
                 </Label>
                 <Input
                   id="audience"
@@ -1858,15 +1968,37 @@ export default function AIIdeas() {
                   onChange={e => setAudience(e.target.value)}
                   placeholder="e.g. women 25-35, new moms..."
                   data-testid="input-audience"
-                  className="bg-card border-card-border"
+                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
                 />
               </div>
+            </div>
+
+            {/* Content Type */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">Content Type</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {contentTypes.map(t => (
+                  <button
+                    key={t.value}
+                    onClick={() => setContentType(t.value)}
+                    data-testid={`content-type-${t.value}`}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                      contentType === t.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"
+                    }`}
+                  >
+                    {t.emoji && <span>{t.emoji}</span>}
+                    <span className="truncate">{t.label.split(' — ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
               {platform === "youtube" && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="yt-duration" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" /> Video Length (minutes)
-                    <span className="text-muted-foreground font-normal normal-case">— used when generating scripts</span>
+                <div className="space-y-1.5">
+                  <Label htmlFor="yt-duration" className="text-xs font-semibold text-zinc-300">
+                    Video Length (minutes) <span className="text-zinc-600">— used when generating scripts</span>
                   </Label>
                   <Input
                     id="yt-duration"
@@ -1874,7 +2006,7 @@ export default function AIIdeas() {
                     onChange={e => setYtVideoDuration(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="e.g. 10, 20, 35"
                     data-testid="input-yt-duration"
-                    className="bg-card border-card-border"
+                    className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
                     type="number"
                     min="1"
                     max="120"
@@ -1885,11 +2017,12 @@ export default function AIIdeas() {
 
             {/* Hashtags — Instagram only */}
             {platform === "instagram" && (
-              <div className="space-y-3">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Hash className="w-3 h-3" /> Popular Hashtags
-                  <span className="text-muted-foreground font-normal normal-case">(optional — helps AI generate more targeted ideas)</span>
-                </Label>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Hash className="w-4 h-4 text-primary" />
+                  Popular Hashtags
+                  <span className="text-zinc-600 font-normal text-xs">(optional — helps AI generate more targeted ideas)</span>
+                </div>
 
                 {/* AI-powered hashtag suggestions */}
                 {niche.trim().length >= 3 && (
@@ -1897,11 +2030,13 @@ export default function AIIdeas() {
                     {hashtagsLoading ? (
                       <div className="flex items-center gap-2 py-1">
                         <RefreshCw className="w-3 h-3 animate-spin text-primary" />
-                        <span className="text-[10px] text-muted-foreground">Finding best hashtags for <span className="text-primary font-medium">{niche}</span>…</span>
+                        <span className="text-[10px] text-zinc-500">
+                          Finding best hashtags for <span className="text-primary font-medium">{niche}</span>…
+                        </span>
                       </div>
                     ) : suggestedHashtags.length > 0 ? (
                       <div>
-                        <p className="text-[10px] text-muted-foreground mb-2">
+                        <p className="text-[10px] text-zinc-500 mb-2">
                           AI-recommended for <span className="text-primary font-medium">{niche}</span> — click to add:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
@@ -1910,8 +2045,12 @@ export default function AIIdeas() {
                             return (
                               <button
                                 key={tag}
-                                onClick={() => isSelected ? removeHashtag(tag) : addHashtag(tag)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-muted/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
+                                onClick={() => (isSelected ? removeHashtag(tag) : addHashtag(tag))}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${
+                                  isSelected
+                                    ? "bg-primary/15 border-primary/40 text-primary"
+                                    : "bg-zinc-800/30 border-zinc-700 text-zinc-400 hover:border-primary/30 hover:text-zinc-300"
+                                }`}
                                 data-testid={`suggested-hashtag-${tag}`}
                               >
                                 {tag}
@@ -1929,16 +2068,21 @@ export default function AIIdeas() {
                   <Input
                     value={hashtagInput}
                     onChange={e => setHashtagInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter" && hashtagInput.trim()) { e.preventDefault(); addHashtag(hashtagInput); } }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && hashtagInput.trim()) {
+                        e.preventDefault();
+                        addHashtag(hashtagInput);
+                      }
+                    }}
                     placeholder="Type a hashtag and press Enter..."
-                    className="bg-card border-card-border h-8 text-xs flex-1"
+                    className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 h-8 text-xs flex-1"
                     data-testid="input-hashtag"
                   />
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => hashtagInput.trim() && addHashtag(hashtagInput)}
-                    className="h-8 px-3 text-xs"
+                    className="h-8 px-3 text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                     data-testid="button-add-hashtag"
                   >
                     <Plus className="w-3 h-3 mr-1" />Add
@@ -1949,9 +2093,15 @@ export default function AIIdeas() {
                 {hashtags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {hashtags.map(tag => (
-                      <span key={tag} className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary rounded-full px-2.5 py-1 text-[11px] font-medium">
+                      <span
+                        key={tag}
+                        className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary rounded-full px-2.5 py-1 text-[11px] font-medium"
+                      >
                         {tag}
-                        <button onClick={() => removeHashtag(tag)} className="hover:text-destructive transition-colors ml-0.5">
+                        <button
+                          onClick={() => removeHashtag(tag)}
+                          className="hover:text-red-400 transition-colors ml-0.5"
+                        >
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
@@ -1962,8 +2112,8 @@ export default function AIIdeas() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="context" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Additional Context <span className="text-muted-foreground font-normal normal-case">(optional)</span>
+              <Label htmlFor="context" className="text-xs font-semibold text-zinc-300">
+                Additional Context <span className="text-zinc-600">(optional)</span>
               </Label>
               <Textarea
                 id="context"
@@ -1971,18 +2121,21 @@ export default function AIIdeas() {
                 onChange={e => setAdditionalContext(e.target.value)}
                 placeholder="Any extra details — upcoming launch, seasonal topic, specific product you're promoting..."
                 data-testid="textarea-context"
-                className="bg-card border-card-border resize-none h-20"
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 resize-none h-20"
               />
-              <AiRefineButton text={additionalContext} onAccept={setAdditionalContext} context="additional context for content idea generation" />
+              <AiRefineButton
+                text={additionalContext}
+                onAccept={setAdditionalContext}
+                context="additional context for content idea generation"
+              />
             </div>
 
             <Button
               onClick={handleGenerate}
-              disabled={loading}
-              className="w-full"
+              disabled={loading || !niche.trim()}
+              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl"
               data-testid="button-generate"
               data-tour="ai-ideas-generate"
-              size="lg"
             >
               {loading ? (
                 <>
@@ -1999,7 +2152,7 @@ export default function AIIdeas() {
             </Button>
 
             {isProfileLinked && platformPosts.length > 0 && (
-              <p className="text-center text-[11px] text-muted-foreground -mt-2">
+              <p className="text-center text-[11px] text-zinc-500 -mt-2">
                 AI will analyse your {platformPosts.length} logged posts to avoid repetition and fill content gaps
               </p>
             )}

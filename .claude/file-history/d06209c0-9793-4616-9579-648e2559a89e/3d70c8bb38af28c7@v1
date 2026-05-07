@@ -8,8 +8,6 @@ Oravini is a Creator Growth Platform being actively built and shipped.
 
 **Stack:** React (client at `/Users/aryansurana/client/`), Express/Node backend (`/Users/aryansurana/server/`), PostgreSQL with Drizzle ORM (`/Users/aryansurana/shared/schema.ts`), deployed on Render.
 
-**Also at repo root:** A Next.js app lives in `/Users/aryansurana/src/` (config: `next.config.ts` at root). It serves public-facing pages like `/pricing`, `/pricing/tier5`, `/dashboard`, `/video-marketing`. Run via `npx next dev`. Separate from the Vite client app.
-
 **Key features built so far:**
 - DM Automation (unified page with Leads, Auto-Replies, Sequences, Send DM, Quick Replies, Instagram tabs)
 - Bio Generator Suite

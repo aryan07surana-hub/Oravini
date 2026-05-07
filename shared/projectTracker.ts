@@ -123,6 +123,28 @@ export interface ProjectUpdate {
   createdAt: string;
 }
 
+export interface ClientOnboardingData {
+  businessModel: string;
+  currentRevenue: string;
+  targetRevenue: string;
+  mainPainPoints: string[];
+  currentSystems: string[];
+  teamSize: number;
+  timeCommitment: string;
+  successMetrics: string[];
+  riskFactors: string[];
+}
+
+export interface ClientSuccessMetrics {
+  onboardingScore: number; // 0-100
+  engagementLevel: "high" | "medium" | "low";
+  responseTime: number; // hours
+  taskCompletionRate: number; // percentage
+  satisfactionScore: number; // 1-10
+  retentionRisk: "low" | "medium" | "high";
+  upsellPotential: "low" | "medium" | "high";
+}
+
 export interface ProjectTracker {
   clientId: string;
   projectName: string;
@@ -133,6 +155,8 @@ export interface ProjectTracker {
   targetDate: string | null;
   currentFocus: string;
   nextClientAction: string;
+  onboardingData: ClientOnboardingData;
+  successMetrics: ClientSuccessMetrics;
   phases: ProjectPhase[];
   deliverables: ProjectDeliverable[];
   updates: ProjectUpdate[];
