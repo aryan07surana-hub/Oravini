@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -687,7 +688,7 @@ function SequenceDialog({ open, onClose, existing, clientId }: any) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean }) {
+function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const Layout  = useAdmin ? AdminLayout : ClientLayout;
@@ -717,29 +718,58 @@ export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean 
     ? (selectedClientId === "all" ? "" : selectedClientId)
     : (user?.id || "");
 
-  // Automation queries
-  const { data: triggers  = [], isLoading: triggersLoading  } = useQuery<any[]>({
+  // Automation queries with error handling
+  const { data: triggers  = [], isLoading: triggersLoading, error: triggersError  } = useQuery<any[]>({
     queryKey: ["/api/dm/triggers", activeClientId],
-    queryFn:  () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn:  () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => {
+      if (!r.ok) throw new Error('Failed to load triggers');
+      return r.json();
+    }),
+    retry: 2,
+    staleTime: 30000,
   });
-  const { data: sequences = [], isLoading: sequencesLoading } = useQuery<any[]>({
+  const { data: sequences = [], isLoading: sequencesLoading, error: sequencesError } = useQuery<any[]>({
     queryKey: ["/api/dm/sequences", activeClientId],
-    queryFn:  () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn:  () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => {
+      if (!r.ok) throw new Error('Failed to load sequences');
+      return r.json();
+    }),
+    retry: 2,
+    staleTime: 30000,
   });
 
-  // Leads queries
-  const { data: clients = [] } = useQuery<any[]>({ queryKey: ["/api/clients"], enabled: isAdmin });
-  const { data: leads = [], isLoading: leadsLoading } = useQuery<any[]>({
+  // Leads queries with error handling
+  const { data: clients = [], error: clientsError } = useQuery<any[]>({
+    queryKey: ["/api/clients"],
+    enabled: isAdmin,
+    retry: 2,
+    staleTime: 60000,
+  });
+  const { data: leads = [], isLoading: leadsLoading, error: leadsError } = useQuery<any[]>({
     queryKey: ["/api/dm/leads", activeClientId],
-    queryFn:  () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn:  () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => {
+      if (!r.ok) throw new Error('Failed to load leads');
+      return r.json();
+    }),
+    retry: 2,
+    staleTime: 30000,
   });
 
-  // Quick replies for Send DM tab
-  const { data: sendReplies = [] } = useQuery<any[]>({
+  // Quick replies for Send DM tab with error handling
+  const { data: sendReplies = [], error: repliesError } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", activeClientId],
-    queryFn:  () => fetch(`/api/dm/quick-replies${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn:  () => fetch(`/api/dm/quick-replies${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => {
+      if (!r.ok) throw new Error('Failed to load quick replies');
+      return r.json();
+    }),
+    retry: 2,
+    staleTime: 30000,
   });
-  const { data: account } = useQuery<any>({ queryKey: ["/api/meta/account"], staleTime: 30000 });
+  const { data: account, error: accountError } = useQuery<any>({
+    queryKey: ["/api/meta/account"],
+    staleTime: 30000,
+    retry: 1,
+  });
 
   // Automation mutations
   const deleteTriggerMutation  = useMutation({ mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/triggers/${id}`),  onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/triggers"] });  toast({ title: "Trigger deleted" }); } });
@@ -789,6 +819,39 @@ export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean 
   };
 
   const isConnected = account?.connected;
+
+  // Show error state if critical queries fail
+  if (triggersError || sequencesError || leadsError) {
+    return (
+      <Layout>
+        <div className="p-6 max-w-7xl mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+              <Bot className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground">DM Automation</h1>
+              <p className="text-xs text-muted-foreground">Leads, auto-replies & sequences</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="max-w-md w-full p-6 space-y-4 text-center border border-red-500/20 bg-red-500/5 rounded-xl">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+                <AlertCircle className="w-8 h-8 text-red-400" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Failed to Load DM Automation</h2>
+              <p className="text-sm text-muted-foreground">
+                {(triggersError as any)?.message || (sequencesError as any)?.message || (leadsError as any)?.message || "An error occurred while loading your data"}
+              </p>
+              <Button onClick={() => window.location.reload()} className="w-full">
+                Reload Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -1182,5 +1245,13 @@ export default function DMAutomation({ useAdmin = false }: { useAdmin?: boolean 
         )}
       </div>
     </Layout>
+  );
+}
+
+export default function DMAutomation(props: { useAdmin?: boolean }) {
+  return (
+    <ErrorBoundary>
+      <DMAutomationInner {...props} />
+    </ErrorBoundary>
   );
 }
