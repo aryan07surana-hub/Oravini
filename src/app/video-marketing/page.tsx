@@ -67,9 +67,11 @@ export default function VideoMarketingPage() {
               <li>✓ Analytics dashboard</li>
               <li>✓ Multi-platform publishing</li>
             </ul>
-            <button className={styles.ctaButton} onClick={() => setSelectedTier("pro")}>
-              Start Pro Trial
-            </button>
+            <a href="/video-marketing">
+              <button className={styles.ctaButton} onClick={() => setSelectedTier("pro")}>
+                Start Pro Trial
+              </button>
+            </a>
           </div>
 
           <div className={`${styles.pricingCard} ${selectedTier === "enterprise" ? styles.selected : ""}`}>
@@ -92,7 +94,9 @@ export default function VideoMarketingPage() {
       <section className={styles.cta}>
         <h2>Ready to Transform Your Video Marketing?</h2>
         <p>Join thousands of marketers already using our platform</p>
-        <button className={styles.primaryCta}>Get Started Free</button>
+        <a href="/video-marketing">
+          <button className={styles.primaryCta}>Access Platform</button>
+        </a>
       </section>
     </main>
   );
