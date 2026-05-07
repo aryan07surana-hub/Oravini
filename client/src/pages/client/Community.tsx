@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Heart, MessageCircle, Pin, Trash2, Send, Trophy, HelpCircle, Megaphone, BookOpen, Users2, ChevronDown, ChevronUp, MessageSquare, Star } from "lucide-react";
+import { Heart, MessageCircle, Pin, Trash2, Send, Trophy, HelpCircle, Megaphone, BookOpen, Users2, ChevronDown, ChevronUp, MessageSquare, Star, Target } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const CHANNELS = [
   { id: "announcements", label: "Announcements", icon: Megaphone, color: "text-[#d4b461]",    desc: "Updates from the Oravini team" },
   { id: "wins",          label: "Wins",           icon: Trophy,    color: "text-emerald-400",  desc: "Share your wins & milestones" },
+  { id: "milestones",    label: "Milestones",     icon: Target,    color: "text-orange-400",   desc: "Track your progress & goals" },
   { id: "qa",            label: "Q&A",            icon: HelpCircle,color: "text-blue-400",     desc: "Forum-style questions & answers" },
   { id: "general",       label: "General",        icon: Users2,    color: "text-zinc-300",     desc: "Open conversation" },
   { id: "resources",     label: "Resources",      icon: BookOpen,  color: "text-violet-400",   desc: "Tools, links & templates" },

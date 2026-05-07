@@ -1930,7 +1930,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
 
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -1957,7 +1957,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -2791,7 +2791,7 @@ Requirements:
         if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
       }
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let lastErr: any;
       for (const model of GROQ_MODELS) {
         try {
@@ -3007,7 +3007,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const GROQ_API_KEY = process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
 
-      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let script = "";
 
       for (const model of models) {
@@ -3048,30 +3048,142 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
 
-      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
+      const systemPrompt = `You are a world-class Instagram carousel copywriter and marketing psychologist. You understand:
+- Curiosity gaps and pattern interrupts
+- Social proof and authority triggers
+- FOMO and scarcity psychology
+- Storytelling frameworks (Hero's Journey, Problem-Agitate-Solve)
+- Viral content mechanics (controversy, relatability, aspiration)
+- Visual hierarchy and readability
+
+You write carousels that STOP the scroll, deliver massive value, and convert viewers into followers/customers.
+Return ONLY valid JSON — no markdown, no code fences.`;
+      
       const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
 Tone: ${toneStr}
 
-Return a JSON object with this EXACT structure:
+**SLIDE TEMPLATES AVAILABLE:**
+1. "text-only" - Pure text, no image needed (great for quotes, insights)
+2. "image-text" - Image at top, text below (most common)
+3. "quote" - Large quote with attribution
+4. "list" - Numbered or bulleted list format
+5. "stats" - Big number/stat with context
+
+**MARKETING PSYCHOLOGY RULES:**
+1. Slide 1 (HOOK): Use pattern interrupt — bold claim, controversial statement, curiosity gap, or "you're doing X wrong" angle. Make it IMPOSSIBLE to scroll past. Template: image-text or text-only.
+2. Slide 2 (PROBLEM/PAIN): Agitate the pain point. Make them feel "this is exactly me." Use specific, relatable scenarios. Template: text-only or image-text.
+3. Middle Slides (VALUE): Deliver actionable insights, frameworks, or steps. Each slide = one clear idea. Use numbers, specifics, not vague advice. Templates: list, stats, or image-text.
+4. Second-to-last (PROOF/BENEFIT): Show the transformation or result. "When you do this, here's what happens." Template: image-text or stats.
+5. Last Slide (CTA): One clear action. Use urgency or exclusivity. Examples: "Follow for daily tips", "DM me 'READY'", "Save this before you forget". Template: text-only or image-text.
+
+**CONTENT RULES:**
+- Headline: 10-15 words MAX, bold statement, no punctuation at end
+- Body: 50-100 words, detailed and specific, use line breaks (\\n) for readability
+- Use power words: proven, secret, mistake, truth, reality, exposed, blueprint, framework
+- Avoid: generic advice, corporate speak, obvious statements
+- Include: specific numbers, concrete examples, actionable steps, mini-stories
+- Write like you're texting a friend, not writing a corporate memo
+
+**SLIDE ROLES TO USE:**
+Hook → Problem/Pain → Agitate → Insight → Solution → Framework → Benefit → Social Proof → CTA
+
+Return JSON:
 {
   "slides": [
-    { "role": "Hook", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" },
-    { "role": "Problem", "headline": "...", "body": "..." },
-    ...more slides...
-    { "role": "CTA", "headline": "call to action headline", "body": "clear single action for audience to take" }
-  ]
+    { 
+      "role": "Hook",
+      "template": "image-text",
+      "headline": "Stop doing [X] wrong in 2024",
+      "body": "Most people think [common belief].\\n\\nBut here's the truth nobody tells you.\\n\\nI spent 3 years making this mistake and it cost me [specific consequence].\\n\\nSwipe to see what actually works →",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Problem",
+      "template": "text-only",
+      "headline": "The real issue nobody talks about",
+      "body": "You're stuck because [specific pain point].\\n\\nThis costs you [specific consequence] every single day.\\n\\nHere's why it happens: [root cause explanation with specific details].\\n\\nAnd here's the worst part: [agitate the pain more].",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Solution",
+      "template": "list",
+      "headline": "The 5-step framework that changes everything",
+      "body": "Here's the exact system I use (and teach to 1000+ students):",
+      "listItems": ["Step 1: Specific action with context", "Step 2: Another specific action", "Step 3: ...", "Step 4: ...", "Step 5: ..."],
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Stats",
+      "template": "stats",
+      "headline": "The results speak for themselves",
+      "body": "After implementing this framework:",
+      "listItems": null,
+      "statNumber": "347%",
+      "statContext": "average increase in [specific metric] within 90 days",
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "CTA",
+      "template": "text-only",
+      "headline": "Ready to get started?",
+      "body": "Follow @username for daily [niche] tips that actually work.\\n\\nDM me 'READY' and I'll send you the full framework PDF (free).\\n\\nSave this carousel so you can come back to it later.",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    }
+  ],
+  "caption": "Full Instagram caption here (3-5 lines of value + CTA + 15-20 hashtags)",
+  "metadata": {
+    "totalSlides": 5,
+    "estimatedReadTime": "45 seconds",
+    "primaryEmotion": "curiosity",
+    "targetAudience": "people struggling with [topic]"
+  }
 }
 
-Rules:
-- Slide 1 is always the HOOK — make it impossible to scroll past, use a bold claim or question
-- Middle slides = value/insight/steps — each self-contained
-- Last slide is always the CTA — one clear action (Follow, DM [word], Save this, etc.)
-- Headlines: max 8 words, punchy, no punctuation at end
-- Body: max 30 words, concrete not vague
-- Vary the roles: Hook → Problem → Insight → Solution/Steps → Benefit → CTA
-- Write for viral reach, not corporate speak`;
+Generate ${count} slides following this psychology framework. Mix templates strategically. Make it RICH with detail and specifics.`;
 
-      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      // Try OpenAI first for better quality, fallback to Groq
+      let raw: string;
+      const openaiKey = process.env.OPENAI_API_KEY;
+      
+      if (openaiKey) {
+        try {
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.8,
+              max_tokens: 2000,
+              response_format: { type: "json_object" }
+            })
+          });
+          const data = await response.json();
+          raw = data.choices[0].message.content;
+        } catch (e) {
+          console.warn("OpenAI failed, using Groq:", e);
+          raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+        }
+      } else {
+        raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      }
+
       const parsed = JSON.parse(raw);
       if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
       res.json({ slides: parsed.slides, creditsUsed: 3, balance: creditResult.balance });
@@ -4419,7 +4531,7 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
         ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
         : "";
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
       let prompt = "";
 
       if (tool === "improve") {
@@ -4680,7 +4792,7 @@ Return ONLY a JSON array of 5 strings:
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 500,
           temperature: 0.8,
@@ -4736,7 +4848,7 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -4796,7 +4908,7 @@ Return ONLY this JSON (no markdown, no explanation):
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
             { role: "user", content: prompt },
@@ -4895,7 +5007,7 @@ Only include analysis when content is provided. Never produce generic filler con
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.75,
           max_tokens: 2000,
@@ -4926,7 +5038,7 @@ Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrit
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -4951,7 +5063,7 @@ Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
       });
       const data: any = await r.json();
       return res.json({ script: data.choices?.[0]?.message?.content || "" });
@@ -4990,7 +5102,7 @@ Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
@@ -5024,7 +5136,7 @@ Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5042,7 +5154,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5060,7 +5172,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5078,7 +5190,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5114,7 +5226,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5155,7 +5267,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5222,7 +5334,7 @@ Return ONLY this JSON:
       method: "POST",
       headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.75,
         max_tokens: maxTokens,
@@ -6964,7 +7076,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
       });
       const groqData = await groqResp.json() as any;
       const text = groqData.choices?.[0]?.message?.content || "[]";
@@ -8830,7 +8942,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.55,
           max_tokens: 400,
@@ -8995,7 +9107,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
             { role: "user", content: userPrompt },
@@ -9115,7 +9227,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
             { role: "user", content: igPrompt },
@@ -9408,7 +9520,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
@@ -9484,7 +9596,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
@@ -11653,20 +11765,15 @@ Return ONLY valid JSON in this exact format:
   }
 }`;
 
-      const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2000,
-        temperature: 0.8,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const content = message.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type from Claude");
-      }
+      // Use Groq instead of Anthropic for bio generation
+      const raw = await callGroqJson(
+        "You are an expert bio writer who understands the psychology of social media bios. Return ONLY valid JSON.",
+        prompt,
+        2000
+      );
 
       // Parse JSON from response
-      let jsonText = content.text.trim();
+      let jsonText = raw.trim();
       
       // Remove markdown code blocks if present
       if (jsonText.startsWith("```json")) {
