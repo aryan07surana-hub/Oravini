@@ -2224,6 +2224,7 @@ export default function AIIdeas() {
 
           </TabsContent>
         </Tabs>
+        </div>
       </div>
 
       {/* Full Script Dialog */}
