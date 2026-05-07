@@ -128,6 +128,10 @@ export default function PricingPage() {
     (includeVideoMarketing && selectedTier === "tier3" ? 20 : 0);
 
   const handleCheckout = () => {
+    if (selectedTier === "tier5") {
+      window.location.href = "/pricing/tier5";
+      return;
+    }
     if (includeVideoMarketing && canAddVideoMarketing) {
       window.open(VIDEO_MARKETING_ADDON.whopAddonUrl, "_blank");
     } else {
@@ -242,7 +246,7 @@ export default function PricingPage() {
             <span>${totalPrice}/mo</span>
           </div>
           <button className={styles.checkoutButton} onClick={handleCheckout}>
-            Proceed to Whop Checkout
+            {selectedTier === "tier5" ? "Explore Enterprise" : "Proceed to Whop Checkout"}
           </button>
           <p className={styles.checkoutNote}>You'll be redirected to Whop for secure payment</p>
         </div>

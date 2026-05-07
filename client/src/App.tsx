@@ -38,6 +38,7 @@ import CompetitorStudy from "@/pages/client/CompetitorStudy";
 import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
+import DMAutomation from "@/pages/client/DMAutomation";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -60,6 +61,11 @@ import ToolsHub from "@/pages/client/ToolsHub";
 import FormsHub from "@/pages/client/FormsHub";
 import FormBuilder from "@/pages/client/FormBuilder";
 import BoardBuilder from "@/pages/client/BoardBuilder";
+import BioGeneratorHub from "@/pages/client/BioGeneratorHub";
+import BioGenerateFromScratch from "@/pages/client/BioGenerateFromScratch";
+import BioImprove from "@/pages/client/BioImprove";
+import BioTemplates from "@/pages/client/BioTemplates";
+import BioCompetitor from "@/pages/client/BioCompetitor";
 import FormResponses from "@/pages/client/FormResponses";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
@@ -68,6 +74,7 @@ import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
+import WatchVideo from "@/pages/public/WatchVideo";
 import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
@@ -156,6 +163,7 @@ function Router() {
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
       <Route path="/join/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/watch-video/:id">{() => <WatchVideo />}</Route>
       <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
 
       {/* Client — protected */}
@@ -187,6 +195,7 @@ function Router() {
       <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
+      <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
@@ -212,6 +221,11 @@ function Router() {
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>
       <Route path="/tools/board-builder">{() => <Guard component={BoardBuilder} />}</Route>
+      <Route path="/tools/bio-generator/generate">{() => <Guard component={BioGenerateFromScratch} />}</Route>
+      <Route path="/tools/bio-generator/improve">{() => <Guard component={BioImprove} />}</Route>
+      <Route path="/tools/bio-generator/templates">{() => <Guard component={BioTemplates} />}</Route>
+      <Route path="/tools/bio-generator/competitor">{() => <Guard component={BioCompetitor} />}</Route>
+      <Route path="/tools/bio-generator">{() => <Guard component={BioGeneratorHub} />}</Route>
       <Route path="/tools">{() => <Guard component={ToolsHub} />}</Route>
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
@@ -226,6 +240,7 @@ function Router() {
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/dm-automation">{() => <Guard component={DMAutomation} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-tracker">{() => <Guard component={DMTracker} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/dm-hub">{() => <Guard component={DMHub} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/calendar">{() => <Guard component={AdminCalendar} adminOnly />}</Route>

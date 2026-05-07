@@ -120,7 +120,7 @@ function VideoStatusPills({ video }: { video: any }) {
 }
 
 function VideoRow({
-  video, onDelete, onToggleLeadGate, onEmbed, onStudio, onAnalytics, seed
+  video, onDelete, onToggleLeadGate, onEmbed, onStudio, onAnalytics
 }: {
   video: any;
   onDelete: (id: string) => void;
@@ -128,11 +128,7 @@ function VideoRow({
   onEmbed: (v: any) => void;
   onStudio: () => void;
   onAnalytics: () => void;
-  seed: number;
 }) {
-  const watchRate = Math.round(40 + seed * 4.5);
-  const ctaClicks = (video.views || 0) > 0 ? Math.floor((video.views || 0) * (0.05 + seed * 0.008)) : 0;
-
   return (
     <div className="group px-5 py-4 flex items-center gap-4 transition-all hover:bg-white/[0.025]" style={{ borderBottom: `1px solid ${GOLD}08` }}>
       {/* Thumbnail circle */}
@@ -166,27 +162,11 @@ function VideoRow({
           {video.category && video.category !== "General" && (
             <span className="text-[10px] text-zinc-500">{video.category}</span>
           )}
-          {video.videoType === "vsl" && ctaClicks > 0 && (
-            <span className="text-[10px] flex items-center gap-1" style={{ color: "#a78bfa" }}>
-              <MousePointer className="w-2.5 h-2.5" /> {ctaClicks} CTA clicks
-            </span>
-          )}
         </div>
         <div className="mt-1.5">
           <VideoStatusPills video={video} />
         </div>
       </div>
-
-      {/* Watch rate bar (VSL only) */}
-      {video.videoType === "vsl" && (
-        <div className="hidden lg:flex flex-col items-end gap-1 flex-shrink-0 w-20">
-          <span className="text-[10px] text-zinc-500">Watch Rate</span>
-          <div className="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width: `${watchRate}%`, background: `linear-gradient(90deg, ${GOLD}, #a78bfa)` }} />
-          </div>
-          <span className="text-xs font-black" style={{ color: watchRate > 60 ? "#34d399" : watchRate > 40 ? GOLD : "#f87171" }}>{watchRate}%</span>
-        </div>
-      )}
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -251,13 +231,26 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
     },
   });
 
-  const handleFileDrop = useCallback((files: FileList | null) => {
+  const [uploadingFile, setUploadingFile] = useState(false);
+
+  const handleFileDrop = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const file = files[0];
     if (!file.type.startsWith("video/")) return toast({ title: "Please drop a video file", variant: "destructive" });
-    const objectUrl = URL.createObjectURL(file);
-    setForm(f => ({ ...f, videoUrl: objectUrl, title: f.title || file.name.replace(/\.[^.]+$/, "") }));
-    toast({ title: `${file.name} ready`, description: "Fill in the title and click Add Video" });
+    setUploadingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const resp = await fetch("/api/upload/video", { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      setForm(f => ({ ...f, videoUrl: url, title: f.title || file.name.replace(/\.[^.]+$/, "") }));
+      toast({ title: `${file.name} uploaded`, description: "Fill in the title and click Add Video" });
+    } catch {
+      toast({ title: "Upload failed", description: "Try again or use a URL instead", variant: "destructive" });
+    } finally {
+      setUploadingFile(false);
+    }
   }, [toast]);
 
   const handleCreate = () => {
@@ -277,7 +270,7 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
   const vslVideos = allVideos.filter(v => v.videoType === "vsl");
   const standardVideos = allVideos.filter(v => !v.videoType || v.videoType === "standard");
   const totalViews = allVideos.reduce((s, v) => s + (v.views || 0), 0);
-  const avgWatchRate = allVideos.length > 0 ? Math.round(allVideos.reduce((s, v) => s + (45 + (v.id?.charCodeAt(0) || 1) % 10 * 4), 0) / allVideos.length) : 0;
+  const leadGatedCount = allVideos.filter(v => v.leadGateEnabled).length;
   const filtered = typeFilter === "vsl" ? vslVideos : typeFilter === "standard" ? standardVideos : allVideos;
 
   return (
@@ -286,10 +279,10 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
       {/* ── Stat header ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Total Videos",  value: allVideos.length, icon: Video,      color: GOLD },
-          { label: "VSLs",          value: vslVideos.length, icon: Zap,        color: "#a78bfa" },
-          { label: "Total Views",   value: totalViews,       icon: Eye,        color: "#34d399" },
-          { label: "Avg Watch Rate",value: `${avgWatchRate}%`, icon: TrendingUp, color: "#60a5fa" },
+          { label: "Total Videos",  value: allVideos.length,   icon: Video,   color: GOLD },
+          { label: "VSLs",          value: vslVideos.length,   icon: Zap,     color: "#a78bfa" },
+          { label: "Total Views",   value: totalViews,          icon: Eye,     color: "#34d399" },
+          { label: "Lead Gates",    value: leadGatedCount,      icon: Shield,  color: "#60a5fa" },
         ].map(s => (
           <div key={s.label} className="rounded-2xl p-4" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
             <div className="flex items-start justify-between mb-3">
@@ -327,9 +320,8 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
       {/* ── Video list (table style) ── */}
       <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
         {/* Table header */}
-        <div className="px-5 py-3 hidden md:grid grid-cols-[2fr_1fr_auto] gap-4" style={{ background: "rgba(8,8,12,0.95)", borderBottom: `1px solid ${GOLD}10` }}>
+        <div className="px-5 py-3 hidden md:flex items-center justify-between" style={{ background: "rgba(8,8,12,0.95)", borderBottom: `1px solid ${GOLD}10` }}>
           <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider">Video</span>
-          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider hidden lg:block">Watch Rate</span>
           <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider">Actions</span>
         </div>
 
@@ -343,11 +335,10 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
           </div>
         ) : (
           <div>
-            {filtered.map((v: any, i: number) => (
+            {filtered.map((v: any) => (
               <VideoRow
                 key={v.id}
                 video={v}
-                seed={(v.id?.charCodeAt(0) || i + 1) % 10}
                 onDelete={(id) => deleteMut.mutate(id)}
                 onToggleLeadGate={(id, cur) => leadGateMut.mutate({ id, enabled: !cur })}
                 onEmbed={(vid) => setEmbedVideo(vid)}
@@ -402,19 +393,21 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
                   <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={e => handleFileDrop(e.target.files)} />
                   <div
                     className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all"
-                    style={{ borderColor: dragOver ? GOLD : "rgba(255,255,255,0.12)", background: dragOver ? `${GOLD}08` : "rgba(255,255,255,0.02)" }}
-                    onClick={() => fileInputRef.current?.click()}
+                    style={{ borderColor: dragOver ? GOLD : "rgba(255,255,255,0.12)", background: dragOver ? `${GOLD}08` : "rgba(255,255,255,0.02)", pointerEvents: uploadingFile ? "none" : "auto", opacity: uploadingFile ? 0.7 : 1 }}
+                    onClick={() => !uploadingFile && fileInputRef.current?.click()}
                     onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={e => { e.preventDefault(); setDragOver(false); handleFileDrop(e.dataTransfer.files); }}>
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-all" style={{ background: dragOver ? `${GOLD}20` : `${GOLD}10`, border: `1px solid ${dragOver ? GOLD : `${GOLD}25`}` }}>
                       <Upload className="w-6 h-6 transition-all" style={{ color: dragOver ? GOLD : `${GOLD}60` }} />
                     </div>
-                    <p className="text-sm font-semibold text-white mb-1">{dragOver ? "Drop to upload" : "Drag & drop or click to upload"}</p>
+                    <p className="text-sm font-semibold text-white mb-1">
+                      {uploadingFile ? "Uploading…" : dragOver ? "Drop to upload" : "Drag & drop or click to upload"}
+                    </p>
                     <p className="text-xs text-zinc-500">MP4, MOV, AVI, WebM · up to 2GB</p>
-                    {form.videoUrl?.startsWith("blob:") && (
+                    {form.videoUrl?.startsWith("/uploads/") && (
                       <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: "#22c55e14", color: "#22c55e", border: "1px solid #22c55e30" }}>
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-400" /> File ready
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400" /> File uploaded
                       </div>
                     )}
                   </div>
@@ -502,25 +495,30 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
 
 // ── VSL SHOWCASE ─────────────────────────────────────────────────────────────
 
-function genRetentionCurve(seed: number): number[] {
-  const c = [100];
-  for (let i = 1; i <= 10; i++) {
-    c.push(Math.max(2, c[i-1] - (4 + ((seed + i) % 7) + Math.abs(Math.sin(i + seed) * 6))));
-  }
-  return c;
-}
-
 function VSLShowcase({ videos, onStudio }: { videos: any[]; onStudio: () => void }) {
   const [selectedId, setSelectedId] = useState<string>(videos[0]?.id || "");
   const selected = videos.find(v => v.id === selectedId) || videos[0];
-  const seed = selected ? (selected.id?.charCodeAt(0) || 1) % 10 : 0;
   const views = selected?.views || 0;
-  const watchRate = Math.round(45 + seed * 4.5);
-  const engagementRate = Math.round(14 + seed * 2.6);
-  const ctaClicks = views > 0 ? Math.floor(views * (0.05 + seed * 0.008)) : 0;
-  const replays = views > 0 ? Math.floor(views * (0.07 + seed * 0.005)) : 0;
-  const dropOff = Math.round((10 - seed) * 4 + 20);
-  const retention = genRetentionCurve(seed);
+
+  const { data: sessions = [] } = useQuery<any[]>({
+    queryKey: ["vsl-sessions", selectedId],
+    queryFn: () => fetch(`/api/video-events/${selectedId}/viewers`).then(r => r.json()),
+    enabled: !!selectedId,
+  });
+
+  const avgCompletionPct = sessions.length > 0
+    ? Math.round(sessions.reduce((s: number, sess: any) => s + (sess.completionPct || 0), 0) / sessions.length)
+    : null;
+  const ctaClicks = sessions.filter((s: any) => s.ctaClicked).length;
+  const avgWatchSec = sessions.length > 0
+    ? Math.round(sessions.reduce((s: number, sess: any) => s + (sess.watchedSeconds || 0), 0) / sessions.length)
+    : null;
+
+  const retention = Array.from({ length: 11 }, (_, i) => {
+    if (sessions.length === 0) return i === 0 ? 100 : 0;
+    const threshold = i * 10;
+    return (sessions.filter((s: any) => (s.completionPct || 0) >= threshold).length / sessions.length) * 100;
+  });
 
   if (!selected) return null;
 
@@ -558,10 +556,10 @@ function VSLShowcase({ videos, onStudio }: { videos: any[]; onStudio: () => void
         {/* Stats grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: "Total Views",    value: views,            color: GOLD,      icon: Eye },
-            { label: "Watch Rate",     value: `${watchRate}%`,  color: "#34d399", icon: TrendingUp },
-            { label: "CTA Clicks",     value: ctaClicks,        color: "#a78bfa", icon: MousePointer },
-            { label: "Engagement",     value: `${engagementRate}%`, color: "#60a5fa", icon: Activity },
+            { label: "Total Views",      value: views,                                             color: GOLD,      icon: Eye },
+            { label: "Avg Completion",   value: avgCompletionPct != null ? `${avgCompletionPct}%` : "—", color: "#34d399", icon: TrendingUp },
+            { label: "CTA Clicks",       value: ctaClicks,                                         color: "#a78bfa", icon: MousePointer },
+            { label: "Avg Watch Time",   value: avgWatchSec != null ? `${Math.floor(avgWatchSec / 60)}m ${avgWatchSec % 60}s` : "—", color: "#60a5fa", icon: Activity },
           ].map(s => (
             <div key={s.label} className="p-3 rounded-xl text-center" style={{ background: `${s.color}0d`, border: `1px solid ${s.color}22` }}>
               <div className="flex items-center justify-center gap-1 mb-1.5">
@@ -577,29 +575,37 @@ function VSLShowcase({ videos, onStudio }: { videos: any[]; onStudio: () => void
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Retention Curve</p>
-            <div className="flex items-end gap-0.5 h-20 rounded-xl px-3 py-2" style={{ background: "rgba(8,8,12,0.9)", border: `1px solid ${GOLD}08` }}>
-              {retention.map((pct, i) => (
-                <div key={i} className="flex-1 rounded-t-sm transition-all" style={{
-                  height: `${Math.max(3, pct)}%`,
-                  background: pct > 70
-                    ? `linear-gradient(180deg, ${GOLD}cc, ${GOLD}33)`
-                    : pct > 40
-                    ? `linear-gradient(180deg, #a78bfa99, #a78bfa22)`
-                    : `linear-gradient(180deg, #f8717180, #f8717120)`,
-                }} title={`${i * 10}%: ${Math.round(pct)}% still watching`} />
-              ))}
-            </div>
-            <div className="flex justify-between mt-1 px-3">
-              {["0%", "25%", "50%", "75%", "100%"].map(l => <span key={l} className="text-[9px] text-zinc-700">{l}</span>)}
-            </div>
+            {sessions.length === 0 ? (
+              <div className="h-20 rounded-xl flex items-center justify-center" style={{ background: "rgba(8,8,12,0.9)", border: `1px solid ${GOLD}08` }}>
+                <p className="text-[10px] text-zinc-600">No viewer sessions yet</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end gap-0.5 h-20 rounded-xl px-3 py-2" style={{ background: "rgba(8,8,12,0.9)", border: `1px solid ${GOLD}08` }}>
+                  {retention.map((pct, i) => (
+                    <div key={i} className="flex-1 rounded-t-sm transition-all" style={{
+                      height: `${Math.max(3, pct)}%`,
+                      background: pct > 70
+                        ? `linear-gradient(180deg, ${GOLD}cc, ${GOLD}33)`
+                        : pct > 40
+                        ? `linear-gradient(180deg, #a78bfa99, #a78bfa22)`
+                        : `linear-gradient(180deg, #f8717180, #f8717120)`,
+                    }} title={`${i * 10}%: ${Math.round(pct)}% still watching`} />
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1 px-3">
+                  {["0%", "25%", "50%", "75%", "100%"].map(l => <span key={l} className="text-[9px] text-zinc-700">{l}</span>)}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-3">
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Key Metrics</p>
             {[
-              { label: "Drop-off Point",  value: `${dropOff}%`, sub: "of video",   color: "#f87171" },
-              { label: "Replays",         value: replays,        sub: "total",      color: "#60a5fa" },
-              { label: "Completion Rate", value: `${100 - dropOff}%`, sub: "finish",  color: "#34d399" },
+              { label: "Sessions",        value: sessions.length,                                              sub: "total",    color: "#60a5fa" },
+              { label: "Completion Rate", value: avgCompletionPct != null ? `${avgCompletionPct}%` : "—",     sub: "avg",      color: "#34d399" },
+              { label: "CTA Clicks",      value: ctaClicks,                                                   sub: "total",    color: "#a78bfa" },
             ].map(m => (
               <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg" style={{ background: `${m.color}0a`, border: `1px solid ${m.color}18` }}>
                 <p className="text-xs text-zinc-400">{m.label}</p>

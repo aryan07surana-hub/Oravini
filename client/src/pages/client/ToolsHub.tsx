@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
-import { ClipboardList, ChevronRight, LayoutTemplate } from "lucide-react";
+import { ClipboardList, ChevronRight, LayoutTemplate, User } from "lucide-react";
 
 const GOLD = "#d4b461";
 
@@ -18,6 +18,13 @@ const TOOLS = [
     description: "Paste your script and auto-generate a visual board with timelines, comparisons and steps — perfect for YouTube.",
     icon: LayoutTemplate,
     route: "/tools/board-builder",
+  },
+  {
+    id: "bio-generator",
+    label: "Bio Generator",
+    description: "AI writes your optimized bio using the 4-line framework — attract/repel, social proof, CTA, and link.",
+    icon: User,
+    route: "/tools/bio-generator",
   },
 ];
 

@@ -1,7 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import dns from "dns";
 import passport from "passport";
 import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
@@ -12,12 +11,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
-import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, insertScheduledInstagramPostSchema } from "@shared/schema";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
-import { processPerformanceFeedback, analyzeBrandVoice, buildTrainingPrompt } from "./contentIntelligence";
-import contentWorkflowRoutes from "./contentWorkflowRoutes";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -163,229 +160,162 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.use("/uploads", (await import("express")).default.static(uploadsDir));
 
-  // ── Webinar analytics schema migration ────────────────────────────────────
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS webinar_events (
-        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-        webinar_id VARCHAR NOT NULL REFERENCES webinars(id) ON DELETE CASCADE,
-        event_type TEXT NOT NULL,
-        viewer_name TEXT,
-        viewer_id TEXT,
-        data JSONB,
-        ts TIMESTAMP DEFAULT NOW()
-      );
-      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
-      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP;
-      ALTER TABLE webinars ADD COLUMN IF NOT EXISTS peak_viewers INTEGER DEFAULT 0;
-    `);
-  } catch (e: any) {
-    console.warn("[migration] webinar analytics:", e?.message);
-  }
-
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  // ── Webinar signaling rooms ──────────────────────────────────────────────
-  interface WRViewer { ws: WebSocket; name: string; raisedHand?: boolean; }
-  type WRRoom = { host: WebSocket | null; viewers: Map<string, WRViewer>; activePoll: { pollId: string; options: string[]; votes: number[] } | null };
-  const webinarRooms = new Map<string, WRRoom>();
+  // Webinar rooms: webinarId → { host, viewers }
+  const webinarRooms = new Map<string, { host: WebSocket | null; viewers: Map<string, { ws: WebSocket; name: string }> }>();
 
-  const wrSend = (socket: WebSocket | null | undefined, data: object) => {
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data));
-  };
-  const wrNotifyCount = (roomId: string) => {
-    const room = webinarRooms.get(roomId);
+  function getOrCreateRoom(webinarId: string) {
+    if (!webinarRooms.has(webinarId)) webinarRooms.set(webinarId, { host: null, viewers: new Map() });
+    return webinarRooms.get(webinarId)!;
+  }
+
+  function broadcastToViewers(webinarId: string, data: object) {
+    const room = webinarRooms.get(webinarId);
     if (!room) return;
-    const count = room.viewers.size;
-    const list = Array.from(room.viewers.entries()).map(([id, v]) => ({ id, name: v.name, raisedHand: !!v.raisedHand }));
-    wrSend(room.host, { type: "wr_attendee_update", count, list });
-    room.viewers.forEach(v => wrSend(v.ws, { type: "wr_attendee_count", count }));
-  };
+    const json = JSON.stringify(data);
+    room.viewers.forEach(({ ws: vws }) => { if (vws.readyState === WebSocket.OPEN) vws.send(json); });
+  }
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url!, `http://localhost`);
     const userId = url.searchParams.get("userId");
     if (userId) clients.set(userId, ws);
 
-    let wrRole: "host" | "viewer" | null = null;
-    let wrId:   string | null = null;
-    let vrId:   string | null = null;
+    let currentRoom: string | null = null;
+    let currentRole: "host" | "viewer" | null = null;
+    let currentViewerId: string | null = null;
 
-    ws.on("message", async (raw) => {
+    ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
-        switch (msg.type) {
+        const { type, webinarId } = msg;
+        if (!type || !webinarId) return;
 
+        switch (type) {
+          // ── HOST ─────────────────────────────────────────────────────────
           case "wr_host_join": {
-            wrRole = "host"; wrId = msg.webinarId;
-            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
-            const room = webinarRooms.get(wrId!)!;
+            const room = getOrCreateRoom(webinarId);
             room.host = ws;
-            wrSend(ws, { type: "wr_host_ready" });
-            room.viewers.forEach((v, vid) => wrSend(ws, { type: "wr_viewer_joined", viewerId: vid, name: v.name }));
-            wrNotifyCount(wrId!);
+            currentRoom = webinarId;
+            currentRole = "host";
+            ws.send(JSON.stringify({ type: "wr_host_ready" }));
             break;
           }
-
-          case "wr_viewer_join": {
-            wrRole = "viewer"; wrId = msg.webinarId;
-            vrId = msg.viewerId || Math.random().toString(36).slice(2, 10);
-            const vName = msg.name || "Anonymous";
-            if (!webinarRooms.has(wrId!)) webinarRooms.set(wrId!, { host: null, viewers: new Map(), activePoll: null });
-            const room = webinarRooms.get(wrId!)!;
-            room.viewers.set(vrId!, { ws, name: vName });
-            wrSend(ws, { type: "wr_viewer_ready", viewerId: vrId });
-            wrSend(room.host, { type: "wr_viewer_joined", viewerId: vrId, name: vName });
-            wrNotifyCount(wrId!);
-            storage.createWebinarEvent({ webinarId: wrId!, eventType: "viewer_join", viewerName: vName, viewerId: vrId!, data: null }).catch(() => {});
-            pool.query(`UPDATE webinars SET peak_viewers = GREATEST(COALESCE(peak_viewers,0), $1) WHERE id = $2`, [room.viewers.size, wrId!]).catch(() => {});
-            break;
-          }
-
           case "wr_offer": {
-            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
-            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_offer", sdp: msg.sdp }));
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_offer", sdp: msg.sdp }));
             break;
           }
-
-          case "wr_answer": {
-            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_answer", viewerId: msg.viewerId, sdp: msg.sdp });
-            break;
-          }
-
           case "wr_ice_host": {
-            const vws = webinarRooms.get(msg.webinarId)?.viewers.get(msg.viewerId)?.ws;
-            if (vws?.readyState === WebSocket.OPEN) vws.send(JSON.stringify({ type: "wr_ice", candidate: msg.candidate }));
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_ice", candidate: msg.candidate }));
             break;
           }
-
-          case "wr_ice_viewer": {
-            wrSend(webinarRooms.get(msg.webinarId)?.host, { type: "wr_ice", viewerId: msg.viewerId, candidate: msg.candidate });
-            break;
-          }
-
-          case "wr_chat": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            const pkt = { type: "wr_chat", message: { name: msg.name, text: msg.text, ts: msg.ts, isHost: !!msg.isHost } };
-            if (msg.isHost) {
-              room.viewers.forEach(v => wrSend(v.ws, pkt));
-            } else {
-              wrSend(room.host, pkt);
-              room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
-            }
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "chat", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, isHost: !!msg.isHost } }).catch(() => {});
-            break;
-          }
-
-          case "wr_qa": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            wrSend(room.host, { type: "wr_qa", question: { id: msg.id, name: msg.name, text: msg.text, ts: msg.ts } });
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "qa", viewerName: msg.name || null, viewerId: vrId || null, data: { text: msg.text, id: msg.id } }).catch(() => {});
-            break;
-          }
-
-          case "wr_reaction": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            const pkt = { type: "wr_reaction", emoji: msg.emoji, name: msg.name };
-            wrSend(room.host, pkt);
-            room.viewers.forEach(v => { if (v.ws !== ws) wrSend(v.ws, pkt); });
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "reaction", viewerName: msg.name || null, viewerId: vrId || null, data: { emoji: msg.emoji } }).catch(() => {});
-            break;
-          }
-
-          case "wr_raise_hand": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room || !vrId) break;
-            const viewer = room.viewers.get(vrId);
-            if (viewer) viewer.raisedHand = true;
-            wrSend(room.host, { type: "wr_raise_hand", viewerId: vrId, name: msg.name });
-            wrNotifyCount(msg.webinarId);
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "raise_hand", viewerName: msg.name || null, viewerId: vrId, data: null }).catch(() => {});
-            break;
-          }
-
-          case "wr_lower_hand": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            const viewer = room.viewers.get(msg.viewerId);
-            if (viewer) {
-              viewer.raisedHand = false;
-              wrSend(viewer.ws, { type: "wr_hand_lowered" });
-            }
-            wrNotifyCount(msg.webinarId);
-            break;
-          }
-
-          case "wr_lower_hand_self": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room || !vrId) break;
-            const viewer = room.viewers.get(vrId);
-            if (viewer) viewer.raisedHand = false;
-            wrNotifyCount(msg.webinarId);
-            break;
-          }
-
-          case "wr_cta_launch": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            const ctaPkt = { type: "wr_cta_show", title: msg.title, url: msg.url, buttonText: msg.buttonText || "Get Access Now →" };
-            room.viewers.forEach(v => wrSend(v.ws, ctaPkt));
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_launched", viewerName: null, viewerId: null, data: { title: msg.title, url: msg.url } }).catch(() => {});
-            break;
-          }
-
-          case "wr_cta_hide": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            room.viewers.forEach(v => wrSend(v.ws, { type: "wr_cta_hidden" }));
-            break;
-          }
-
-          case "wr_cta_click": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (msg.webinarId) storage.createWebinarEvent({ webinarId: msg.webinarId, eventType: "cta_click", viewerName: msg.name || null, viewerId: vrId || null, data: { url: msg.url } }).catch(() => {});
-            if (room) wrSend(room.host, { type: "wr_cta_clicked" });
-            break;
-          }
-
-          case "wr_poll_launch": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            room.activePoll = { pollId: msg.pollId, options: msg.options || [], votes: new Array((msg.options || []).length).fill(0) };
-            const pkt = { type: "wr_poll_show", pollId: msg.pollId, question: msg.question, options: msg.options };
-            room.viewers.forEach(v => wrSend(v.ws, pkt));
-            break;
-          }
-
-          case "wr_poll_vote": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room?.activePoll || room.activePoll.pollId !== msg.pollId) break;
-            const idx = Number(msg.optionIndex);
-            if (idx >= 0 && idx < room.activePoll.votes.length) {
-              room.activePoll.votes[idx] = (room.activePoll.votes[idx] || 0) + 1;
-            }
-            wrSend(room.host, { type: "wr_poll_results", pollId: msg.pollId, votes: room.activePoll.votes });
-            break;
-          }
-
-          case "wr_poll_end": {
-            const room = webinarRooms.get(msg.webinarId);
-            if (!room) break;
-            const finalVotes = room.activePoll?.votes || [];
-            const endPkt = { type: "wr_poll_ended", pollId: msg.pollId, options: msg.options || room.activePoll?.options || [], votes: finalVotes };
-            room.viewers.forEach(v => wrSend(v.ws, endPkt));
-            wrSend(room.host, endPkt);
-            room.activePoll = null;
-            break;
-          }
-
           case "wr_host_end": {
-            const room = webinarRooms.get(msg.webinarId);
-            room?.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
-            webinarRooms.delete(msg.webinarId);
+            broadcastToViewers(webinarId, { type: "wr_host_left" });
+            const room = webinarRooms.get(webinarId);
+            if (room) { room.host = null; room.viewers.clear(); webinarRooms.delete(webinarId); }
+            break;
+          }
+          case "wr_cta_launch":
+            broadcastToViewers(webinarId, { type: "wr_cta_show", title: msg.title, url: msg.url, buttonText: msg.buttonText });
+            break;
+          case "wr_cta_hide":
+            broadcastToViewers(webinarId, { type: "wr_cta_hidden" });
+            break;
+          case "wr_poll_launch":
+            broadcastToViewers(webinarId, { type: "wr_poll_show", pollId: msg.pollId, question: msg.question, options: msg.options });
+            break;
+          case "wr_poll_end":
+            broadcastToViewers(webinarId, { type: "wr_poll_ended", pollId: msg.pollId, votes: msg.votes });
+            break;
+          case "wr_lower_hand": {
+            const room = webinarRooms.get(webinarId);
+            const viewer = room?.viewers.get(msg.viewerId);
+            if (viewer?.ws.readyState === WebSocket.OPEN)
+              viewer.ws.send(JSON.stringify({ type: "wr_hand_lowered" }));
+            break;
+          }
+
+          // ── VIEWER ───────────────────────────────────────────────────────
+          case "wr_viewer_join": {
+            const room = getOrCreateRoom(webinarId);
+            const viewerId: string = msg.viewerId;
+            const name: string = msg.name || "Anonymous";
+            room.viewers.set(viewerId, { ws, name });
+            currentRoom = webinarId;
+            currentRole = "viewer";
+            currentViewerId = viewerId;
+            ws.send(JSON.stringify({ type: "wr_viewer_ready" }));
+            const attendeeList = [...room.viewers.entries()].map(([id, v]) => ({ id, name: v.name }));
+            if (room.host?.readyState === WebSocket.OPEN) {
+              room.host.send(JSON.stringify({ type: "wr_viewer_joined", viewerId, name }));
+              room.host.send(JSON.stringify({ type: "wr_attendee_update", count: room.viewers.size, list: attendeeList }));
+            }
+            break;
+          }
+          case "wr_answer": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_answer", viewerId: msg.viewerId, sdp: msg.sdp }));
+            break;
+          }
+          case "wr_ice_viewer": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_ice", viewerId: msg.viewerId, candidate: msg.candidate }));
+            break;
+          }
+          case "wr_poll_vote": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_poll_results", pollId: msg.pollId, votes: msg.votes }));
+            break;
+          }
+
+          // ── SHARED ───────────────────────────────────────────────────────
+          case "wr_chat": {
+            const room = webinarRooms.get(webinarId);
+            if (!room) break;
+            const message = { name: msg.name, text: msg.text, ts: msg.ts, isHost: msg.isHost };
+            if (currentRole === "viewer") {
+              if (room.host?.readyState === WebSocket.OPEN)
+                room.host.send(JSON.stringify({ type: "wr_chat", message }));
+              room.viewers.forEach(({ ws: vws }) => {
+                if (vws !== ws && vws.readyState === WebSocket.OPEN)
+                  vws.send(JSON.stringify({ type: "wr_chat", message }));
+              });
+            } else {
+              broadcastToViewers(webinarId, { type: "wr_chat", message });
+            }
+            break;
+          }
+          case "wr_qa": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_qa", question: { id: msg.id, name: msg.name, text: msg.text, ts: msg.ts } }));
+            break;
+          }
+          case "wr_reaction": {
+            const room = webinarRooms.get(webinarId);
+            if (!room) break;
+            const reactionData = { type: "wr_reaction", emoji: msg.emoji };
+            if (currentRole === "viewer" && room.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify(reactionData));
+            room.viewers.forEach(({ ws: vws }) => {
+              if (vws !== ws && vws.readyState === WebSocket.OPEN) vws.send(JSON.stringify(reactionData));
+            });
+            break;
+          }
+          case "wr_raise_hand": {
+            const room = webinarRooms.get(webinarId);
+            if (room?.host?.readyState === WebSocket.OPEN)
+              room.host.send(JSON.stringify({ type: "wr_raise_hand", name: msg.name }));
             break;
           }
         }
@@ -394,17 +324,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     ws.on("close", () => {
       if (userId) clients.delete(userId);
-      if (!wrId) return;
-      const room = webinarRooms.get(wrId);
-      if (!room) return;
-      if (wrRole === "host") {
-        room.viewers.forEach(v => wrSend(v.ws, { type: "wr_host_left" }));
-        webinarRooms.delete(wrId);
-      } else if (wrRole === "viewer" && vrId) {
-        room.viewers.delete(vrId);
-        wrSend(room.host, { type: "wr_viewer_left", viewerId: vrId });
-        wrNotifyCount(wrId);
-        if (wrId) storage.createWebinarEvent({ webinarId: wrId, eventType: "viewer_leave", viewerName: null, viewerId: vrId, data: null }).catch(() => {});
+      if (currentRoom && currentRole === "viewer" && currentViewerId) {
+        const room = webinarRooms.get(currentRoom);
+        if (room) {
+          room.viewers.delete(currentViewerId);
+          const attendeeList = [...room.viewers.entries()].map(([id, v]) => ({ id, name: v.name }));
+          if (room.host?.readyState === WebSocket.OPEN)
+            room.host.send(JSON.stringify({ type: "wr_attendee_update", count: room.viewers.size, list: attendeeList }));
+          if (room.viewers.size === 0 && !room.host) webinarRooms.delete(currentRoom);
+        }
+      } else if (currentRoom && currentRole === "host") {
+        const room = webinarRooms.get(currentRoom);
+        if (room) {
+          room.host = null;
+          if (room.viewers.size === 0) webinarRooms.delete(currentRoom);
+        }
       }
     });
   });
@@ -446,7 +380,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(400).json({ message: "An account with this email already exists" });
       const hashed = await hashPassword(password);
-      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false, hasVideoMarketingAddon: false } as any);
+      const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false } as any);
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
       // Auto-enroll in "join" sequences
       storage.getEmailSequences().then(seqs => {
@@ -599,16 +533,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { plan, hasVideoMarketing } = req.body;
     const update: any = { planConfirmed: true };
     if (plan && ["free", "starter", "growth", "pro", "elite"].includes(plan)) update.plan = plan;
-    
-    // Handle video marketing access
-    if (hasVideoMarketing !== undefined) {
-      update.hasVideoMarketing = hasVideoMarketing;
-    }
-    // Elite tier always gets video marketing
-    if (plan === "elite") {
-      update.hasVideoMarketing = true;
-    }
-    
+    if (typeof hasVideoMarketing === "boolean") update.hasVideoMarketing = hasVideoMarketing;
+    // Pro and Elite always include video marketing
+    if (update.plan === "pro" || update.plan === "elite") update.hasVideoMarketing = true;
     await storage.updateUser(userId, update);
     // Immediately activate the correct credit allowance for the new plan
     const activatedPlan = update.plan || "free";
@@ -2003,7 +1930,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
 
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -2030,7 +1957,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
     let lastError = "";
     for (const model of models) {
       try {
@@ -2864,7 +2791,7 @@ Requirements:
         if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
       }
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let lastErr: any;
       for (const model of GROQ_MODELS) {
         try {
@@ -3080,7 +3007,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const GROQ_API_KEY = process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
 
-      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+      const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
       let script = "";
 
       for (const model of models) {
@@ -3121,30 +3048,142 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
 
-      const systemPrompt = `You are an expert Instagram carousel copywriter. Generate structured, high-converting carousel content. Return ONLY valid JSON — no markdown, no code fences.`;
+      const systemPrompt = `You are a world-class Instagram carousel copywriter and marketing psychologist. You understand:
+- Curiosity gaps and pattern interrupts
+- Social proof and authority triggers
+- FOMO and scarcity psychology
+- Storytelling frameworks (Hero's Journey, Problem-Agitate-Solve)
+- Viral content mechanics (controversy, relatability, aspiration)
+- Visual hierarchy and readability
+
+You write carousels that STOP the scroll, deliver massive value, and convert viewers into followers/customers.
+Return ONLY valid JSON — no markdown, no code fences.`;
+      
       const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
 Tone: ${toneStr}
 
-Return a JSON object with this EXACT structure:
+**SLIDE TEMPLATES AVAILABLE:**
+1. "text-only" - Pure text, no image needed (great for quotes, insights)
+2. "image-text" - Image at top, text below (most common)
+3. "quote" - Large quote with attribution
+4. "list" - Numbered or bulleted list format
+5. "stats" - Big number/stat with context
+
+**MARKETING PSYCHOLOGY RULES:**
+1. Slide 1 (HOOK): Use pattern interrupt — bold claim, controversial statement, curiosity gap, or "you're doing X wrong" angle. Make it IMPOSSIBLE to scroll past. Template: image-text or text-only.
+2. Slide 2 (PROBLEM/PAIN): Agitate the pain point. Make them feel "this is exactly me." Use specific, relatable scenarios. Template: text-only or image-text.
+3. Middle Slides (VALUE): Deliver actionable insights, frameworks, or steps. Each slide = one clear idea. Use numbers, specifics, not vague advice. Templates: list, stats, or image-text.
+4. Second-to-last (PROOF/BENEFIT): Show the transformation or result. "When you do this, here's what happens." Template: image-text or stats.
+5. Last Slide (CTA): One clear action. Use urgency or exclusivity. Examples: "Follow for daily tips", "DM me 'READY'", "Save this before you forget". Template: text-only or image-text.
+
+**CONTENT RULES:**
+- Headline: 10-15 words MAX, bold statement, no punctuation at end
+- Body: 50-100 words, detailed and specific, use line breaks (\\n) for readability
+- Use power words: proven, secret, mistake, truth, reality, exposed, blueprint, framework
+- Avoid: generic advice, corporate speak, obvious statements
+- Include: specific numbers, concrete examples, actionable steps, mini-stories
+- Write like you're texting a friend, not writing a corporate memo
+
+**SLIDE ROLES TO USE:**
+Hook → Problem/Pain → Agitate → Insight → Solution → Framework → Benefit → Social Proof → CTA
+
+Return JSON:
 {
   "slides": [
-    { "role": "Hook", "headline": "short bold headline max 8 words", "body": "2-3 punchy supporting lines max 30 words" },
-    { "role": "Problem", "headline": "...", "body": "..." },
-    ...more slides...
-    { "role": "CTA", "headline": "call to action headline", "body": "clear single action for audience to take" }
-  ]
+    { 
+      "role": "Hook",
+      "template": "image-text",
+      "headline": "Stop doing [X] wrong in 2024",
+      "body": "Most people think [common belief].\\n\\nBut here's the truth nobody tells you.\\n\\nI spent 3 years making this mistake and it cost me [specific consequence].\\n\\nSwipe to see what actually works →",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Problem",
+      "template": "text-only",
+      "headline": "The real issue nobody talks about",
+      "body": "You're stuck because [specific pain point].\\n\\nThis costs you [specific consequence] every single day.\\n\\nHere's why it happens: [root cause explanation with specific details].\\n\\nAnd here's the worst part: [agitate the pain more].",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Solution",
+      "template": "list",
+      "headline": "The 5-step framework that changes everything",
+      "body": "Here's the exact system I use (and teach to 1000+ students):",
+      "listItems": ["Step 1: Specific action with context", "Step 2: Another specific action", "Step 3: ...", "Step 4: ...", "Step 5: ..."],
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "Stats",
+      "template": "stats",
+      "headline": "The results speak for themselves",
+      "body": "After implementing this framework:",
+      "listItems": null,
+      "statNumber": "347%",
+      "statContext": "average increase in [specific metric] within 90 days",
+      "quoteText": null,
+      "quoteAuthor": null
+    },
+    {
+      "role": "CTA",
+      "template": "text-only",
+      "headline": "Ready to get started?",
+      "body": "Follow @username for daily [niche] tips that actually work.\\n\\nDM me 'READY' and I'll send you the full framework PDF (free).\\n\\nSave this carousel so you can come back to it later.",
+      "listItems": null,
+      "statNumber": null,
+      "statContext": null,
+      "quoteText": null,
+      "quoteAuthor": null
+    }
+  ],
+  "caption": "Full Instagram caption here (3-5 lines of value + CTA + 15-20 hashtags)",
+  "metadata": {
+    "totalSlides": 5,
+    "estimatedReadTime": "45 seconds",
+    "primaryEmotion": "curiosity",
+    "targetAudience": "people struggling with [topic]"
+  }
 }
 
-Rules:
-- Slide 1 is always the HOOK — make it impossible to scroll past, use a bold claim or question
-- Middle slides = value/insight/steps — each self-contained
-- Last slide is always the CTA — one clear action (Follow, DM [word], Save this, etc.)
-- Headlines: max 8 words, punchy, no punctuation at end
-- Body: max 30 words, concrete not vague
-- Vary the roles: Hook → Problem → Insight → Solution/Steps → Benefit → CTA
-- Write for viral reach, not corporate speak`;
+Generate ${count} slides following this psychology framework. Mix templates strategically. Make it RICH with detail and specifics.`;
 
-      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      // Try OpenAI first for better quality, fallback to Groq
+      let raw: string;
+      const openaiKey = process.env.OPENAI_API_KEY;
+      
+      if (openaiKey) {
+        try {
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+              temperature: 0.8,
+              max_tokens: 2000,
+              response_format: { type: "json_object" }
+            })
+          });
+          const data = await response.json();
+          raw = data.choices[0].message.content;
+        } catch (e) {
+          console.warn("OpenAI failed, using Groq:", e);
+          raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+        }
+      } else {
+        raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      }
+
       const parsed = JSON.parse(raw);
       if (!parsed.slides || !Array.isArray(parsed.slides)) throw new Error("Invalid AI response format");
       res.json({ slides: parsed.slides, creditsUsed: 3, balance: creditResult.balance });
@@ -3663,13 +3702,15 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
       const user = req.user as any;
       const userId = user.role === "admin" ? (req.query.userId as string || user.id) : user.id;
       const seqs = await storage.getDmSequences(userId);
-      // Attach steps + enrollment count to each sequence
-      const result = await Promise.all(seqs.map(async (s) => {
-        const steps = await storage.getDmSequenceSteps(s.id);
-        const enrollments = await storage.getDmSequenceEnrollments(s.id);
-        return { ...s, steps, enrollmentCount: enrollments.length };
-      }));
-      return res.json(result);
+      return res.json(seqs);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const seq = await storage.getDmSequence(p(req.params.id));
+      if (!seq) return res.status(404).json({ message: "Sequence not found" });
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -3677,32 +3718,59 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
     try {
       const user = req.user as any;
       const userId = user.role === "admin" ? (req.body.userId || user.id) : user.id;
-      const { name, description, steps } = req.body;
+      const { name, description } = req.body;
       if (!name?.trim()) return res.status(400).json({ message: "name is required" });
       const seq = await storage.createDmSequence({ userId, name: name.trim(), description: description?.trim() || null, isActive: true });
-      if (Array.isArray(steps) && steps.length > 0) {
-        await storage.upsertDmSequenceSteps(seq.id, steps);
-      }
-      const savedSteps = await storage.getDmSequenceSteps(seq.id);
-      return res.json({ ...seq, steps: savedSteps });
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
   app.patch("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { steps, ...data } = req.body;
-      const seq = await storage.updateDmSequence(p(req.params.id), data);
-      if (Array.isArray(steps)) {
-        await storage.upsertDmSequenceSteps(p(req.params.id), steps);
-      }
-      const savedSteps = await storage.getDmSequenceSteps(p(req.params.id));
-      return res.json({ ...seq, steps: savedSteps });
+      const seq = await storage.updateDmSequence(p(req.params.id), req.body);
+      return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
   app.delete("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await storage.deleteDmSequence(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  // Sequence Steps
+  app.get("/api/dm/sequences/:id/steps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const steps = await storage.getDmSequenceSteps(p(req.params.id));
+      return res.json(steps);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/dm/sequences/:id/steps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { delayDays, message, stepOrder } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "message is required" });
+      const step = await storage.createDmSequenceStep({
+        sequenceId: p(req.params.id),
+        stepOrder: stepOrder ?? 0,
+        delayDays: delayDays ?? 0,
+        message: message.trim(),
+      });
+      return res.json(step);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/dm/sequences/:seqId/steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const step = await storage.updateDmSequenceStep(p(req.params.stepId), req.body);
+      return res.json(step);
+    } catch (err: any) { return res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/dm/sequences/:seqId/steps/:stepId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDmSequenceStep(p(req.params.stepId));
       return res.json({ success: true });
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
@@ -4463,7 +4531,7 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
         ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
         : "";
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      const GROQ_MODELS = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
       let prompt = "";
 
       if (tool === "improve") {
@@ -4724,7 +4792,7 @@ Return ONLY a JSON array of 5 strings:
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 500,
           temperature: 0.8,
@@ -4780,7 +4848,7 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 800,
           temperature: 0.7,
@@ -4840,7 +4908,7 @@ Return ONLY this JSON (no markdown, no explanation):
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
             { role: "user", content: prompt },
@@ -4939,7 +5007,7 @@ Only include analysis when content is provided. Never produce generic filler con
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.75,
           max_tokens: 2000,
@@ -4970,7 +5038,7 @@ Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrit
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -4995,7 +5063,7 @@ Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
       });
       const data: any = await r.json();
       return res.json({ script: data.choices?.[0]?.message?.content || "" });
@@ -5034,7 +5102,7 @@ Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
@@ -5068,7 +5136,7 @@ Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5086,7 +5154,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5104,7 +5172,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5122,7 +5190,7 @@ Script: "${script}"
 Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5158,7 +5226,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5199,7 +5267,7 @@ Return ONLY this JSON:
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
       return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
@@ -5266,7 +5334,7 @@ Return ONLY this JSON:
       method: "POST",
       headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.75,
         max_tokens: maxTokens,
@@ -7008,7 +7076,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
       });
       const groqData = await groqResp.json() as any;
       const text = groqData.choices?.[0]?.message?.content || "[]";
@@ -8874,7 +8942,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: msgs,
           temperature: 0.55,
           max_tokens: 400,
@@ -9039,7 +9107,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
             { role: "user", content: userPrompt },
@@ -9159,7 +9227,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
         method: "POST",
         headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-70b-versatile",
           messages: [
             { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
             { role: "user", content: igPrompt },
@@ -9452,7 +9520,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
@@ -9528,7 +9596,7 @@ Rules:
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
@@ -10908,8 +10976,20 @@ Rules:
   }
 
   // Webinars
-  // IMPORTANT: public route MUST be declared before "/api/webinars/:id"
+  // IMPORTANT: public routes MUST be declared before "/api/webinars/:id"
   // so Express doesn't treat "public" as an :id param.
+
+  // Public: get a single webinar by meeting code (used by the watch page)
+  app.get("/api/webinars/public/:code", async (req: Request, res: Response) => {
+    try {
+      const webinar = await storage.getWebinarByMeetingCode(p(req.params.code));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+      res.json(webinar);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/webinars/public", async (_req, res) => {
     try {
       const limit = 20;
@@ -10937,7 +11017,7 @@ Rules:
   app.post("/api/webinars", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic, webinarType, replayVideoUrl, presenterName, videoQuality } = req.body;
+      const { title, description, scheduledAt, durationMinutes, maxAttendees, chatChannels, offerUrl, offerTitle, thumbnailUrl, isPublic } = req.body;
       if (!title || !scheduledAt) return res.status(400).json({ message: "Title and scheduledAt required" });
 
       let meetingCode = generateMeetingCode();
@@ -10956,10 +11036,6 @@ Rules:
         chatChannels: chatChannels || ["General"], offerUrl: offerUrl || null,
         offerTitle: offerTitle || null, thumbnailUrl: thumbnailUrl || null,
         isPublic: isPublic ?? false,
-        webinarType: webinarType || "live",
-        replayVideoUrl: replayVideoUrl || null,
-        presenterName: presenterName || null,
-        videoQuality: videoQuality || "1080p",
       });
       res.status(201).json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -10970,23 +11046,6 @@ Rules:
       const webinar = await storage.getWebinar(p(req.params.id));
       if (!webinar) return res.status(404).json({ message: "Webinar not found" });
       res.json(webinar);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/webinars/public/:code", async (req, res) => {
-    try {
-      const webinar = await storage.getWebinarByMeetingCode(req.params.code);
-      if (!webinar) return res.status(404).json({ message: "Not found" });
-      res.json({
-        id: webinar.id, title: webinar.title, description: webinar.description,
-        scheduledAt: webinar.scheduledAt, durationMinutes: webinar.durationMinutes,
-        status: webinar.status,
-        webinarType:    (webinar as any).webinarType    ?? "live",
-        replayVideoUrl: (webinar as any).replayVideoUrl ?? null,
-        presenterName:  (webinar as any).presenterName  ?? null,
-        offerUrl: webinar.offerUrl, offerTitle: webinar.offerTitle,
-        meetingCode: webinar.meetingCode,
-      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -11006,16 +11065,14 @@ Rules:
 
   app.post("/api/webinars/:id/start", requireAuth, async (req, res) => {
     try {
-      const id = p(req.params.id);
-      const webinar = await storage.updateWebinar(id, { status: "live", startedAt: new Date() } as any);
+      const webinar = await storage.updateWebinar(p(req.params.id), { status: "live" });
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
     try {
-      const id = p(req.params.id);
-      const webinar = await storage.updateWebinar(id, { status: "completed", endedAt: new Date() } as any);
+      const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -11069,6 +11126,227 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Public video routes (no auth — used by /watch-video/:id embed page) ──────
+
+  // Public: fetch video metadata (strips private fields)
+  app.get("/api/video/:id/public", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      // Strip internal-only fields
+      const { passwordHash, domainWhitelist, userId, ...safe } = video as any;
+      res.json(safe);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: get chapters for a video
+  app.get("/api/video/:id/chapters", async (req: Request, res: Response) => {
+    try {
+      const chapters = await storage.getVideoChapters(p(req.params.id));
+      res.json(chapters);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: get active CTAs for a video
+  app.get("/api/video/:id/ctas", async (req: Request, res: Response) => {
+    try {
+      const ctas = await storage.getVideoCtas(p(req.params.id));
+      res.json(ctas.filter((c: any) => c.isActive));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: lead gate — capture viewer before unlocking video
+  app.post("/api/video/:id/gate", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Video not found" });
+      const { name, email } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      await storage.createViewerSession({
+        videoEventId: video.id,
+        visitorId: email,
+        watchedSeconds: 0,
+        completionPct: 0,
+        referrer: `lead_gate:${name}`,
+      }).catch(() => {});
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: increment view count when video starts playing
+  app.post("/api/video-events/:id/view", async (req: Request, res: Response) => {
+    try {
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video) return res.status(404).json({ message: "Not found" });
+      await storage.incrementVideoViews(p(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Chapters (management) ───────────────────────────────────────────
+  app.get("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const chapters = await storage.getVideoChapters(p(req.params.id));
+      res.json(chapters);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-events/:id/chapters", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { title, description, startSeconds } = req.body;
+      if (!title) return res.status(400).json({ message: "title required" });
+      const chapter = await storage.createVideoChapter({ videoEventId: p(req.params.id), title, description: description || null, startSeconds: startSeconds ?? null });
+      res.status(201).json(chapter);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const chapter = await storage.updateVideoChapter(Number(req.params.id), req.body);
+      res.json(chapter);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-chapters/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoChapter(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video CTAs (management) ────────────────────────────────────────────────
+  app.get("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const ctas = await storage.getVideoCtas(p(req.params.id));
+      res.json(ctas);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-events/:id/ctas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, url, type, style, appearAt, disappearAt, isActive } = req.body;
+      if (!text) return res.status(400).json({ message: "text required" });
+      const cta = await storage.createVideoCta({ videoEventId: p(req.params.id), text, url: url || null, type: type || "button", style: style || "gold", appearAt: appearAt ?? 0, disappearAt: disappearAt ?? null, isActive: isActive ?? true });
+      res.status(201).json(cta);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const cta = await storage.updateVideoCta(Number(req.params.id), req.body);
+      res.json(cta);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-ctas/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteVideoCta(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: track CTA click
+  app.post("/api/video-ctas/:id/click", async (req: Request, res: Response) => {
+    try {
+      await storage.incrementCtaClicks(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Viewer Sessions ─────────────────────────────────────────────────
+  app.get("/api/video-events/:id/viewers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getVideoViewerSessions(p(req.params.id));
+      res.json(sessions);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Alias: PATCH /api/video-events/:id/settings → same as PATCH /api/video-events/:id
+  app.patch("/api/video-events/:id/settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const video = await storage.updateVideoEvent(p(req.params.id), req.body);
+      res.json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Marketing Settings ───────────────────────────────────────────────
+  app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.getVideoMarketingSettings(user.id);
+      res.json(settings || {});
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const settings = await storage.upsertVideoMarketingSettings(user.id, req.body);
+      res.json(settings);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Webinar Domains ────────────────────────────────────────────────────────
+  app.get("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const domains = await storage.getWebinarDomains(user.id);
+      res.json(domains);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { domain, targetSlug } = req.body;
+      if (!domain) return res.status(400).json({ message: "domain is required" });
+      const verifyToken = `oravini-verify=${Math.random().toString(36).slice(2, 18)}`;
+      const d = await storage.createWebinarDomain({
+        userId: user.id,
+        domain: domain.toLowerCase().trim(),
+        targetSlug: targetSlug || null,
+        verifyToken,
+        status: "pending",
+      });
+      res.status(201).json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const d = await storage.updateWebinarDomain(p(req.params.id), req.body);
+      res.json(d);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteWebinarDomain(p(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Verify a webinar domain by checking DNS TXT record
+  app.post("/api/webinar-domains/:id/verify", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const domains = await storage.getWebinarDomains((req.user as any).id);
+      const domain = domains.find(d => d.id === req.params.id);
+      if (!domain) return res.status(404).json({ message: "Domain not found" });
+      const dns = await import("dns").then(m => m.promises);
+      let verified = false;
+      try {
+        const records = await dns.resolveTxt(domain.domain);
+        verified = records.flat().some(r => r === domain.verifyToken);
+      } catch {}
+      if (verified) {
+        await storage.updateWebinarDomain(domain.id, { status: "active", verifiedAt: new Date() });
+        res.json({ verified: true });
+      } else {
+        res.json({ verified: false, hint: `Add TXT record: ${domain.verifyToken}` });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/video-events/:id", requireAuth, async (req, res) => {
     try {
       const video = await storage.updateVideoEvent(p(req.params.id), req.body);
@@ -11112,130 +11390,31 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── Recording upload from host's MediaRecorder ────────────────────────────
-  const recordingUpload = multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => {
-        const dir = path.resolve("uploads/recordings");
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-      },
-      filename: (_req, file, cb) => {
-        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        cb(null, `${unique}${path.extname(file.originalname) || ".webm"}`);
-      },
-    }),
-    limits: { fileSize: 500 * 1024 * 1024 },
-  });
-
-  app.post("/api/webinars/:id/recording/upload", requireAuth, recordingUpload.single("file"), async (req, res) => {
+  // Upload a webinar recording from the studio (multipart form with a video file)
+  app.post("/api/webinars/:id/recording/upload", requireAuth, videoUpload.single("file"), async (req: any, res: Response) => {
     try {
       const user = req.user as any;
       const webinarId = p(req.params.id);
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      const recordingUrl = `/uploads/recordings/${req.file.filename}`;
-      const duration = req.body.duration ? Math.round(Number(req.body.duration)) : null;
-      const title = req.body.title || "Webinar Recording";
-      const fileSize = `${(req.file.size / 1024 / 1024).toFixed(1)} MB`;
+      const recordingUrl = `/uploads/${req.file.filename}`;
+      const title = (req.body.title as string) || "Webinar Recording";
+      const duration = req.body.duration ? Number(req.body.duration) : null;
       const shareToken = `rec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const rec = await storage.createWebinarRecording({
         webinarId, userId: user.id, title, recordingUrl,
-        thumbnailUrl: null, duration, fileSize, shareToken, isPublic: false,
+        thumbnailUrl: null, duration, fileSize: req.file.size, shareToken, isPublic: false,
       });
-      await storage.updateWebinar(webinarId, { replayVideoUrl: recordingUrl });
       res.status(201).json(rec);
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ── Webinar Analytics ─────────────────────────────────────────────────────
-  app.get("/api/webinars/:id/analytics", requireAuth, async (req, res) => {
+  // Upload a video file for hosting (returns a URL)
+  app.post("/api/upload/video", requireAuth, videoUpload.single("file"), async (req: any, res: Response) => {
     try {
-      const webinarId = p(req.params.id);
-      const [webinar, registrations, events, recordings] = await Promise.all([
-        storage.getWebinar(webinarId),
-        storage.getWebinarRegistrations(webinarId),
-        storage.getWebinarEvents(webinarId),
-        storage.getWebinarRecordingsByWebinarId(webinarId),
-      ]);
-      if (!webinar) return res.status(404).json({ message: "Not found" });
-
-      const joins     = events.filter(e => e.eventType === "viewer_join");
-      const chats     = events.filter(e => e.eventType === "chat");
-      const qas       = events.filter(e => e.eventType === "qa");
-      const reactions = events.filter(e => e.eventType === "reaction");
-      const hands     = events.filter(e => e.eventType === "raise_hand");
-      const uniqueIds = [...new Set(joins.map(e => e.viewerId).filter(Boolean))];
-      const attended  = uniqueIds.length;
-
-      const attendeeMap = new Map<string, { id: string; name: string | null; joinTime: Date | null; chatCount: number; qaCount: number }>();
-      joins.forEach(e => {
-        if (e.viewerId && !attendeeMap.has(e.viewerId))
-          attendeeMap.set(e.viewerId, { id: e.viewerId, name: e.viewerName, joinTime: e.ts, chatCount: 0, qaCount: 0 });
-      });
-      chats.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.chatCount++; });
-      qas.forEach(e => { if (e.viewerId && attendeeMap.has(e.viewerId)) attendeeMap.get(e.viewerId)!.qaCount++; });
-
-      // ── Timeline: per-minute dropout curve ───────────────────────────────
-      const ctaLaunchEvts = events.filter(e => e.eventType === "cta_launched");
-      const ctaClickEvts  = events.filter(e => e.eventType === "cta_click");
-      const wStart  = (webinar as any).startedAt ? new Date((webinar as any).startedAt).getTime() : null;
-      const wEnd    = (webinar as any).endedAt   ? new Date((webinar as any).endedAt).getTime()   : null;
-      const durMs   = wStart && wEnd ? wEnd - wStart : null;
-      const durMins = durMs ? Math.min(Math.ceil(durMs / 60000), 180) : 0;
-
-      const timeline: { minute: number; viewers: number; chats: number; reactions: number; ctaClicks: number }[] = [];
-      if (wStart && durMins > 0) {
-        const sessions = new Map<string, { joinMs: number; leaveMs: number }>();
-        events.filter(e => e.eventType === "viewer_join"  && e.viewerId && e.ts).forEach(ev => {
-          const ms = new Date(ev.ts!).getTime() - wStart;
-          if (ms >= 0) sessions.set(ev.viewerId!, { joinMs: ms, leaveMs: durMs! });
-        });
-        events.filter(e => e.eventType === "viewer_leave" && e.viewerId && e.ts).forEach(ev => {
-          const ms = new Date(ev.ts!).getTime() - wStart;
-          if (ms > 0 && sessions.has(ev.viewerId!)) sessions.get(ev.viewerId!)!.leaveMs = ms;
-        });
-        const getMin = (ev: any) => ev.ts ? Math.max(0, Math.floor((new Date(ev.ts).getTime() - wStart) / 60000)) : -1;
-        for (let m = 0; m <= durMins; m++) {
-          const msAt = m * 60000;
-          timeline.push({
-            minute:    m,
-            viewers:   [...sessions.values()].filter(s => s.joinMs <= msAt && s.leaveMs > msAt).length,
-            chats:     chats.filter(e => getMin(e) === m).length,
-            reactions: reactions.filter(e => getMin(e) === m).length,
-            ctaClicks: ctaClickEvts.filter(e => getMin(e) === m).length,
-          });
-        }
-      }
-
-      const ctaStats = {
-        launches: ctaLaunchEvts.length,
-        clicks:   ctaClickEvts.length,
-        convRate: ctaClickEvts.length > 0 && attended > 0
-          ? Math.round((ctaClickEvts.length / attended) * 100)
-          : 0,
-      };
-
-      res.json({
-        webinar,
-        registrations: registrations.length,
-        attended,
-        peakViewers: (webinar as any).peakViewers || attended,
-        chatMessages: chats.length,
-        qaQuestions: qas.length,
-        totalReactions: reactions.length,
-        raisedHands: hands.length,
-        attendeeList: Array.from(attendeeMap.values()),
-        chatTranscript: chats.map(e => ({ name: e.viewerName, text: (e.data as any)?.text, ts: e.ts })),
-        qaLog: qas.map(e => ({ name: e.viewerName, question: (e.data as any)?.text, ts: e.ts })),
-        recordings,
-        timeline,
-        ctaStats,
-      });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const videoUrl = `/uploads/${req.file.filename}`;
+      res.json({ url: videoUrl, filename: req.file.filename, size: req.file.size });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // Webinar Landing Pages
@@ -11520,491 +11699,190 @@ Rules:
     }
   });
 
-  // ── Instagram scheduled posts (caption reminders) ─────────────────────────
-  app.get("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
+  // ── Bio Generator ─────────────────────────────────────────────────────────
+  app.post("/api/tools/bio-generator/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user.id;
-      const posts = await storage.getScheduledInstagramPosts(userId);
-      res.json(posts);
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
+      const { niche, platform, whatYouDo, whoYouHelp, socialProof, cta, linkUrl } = req.body;
 
-  app.post("/api/instagram/scheduled", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user.id;
-      const parsed = insertScheduledInstagramPostSchema.safeParse({ ...req.body, userId });
-      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid input" });
-      const post = await storage.createScheduledInstagramPost(parsed.data);
-      res.json(post);
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.patch("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { status } = req.body;
-      if (!["posted"].includes(status)) return res.status(400).json({ message: "Invalid status" });
-      await storage.updateScheduledInstagramPost(p(req.params.id), { status });
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.delete("/api/instagram/scheduled/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).user.id;
-      await storage.deleteScheduledInstagramPost(p(req.params.id), userId);
-      res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CONTENT INTELLIGENCE ENGINE
-  // ══════════════════════════════════════════════════════════════════════════
-
-  // ── Brand Voice Analyzer ───────────────────────────────────────────────────
-  app.post("/api/brand-voice/analyze", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const existingPosts = await storage.getContentPostsByClient(user.id);
-      
-      if (existingPosts.length < 5) {
-        return res.status(400).json({ message: "Need at least 5 posts to analyze brand voice. Add more content first." });
+      if (!niche || !whatYouDo) {
+        return res.status(400).json({ error: "Niche and what you do are required" });
       }
 
-      const voiceProfile = await analyzeBrandVoice(user.id, existingPosts);
-      const saved = await storage.upsertBrandVoiceProfile({
-        userId: user.id,
-        ...voiceProfile,
-      });
-      
-      return res.json(saved);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
+      const platformLimits: Record<string, number> = {
+        instagram: 150,
+        twitter: 160,
+        linkedin: 220,
+      };
 
-  app.get("/api/brand-voice", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const profile = await storage.getBrandVoiceProfile(user.id);
-      return res.json(profile || null);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
+      const charLimit = platformLimits[platform] || 150;
 
-  // ── Performance Feedback (Learning Loop) ───────────────────────────────────
-  app.post("/api/content/:id/performance-feedback", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const { views, likes, comments, saves, niche } = req.body;
-      
-      if (!niche) return res.status(400).json({ message: "niche is required" });
-      
-      await processPerformanceFeedback(
-        user.id,
-        p(req.params.id),
-        views || 0,
-        likes || 0,
-        comments || 0,
-        saves || 0,
-        niche
+      const prompt = `You are an expert bio writer who understands the psychology of social media bios. A prospect decides in under 10 seconds whether to follow or ignore based on the bio.
+
+**THE 4-LINE BIO FRAMEWORK:**
+
+**Line 1 (Attract/Repel):** This line should be SPECIFIC about what you do and who you help. It should attract your ideal audience and repel everyone else. Use concrete numbers, specific outcomes, and clear positioning.
+
+**Line 2 (Social Proof):** Show credibility through numbers - how many people you've helped, results you've delivered, or transformations you've created. Make it tangible and impressive.
+
+**Line 3 (CTA):** Clear call to action that tells them exactly what to do next. Should create urgency or curiosity.
+
+**Line 4 (Link):** The actual link (user provides this).
+
+**USER INPUT:**
+- Niche: ${niche}
+- Platform: ${platform} (${charLimit} character limit)
+- What they do: ${whatYouDo}
+${whoYouHelp ? `- Who they help: ${whoYouHelp}` : ""}
+${socialProof ? `- Social proof: ${socialProof}` : ""}
+${cta ? `- CTA idea: ${cta}` : ""}
+${linkUrl ? `- Link: ${linkUrl}` : ""}
+
+**YOUR TASK:**
+Generate 3 variations for each of the first 3 lines. Each variation should be different in tone and approach:
+- Variation 1: Bold and direct
+- Variation 2: Storytelling/relatable
+- Variation 3: Data-driven/authoritative
+
+Also provide profile picture tips specific to their niche.
+
+**CRITICAL RULES:**
+1. Line 1 must be HYPER-SPECIFIC. No generic statements like "I help people succeed." Instead: "I help 30-40 year old coaches go from $5k/mo to $50k/mo in 90 days"
+2. Line 2 must include NUMBERS. "Helped 6,000+ men" or "500+ transformations in 2024"
+3. Line 3 must be ACTION-ORIENTED. "DM me 'START'" or "Get my free training below"
+4. Keep each line concise - the full bio should be under ${charLimit} characters
+5. Make it platform-appropriate for ${platform}
+
+Return ONLY valid JSON in this exact format:
+{
+  "line1Options": ["option1", "option2", "option3"],
+  "line2Options": ["option1", "option2", "option3"],
+  "line3Options": ["option1", "option2", "option3"],
+  "line4": "${linkUrl || ""}",
+  "profilePictureTips": {
+    "dos": ["tip1", "tip2", "tip3"],
+    "donts": ["tip1", "tip2", "tip3"],
+    "specificTips": ["niche-specific tip1", "niche-specific tip2"]
+  }
+}`;
+
+      // Use Groq instead of Anthropic for bio generation
+      const raw = await callGroqJson(
+        "You are an expert bio writer who understands the psychology of social media bios. Return ONLY valid JSON.",
+        prompt,
+        2000
       );
+
+      // Parse JSON from response
+      let jsonText = raw.trim();
       
-      return res.json({ message: "Performance logged. AI will learn from this." });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── Winning Patterns ───────────────────────────────────────────────────────
-  app.get("/api/winning-patterns", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const { platform, funnelStage } = req.query;
-      const patterns = await storage.getWinningPatterns(user.id, {
-        platform: platform as string,
-        funnelStage: funnelStage as string,
-        limit: 20,
-      });
-      return res.json(patterns);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── Hook Library ───────────────────────────────────────────────────────────
-  app.get("/api/hook-library", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const { platform, niche, hookType } = req.query;
-      const hooks = await storage.getHookLibrary({
-        platform: platform as string,
-        niche: niche as string,
-        hookType: hookType as string,
-        limit: 50,
-      });
-      return res.json(hooks);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── TRAINED CONTENT CALENDAR GENERATOR ─────────────────────────────────────
-  app.post("/api/content-calendar/generate", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const { month, niche, platform, goal, days } = req.body;
-      
-      if (!month || !niche || !platform || !goal) {
-        return res.status(400).json({ message: "month, niche, platform, and goal are required" });
+      // Remove markdown code blocks if present
+      if (jsonText.startsWith("```json")) {
+        jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+      } else if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```\n?/g, "");
       }
 
-      const daysToGenerate = Math.min(Math.max(parseInt(days) || 30, 7), 30);
-      const creditCost = Math.ceil(daysToGenerate / 3); // 3 days = 1 credit
-      
-      if (user.role !== "admin") {
-        const creditResult = await storage.deductCredits(user.id, creditCost, "content_calendar", `${daysToGenerate}-day Content Calendar`, user.plan || "free");
-        if (!creditResult.success) {
-          return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
-        }
+      const result = JSON.parse(jsonText);
+
+      // Calculate character count for first variation
+      const sampleBio = `${result.line1Options[0]}\n${result.line2Options[0]}\n${result.line3Options[0]}\n${result.line4}`;
+      result.characterCount = sampleBio.length;
+      result.platformOptimized = result.characterCount <= charLimit;
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Bio generation error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate bio" });
+    }
+  });
+
+
+  // ── Bio Generator Tools ────────────────────────────────────────────────────
+
+  // 1. Generate from Scratch (existing endpoint - already in routes.ts)
+  // /api/tools/bio-generator/generate
+
+  // 2. Improve Existing Bio
+  app.post("/api/tools/bio-generator/improve", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { currentBio, platform } = req.body;
+      if (!currentBio?.trim()) return res.status(400).json({ message: "currentBio is required" });
+
+      const _uBioImp = req.user as any;
+      if (_uBioImp.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioImp.id, 5, "bio_improve", "Bio Improve analysis", _uBioImp.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
       }
 
-      // Get user's existing posts for context
-      const existingPosts = await storage.getContentPostsByClient(user.id);
-      
-      // Build training prompt with ALL the intelligence
-      const trainingPrompt = await buildTrainingPrompt(user.id, platform, niche, "top");
-      
-      // Build strategy brief
-      const contextPosts = existingPosts.slice(0, 30).map(p => ({
-        title: p.title || "",
-        contentType: p.contentType,
-        views: p.views,
-        likes: p.likes,
-        comments: p.comments,
-        saves: p.saves,
-      }));
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
 
-      const systemPrompt = trainingPrompt + `\n\nYou are generating a ${daysToGenerate}-day content calendar. Every piece of content MUST use proven patterns from the training data above.`;
+      const systemPrompt = `You are an elite bio optimization expert. Analyze Instagram/Twitter/LinkedIn bios and provide detailed scoring + improvements. Return ONLY valid JSON.`;
       
-      const userPrompt = `Generate a ${daysToGenerate}-day content calendar for ${month}.\n\nPlatform: ${platform}\nNiche: ${niche}\nGoal: ${goal}\n\nContext: User has ${existingPosts.length} existing posts tracked.\n\nReturn ONLY valid JSON (no markdown):\n{\n  "strategy": {\n    "tofuPercent": 40,\n    "mofuPercent": 40,\n    "bofuPercent": 20,\n    "postingFrequency": "daily",\n    "contentMix": { "reels": 50, "carousels": 30, "posts": 20 },\n    "keyThemes": ["theme1", "theme2", "theme3"]\n  },\n  "posts": [\n    {\n      "day": 1,\n      "date": "2025-10-01",\n      "funnelStage": "top",\n      "contentType": "reel",\n      "title": "Hook-driven title using proven pattern",\n      "hook": "Exact opening line",\n      "hookType": "curiosity",\n      "body": "Main content structure",\n      "cta": "Specific call to action",\n      "hashtags": ["#tag1", "#tag2"],\n      "notes": "Production notes",\n      "whyItWorks": "Why this will perform based on training data"\n    }\n  ]\n}\n\nGenerate exactly ${daysToGenerate} posts. Use ONLY proven hook patterns. Match the brand voice. Follow platform-specific structure.`;
+      const userPrompt = `Analyze this ${platform} bio and return improvements:\n\nCurrent bio:\n"${currentBio}"\n\nPlatform: ${platform} (${limit} char limit)\n\nReturn this EXACT JSON:\n{\n  "score": 75,\n  "breakdown": {\n    "clarity": { "score": 15, "feedback": "specific feedback" },\n    "hook": { "score": 12, "feedback": "specific feedback" },\n    "cta": { "score": 14, "feedback": "specific feedback" },\n    "characterEfficiency": { "score": 16, "feedback": "specific feedback" },\n    "nicheSpecificity": { "score": 18, "feedback": "specific feedback" }\n  },\n  "improvedVersions": ["improved bio 1 under ${limit} chars", "improved bio 2", "improved bio 3"],\n  "whatChanged": ["change 1", "change 2", "change 3"]\n}`;
 
-      const calendar = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 8000));
-      
-      // Validate and ensure we have the right number of posts
-      if (!calendar.posts || calendar.posts.length < daysToGenerate) {
-        return res.status(500).json({ message: "AI failed to generate complete calendar. Please try again." });
+      const raw = await callGroqJson(systemPrompt, userPrompt, 2000);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // 3. Polish Template
+  app.post("/api/tools/bio-generator/polish-template", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filledBio, platform, templateName } = req.body;
+      if (!filledBio?.trim()) return res.status(400).json({ message: "filledBio is required" });
+
+      const _uBioTpl = req.user as any;
+      if (_uBioTpl.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioTpl.id, 3, "bio_template", "Bio Template Polish", _uBioTpl.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
       }
 
-      // Save to database
-      const saved = await storage.createContentCalendar({
-        userId: user.id,
-        month,
-        niche,
-        platform: platform as any,
-        goal,
-        strategy: calendar.strategy,
-        posts: calendar.posts,
-        status: "active",
-      });
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
 
-      return res.json({ ...saved, creditsUsed: creditCost });
-    } catch (err: any) {
-      console.error("[content-calendar/generate] error:", err);
-      return res.status(500).json({ message: err.message || "Calendar generation failed" });
-    }
-  });
+      const systemPrompt = `You are an expert bio writer. Polish and optimize filled bio templates. Return ONLY valid JSON.`;
+      
+      const userPrompt = `Polish this ${templateName} bio for ${platform}:\n\n"${filledBio}"\n\nPlatform limit: ${limit} characters\n\nReturn this EXACT JSON:\n{\n  "polishedVersions": ["polished version 1 under ${limit} chars", "polished version 2", "polished version 3"]\n}`;
 
-  // ── Get Content Calendars ──────────────────────────────────────────────────
-  app.get("/api/content-calendar", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const calendars = await storage.getContentCalendars(user.id);
-      return res.json(calendars);
+      const raw = await callGroqJson(systemPrompt, userPrompt, 1500);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
   });
 
-  app.get("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
+  // 4. Analyze Competitors
+  app.post("/api/tools/bio-generator/analyze-competitors", requireAuth, async (req: Request, res: Response) => {
     try {
-      const calendar = await storage.getContentCalendar(p(req.params.id));
-      if (!calendar) return res.status(404).json({ message: "Calendar not found" });
-      return res.json(calendar);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.patch("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const updated = await storage.updateContentCalendar(p(req.params.id), req.body);
-      return res.json(updated);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.delete("/api/content-calendar/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      await storage.deleteContentCalendar(p(req.params.id));
-      return res.json({ success: true });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── Content Templates ──────────────────────────────────────────────────────
-  app.get("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const templates = await storage.getContentTemplates(user.id);
-      const publicTemplates = await storage.getPublicContentTemplates();
-      return res.json({ userTemplates: templates, publicTemplates });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.post("/api/content-templates", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const template = await storage.createContentTemplate({ ...req.body, userId: user.id });
-      return res.json(template);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.patch("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const updated = await storage.updateContentTemplate(p(req.params.id), req.body);
-      return res.json(updated);
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  app.delete("/api/content-templates/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      await storage.deleteContentTemplate(p(req.params.id));
-      return res.json({ success: true });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── Admin: Seed Training Data ──────────────────────────────────────────────
-  app.post("/api/admin/seed-training-data", requireAdmin, async (req: Request, res: Response) => {
-    try {
-      // Seed some initial platform training data for Instagram Reels
-      await storage.createPlatformTrainingData({
-        platform: "instagram" as any,
-        contentType: "reel" as any,
-        pattern: "Hook in first 3 seconds",
-        category: "hook_rules",
-        description: "First 3 seconds must stop the scroll. Use text overlay + visual pattern interrupt.",
-        examples: null,
-        effectiveness: 9.5,
-        source: "admin_curated",
-      });
-
-      await storage.createPlatformTrainingData({
-        platform: "instagram" as any,
-        contentType: "reel" as any,
-        pattern: "Jump cuts every 2-3 seconds",
-        category: "retention_tricks",
-        description: "Fast cuts keep attention. Never let a shot run longer than 3 seconds.",
-        examples: null,
-        effectiveness: 8.5,
-        source: "admin_curated",
-      });
-
-      await storage.createPlatformTrainingData({
-        platform: "instagram" as any,
-        contentType: "carousel" as any,
-        pattern: "Max 15 words per slide",
-        category: "structure",
-        description: "Each slide should have one clear idea. Bold headline + supporting line.",
-        examples: null,
-        effectiveness: 9.0,
-        source: "admin_curated",
-      });
-
-      return res.json({ message: "Training data seeded successfully" });
-    } catch (err: any) {
-      return res.status(500).json({ message: err.message });
-    }
-  });
-
-  // ── CONTENT WORKFLOW ENGINE ────────────────────────────────────────────────
-  app.use(contentWorkflowRoutes);
-
-  // ── Custom Domains ────────────────────────────────────────────────────────
-  app.get("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const domains = await storage.getWebinarDomains(user.id);
-      res.json(domains);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/webinar-domains", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const { domain, targetSlug } = req.body;
-      if (!domain) return res.status(400).json({ message: "Domain is required" });
-      const cleaned = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-      const verifyToken = `oravini-verify-${user.id.slice(0, 8)}-${Math.random().toString(36).slice(2, 10)}`;
-      const existing = await storage.getWebinarDomainByDomain(cleaned);
-      if (existing) return res.status(409).json({ message: "Domain already registered" });
-      const d = await storage.createWebinarDomain({ userId: user.id, domain: cleaned, status: "pending", targetSlug: targetSlug || null, verifyToken });
-      res.status(201).json(d);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      await storage.deleteWebinarDomain(p(req.params.id));
-      res.json({ message: "Deleted" });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/webinar-domains/:id", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const updated = await storage.updateWebinarDomain(p(req.params.id), req.body);
-      res.json(updated);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/webinar-domains/:id/verify", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const domains = await storage.getWebinarDomains((req.user as any).id);
-      const domain = domains.find(d => d.id === p(req.params.id));
-      if (!domain) return res.status(404).json({ message: "Domain not found" });
-
-      let verified = false;
-      try {
-        const txtRecords = await dns.promises.resolveTxt(domain.domain);
-        const flat = txtRecords.flat();
-        verified = flat.some(r => r.includes(domain.verifyToken || ""));
-        if (!verified) {
-          // Also try _oravini-challenge subdomain
-          try {
-            const chalRecords = await dns.promises.resolveTxt(`_oravini-challenge.${domain.domain}`);
-            const chalFlat = chalRecords.flat();
-            verified = chalFlat.some(r => r.includes(domain.verifyToken || ""));
-          } catch {}
-        }
-      } catch {}
-
-      if (verified) {
-        const updated = await storage.updateWebinarDomain(domain.id, { status: "active", verifiedAt: new Date() });
-        return res.json({ success: true, domain: updated });
-      } else {
-        await storage.updateWebinarDomain(domain.id, { status: "pending" });
-        return res.status(400).json({ success: false, message: "DNS TXT record not found yet. DNS changes can take up to 48 hours to propagate." });
-      }
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Public: Domain Config (for custom domain SPA routing) ────────────────
-  app.get("/api/domain-config", async (req: Request, res: Response) => {
-    try {
-      const host = (req.query.domain as string) || req.hostname;
-      if (!host || host.includes("localhost") || host.includes("replit")) return res.json({ slug: null });
-      const domain = await storage.getWebinarDomainByDomain(host);
-      if (!domain || domain.status !== "active" || !domain.targetSlug) return res.json({ slug: null });
-      res.json({ slug: domain.targetSlug, domain: domain.domain });
-    } catch { res.json({ slug: null }); }
-  });
-
-  // ── Video Marketing Settings (Livekit) ───────────────────────────────────
-  app.get("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const settings = await storage.getVideoMarketingSettings(user.id);
-      // Never return the secret to the client
-      if (!settings) return res.json({ livekitUrl: "", livekitKey: "", hasSecret: false });
-      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/video-marketing-settings", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const { livekitUrl, livekitKey, livekitSecret } = req.body;
-      const data: any = {};
-      if (livekitUrl !== undefined) data.livekitUrl = livekitUrl;
-      if (livekitKey !== undefined) data.livekitKey = livekitKey;
-      if (livekitSecret !== undefined) data.livekitSecret = livekitSecret;
-      const settings = await storage.upsertVideoMarketingSettings(user.id, data);
-      res.json({ livekitUrl: settings.livekitUrl || "", livekitKey: settings.livekitKey || "", hasSecret: !!(settings.livekitSecret) });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // ── Livekit Room Tokens ───────────────────────────────────────────────────
-  app.post("/api/webinars/:id/livekit-token", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = req.user as any;
-      const webinarId = p(req.params.id);
-      const webinar = await storage.getWebinar(webinarId);
-      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
-      if (webinar.userId !== user.id) return res.status(403).json({ message: "Not authorized" });
-
-      const settings = await storage.getVideoMarketingSettings(user.id);
-      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
-        return res.status(400).json({ message: "Livekit not configured. Add your API key, secret, and URL in Settings." });
+      const { competitorBios, platform, userNiche } = req.body;
+      if (!Array.isArray(competitorBios) || competitorBios.length < 2) {
+        return res.status(400).json({ message: "At least 2 competitor bios required" });
       }
 
-      const { AccessToken } = await import("livekit-server-sdk");
-      const roomName = `webinar_${webinarId}`;
-      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
-        identity: `host_${user.id}`,
-        name: user.name || "Host",
-        ttl: "4h",
-      });
-      at.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, roomCreate: true });
-      const token = await at.toJwt();
-
-      // Store room name on webinar
-      await storage.updateWebinar(webinarId, { livekitRoomName: roomName } as any);
-      res.json({ token, roomName, livekitUrl: settings.livekitUrl });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  // Public: viewer token (no auth required — identity is anonymous)
-  app.get("/api/webinars/:id/viewer-token", async (req: Request, res: Response) => {
-    try {
-      const webinarId = p(req.params.id);
-      const webinar = await storage.getWebinar(webinarId);
-      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
-      if (!webinar.livekitRoomName) return res.status(404).json({ message: "No Livekit room configured for this webinar" });
-
-      const settings = await storage.getVideoMarketingSettings(webinar.userId);
-      if (!settings?.livekitKey || !settings?.livekitSecret || !settings?.livekitUrl) {
-        return res.status(404).json({ message: "Livekit not configured" });
+      const _uBioComp = req.user as any;
+      if (_uBioComp.role !== "admin") {
+        const creditResult = await storage.deductCredits(_uBioComp.id, 8, "bio_competitor", "Bio Competitor Analysis", _uBioComp.plan || "free");
+        if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true });
       }
 
-      const viewerName = (req.query.name as string) || "Viewer";
-      const viewerId = `viewer_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const { AccessToken } = await import("livekit-server-sdk");
-      const at = new AccessToken(settings.livekitKey, settings.livekitSecret, {
-        identity: viewerId,
-        name: viewerName,
-        ttl: "6h",
-      });
-      at.addGrant({ roomJoin: true, room: webinar.livekitRoomName, canPublish: false, canSubscribe: true });
-      const token = await at.toJwt();
-      res.json({ token, roomName: webinar.livekitRoomName, livekitUrl: settings.livekitUrl });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+      const platformLimits: Record<string, number> = { instagram: 150, twitter: 160, linkedin: 220 };
+      const limit = platformLimits[platform] || 150;
+
+      const systemPrompt = `You are an elite bio strategist. Analyze competitor bios, extract patterns, and generate unique bios. Return ONLY valid JSON.`;
+      
+      const userPrompt = `Analyze these ${competitorBios.length} competitor bios in the "${userNiche}" niche:\n\n${competitorBios.map((bio: string, i: number) => `Bio ${i + 1}: "${bio}"`).join("\n\n")}\n\nPlatform: ${platform} (${limit} char limit)\nUser's niche: ${userNiche}\n\nReturn this EXACT JSON:\n{\n  "patterns": {\n    "commonStructure": "what structure they all use",\n    "toneAnalysis": "tone they use",\n    "keywordFrequency": ["keyword1", "keyword2", "keyword3"],\n    "ctaPatterns": ["cta pattern 1", "cta pattern 2"],\n    "lengthAverage": 120\n  },\n  "insights": ["insight 1", "insight 2", "insight 3"],\n  "generatedBios": ["unique bio 1 for user under ${limit} chars", "unique bio 2", "unique bio 3"]\n}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
   });
 
   // ── Modular route registrations ──────────────────────────────────────────────
@@ -12015,4 +11893,3 @@ Rules:
 
   return httpServer;
 }
-

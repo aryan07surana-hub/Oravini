@@ -2165,32 +2165,30 @@ function AnalyticsTab() {
 
 function VideoAnalyticsTab() {
   const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
-  const [selectedId, setSelectedId] = useState<string>("all");
+  const [selectedId, setSelectedId] = useState<string>("");
 
   const allVideos = videos as any[];
   const vslVideos = allVideos.filter(v => v.videoType === "vsl");
   const totalViews = allVideos.reduce((s, v) => s + (v.views || 0), 0);
-  const totalWatchHours = allVideos.reduce((s, v) => {
-    const dur = v.duration || 20;
-    const rate = 0.4 + ((v.id || 1) % 10) * 0.04;
-    return s + Math.round((v.views || 0) * dur * rate) / 60;
-  }, 0);
-  const avgWatchRate = allVideos.length > 0
-    ? Math.round(allVideos.reduce((s, v) => s + (40 + ((v.id || 1) % 10) * 4.5), 0) / allVideos.length)
-    : 0;
+  const topVideo = [...allVideos].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
 
-  const withStats = allVideos.map(v => {
-    const seed = (v.id || 1) % 10;
-    const watchRate = Math.round(40 + seed * 4.5);
-    const engagementRate = Math.round(12 + seed * 2.8);
-    const completionRate = Math.round(20 + seed * 5);
-    const avgWatchSec = Math.round((v.duration || 20) * 60 * (watchRate / 100));
-    const dropOffMin = Math.round((v.duration || 20) * (0.3 + seed * 0.04));
-    return { ...v, watchRate, engagementRate, completionRate, avgWatchSec, dropOffMin };
+  const { data: sessions = [] } = useQuery<any[]>({
+    queryKey: [`/api/video-events/${selectedId}/viewers`],
+    enabled: !!selectedId,
   });
 
-  const sorted = [...withStats].sort((a, b) => (b.views || 0) - (a.views || 0));
-  const selectedVideo = selectedId !== "all" ? withStats.find(v => String(v.id) === selectedId) : null;
+  const selectedVideo = allVideos.find(v => v.id === selectedId) || null;
+  const sessionList = sessions as any[];
+
+  const avgCompletionPct = sessionList.length > 0
+    ? Math.round(sessionList.reduce((s, sess) => s + (sess.completionPct || 0), 0) / sessionList.length)
+    : null;
+  const avgWatchSec = sessionList.length > 0
+    ? Math.round(sessionList.reduce((s, sess) => s + (sess.watchedSeconds || 0), 0) / sessionList.length)
+    : null;
+  const ctaClickCount = sessionList.filter(s => s.ctaClicked).length;
+
+  const sorted = [...allVideos].sort((a, b) => (b.views || 0) - (a.views || 0));
 
   const categoryBreakdown = allVideos.reduce((acc: Record<string, number>, v) => {
     const cat = v.category || "General";
@@ -2198,17 +2196,19 @@ function VideoAnalyticsTab() {
     return acc;
   }, {});
 
+  const fmtSec = (s: number) => s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+
   return (
     <div className="space-y-6">
-      {/* Stats */}
+      {/* Real stats header */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Eye} label="Total Views" value={totalViews} />
-        <StatCard icon={TrendingUp} label="Avg Watch Rate" value={`${avgWatchRate}%`} color="#34d399" />
-        <StatCard icon={Clock} label="Total Watch Hours" value={`${Math.round(totalWatchHours)}h`} color="#a78bfa" />
-        <StatCard icon={Play} label="VSLs" value={vslVideos.length} color="#60a5fa" />
+        <StatCard icon={Video} label="Total Videos" value={allVideos.length} color="#60a5fa" />
+        <StatCard icon={Play} label="VSLs" value={vslVideos.length} color="#a78bfa" />
+        <StatCard icon={TrendingUp} label="Top Video Views" value={topVideo?.views || 0} color="#34d399" sub={topVideo?.title?.slice(0, 18) || "—"} />
       </div>
 
-      {/* Per-video selector drill-down */}
+      {/* Per-video drill-down */}
       <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
         <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
           <div className="flex items-center gap-2">
@@ -2221,9 +2221,9 @@ function VideoAnalyticsTab() {
               onChange={e => setSelectedId(e.target.value)}
               className="appearance-none text-xs text-white bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 pr-7 cursor-pointer"
             >
-              <option value="all">— Select a video —</option>
+              <option value="">— Select a video —</option>
               {allVideos.map((v: any) => (
-                <option key={v.id} value={String(v.id)}>{v.title}</option>
+                <option key={v.id} value={v.id}>{v.title} ({v.views || 0} views)</option>
               ))}
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500 pointer-events-none" />
@@ -2243,16 +2243,19 @@ function VideoAnalyticsTab() {
                 {selectedVideo.videoType === "vsl" && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">VSL</span>
                 )}
+                {selectedVideo.leadGateEnabled && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#f59e0b18", color: "#f59e0b" }}>GATED</span>
+                )}
               </div>
-              <p className="text-xs text-zinc-500">{selectedVideo.category || "General"} · {selectedVideo.duration || "—"}min</p>
+              <p className="text-xs text-zinc-500">{selectedVideo.category || "General"} · {selectedVideo.duration || "—"}min · added {selectedVideo.createdAt ? new Date(selectedVideo.createdAt).toLocaleDateString() : "—"}</p>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
-                { label: "Total Views", value: selectedVideo.views || 0, color: GOLD },
-                { label: "Watch Rate", value: `${selectedVideo.watchRate}%`, color: "#34d399" },
-                { label: "Completion Rate", value: `${selectedVideo.completionRate}%`, color: "#60a5fa" },
-                { label: "Engagement", value: `${selectedVideo.engagementRate}%`, color: "#a78bfa" },
-                { label: "Main Drop-off", value: `${selectedVideo.dropOffMin}m`, color: "#f87171" },
+                { label: "Total Views", value: selectedVideo.views || 0, color: GOLD, real: true },
+                { label: "Viewer Sessions", value: sessionList.length, color: "#60a5fa", real: true },
+                { label: "Avg Completion", value: avgCompletionPct != null ? `${avgCompletionPct}%` : "—", color: "#34d399", real: true },
+                { label: "CTA Clicks", value: ctaClickCount, color: "#a78bfa", real: true },
               ].map(s => (
                 <div key={s.label} className="p-3 rounded-xl text-center" style={{ background: `${s.color}0d`, border: `1px solid ${s.color}22` }}>
                   <p className="text-xl font-black text-white">{s.value}</p>
@@ -2261,54 +2264,63 @@ function VideoAnalyticsTab() {
               ))}
             </div>
 
-            {/* Retention bars */}
-            <div>
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Retention Curve</p>
-              <div className="flex items-end gap-0.5 h-16 rounded-xl px-2 py-2" style={{ background: "rgba(8,8,12,0.9)" }}>
-                {(() => {
-                  const seed = (selectedVideo.id || 1) % 10;
-                  const curve = [100];
-                  for (let i = 1; i <= 10; i++) {
-                    const prev = curve[i-1];
-                    curve.push(Math.max(2, prev - (4 + ((seed+i)%7) + Math.abs(Math.sin(i+seed)*6))));
-                  }
-                  return curve.map((pct, i) => (
-                    <div key={i} className="flex-1 rounded-t-sm" style={{
-                      height: `${Math.max(3, pct)}%`,
-                      background: pct > 70 ? `linear-gradient(180deg, ${GOLD}cc, ${GOLD}33)` :
-                        pct > 40 ? `linear-gradient(180deg, #a78bfa99, #a78bfa22)` :
-                        `linear-gradient(180deg, #f8717180, #f8717120)`,
-                    }} title={`${i*10}%: ${Math.round(pct)}% watching`} />
-                  ));
-                })()}
+            {avgWatchSec != null && (
+              <div className="flex items-center gap-2 text-xs text-zinc-400 px-1">
+                <Clock className="w-3.5 h-3.5 text-zinc-600" />
+                Average watch time: <span className="font-semibold text-white">{fmtSec(avgWatchSec)}</span> per viewer
               </div>
-              <div className="flex justify-between mt-1 px-2">
-                {["0%","25%","50%","75%","100%"].map(l => <span key={l} className="text-[9px] text-zinc-700">{l}</span>)}
+            )}
+
+            {/* Viewer sessions list */}
+            {sessionList.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Recent Viewer Sessions</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {sessionList.slice(0, 20).map((sess: any) => (
+                    <div key={sess.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-zinc-800 text-zinc-400 flex-shrink-0">
+                        {(sess.visitorId || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs text-zinc-400 flex-1 truncate">{sess.visitorId || "Anonymous"}</span>
+                      <span className="text-[10px] text-zinc-600">{fmtSec(sess.watchedSeconds || 0)}</span>
+                      <div className="w-16 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${sess.completionPct || 0}%`, background: GOLD }} />
+                      </div>
+                      <span className="text-[10px] font-bold w-8 text-right" style={{ color: GOLD }}>{sess.completionPct || 0}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {sessionList.length === 0 && (selectedVideo.views || 0) > 0 && (
+              <div className="text-center py-4">
+                <p className="text-xs text-zinc-600">Detailed session data is tracked when viewers use the hosted player page.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* All videos performance table */}
+      {/* All videos table */}
       {sorted.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
           <div className="px-4 py-3" style={{ background: "rgba(12,12,16,0.98)", borderBottom: `1px solid ${GOLD}10` }}>
-            <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">All Videos — Performance</p>
+            <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider">All Videos — By Views</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: `1px solid ${GOLD}10`, background: "rgba(8,8,12,0.9)" }}>
-                  {["Title", "Type", "Views", "Watch Rate", "Completion", "Engagement", "Drop-off"].map(h => (
+                  {["Title", "Type", "Views", "Lead Gate", "Added"].map(h => (
                     <th key={h} className="text-left px-4 py-2.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {sorted.map(v => (
-                  <tr key={v.id} style={{ borderBottom: `1px solid ${GOLD}08` }} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-white font-medium max-w-40 truncate">{v.title}</td>
+                  <tr key={v.id} onClick={() => setSelectedId(v.id)} style={{ borderBottom: `1px solid ${GOLD}08`, cursor: "pointer" }} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-white font-medium max-w-48 truncate">{v.title}</td>
                     <td className="px-4 py-3">
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
                         background: v.videoType === "vsl" ? "#a78bfa20" : `${GOLD}15`,
@@ -2317,18 +2329,18 @@ function VideoAnalyticsTab() {
                         {v.videoType === "vsl" ? "VSL" : v.videoType === "webinar" ? "Webinar" : "Standard"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-zinc-300 font-semibold">{v.views || 0}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${v.watchRate}%`, background: GOLD }} />
+                        <div className="w-20 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: totalViews > 0 ? `${Math.round(((v.views || 0) / Math.max(...sorted.map((x: any) => x.views || 1))) * 100)}%` : "0%", background: GOLD }} />
                         </div>
-                        <span className="text-xs font-bold" style={{ color: GOLD }}>{v.watchRate}%</span>
+                        <span className="text-xs font-bold text-white">{v.views || 0}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs">{v.completionRate}%</td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs">{v.engagementRate}%</td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs">{v.dropOffMin}m</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: v.leadGateEnabled ? "#f59e0b" : "#52525b" }}>
+                      {v.leadGateEnabled ? "On" : "Off"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 text-xs">{v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2362,7 +2374,7 @@ function VideoAnalyticsTab() {
       {allVideos.length === 0 && (
         <div className="py-16 text-center">
           <Video className="w-14 h-14 mx-auto mb-4 text-zinc-700" />
-          <p className="text-sm text-zinc-500">No videos yet. Add videos in the Video Hosting tab to see analytics.</p>
+          <p className="text-sm text-zinc-500">No videos yet. Add videos in the Library tab to see analytics.</p>
         </div>
       )}
     </div>
