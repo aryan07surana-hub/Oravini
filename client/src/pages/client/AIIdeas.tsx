@@ -1495,90 +1495,104 @@ export default function AIIdeas() {
           ]}
         />
       )}
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-3" data-tour="ai-ideas-header">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-primary" />
+      <div className="min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-3" data-tour="ai-ideas-header">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+              <Sparkles className="w-3.5 h-3.5" />Content Ideas Generator
+            </div>
+            <h1 className="text-3xl font-black text-white tracking-tight">
+              Generate <span className="text-primary">Viral Content Ideas</span>
+            </h1>
+            <p className="text-zinc-400 text-sm max-w-md mx-auto">
+              AI-powered content ideas tailored to your niche, platform, and goals — the more context you give, the smarter the ideas.
+            </p>
+            <div className="flex justify-center">
+              <PageTourButton pageKey="ai-ideas" />
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-foreground">Content Ideas</h1>
-            <p className="text-xs text-muted-foreground">Personalized ideas powered by AI — the more context you give, the smarter the ideas</p>
-          </div>
-          <PageTourButton pageKey="ai-ideas" />
-        </div>
 
-        {creditError && <CreditErrorBanner message={creditError} />}
+          {creditError && <CreditErrorBanner message={creditError} />}
 
-        {/* Platform Tabs */}
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 block">Platform</Label>
-          <div className="flex gap-2 flex-wrap">
-            {/* X / Twitter */}
-            <button
-              onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
-              data-testid="platform-twitter"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                platform === "twitter"
-                  ? "bg-zinc-100/10 border-zinc-400/40 text-zinc-200"
-                  : "border-border text-muted-foreground hover:border-zinc-400/30 hover:text-zinc-300"
-              }`}
-            >
-              <Twitter className="w-4 h-4" />
-              <span>X / Twitter</span>
-              {loadLiked("twitter").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length}</Badge>
-              )}
-            </button>
-            {/* LinkedIn */}
-            <button
-              onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
-              data-testid="platform-linkedin"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                platform === "linkedin"
-                  ? "bg-blue-600/10 border-blue-600/40 text-blue-400"
-                  : "border-border text-muted-foreground hover:border-blue-600/30 hover:text-blue-400"
-              }`}
-            >
-              <Linkedin className="w-4 h-4" />
-              <span>LinkedIn</span>
-              {loadLiked("linkedin").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length}</Badge>
-              )}
-            </button>
-            {/* YouTube */}
-            <button
-              onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
-              data-testid="platform-youtube"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                platform === "youtube"
-                  ? "bg-red-500/10 border-red-500/40 text-red-400"
-                  : "border-border text-muted-foreground hover:border-red-500/30 hover:text-red-400"
-              }`}
-            >
-              <Youtube className="w-4 h-4" />
-              <span>YouTube</span>
-              {loadLiked("youtube").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
-              )}
-            </button>
-            {/* Instagram */}
-            <button
-              onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
-              data-testid="platform-instagram"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                platform === "instagram"
-                  ? "bg-pink-500/10 border-pink-500/40 text-pink-400"
-                  : "border-border text-muted-foreground hover:border-pink-500/30 hover:text-pink-400"
-              }`}
-            >
-              <Instagram className="w-4 h-4" />
-              <span>Instagram</span>
-              {loadLiked("instagram").length > 0 && (
-                <Badge className="h-4 px-1.5 text-[10px] bg-pink-500/20 text-pink-400 border-0">{loadLiked("instagram").length}</Badge>
-              )}
-            </button>
+          {/* Platform Selection */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />Choose Platform
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Instagram */}
+              <button
+                onClick={() => { setPlatform("instagram"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+                data-testid="platform-instagram"
+                className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all hover:scale-[1.02] ${
+                  platform === "instagram"
+                    ? "border-pink-500/40 bg-pink-500/10"
+                    : "border-zinc-800 bg-zinc-900 hover:border-pink-500/30"
+                }`}
+              >
+                {platform === "instagram" && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-pink-400" />}
+                <Instagram className="w-6 h-6 text-pink-400" />
+                <span className={`text-xs font-semibold ${platform === "instagram" ? "text-pink-400" : "text-zinc-300"}`}>Instagram</span>
+                {loadLiked("instagram").length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-4 px-1.5 text-[9px] bg-pink-500/20 text-pink-400 border-0">{loadLiked("instagram").length}</Badge>
+                )}
+              </button>
+              {/* YouTube */}
+              <button
+                onClick={() => { setPlatform("youtube"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+                data-testid="platform-youtube"
+                className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all hover:scale-[1.02] ${
+                  platform === "youtube"
+                    ? "border-red-500/40 bg-red-500/10"
+                    : "border-zinc-800 bg-zinc-900 hover:border-red-500/30"
+                }`}
+              >
+                {platform === "youtube" && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-400" />}
+                <Youtube className="w-6 h-6 text-red-400" />
+                <span className={`text-xs font-semibold ${platform === "youtube" ? "text-red-400" : "text-zinc-300"}`}>YouTube</span>
+                {loadLiked("youtube").length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-4 px-1.5 text-[9px] bg-red-500/20 text-red-400 border-0">{loadLiked("youtube").length}</Badge>
+                )}
+              </button>
+              {/* LinkedIn */}
+              <button
+                onClick={() => { setPlatform("linkedin"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+                data-testid="platform-linkedin"
+                className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all hover:scale-[1.02] ${
+                  platform === "linkedin"
+                    ? "border-blue-600/40 bg-blue-600/10"
+                    : "border-zinc-800 bg-zinc-900 hover:border-blue-600/30"
+                }`}
+              >
+                {platform === "linkedin" && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-400" />}
+                <Linkedin className="w-6 h-6 text-blue-400" />
+                <span className={`text-xs font-semibold ${platform === "linkedin" ? "text-blue-400" : "text-zinc-300"}`}>LinkedIn</span>
+                {loadLiked("linkedin").length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-4 px-1.5 text-[9px] bg-blue-500/20 text-blue-400 border-0">{loadLiked("linkedin").length}</Badge>
+                )}
+              </button>
+              {/* X / Twitter */}
+              <button
+                onClick={() => { setPlatform("twitter"); setContentType(""); setProfileUrl(""); setIdeas([]); setContentMix(null); setStrategyBrief(null); setIdeaBuckets([]); setWorkflow(null); }}
+                data-testid="platform-twitter"
+                className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all hover:scale-[1.02] ${
+                  platform === "twitter"
+                    ? "border-zinc-400/40 bg-zinc-100/10"
+                    : "border-zinc-800 bg-zinc-900 hover:border-zinc-400/30"
+                }`}
+              >
+                {platform === "twitter" && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-zinc-300" />}
+                <Twitter className="w-6 h-6 text-zinc-300" />
+                <span className={`text-xs font-semibold ${platform === "twitter" ? "text-zinc-200" : "text-zinc-300"}`}>X / Twitter</span>
+                {loadLiked("twitter").length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-4 px-1.5 text-[9px] bg-zinc-500/20 text-zinc-400 border-0">{loadLiked("twitter").length}</Badge>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+
+          <div className="border-t border-zinc-800/60" />
 
         <Tabs defaultValue="generate" className="space-y-6">
           <TabsList className="bg-card border border-card-border" data-tour="ai-ideas-tabs">
