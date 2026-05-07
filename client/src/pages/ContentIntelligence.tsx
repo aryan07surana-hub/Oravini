@@ -12,7 +12,8 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import {
   Sparkles, Brain, Wand2, Clock, Trash2, X, ChevronLeft, Palette,
-  AlignLeft, Layers, Copy, Check, Target, Zap, Award, TrendingUp
+  AlignLeft, Layers, Copy, Check, Target, Zap, Award, TrendingUp,
+  Lightbulb, CheckCircle2
 } from "lucide-react";
 
 const GOLD = "#d4b461";
