@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ import CreditErrorBanner from "@/components/CreditErrorBanner";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import PublishModal from "@/components/PublishModal";
+import { GOAL_CATEGORIES, GOALS } from "@shared/contentGoals";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, TrendingUp, PieChart, Trash2,
@@ -145,14 +146,7 @@ const TW_CONTENT_TYPES = [
   { value: "mix of threads and single tweets", label: "Mix of all formats" },
 ];
 
-const GOALS = [
-  { value: "grow followers/subscribers fast", label: "Grow Followers / Subscribers" },
-  { value: "drive sales and conversions", label: "Drive Sales & Conversions" },
-  { value: "boost engagement and comments", label: "Boost Engagement & Comments" },
-  { value: "build brand authority and trust", label: "Build Authority & Trust" },
-  { value: "go viral and reach new audiences", label: "Go Viral" },
-  { value: "educate my audience", label: "Educate My Audience" },
-];
+// Goals imported from @shared/contentGoals
 
 function extractHandle(url: string, platform: "instagram" | "youtube"): string | null {
   if (!url.trim()) return null;
@@ -1594,8 +1588,28 @@ export default function AIIdeas() {
 
           <div className="border-t border-zinc-800/60" />
 
+          {/* History & Liked — compact row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <PageTourButton pageKey="ai-ideas" />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const el = document.getElementById("ideas-history-section");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-primary/30 bg-zinc-900"
+                data-testid="tab-ideas-history"
+              >
+                <History className="w-3.5 h-3.5" />History
+                {ideaHistory.length > 0 && <Badge className="ml-1 h-4 px-1.5 text-[9px] bg-zinc-500/20 text-zinc-400 border-0">{ideaHistory.length}</Badge>}
+              </button>
+            </div>
+          </div>
+
         <Tabs defaultValue="generate" className="space-y-6">
-          <TabsList className="bg-card border border-card-border" data-tour="ai-ideas-tabs">
+          <TabsList className="bg-zinc-900 border border-zinc-800" data-tour="ai-ideas-tabs">
             <TabsTrigger value="generate" className="gap-1.5" data-testid="tab-generate-ideas">
               <Sparkles className="w-3.5 h-3.5" /> Generate Ideas
             </TabsTrigger>
@@ -1767,34 +1781,28 @@ export default function AIIdeas() {
           </TabsContent>
 
           <TabsContent value="generate" className="space-y-6 mt-0">
-        <Card className="border border-card-border">
-          <CardContent className="p-6 space-y-5">
+
+            {/* Profile URL — optional */}
             {showProfileUrl && (
-              <div className="space-y-1.5">
-                <Label htmlFor="profileUrl" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Link className="w-3 h-3" />
-                  {platform === "instagram" ? "Instagram Profile Link" : "YouTube Channel Link"}
-                  <span className="text-muted-foreground font-normal normal-case">(optional — helps personalise ideas)</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="profileUrl"
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Link className="w-4 h-4 text-primary" />
+                  {platform === "instagram" ? "Instagram Profile" : "YouTube Channel"}
+                  <span className="text-zinc-600 font-normal text-xs">(optional — helps personalise ideas)</span>
+                </label>
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 h-9">
+                  {platform === "instagram" ? <Instagram className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" /> : <Youtube className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />}
+                  <input
                     value={profileUrl}
                     onChange={e => setProfileUrl(e.target.value)}
-                    placeholder={platform === "instagram"
-                      ? "https://instagram.com/yourhandle  or  @yourhandle"
-                      : "https://youtube.com/@yourchannel  or  @yourchannel"}
+                    placeholder={platform === "instagram" ? "https://instagram.com/yourhandle  or  @yourhandle" : "https://youtube.com/@yourchannel  or  @yourchannel"}
                     data-testid="input-profile-url"
-                    className={`bg-card border-card-border pr-10 transition-colors ${isProfileLinked ? "border-green-500/40 focus-visible:ring-green-500/30" : ""}`}
+                    className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none"
                   />
-                  {isProfileLinked && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    </div>
-                  )}
+                  {isProfileLinked && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
                 </div>
                 {isProfileLinked && (
-                  <div className="flex items-center gap-2 pt-0.5">
+                  <div className="flex items-center gap-2">
                     <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/30 border">
                       {platform === "instagram" ? <Instagram className="w-2.5 h-2.5 mr-1" /> : <Youtube className="w-2.5 h-2.5 mr-1" />}
                       {detectedHandle} detected
@@ -1807,115 +1815,119 @@ export default function AIIdeas() {
                     )}
                   </div>
                 )}
-                {!isProfileLinked && platformPosts.length > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Tip: Paste your profile link and AI will use your {platformPosts.length} logged {platform} posts to generate smarter, personalised ideas.
-                  </p>
-                )}
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-tour="ai-ideas-form">
-              <div className="space-y-1.5">
-                <Label htmlFor="niche" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Lightbulb className="w-3 h-3" /> Your Niche *
-                </Label>
-                <Input
-                  id="niche"
-                  value={niche}
-                  onChange={e => setNiche(e.target.value)}
-                  placeholder="e.g. fitness, personal finance, cooking..."
-                  data-testid="input-niche"
-                  className="bg-card border-card-border"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Target className="w-3 h-3" /> Content Type
-                </Label>
-                <Select value={contentType} onValueChange={setContentType}>
-                  <SelectTrigger className="bg-card border-card-border" data-testid="select-content-type">
-                    <SelectValue placeholder="Any type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contentTypes.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap className="w-3 h-3" /> Goal
-                </Label>
-                <Select value={goal} onValueChange={setGoal}>
-                  <SelectTrigger className="bg-card border-card-border" data-testid="select-goal">
-                    <SelectValue placeholder="Select your goal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GOALS.map(g => (
-                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="audience" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-3 h-3" /> Target Audience
-                </Label>
-                <Input
-                  id="audience"
-                  value={audience}
-                  onChange={e => setAudience(e.target.value)}
-                  placeholder="e.g. women 25-35, new moms..."
-                  data-testid="input-audience"
-                  className="bg-card border-card-border"
-                />
-              </div>
-
-              {platform === "youtube" && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="yt-duration" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" /> Video Length (minutes)
-                    <span className="text-muted-foreground font-normal normal-case">— used when generating scripts</span>
-                  </Label>
-                  <Input
-                    id="yt-duration"
-                    value={ytVideoDuration}
-                    onChange={e => setYtVideoDuration(e.target.value.replace(/[^0-9]/g, ""))}
-                    placeholder="e.g. 10, 20, 35"
-                    data-testid="input-yt-duration"
-                    className="bg-card border-card-border"
-                    type="number"
-                    min="1"
-                    max="120"
-                  />
-                </div>
-              )}
+            {/* Niche */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">Niche <span className="text-red-400">*</span></label>
+              <Input
+                value={niche}
+                onChange={e => setNiche(e.target.value)}
+                placeholder="e.g. fitness, personal finance, cooking..."
+                data-testid="input-niche"
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
             </div>
+
+            {/* Content Type — chip style */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">Content Type</label>
+              <div className="flex flex-wrap gap-2">
+                {contentTypes.map(t => (
+                  <button
+                    key={t.value}
+                    onClick={() => setContentType(contentType === t.value ? "" : t.value)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${contentType === t.value ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}
+                    data-testid={`content-type-${t.value}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Goal — grouped select */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />Goal
+              </label>
+              <Select value={goal} onValueChange={setGoal}>
+                <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white" data-testid="select-goal">
+                  <SelectValue placeholder="Select your goal" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[340px]">
+                  {GOAL_CATEGORIES.map(cat => (
+                    <SelectGroup key={cat.key}>
+                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold px-2 pt-2 pb-1 flex items-center gap-1.5">
+                        <span>{cat.emoji}</span> {cat.label}
+                      </SelectLabel>
+                      {cat.items.map(item => (
+                        <SelectItem key={item.value} value={item.value} className="py-2">
+                          <div className="flex flex-col gap-0">
+                            <span className="text-sm">{item.label}</span>
+                            {item.hint && (
+                              <span className="text-[11px] text-muted-foreground leading-tight">{item.hint}</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Target Audience */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">Target Audience</label>
+              <Input
+                value={audience}
+                onChange={e => setAudience(e.target.value)}
+                placeholder="e.g. women 25-35, new moms, aspiring entrepreneurs..."
+                data-testid="input-audience"
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
+              />
+            </div>
+
+            {/* YouTube duration */}
+            {platform === "youtube" && (
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />Video Length (minutes)
+                  <span className="text-zinc-600 font-normal text-xs">— used when generating scripts</span>
+                </label>
+                <Input
+                  value={ytVideoDuration}
+                  onChange={e => setYtVideoDuration(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="e.g. 10, 20, 35"
+                  data-testid="input-yt-duration"
+                  className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
+                  type="number"
+                  min="1"
+                  max="120"
+                />
+              </div>
+            )}
 
             {/* Hashtags — Instagram only */}
             {platform === "instagram" && (
-              <div className="space-y-3">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Hash className="w-3 h-3" /> Popular Hashtags
-                  <span className="text-muted-foreground font-normal normal-case">(optional — helps AI generate more targeted ideas)</span>
-                </Label>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Hash className="w-4 h-4 text-primary" />Popular Hashtags
+                  <span className="text-zinc-600 font-normal text-xs">(optional — helps AI target ideas)</span>
+                </div>
 
-                {/* AI-powered hashtag suggestions */}
                 {niche.trim().length >= 3 && (
                   <div>
                     {hashtagsLoading ? (
                       <div className="flex items-center gap-2 py-1">
                         <RefreshCw className="w-3 h-3 animate-spin text-primary" />
-                        <span className="text-[10px] text-muted-foreground">Finding best hashtags for <span className="text-primary font-medium">{niche}</span>…</span>
+                        <span className="text-[10px] text-zinc-500">Finding best hashtags for <span className="text-primary font-medium">{niche}</span>…</span>
                       </div>
                     ) : suggestedHashtags.length > 0 ? (
                       <div>
-                        <p className="text-[10px] text-muted-foreground mb-2">
+                        <p className="text-[10px] text-zinc-500 mb-2">
                           AI-recommended for <span className="text-primary font-medium">{niche}</span> — click to add:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
@@ -1925,7 +1937,7 @@ export default function AIIdeas() {
                               <button
                                 key={tag}
                                 onClick={() => isSelected ? removeHashtag(tag) : addHashtag(tag)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-muted/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"}`}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${isSelected ? "bg-primary/15 border-primary/40 text-primary" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-primary/30 hover:text-zinc-200"}`}
                                 data-testid={`suggested-hashtag-${tag}`}
                               >
                                 {tag}
@@ -1938,34 +1950,32 @@ export default function AIIdeas() {
                   </div>
                 )}
 
-                {/* Manual hashtag input */}
                 <div className="flex gap-2">
                   <Input
                     value={hashtagInput}
                     onChange={e => setHashtagInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && hashtagInput.trim()) { e.preventDefault(); addHashtag(hashtagInput); } }}
                     placeholder="Type a hashtag and press Enter..."
-                    className="bg-card border-card-border h-8 text-xs flex-1"
+                    className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 h-8 text-xs flex-1"
                     data-testid="input-hashtag"
                   />
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => hashtagInput.trim() && addHashtag(hashtagInput)}
-                    className="h-8 px-3 text-xs"
+                    className="h-8 px-3 text-xs border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                     data-testid="button-add-hashtag"
                   >
                     <Plus className="w-3 h-3 mr-1" />Add
                   </Button>
                 </div>
 
-                {/* Selected hashtags */}
                 {hashtags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {hashtags.map(tag => (
                       <span key={tag} className="flex items-center gap-1 bg-primary/10 border border-primary/25 text-primary rounded-full px-2.5 py-1 text-[11px] font-medium">
                         {tag}
-                        <button onClick={() => removeHashtag(tag)} className="hover:text-destructive transition-colors ml-0.5">
+                        <button onClick={() => removeHashtag(tag)} className="hover:text-red-400 transition-colors ml-0.5">
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
@@ -1975,28 +1985,28 @@ export default function AIIdeas() {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="context" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Additional Context <span className="text-muted-foreground font-normal normal-case">(optional)</span>
-              </Label>
+            {/* Additional Context */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-white">
+                Additional Context <span className="text-zinc-600 font-normal text-xs">(optional)</span>
+              </label>
               <Textarea
-                id="context"
                 value={additionalContext}
                 onChange={e => setAdditionalContext(e.target.value)}
                 placeholder="Any extra details — upcoming launch, seasonal topic, specific product you're promoting..."
                 data-testid="textarea-context"
-                className="bg-card border-card-border resize-none h-20"
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 resize-none h-20"
               />
               <AiRefineButton text={additionalContext} onAccept={setAdditionalContext} context="additional context for content idea generation" />
             </div>
 
+            {/* Generate Button */}
             <Button
               onClick={handleGenerate}
-              disabled={loading}
-              className="w-full"
+              disabled={loading || !niche.trim()}
+              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl"
               data-testid="button-generate"
               data-tour="ai-ideas-generate"
-              size="lg"
             >
               {loading ? (
                 <>
@@ -2013,12 +2023,10 @@ export default function AIIdeas() {
             </Button>
 
             {isProfileLinked && platformPosts.length > 0 && (
-              <p className="text-center text-[11px] text-muted-foreground -mt-2">
+              <p className="text-center text-[11px] text-zinc-500 -mt-4">
                 AI will analyse your {platformPosts.length} logged posts to avoid repetition and fill content gaps
               </p>
             )}
-          </CardContent>
-        </Card>
 
         {ideas.length > 0 && !loading && (
           <div className="space-y-4">

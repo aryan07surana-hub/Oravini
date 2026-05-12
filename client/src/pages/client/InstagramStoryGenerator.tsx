@@ -13,13 +13,17 @@ import {
   X, ChevronLeft, ChevronRight, Palette,
   Zap, Copy, Check, Film, AlignLeft, ImageIcon, Layers,
   Upload, Download, Camera, ArrowRight, CheckCircle2,
+  Youtube, Linkedin,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+type StoryPlatform = "instagram" | "youtube" | "linkedin";
+
 interface StoryForm {
+  platform: StoryPlatform;
   goal: string; goalCustom: string;
   topic: string; niche: string;
-  targetAudience: string; instagramUrl: string;
+  targetAudience: string; profileUrl: string;
   ctaType: string; ctaCustom: string;
   slidesCount: number; style: string;
   tone: string;
@@ -46,6 +50,67 @@ interface StoryResult {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NICHE_SUGGESTIONS = ["Fitness", "Finance", "Marketing", "Personal Brand", "Coaching", "SaaS", "Real Estate", "E-commerce", "Social Media", "Mindset", "Nutrition", "Business"];
 
+// ─── Platform Config ──────────────────────────────────────────────────────────
+const PLATFORM_CONFIG: Record<StoryPlatform, { label: string; icon: typeof Instagram; color: string; activeColor: string; borderColor: string; bgColor: string; profilePlaceholder: string; profileLabel: string; description: string; formatLabel: string }> = {
+  instagram: { label: "Instagram", icon: Instagram, color: "text-pink-400", activeColor: "border-pink-500/40 bg-pink-500/10", borderColor: "hover:border-pink-500/30", bgColor: "bg-pink-500/20", profilePlaceholder: "https://instagram.com/yourhandle", profileLabel: "Instagram Profile URL", description: "AI generates a slide-by-slide Instagram story — then you upload your own photos and the text overlays automatically.", formatLabel: "Story Sequence" },
+  youtube: { label: "YouTube", icon: Youtube, color: "text-red-400", activeColor: "border-red-500/40 bg-red-500/10", borderColor: "hover:border-red-500/30", bgColor: "bg-red-500/20", profilePlaceholder: "https://youtube.com/@yourchannel", profileLabel: "YouTube Channel URL", description: "AI generates a Shorts script sequence — frame-by-frame hooks, visuals, and retention beats for vertical video.", formatLabel: "Shorts Sequence" },
+  linkedin: { label: "LinkedIn", icon: Linkedin, color: "text-blue-400", activeColor: "border-blue-600/40 bg-blue-600/10", borderColor: "hover:border-blue-600/30", bgColor: "bg-blue-500/20", profilePlaceholder: "https://linkedin.com/in/yourprofile", profileLabel: "LinkedIn Profile URL", description: "AI generates a carousel document — slide-by-slide educational or storytelling content for LinkedIn posts.", formatLabel: "Carousel Slides" },
+};
+
+interface InspirationItem {
+  id: string; emoji: string; label: string; desc: string;
+  niche: string; goal: string; topic: string; targetAudience: string;
+  ctaType: string; slidesCount: number; style: string; color: string;
+}
+
+const PLATFORM_INSPIRATIONS: Record<StoryPlatform, InspirationItem[]> = {
+  instagram: [
+    { id: "mindset", emoji: "🧠", label: "7-Day Mindset Reset", desc: "Daily value sequence for personal development", niche: "Personal Development", goal: "value", topic: "7-day mindset reset challenge for entrepreneurs", targetAudience: "Entrepreneurs and coaches feeling burnt out", ctaType: "follow", slidesCount: 7, style: "minimal", color: "#7c3aed" },
+    { id: "story", emoji: "✨", label: "My Origin Story", desc: "Storytelling to build deep connection", niche: "Personal Brand", goal: "audience", topic: "How I went from struggling creator to full-time income", targetAudience: "Aspiring content creators", ctaType: "follow", slidesCount: 8, style: "aesthetic", color: "#ec4899" },
+    { id: "mistakes", emoji: "🚫", label: "3 Costly Mistakes", desc: "Educational problem-aware sequence", niche: "Business", goal: "engagement", topic: "3 mistakes that are killing your Instagram growth", targetAudience: "Small business owners on Instagram", ctaType: "dm", slidesCount: 6, style: "bold", color: "#dc2626" },
+    { id: "launch", emoji: "🚀", label: "Product Launch Story", desc: "Behind-the-scenes sales sequence", niche: "E-commerce", goal: "sell", topic: "Behind the scenes of launching my new digital product", targetAudience: "Online shoppers interested in the niche", ctaType: "buy", slidesCount: 9, style: "modern", color: "#2563eb" },
+    { id: "results", emoji: "📈", label: "Client Results Proof", desc: "Proof-based credibility sequence", niche: "Coaching", goal: "sell", topic: "Real results my clients achieved in 30 days", targetAudience: "People looking for a coach or mentor", ctaType: "book-call", slidesCount: 7, style: "luxury", color: "#d4b461" },
+    { id: "challenge", emoji: "🎯", label: "Free Challenge Invite", desc: "Community building CTA sequence", niche: "Marketing", goal: "traffic", topic: "Join my free 5-day content challenge to grow your audience", targetAudience: "Content creators wanting to grow", ctaType: "link", slidesCount: 5, style: "casual", color: "#10b981" },
+  ],
+  youtube: [
+    { id: "yt-hook", emoji: "🎬", label: "Viral Shorts Hook", desc: "Pattern-interrupt opening for Shorts", niche: "Social Media", goal: "audience", topic: "3 Instagram hacks that got me 100K followers in 30 days", targetAudience: "Creators wanting to grow on social media", ctaType: "follow", slidesCount: 6, style: "bold", color: "#dc2626" },
+    { id: "yt-tutorial", emoji: "📚", label: "60-Second Tutorial", desc: "Quick how-to Shorts sequence", niche: "Marketing", goal: "value", topic: "How to write a viral hook in under 60 seconds", targetAudience: "Content creators and marketers", ctaType: "follow", slidesCount: 5, style: "modern", color: "#2563eb" },
+    { id: "yt-story", emoji: "🎭", label: "Storytime Short", desc: "Engaging personal story for Shorts", niche: "Personal Brand", goal: "engagement", topic: "The day I almost quit YouTube — and what changed everything", targetAudience: "Aspiring YouTubers feeling stuck", ctaType: "follow", slidesCount: 7, style: "aesthetic", color: "#7c3aed" },
+    { id: "yt-listicle", emoji: "📋", label: "Top 5 Listicle", desc: "Fast-paced value-packed list", niche: "Finance", goal: "value", topic: "5 money habits that made me rich before 30", targetAudience: "Young professionals wanting financial freedom", ctaType: "follow", slidesCount: 7, style: "luxury", color: "#d4b461" },
+    { id: "yt-myth", emoji: "💥", label: "Myth Buster", desc: "Controversial take that gets comments", niche: "Fitness", goal: "engagement", topic: "Everything you know about protein is wrong — here's the truth", targetAudience: "Gym-goers and fitness enthusiasts", ctaType: "follow", slidesCount: 5, style: "bold", color: "#dc2626" },
+    { id: "yt-product", emoji: "🛍️", label: "Product Review Short", desc: "Quick review that drives sales", niche: "E-commerce", goal: "sell", topic: "I tested this viral product for 30 days — honest review", targetAudience: "Online shoppers looking for honest reviews", ctaType: "link", slidesCount: 6, style: "casual", color: "#10b981" },
+  ],
+  linkedin: [
+    { id: "li-framework", emoji: "🧩", label: "Framework Breakdown", desc: "Teach a system in carousel slides", niche: "Business", goal: "value", topic: "The 4-step framework I use to close $10K clients", targetAudience: "B2B consultants and agency owners", ctaType: "follow", slidesCount: 8, style: "minimal", color: "#2563eb" },
+    { id: "li-story", emoji: "📖", label: "Career Story Arc", desc: "Personal journey that builds authority", niche: "Personal Brand", goal: "audience", topic: "From fired to founding a 7-figure company in 18 months", targetAudience: "Professionals considering entrepreneurship", ctaType: "follow", slidesCount: 9, style: "modern", color: "#7c3aed" },
+    { id: "li-data", emoji: "📊", label: "Data-Driven Insights", desc: "Stats and takeaways carousel", niche: "Marketing", goal: "value", topic: "I analyzed 500 LinkedIn posts — here's what actually works", targetAudience: "Marketers and content creators on LinkedIn", ctaType: "follow", slidesCount: 7, style: "bold", color: "#dc2626" },
+    { id: "li-mistakes", emoji: "⚠️", label: "Lessons Learned", desc: "Mistakes that teach your audience", niche: "SaaS", goal: "engagement", topic: "5 expensive mistakes I made scaling my SaaS to $1M ARR", targetAudience: "SaaS founders and startup operators", ctaType: "dm", slidesCount: 7, style: "luxury", color: "#d4b461" },
+    { id: "li-howto", emoji: "🔧", label: "Step-by-Step Guide", desc: "Actionable how-to carousel", niche: "Coaching", goal: "value", topic: "How to land your first 5 coaching clients without ads", targetAudience: "New coaches and consultants", ctaType: "link", slidesCount: 8, style: "aesthetic", color: "#ec4899" },
+    { id: "li-opinion", emoji: "🔥", label: "Hot Take Carousel", desc: "Controversial opinion that sparks debate", niche: "Finance", goal: "engagement", topic: "Why most financial advice on LinkedIn is dangerously wrong", targetAudience: "Finance professionals and investors", ctaType: "follow", slidesCount: 6, style: "bold", color: "#dc2626" },
+  ],
+};
+
+const PLATFORM_CTA_OPTIONS: Record<StoryPlatform, typeof CTA_OPTIONS> = {
+  instagram: [
+    { id: "follow", label: "Follow Me" }, { id: "dm", label: "DM Me" },
+    { id: "link", label: "Link in Bio" }, { id: "buy", label: "Buy / Shop" },
+    { id: "join", label: "Join Community" }, { id: "book-call", label: "Book a Call" },
+    { id: "custom", label: "Custom" },
+  ],
+  youtube: [
+    { id: "subscribe", label: "Subscribe" }, { id: "like", label: "Like & Share" },
+    { id: "comment", label: "Comment Below" }, { id: "link", label: "Link in Description" },
+    { id: "watch-next", label: "Watch Next Video" }, { id: "join", label: "Join Membership" },
+    { id: "custom", label: "Custom" },
+  ],
+  linkedin: [
+    { id: "follow", label: "Follow Me" }, { id: "comment", label: "Drop a Comment" },
+    { id: "dm", label: "DM Me" }, { id: "repost", label: "Repost This" },
+    { id: "link", label: "Visit Link" }, { id: "book-call", label: "Book a Call" },
+    { id: "custom", label: "Custom" },
+  ],
+};
+
 const GOAL_OPTIONS = [
   { id: "value", label: "Provide Value", icon: "💡" },
   { id: "audience", label: "Build Audience", icon: "👥" },
@@ -54,12 +119,7 @@ const GOAL_OPTIONS = [
   { id: "traffic", label: "Drive Traffic", icon: "🔗" },
   { id: "other", label: "Other", icon: "✏️" },
 ];
-const CTA_OPTIONS = [
-  { id: "follow", label: "Follow Me" }, { id: "dm", label: "DM Me" },
-  { id: "link", label: "Link in Bio" }, { id: "buy", label: "Buy / Shop" },
-  { id: "join", label: "Join Community" }, { id: "book-call", label: "Book a Call" },
-  { id: "custom", label: "Custom" },
-];
+// CTA options are now platform-specific via PLATFORM_CTA_OPTIONS
 const STYLE_OPTIONS = [
   { id: "minimal", label: "Minimal", desc: "Clean & elegant" },
   { id: "bold", label: "Bold", desc: "High contrast" },
@@ -89,14 +149,7 @@ const DEPTH_OPTIONS = [
   { id: "balanced", label: "Balanced", desc: "Mix of quick hooks + deeper insights", emoji: "⚖️" },
   { id: "deep-dive", label: "Deep Dive", desc: "Detailed, comprehensive, educational", emoji: "🔬" },
 ];
-const INSPIRATIONS = [
-  { id: "mindset", emoji: "🧠", label: "7-Day Mindset Reset", desc: "Daily value sequence for personal development", niche: "Personal Development", goal: "value", topic: "7-day mindset reset challenge for entrepreneurs", targetAudience: "Entrepreneurs and coaches feeling burnt out", ctaType: "follow", slidesCount: 7, style: "minimal", color: "#7c3aed" },
-  { id: "story", emoji: "✨", label: "My Origin Story", desc: "Storytelling to build deep connection", niche: "Personal Brand", goal: "audience", topic: "How I went from struggling creator to full-time income", targetAudience: "Aspiring content creators", ctaType: "follow", slidesCount: 8, style: "aesthetic", color: "#ec4899" },
-  { id: "mistakes", emoji: "🚫", label: "3 Costly Mistakes", desc: "Educational problem-aware sequence", niche: "Business", goal: "engagement", topic: "3 mistakes that are killing your Instagram growth", targetAudience: "Small business owners on Instagram", ctaType: "dm", slidesCount: 6, style: "bold", color: "#dc2626" },
-  { id: "launch", emoji: "🚀", label: "Product Launch Story", desc: "Behind-the-scenes sales sequence", niche: "E-commerce", goal: "sell", topic: "Behind the scenes of launching my new digital product", targetAudience: "Online shoppers interested in the niche", ctaType: "buy", slidesCount: 9, style: "modern", color: "#2563eb" },
-  { id: "results", emoji: "📈", label: "Client Results Proof", desc: "Proof-based credibility sequence", niche: "Coaching", goal: "sell", topic: "Real results my clients achieved in 30 days", targetAudience: "People looking for a coach or mentor", ctaType: "book-call", slidesCount: 7, style: "luxury", color: "#d4b461" },
-  { id: "challenge", emoji: "🎯", label: "Free Challenge Invite", desc: "Community building CTA sequence", niche: "Marketing", goal: "traffic", topic: "Join my free 5-day content challenge to grow your audience", targetAudience: "Content creators wanting to grow", ctaType: "link", slidesCount: 5, style: "casual", color: "#10b981" },
-];
+// Inspirations are now platform-specific via PLATFORM_INSPIRATIONS
 const SLIDE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   Hook:       { bg: "#7c3aed", text: "#fff" },
   Problem:    { bg: "#dc2626", text: "#fff" },
@@ -537,8 +590,9 @@ export default function InstagramStoryGenerator() {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   const [form, setForm] = useState<StoryForm>({
+    platform: "instagram",
     goal: "", goalCustom: "", topic: "", niche: "",
-    targetAudience: "", instagramUrl: "",
+    targetAudience: "", profileUrl: "",
     ctaType: "follow", ctaCustom: "",
     slidesCount: 7, style: "minimal",
     tone: "inspirational",
@@ -552,7 +606,7 @@ export default function InstagramStoryGenerator() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/ai/history", "story-generator"] }),
   });
 
-  const applyInspo = (ins: typeof INSPIRATIONS[0]) => {
+  const applyInspo = (ins: InspirationItem) => {
     setSelectedInspo(ins.id);
     setF("goal", ins.goal); setF("topic", ins.topic); setF("niche", ins.niche);
     setNicheInput(ins.niche); setF("targetAudience", ins.targetAudience);
@@ -567,9 +621,10 @@ export default function InstagramStoryGenerator() {
     setApiDone(false);
     try {
       const data: StoryResult = await apiRequest("POST", "/api/ai/story/generate", {
+        platform: form.platform,
         goal: form.goal === "other" ? form.goalCustom : form.goal,
         topic: form.topic, niche: nicheInput || form.niche,
-        targetAudience: form.targetAudience, instagramUrl: form.instagramUrl,
+        targetAudience: form.targetAudience, profileUrl: form.profileUrl,
         ctaType: form.ctaType === "custom" ? form.ctaCustom : form.ctaType,
         slidesCount: form.slidesCount, style: form.style,
         tone: form.tone, hookStyle: form.hookStyle, contentDepth: form.contentDepth,
@@ -581,7 +636,7 @@ export default function InstagramStoryGenerator() {
       saveMut.mutate({
         tool: "story-generator",
         title: form.topic.slice(0, 60),
-        inputs: { niche: nicheInput || form.niche, slidesCount: form.slidesCount, style: form.style, goal: form.goal },
+        inputs: { platform: form.platform, niche: nicheInput || form.niche, slidesCount: form.slidesCount, style: form.style, goal: form.goal },
         output: data,
       });
     } catch (err: any) {
@@ -642,9 +697,10 @@ export default function InstagramStoryGenerator() {
 
   // ── Generating screen ──────────────────────────────────────────────────────
   if (generating) {
+    const genLabel = form.platform === "youtube" ? "Crafting your Shorts sequence…" : form.platform === "linkedin" ? "Crafting your carousel slides…" : "Crafting your story sequence…";
     return (
       <GeneratingScreen
-        label="Crafting your story sequence…"
+        label={genLabel}
         steps={[
           "Analysing your goal and niche",
           "Crafting slide-by-slide breakdown",
@@ -660,6 +716,11 @@ export default function InstagramStoryGenerator() {
 
   // ── Config step ────────────────────────────────────────────────────────────
   if (step === "config") {
+    const pConfig = PLATFORM_CONFIG[form.platform];
+    const PlatformIcon = pConfig.icon;
+    const currentInspirations = PLATFORM_INSPIRATIONS[form.platform];
+    const currentCtaOptions = PLATFORM_CTA_OPTIONS[form.platform];
+
     return (
       <ClientLayout>
         <div className="min-h-screen bg-background">
@@ -674,15 +735,44 @@ export default function InstagramStoryGenerator() {
                 <ChevronLeft className="w-3.5 h-3.5" />AI Design Hub
               </button>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
-                <Film className="w-3.5 h-3.5" />Instagram Story Generator
+                <Film className="w-3.5 h-3.5" />Story & Carousel Generator
               </div>
               <h1 className="text-3xl font-black text-white tracking-tight">
-                Build a <span className="text-primary">High-Converting</span> Story Sequence
+                Build a <span className="text-primary">High-Converting</span> {pConfig.formatLabel}
               </h1>
               <p className="text-zinc-400 text-sm max-w-md mx-auto">
-                AI generates a slide-by-slide Instagram story — then you upload your own photos and the text overlays automatically.
+                {pConfig.description}
               </p>
             </div>
+
+            {/* Platform Selector */}
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />Choose Platform
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {(Object.entries(PLATFORM_CONFIG) as [StoryPlatform, typeof pConfig][]).map(([key, cfg]) => {
+                  const Icon = cfg.icon;
+                  const isActive = form.platform === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => { setF("platform", key); setF("ctaType", key === "youtube" ? "subscribe" : "follow"); setSelectedInspo(null); }}
+                      data-testid={`platform-${key}`}
+                      className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border text-center transition-all hover:scale-[1.02] ${
+                        isActive ? cfg.activeColor : `border-zinc-800 bg-zinc-900 ${cfg.borderColor}`
+                      }`}
+                    >
+                      {isActive && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-current" style={{ color: key === "instagram" ? "#f472b6" : key === "youtube" ? "#f87171" : "#60a5fa" }} />}
+                      <Icon className={`w-6 h-6 ${cfg.color}`} />
+                      <span className={`text-xs font-semibold ${isActive ? cfg.color : "text-zinc-300"}`}>{cfg.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-800/60" />
 
             {/* History button */}
             <div className="flex justify-end">
@@ -697,7 +787,7 @@ export default function InstagramStoryGenerator() {
                 <Sparkles className="w-4 h-4 text-primary" />Start with an Inspiration
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {INSPIRATIONS.map(ins => (
+                {currentInspirations.map(ins => (
                   <button key={ins.id} onClick={() => applyInspo(ins)} data-testid={`inspo-${ins.id}`}
                     className={`relative rounded-xl border p-3 text-left transition-all hover:scale-[1.02] ${selectedInspo === ins.id ? "border-primary bg-primary/8" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
                     {selectedInspo === ins.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />}
@@ -766,10 +856,10 @@ export default function InstagramStoryGenerator() {
                 <Input placeholder="e.g. Coaches with under 1k followers wanting to monetize" value={form.targetAudience} onChange={e => setF("targetAudience", e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" data-testid="input-audience" />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-300">Instagram Profile URL <span className="text-zinc-600">(optional)</span></label>
+                <label className="text-xs font-semibold text-zinc-300">{pConfig.profileLabel} <span className="text-zinc-600">(optional)</span></label>
                 <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 h-9">
-                  <Instagram className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                  <input value={form.instagramUrl} onChange={e => setF("instagramUrl", e.target.value)} placeholder="https://instagram.com/yourhandle" className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none" data-testid="input-instagram" />
+                  <PlatformIcon className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                  <input value={form.profileUrl} onChange={e => setF("profileUrl", e.target.value)} placeholder={pConfig.profilePlaceholder} className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none" data-testid="input-profile-url" />
                 </div>
               </div>
             </div>
@@ -778,7 +868,7 @@ export default function InstagramStoryGenerator() {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-white">CTA Type</label>
               <div className="flex flex-wrap gap-2">
-                {CTA_OPTIONS.map(c => (
+                {currentCtaOptions.map(c => (
                   <button key={c.id} onClick={() => setF("ctaType", c.id)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${form.ctaType === c.id ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>{c.label}</button>
                 ))}
@@ -790,7 +880,7 @@ export default function InstagramStoryGenerator() {
 
             {/* Design */}
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Story Design & Style</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />{form.platform === "linkedin" ? "Carousel" : "Story"} Design & Style</div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-zinc-400">Number of slides</label>
@@ -873,7 +963,7 @@ export default function InstagramStoryGenerator() {
 
             <Button onClick={handleGenerate} disabled={!form.goal || !form.topic.trim()}
               className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl" data-testid="btn-generate-story">
-              <Wand2 className="w-4 h-4 mr-2" />Generate Story Sequence ({form.slidesCount} slides)
+              <Wand2 className="w-4 h-4 mr-2" />Generate {pConfig.formatLabel} ({form.slidesCount} slides)
             </Button>
           </div>
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { GOAL_CATEGORIES, GOALS } from "@shared/contentGoals";
 import {
   Sparkles, Instagram, Youtube, Lightbulb, Copy, Heart,
   RefreshCw, ChevronDown, ChevronUp, Zap, Target, Users, MessageSquare, Link, CheckCircle2, User, TrendingUp, PieChart
@@ -52,14 +53,7 @@ const YT_CONTENT_TYPES = [
   { value: "mix of all YouTube formats", label: "Mix of all formats" },
 ];
 
-const GOALS = [
-  { value: "grow followers/subscribers fast", label: "Grow Followers / Subscribers" },
-  { value: "drive sales and conversions", label: "Drive Sales & Conversions" },
-  { value: "boost engagement and comments", label: "Boost Engagement & Comments" },
-  { value: "build brand authority and trust", label: "Build Authority & Trust" },
-  { value: "go viral and reach new audiences", label: "Go Viral" },
-  { value: "educate my audience", label: "Educate My Audience" },
-];
+// Goals imported from @shared/contentGoals
 
 function extractHandle(url: string, platform: "instagram" | "youtube"): string | null {
   if (!url.trim()) return null;
@@ -472,9 +466,23 @@ export default function AdminAIIdeas() {
                   <SelectTrigger className="bg-card border-card-border" data-testid="admin-select-goal">
                     <SelectValue placeholder="Select a goal" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {GOALS.map(g => (
-                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                  <SelectContent className="max-h-[340px]">
+                    {GOAL_CATEGORIES.map(cat => (
+                      <SelectGroup key={cat.key}>
+                        <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold px-2 pt-2 pb-1 flex items-center gap-1.5">
+                          <span>{cat.emoji}</span> {cat.label}
+                        </SelectLabel>
+                        {cat.items.map(item => (
+                          <SelectItem key={item.value} value={item.value} className="py-2">
+                            <div className="flex flex-col gap-0">
+                              <span className="text-sm">{item.label}</span>
+                              {item.hint && (
+                                <span className="text-[11px] text-muted-foreground leading-tight">{item.hint}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

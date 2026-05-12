@@ -8030,10 +8030,12 @@ Make it specific, strategic, and cohesive — not generic. Optimise for modern s
   // Instagram Story Generator
   app.post("/api/ai/story/generate", requireAuth, async (req: Request, res: Response) => {
     try {
-      const { goal, topic, niche, targetAudience, instagramUrl, ctaType, slidesCount, style, tone, hookStyle, contentDepth } = req.body;
+      const { platform, goal, topic, niche, targetAudience, profileUrl, instagramUrl, ctaType, slidesCount, style, tone, hookStyle, contentDepth } = req.body;
+      const activePlatform = platform || "instagram";
+      const activeProfileUrl = profileUrl || instagramUrl || "not provided";
       const _uSt = req.user as any;
       if (_uSt?.role !== "admin") {
-        const stCredit = await storage.deductCredits(_uSt.id, 2, "story", "Instagram Story sequence generation", _uSt.plan || "free");
+        const stCredit = await storage.deductCredits(_uSt.id, 2, "story", `${activePlatform} story/carousel sequence generation`, _uSt.plan || "free");
         if (!stCredit.success) return res.status(402).json({ message: stCredit.message, insufficientCredits: true, balance: stCredit.balance });
       }
       const hookStyleMap: Record<string, string> = {
@@ -8049,15 +8051,59 @@ Make it specific, strategic, and cohesive — not generic. Optimise for modern s
         "balanced": "Mix quick-hitting slides with deeper insight slides. Balance brevity with substance.",
         "deep-dive": "Go deep on each slide — more detailed explanations, richer context, educational depth. Users who want the full picture.",
       };
-      const systemPrompt = `You are an expert Instagram Story strategist. Generate high-converting story sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.`;
-      const userPrompt = `Generate a HIGH-CONVERTING Instagram Story Sequence as JSON.
+
+      // Platform-specific prompt context
+      const platformPrompts: Record<string, { system: string; rules: string; format: string }> = {
+        instagram: {
+          system: "You are an expert Instagram Story strategist. Generate high-converting story sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.",
+          rules: `- Each slide must feel like a REAL Instagram story (short, punchy, visual)
+- STRICTLY apply the requested tone of voice throughout — it must be felt in every slide
+- The FIRST slide hook must use the specified hook style
+- Apply the content depth level consistently across all slides
+- Focus on flow: each slide should naturally lead to the next
+- Use curiosity, emotion, or value to keep users tapping
+- Balance text + visuals (don't overload text)`,
+          format: "Make it feel native to Instagram.",
+        },
+        youtube: {
+          system: "You are an expert YouTube Shorts strategist. Generate high-retention vertical video script sequences as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.",
+          rules: `- Each slide represents a FRAME/BEAT in a YouTube Short (think scene-by-scene)
+- STRICTLY apply the requested tone of voice throughout — it must be felt in every frame
+- The FIRST frame hook must use the specified hook style — it must stop the scroll in under 1 second
+- Apply the content depth level consistently across all frames
+- Focus on RETENTION: each frame must create a reason to keep watching
+- Use pattern interrupts, open loops, and payoff promises
+- Include on-screen text direction (what text appears on screen)
+- Think in terms of visual transitions and cuts between frames`,
+          format: "Make it feel native to YouTube Shorts — fast-paced, retention-optimized, scroll-stopping.",
+        },
+        linkedin: {
+          system: "You are an expert LinkedIn carousel strategist. Generate high-engagement professional carousel documents as structured JSON. Return ONLY valid JSON — no markdown, no extra text, no code fences.",
+          rules: `- Each slide is a page in a LinkedIn carousel document (swipeable PDF-style)
+- STRICTLY apply the requested tone of voice throughout — professional but engaging
+- The FIRST slide (cover) must use the specified hook style — it must stop the scroll in the feed
+- Apply the content depth level consistently across all slides
+- Focus on VALUE DENSITY: each slide must teach, prove, or persuade
+- Use frameworks, numbered lists, data points, and clear takeaways
+- LinkedIn carousels reward depth — don't be afraid of text-heavy slides
+- Include a strong cover slide and a clear CTA slide at the end`,
+          format: "Make it feel native to LinkedIn — professional, authoritative, value-packed, and shareable.",
+        },
+      };
+
+      const pPrompt = platformPrompts[activePlatform] || platformPrompts.instagram;
+      const platformLabel = activePlatform === "instagram" ? "Instagram Story" : activePlatform === "youtube" ? "YouTube Shorts" : "LinkedIn Carousel";
+
+      const systemPrompt = pPrompt.system;
+      const userPrompt = `Generate a HIGH-CONVERTING ${platformLabel} Sequence as JSON.
 
 User Inputs:
+- Platform: ${activePlatform}
 - Goal: ${goal}
 - Topic: ${topic}
 - Niche: ${niche}
 - Target Audience: ${targetAudience}
-- Instagram Profile: ${instagramUrl || "not provided"}
+- Profile: ${activeProfileUrl}
 - Call To Action: ${ctaType}
 - Number of Slides: ${slidesCount}
 - Visual Style: ${style}
@@ -8066,19 +8112,13 @@ User Inputs:
 - Content Depth: ${depthMap[contentDepth] || depthMap["balanced"]}
 
 Rules:
-- Each slide must feel like a REAL Instagram story (short, punchy, visual)
-- STRICTLY apply the requested tone of voice throughout — it must be felt in every slide
-- The FIRST slide hook must use the specified hook style
-- Apply the content depth level consistently across all slides
-- Focus on flow: each slide should naturally lead to the next
-- Use curiosity, emotion, or value to keep users tapping
-- Balance text + visuals (don't overload text)
+${pPrompt.rules}
 
 Return this EXACT JSON structure (no other output):
 {
   "flowStrategy": {
     "sequenceType": "educational / storytelling / sales / engagement",
-    "whyItWorks": "2-3 sentence explanation of why this works for the selected goal"
+    "whyItWorks": "2-3 sentence explanation of why this works for the selected goal on ${activePlatform}"
   },
   "slides": [
     {
@@ -8129,7 +8169,7 @@ Return this EXACT JSON structure (no other output):
   ]
 }
 
-CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: Hook → Problem/Value → Value → Proof/Engagement → CTA. The last slide must be of type "CTA". For interaction, use one of: "Poll", "Question", "Slider", "Tap" — or null if not applicable. Make it feel native to Instagram.`;
+CRITICAL: Make EXACTLY ${slidesCount} slides. Use a natural mix of slide types: Hook → Problem/Value → Value → Proof/Engagement → CTA. The last slide must be of type "CTA". For interaction, use one of: "Poll", "Question", "Slider", "Tap" — or null if not applicable. ${pPrompt.format}`;
 
       const raw = await callGroqJson(systemPrompt, userPrompt, 4500);
       let result: any;
