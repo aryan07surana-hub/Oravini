@@ -21,11 +21,21 @@ import {
   Users, CheckCircle2, AlertCircle, ArrowRight, Copy, Check,
   MessageCircle, Instagram, Flame, Thermometer, Snowflake, User, Calendar,
   Search, XCircle, LayoutGrid, List, Send, Info,
-  Link2, ShieldCheck, RefreshCw, ExternalLink, Wifi, WifiOff, Eye, EyeOff
+  Link2, ShieldCheck, RefreshCw, ExternalLink, Wifi, WifiOff, Eye, EyeOff,
+  Database, Settings, Webhook
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
+import { ScheduledBroadcastDialog, ScheduledBroadcastsList } from "@/components/dm/ScheduledBroadcastDialog";
+import { TagManager, TagFilter } from "@/components/dm/TagManagement";
+import { WebhookManager } from "@/components/dm/WebhookManager";
+import { ClickTrackingPanel } from "@/components/dm/ClickTrackingPanel";
+import { CustomFieldsManager, CustomFieldsEditor } from "@/components/dm/CustomFieldsManager";
+import { AILeadScoring, LeadScoreBadge } from "@/components/dm/AILeadScoring";
+import { WelcomeDMConfig } from "@/components/dm/WelcomeDMConfig";
+import { OptOutToggle, OptOutBadge, OptOutFilter } from "@/components/dm/OptOutManagement";
+import { CSVExportButton, CSVExportCard } from "@/components/dm/CSVExport";
 
 // ── DM Tracker constants ──────────────────────────────────────────────────────
 
@@ -81,7 +91,11 @@ function LeadCard({ lead, onClick, onSendDM }: { lead: any; onClick: () => void;
             </div>
           )}
         </div>
-        <StatusBadge status={lead.status} />
+        <div className="flex items-center gap-1">
+          <StatusBadge status={lead.status} />
+          <OptOutBadge isOptedOut={lead.isOptedOut} />
+          <LeadScoreBadge score={lead.leadScore} />
+        </div>
       </div>
       {lead.notes && <p className="text-[11px] text-muted-foreground line-clamp-2">{lead.notes}</p>}
       <div className="flex items-center justify-between gap-2">
@@ -699,10 +713,13 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
   const [editingTrigger,     setEditingTrigger]     = useState<any>(null);
   const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false);
   const [editingSequence,    setEditingSequence]    = useState<any>(null);
+  const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
 
   // Leads state
   const [search,            setSearch]           = useState("");
   const [filterStatus,      setFilterStatus]     = useState("all");
+  const [filterTag,         setFilterTag]        = useState("");
+  const [filterOptOut,      setFilterOptOut]     = useState("all");
   const [selectedClientId,  setSelectedClientId] = useState("all");
   const [addOpen,           setAddOpen]          = useState(false);
   const [editLead,          setEditLead]         = useState<any>(null);
@@ -806,7 +823,8 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
   const filteredLeads = leads.filter(l => {
     const matchSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || (l.instagramHandle || "").toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === "all" || l.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchOptOut = filterOptOut === "all" || (filterOptOut === "opted-out" ? l.isOptedOut : !l.isOptedOut);
+    return matchSearch && matchStatus && matchOptOut;
   });
 
   const leadStats = {
@@ -908,9 +926,13 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
             <TabsTrigger value="triggers"      className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Auto-Replies</TabsTrigger>
             <TabsTrigger value="sequences"     className="gap-1.5 text-xs"><MessageSquare className="w-3.5 h-3.5" />Sequences</TabsTrigger>
             <TabsTrigger value="leads"         className="gap-1.5 text-xs"><MessageCircle className="w-3.5 h-3.5" />Leads</TabsTrigger>
+            <TabsTrigger value="broadcasts"    className="gap-1.5 text-xs"><Send className="w-3.5 h-3.5" />Broadcasts</TabsTrigger>
+            <TabsTrigger value="webhooks"      className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Webhooks</TabsTrigger>
+            <TabsTrigger value="tracking"      className="gap-1.5 text-xs"><Link2 className="w-3.5 h-3.5" />Tracking</TabsTrigger>
+            <TabsTrigger value="custom-fields" className="gap-1.5 text-xs"><Database className="w-3.5 h-3.5" />Fields</TabsTrigger>
             <TabsTrigger value="send-dm"       className="gap-1.5 text-xs"><Send className="w-3.5 h-3.5" />Send DM</TabsTrigger>
-            <TabsTrigger value="quick-replies" className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Quick Replies</TabsTrigger>
-            <TabsTrigger value="instagram"     className="gap-1.5 text-xs" data-testid="tab-instagram-connect"><Instagram className="w-3.5 h-3.5" />Instagram</TabsTrigger>
+            <TabsTrigger value="quick-replies" className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Templates</TabsTrigger>
+            <TabsTrigger value="settings"      className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />Settings</TabsTrigger>
           </TabsList>
 
           {/* Auto-Replies Tab */}
@@ -1009,8 +1031,9 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
                   <Button onClick={() => setAddOpen(true)} className="gap-2 h-9 text-sm" data-testid="button-add-lead">
                     <Plus className="w-4 h-4" /> Add Lead
                   </Button>
+                  <CSVExportButton clientId={activeClientId} />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads..." className="pl-8 h-8 text-xs w-44" data-testid="input-search-leads" />
@@ -1022,6 +1045,7 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
                       {Object.entries(STATUS_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <OptOutFilter value={filterOptOut} onChange={setFilterOptOut} />
                 </div>
               </div>
 
@@ -1168,9 +1192,47 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
             <QuickRepliesPanel clientId={activeClientId} isAdmin={isAdmin} />
           </TabsContent>
 
-          {/* Instagram Tab */}
-          <TabsContent value="instagram" className="mt-4">
-            <InstagramConnectPanel clientId={activeClientId} />
+          {/* Broadcasts Tab */}
+          <TabsContent value="broadcasts" className="mt-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Scheduled Broadcasts</h3>
+                  <p className="text-xs text-muted-foreground">Send mass DMs to your leads</p>
+                </div>
+                <Button onClick={() => setBroadcastDialogOpen(true)} className="gap-2 h-9 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+                  <Send className="w-4 h-4" />
+                  Schedule Broadcast
+                </Button>
+              </div>
+              <ScheduledBroadcastsList clientId={activeClientId} />
+            </div>
+          </TabsContent>
+
+          {/* Webhooks Tab */}
+          <TabsContent value="webhooks" className="mt-4">
+            <WebhookManager clientId={activeClientId} />
+          </TabsContent>
+
+          {/* Tracking Tab */}
+          <TabsContent value="tracking" className="mt-4">
+            <ClickTrackingPanel clientId={activeClientId} />
+          </TabsContent>
+
+          {/* Custom Fields Tab */}
+          <TabsContent value="custom-fields" className="mt-4">
+            <CustomFieldsManager clientId={activeClientId} />
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="mt-4 space-y-6">
+            <WelcomeDMConfig clientId={activeClientId} />
+            <div className="border-t border-border pt-6">
+              <InstagramConnectPanel clientId={activeClientId} />
+            </div>
+            <div className="border-t border-border pt-6">
+              <CSVExportCard clientId={activeClientId} leadCount={leads.length} />
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -1185,6 +1247,11 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
           open={sequenceDialogOpen}
           onClose={() => { setSequenceDialogOpen(false); setEditingSequence(null); }}
           existing={editingSequence}
+          clientId={activeClientId}
+        />
+        <ScheduledBroadcastDialog
+          open={broadcastDialogOpen}
+          onClose={() => setBroadcastDialogOpen(false)}
           clientId={activeClientId}
         />
 
@@ -1208,7 +1275,7 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
 
         {editLead && (
           <Dialog open={!!editLead} onOpenChange={v => !v && setEditLead(null)}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center justify-between">
                   <span>{editLead.name}</span>
@@ -1217,21 +1284,39 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
                   </button>
                 </DialogTitle>
               </DialogHeader>
-              <div className="py-2">
-                <p className="text-xs text-muted-foreground mb-4">Quick status change:</p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {Object.entries(STATUS_CONFIG).map(([k, v]) => {
-                    const Icon = v.icon;
-                    return (
-                      <button
-                        key={k}
-                        onClick={() => { quickStatusMutation.mutate({ id: editLead.id, status: k }); setEditLead({ ...editLead, status: k }); }}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${editLead.status === k ? `${v.bg} ${v.border} ${v.color}` : "border-border text-muted-foreground hover:border-primary/30"}`}
-                      >
-                        <Icon className="w-3 h-3" />{v.label}
-                      </button>
-                    );
-                  })}
+              <div className="py-2 space-y-6">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-4">Quick status change:</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {Object.entries(STATUS_CONFIG).map(([k, v]) => {
+                      const Icon = v.icon;
+                      return (
+                        <button
+                          key={k}
+                          onClick={() => { quickStatusMutation.mutate({ id: editLead.id, status: k }); setEditLead({ ...editLead, status: k }); }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${editLead.status === k ? `${v.bg} ${v.border} ${v.color}` : "border-border text-muted-foreground hover:border-primary/30"}`}
+                        >
+                          <Icon className="w-3 h-3" />{v.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <TagManager leadId={editLead.id} clientId={activeClientId} />
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <AILeadScoring lead={editLead} />
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <OptOutToggle lead={editLead} />
+                </div>
+
+                <div className="border-t border-border pt-6">
+                  <CustomFieldsEditor leadId={editLead.id} clientId={activeClientId} />
                 </div>
               </div>
               <DialogFooter>

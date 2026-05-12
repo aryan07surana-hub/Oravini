@@ -83,19 +83,21 @@ const TOOL_LABELS: Record<string, string> = {
    QUICK TOOLS CONFIG
 ───────────────────────────────────────────── */
 const ALL_QUICK_TOOLS = [
-  { href: "/ai-ideas",         label: "Content Ideas",    desc: "AI-generated hooks & scripts",     icon: Sparkles,    gradient: "from-[#d4b461]/20 to-[#d4b461]/5",   iconBg: "bg-[#d4b461]/15",    iconColor: "#d4b461",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
-  { href: "/ai-coach",         label: "AI Coach",         desc: "Personalised content coaching",    icon: Bot,         gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15",  iconColor: "#34d399",  struggles: ["Building confidence on camera", "Staying consistent"] },
-  { href: "/video-editor",     label: "Video Editor",     desc: "Edit & enhance your videos",       icon: Clapperboard, gradient: "from-violet-500/20 to-violet-500/5", iconBg: "bg-violet-500/15",  iconColor: "#a78bfa",  struggles: ["Editing and production quality"] },
-  { href: "/competitor-study", label: "Competitor Study", desc: "Deep-dive competitor analysis",    icon: ScanSearch,  gradient: "from-blue-500/20 to-blue-500/5",     iconBg: "bg-blue-500/15",     iconColor: "#60a5fa",  struggles: ["Growing my followers", "Standing out in a crowded niche"] },
-  { href: "/carousel-studio",  label: "Carousel Studio",  desc: "Design scroll-stopping carousels", icon: ImagePlay,   gradient: "from-pink-500/20 to-pink-500/5",      iconBg: "bg-pink-500/15",     iconColor: "#f472b6",  struggles: ["Low engagement on posts"] },
-  { href: "/virality-tester",  label: "Virality Tester",  desc: "Score your content before posting", icon: Wand2,       gradient: "from-orange-500/20 to-orange-500/5",  iconBg: "bg-orange-500/15",   iconColor: "#fb923c",  struggles: ["Getting views / reach", "Low engagement on posts"] },
+  { href: "/ai-ideas",              label: "Content Ideas",        desc: "AI-generated hooks & scripts",      icon: Sparkles,       gradient: "from-[#d4b461]/20 to-[#d4b461]/5",    iconBg: "bg-[#d4b461]/15",    iconColor: "#d4b461",  struggles: ["Coming up with content ideas", "Knowing what content to create"] },
+  { href: "/ai-coach",              label: "AI Coach",             desc: "Personalised content coaching",     icon: Bot,            gradient: "from-emerald-500/20 to-emerald-500/5", iconBg: "bg-emerald-500/15",  iconColor: "#34d399",  struggles: ["Building confidence on camera", "Staying consistent"] },
+  { href: "/video-editor",          label: "Video Editor",         desc: "Edit & enhance your videos",        icon: Clapperboard,   gradient: "from-violet-500/20 to-violet-500/5",  iconBg: "bg-violet-500/15",   iconColor: "#a78bfa",  struggles: ["Editing and production quality"] },
+  { href: "/competitor-study",      label: "Competitor Study",     desc: "Deep-dive competitor analysis",     icon: ScanSearch,     gradient: "from-blue-500/20 to-blue-500/5",      iconBg: "bg-blue-500/15",     iconColor: "#60a5fa",  struggles: ["Growing my followers", "Standing out in a crowded niche"] },
+  { href: "/carousel-studio",       label: "Carousel Studio",      desc: "Design scroll-stopping carousels",  icon: ImagePlay,      gradient: "from-pink-500/20 to-pink-500/5",      iconBg: "bg-pink-500/15",     iconColor: "#f472b6",  struggles: ["Low engagement on posts"] },
+  { href: "/virality-tester",       label: "Virality Tester",      desc: "Score your content before posting", icon: Wand2,          gradient: "from-orange-500/20 to-orange-500/5",  iconBg: "bg-orange-500/15",   iconColor: "#fb923c",  struggles: ["Getting views / reach", "Low engagement on posts"] },
+  { href: "/content-intelligence",  label: "Content Intelligence", desc: "AI brain that learns your style",   icon: Brain,          gradient: "from-cyan-500/20 to-cyan-500/5",      iconBg: "bg-cyan-500/15",     iconColor: "#22d3ee",  struggles: ["Coming up with content ideas", "Getting views / reach"] },
+  { href: "/dm-automation",         label: "DM Automation",        desc: "Automate & manage your DMs",        icon: MessageCircle,  gradient: "from-indigo-500/20 to-indigo-500/5",  iconBg: "bg-indigo-500/15",   iconColor: "#818cf8",  struggles: ["Growing my followers", "Converting followers to clients"] },
 ];
 
 function getQuickTools(struggles: string[]) {
   if (!struggles.length) return ALL_QUICK_TOOLS;
   const prioritised = ALL_QUICK_TOOLS.filter(t => t.struggles.some(s => struggles.includes(s)));
   const rest = ALL_QUICK_TOOLS.filter(t => !prioritised.includes(t));
-  return [...prioritised, ...rest].slice(0, 6);
+  return [...prioritised, ...rest].slice(0, 8);
 }
 
 /* ─────────────────────────────────────────────
