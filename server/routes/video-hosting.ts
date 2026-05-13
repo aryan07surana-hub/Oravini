@@ -1,13 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
 
-function p(id: string | undefined): string {
-  if (!id) throw new Error("Missing ID");
-  return id;
+function p(id: string | string[] | undefined): string {
+  const s = Array.isArray(id) ? id[0] : id;
+  if (!s) throw new Error("Missing ID");
+  return s;
 }
-function pn(id: string | undefined): number {
-  if (!id) throw new Error("Missing ID");
-  const n = parseInt(id, 10);
+function pn(id: string | string[] | undefined): number {
+  const s = Array.isArray(id) ? id[0] : id;
+  if (!s) throw new Error("Missing ID");
+  const n = parseInt(s, 10);
   if (isNaN(n)) throw new Error("Invalid numeric ID");
   return n;
 }

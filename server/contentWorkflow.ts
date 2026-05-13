@@ -37,6 +37,7 @@ export const FUNNEL_SKILLS = {
 // ── CONTENT MIX STRATEGIES ─────────────────────────────────────────────────
 export const CONTENT_MIX = {
   growth: { reels: 60, carousels: 30, posts: 10 },
+  nurture: { reels: 40, carousels: 40, posts: 20 },
   engagement: { reels: 40, carousels: 40, posts: 20 },
   conversion: { reels: 30, carousels: 50, posts: 20 },
   balanced: { reels: 50, carousels: 30, posts: 20 },
@@ -203,7 +204,7 @@ async function generateSinglePost(params: {
     funnelStage,
     contentType,
     hookType,
-    ...idea,
+    ...(idea as Record<string, unknown>),
   };
 }
 
@@ -397,7 +398,7 @@ function generateInsights(results: any[]) {
     return acc;
   }, {} as Record<string, number>);
 
-  const topHookType = Object.entries(hookTypes).sort((a, b) => b[1] - a[1])[0];
+  const topHookType = Object.entries(hookTypes).sort((a, b) => (b[1] as number) - (a[1] as number))[0];
 
   return {
     topHookType: topHookType?.[0] || "unknown",

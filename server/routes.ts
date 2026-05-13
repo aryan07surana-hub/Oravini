@@ -8,6 +8,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
+import { sql } from "drizzle-orm";
 import { storage, pool } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
@@ -886,15 +887,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await storage.createOtpCode(email, code, expiresAt);
     try {
       await otpTransporter.sendMail({
-        from: `"Brandverse" <${process.env.EMAIL_USER}>`,
+        from: `"Oravini" <support@oravini.com>`,
         to: email,
-        subject: "Your Brandverse login code",
+        subject: "Your Oravini login code",
         html: `
-          <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
-            <h2 style="color:#d4b461;margin-bottom:8px">Brandverse</h2>
-            <p style="color:#aaa;margin-bottom:24px">Your one-time login code:</p>
-            <div style="background:#222;border:1px solid #d4b46133;border-radius:8px;padding:24px;text-align:center;letter-spacing:12px;font-size:32px;font-weight:700;color:#d4b461">${code}</div>
-            <p style="color:#666;font-size:13px;margin-top:20px">This code expires in 10 minutes. Do not share it with anyone.</p>
+          <div style="background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
+            <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
+              <span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span>
+            </div>
+            <p style="color:rgba(255,255,255,0.6);margin-bottom:24px;font-size:14px;">Your one-time login code:</p>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,180,97,0.2);border-radius:12px;padding:24px;text-align:center;letter-spacing:10px;font-size:32px;font-weight:700;color:#d4b461">${code}</div>
+            <p style="color:rgba(255,255,255,0.4);font-size:13px;margin-top:20px">This code expires in 10 minutes. Do not share it with anyone.</p>
           </div>`,
       });
       res.json({ message: "OTP sent" });
@@ -917,6 +920,111 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { password, ...safeUser } = user as any;
       res.json(safeUser);
     });
+  });
+
+  // ── Forgot Password (self-service reset via email OTP) ────────────────────
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+
+    // Always return success to prevent email enumeration attacks
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.json({ message: "If an account exists with this email, a reset code has been sent." });
+
+    // Google-only accounts can't reset password
+    if (user.googleId && !user.password) {
+      return res.json({ message: "If an account exists with this email, a reset code has been sent." });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await storage.createOtpCode(email, code, expiresAt);
+
+    try {
+      await otpTransporter.sendMail({
+        from: `"Oravini" <support@oravini.com>`,
+        to: email,
+        subject: "Reset your Oravini password",
+        html: `
+          <div style="background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;padding:40px;border-radius:12px;max-width:480px;margin:auto">
+            <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
+              <span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span>
+            </div>
+            <h2 style="color:#ffffff;font-size:20px;margin-bottom:8px;">Password Reset</h2>
+            <p style="color:rgba(255,255,255,0.6);margin-bottom:24px;font-size:14px;line-height:1.6;">
+              Hi ${user.name}, we received a request to reset your password. Use the code below:
+            </p>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,180,97,0.2);border-radius:12px;padding:24px;text-align:center;letter-spacing:10px;font-size:32px;font-weight:700;color:#d4b461;margin-bottom:24px;">
+              ${code}
+            </div>
+            <p style="color:rgba(255,255,255,0.4);font-size:13px;line-height:1.6;">
+              This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.
+            </p>
+            <div style="margin-top:32px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
+              <p style="color:rgba(255,255,255,0.2);font-size:11px;">This is an automated email from Oravini. Do not reply.</p>
+            </div>
+          </div>`,
+      });
+    } catch (err: any) {
+      console.error("[forgot-password] Email send error:", err);
+    }
+
+    res.json({ message: "If an account exists with this email, a reset code has been sent." });
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: "Email, code, and new password are required" });
+    }
+
+    // Validate the OTP
+    const otp = await storage.getValidOtpCode(email, code);
+    if (!otp) return res.status(400).json({ message: "Invalid or expired code" });
+
+    // Validate password strength
+    const { validatePasswordStrength } = await import("./security");
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      return res.status(400).json({ message: strength.errors[0], errors: strength.errors });
+    }
+
+    // Check breached passwords
+    try {
+      const { checkBreachedPassword } = await import("./security/index");
+      const breach = await checkBreachedPassword(newPassword);
+      if (breach.breached) {
+        return res.status(400).json({
+          message: `This password has appeared in ${breach.count.toLocaleString()} data breaches. Please choose a different one.`,
+          breached: true,
+        });
+      }
+    } catch { /* non-blocking */ }
+
+    // Mark OTP as used
+    await storage.markOtpUsed(otp.id);
+
+    // Update password
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const hashed = await hashPassword(newPassword);
+    await storage.updateUser(user.id, { password: hashed });
+
+    // Log the password reset
+    try {
+      const { writeAuditLog, AuditActions } = await import("./security/index");
+      writeAuditLog({
+        userId: user.id,
+        action: AuditActions.PASSWORD_CHANGED,
+        details: { method: "forgot_password_reset" },
+        ip: req.ip || req.socket.remoteAddress || "",
+        userAgent: req.get("user-agent"),
+        severity: "info",
+      }).catch(() => {});
+    } catch { /* non-blocking */ }
+
+    res.json({ message: "Password reset successfully. You can now sign in with your new password." });
   });
 
   // File upload endpoint (authenticated users)
@@ -10401,7 +10509,7 @@ Rules:
   async function sendBookingEmail(to: string, subject: string, html: string) {
     try {
       if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return;
-      await schedulingTransporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html });
+      await schedulingTransporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to, subject, html });
     } catch (e: any) {
       console.error("[scheduling] email error:", e.message);
     }
@@ -10487,6 +10595,100 @@ Rules:
       const updated = await storage.updateScheduledBooking(p(req.params.id), req.body);
       if (!updated) return res.status(404).json({ message: "Not found" });
       res.json(updated);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — Get bookings for a date range (calendar view)
+  app.get("/api/admin/scheduled-bookings/range", requireAdmin, async (req, res) => {
+    try {
+      const { start, end } = req.query;
+      if (!start || !end) return res.status(400).json({ message: "start and end required" });
+      const bookings = await storage.getScheduledBookingsByDateRange(new Date(start as string), new Date(end as string));
+      res.json(bookings);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — Create a booking manually (admin-initiated)
+  app.post("/api/admin/scheduled-bookings", requireAdmin, async (req, res) => {
+    try {
+      const { meetingTypeId, clientName, clientEmail, startTime, notes } = req.body;
+      if (!meetingTypeId || !clientName || !clientEmail || !startTime) {
+        return res.status(400).json({ message: "meetingTypeId, clientName, clientEmail, startTime required" });
+      }
+      const mt = await storage.getMeetingType(meetingTypeId);
+      if (!mt) return res.status(404).json({ message: "Meeting type not found" });
+
+      const start = new Date(startTime);
+      if (isNaN(start.getTime())) return res.status(400).json({ message: "Invalid startTime" });
+      const end = new Date(start.getTime() + mt.duration * 60000);
+
+      // Check for conflicts
+      const existing = await storage.getScheduledBookingsByMeetingType(mt.id);
+      const conflict = existing.some(b => {
+        if (b.status === "cancelled") return false;
+        const bStart = new Date(b.startTime).getTime();
+        const bEnd = new Date(b.endTime).getTime();
+        return start.getTime() < bEnd && end.getTime() > bStart;
+      });
+      if (conflict) return res.status(409).json({ message: "Time slot conflicts with existing booking" });
+
+      const booking = await storage.createScheduledBooking({
+        meetingTypeId: mt.id, clientName, clientEmail,
+        startTime: start, endTime: end, status: "scheduled", notes: notes || null,
+      });
+
+      // Auto-create Google Meet link
+      const meetLink = await createGoogleMeetEvent(
+        { id: booking.id, clientName, clientEmail, startTime: start, endTime: end },
+        mt.title, mt.location,
+      );
+      if (meetLink) {
+        await storage.updateScheduledBooking(booking.id, { meetLink });
+      }
+
+      const effectiveLocation = meetLink ?? mt.location ?? null;
+
+      // Send emails
+      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes, meetLink: meetLink ?? undefined });
+      sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
+      const adminEmail = process.env.EMAIL_USER;
+      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes, isAdmin: true, meetLink: meetLink ?? undefined }));
+
+      res.json({ ...booking, meetLink: meetLink ?? booking.meetLink });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — Delete a booking
+  app.delete("/api/admin/scheduled-bookings/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteScheduledBooking(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Admin — Availability Overrides (date-specific)
+  app.get("/api/admin/meeting-types/:id/overrides", requireAdmin, async (req, res) => {
+    try {
+      const overrides = await storage.getAvailabilityOverrides(p(req.params.id));
+      res.json(overrides);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/admin/meeting-types/:id/overrides", requireAdmin, async (req, res) => {
+    try {
+      const { date, type, timeBlocks, reason } = req.body;
+      if (!date || !type) return res.status(400).json({ message: "date and type required" });
+      const override = await storage.createAvailabilityOverride({
+        meetingTypeId: p(req.params.id), date, type, timeBlocks: JSON.stringify(timeBlocks || []), reason: reason || null,
+      });
+      res.json(override);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.delete("/api/admin/availability-overrides/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteAvailabilityOverride(p(req.params.id));
+      res.json({ message: "Deleted" });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -10936,7 +11138,7 @@ Rules:
     const unsubUrl = `${appBase}/api/email/unsubscribe?email=${encodeURIComponent(to)}`;
     const filledHtml = applyEmailVars(bodyHtml, { name, email: to });
     const fullHtml = emailMarketingTemplate(name, filledHtml + openPixel, unsubUrl);
-    await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to, subject, html: fullHtml });
+    await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to, subject, html: fullHtml });
   }
 
   // Open tracking pixel
@@ -11310,7 +11512,7 @@ Rules:
     try {
       const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
       // Clean up LiveKit room
-      try { await deleteWebinarRoom(req.params.id); } catch {}
+      try { await deleteWebinarRoom(req.params.id as string); } catch {}
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -11332,9 +11534,9 @@ Rules:
       if (!webinar) return res.status(404).json({ message: "Webinar not found" });
 
       // Create the LiveKit room
-      try { await createWebinarRoom(req.params.id); } catch {}
+      try { await createWebinarRoom(req.params.id as string); } catch {}
 
-      const token = await createHostToken(req.params.id, `host-${user.id}`, user.name || user.email || "Host");
+      const token = await createHostToken(req.params.id as string, `host-${user.id}`, user.name || user.email || "Host");
       res.json({ token, url: getLiveKitUrl(), room: `webinar-${req.params.id}` });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -11359,8 +11561,8 @@ Rules:
   // Get participant count for a webinar
   app.get("/api/webinars/:id/livekit/participants", requireAuth, async (req, res) => {
     try {
-      const count = await getWebinarParticipantCount(req.params.id);
-      const participants = await listWebinarParticipants(req.params.id);
+      const count = await getWebinarParticipantCount(req.params.id as string);
+      const participants = await listWebinarParticipants(req.params.id as string);
       res.json({ count, participants });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -11858,10 +12060,93 @@ Rules:
         position: position || 0,
         metadata: metadata || {},
       });
+
+      // Update heatmap segments
+      const second = Math.floor(position || 0);
+      if (eventType === "progress" || eventType === "play") {
+        await storage.upsertHeatmapSegment(videoId, second, "viewCount").catch(() => {});
+      } else if (eventType === "seek" && (metadata as any)?.seekFrom != null) {
+        // If they seeked backward, it's a replay
+        if ((metadata as any).seekFrom > position) {
+          await storage.upsertHeatmapSegment(videoId, second, "replayCount").catch(() => {});
+        }
+      } else if (eventType === "pause" || eventType === "complete") {
+        await storage.upsertHeatmapSegment(videoId, second, "dropOffCount").catch(() => {});
+      }
+
+      // Update daily stats
+      const today = new Date().toISOString().split("T")[0];
+      if (eventType === "play") await storage.incrementDailyStat(videoId, today, "plays").catch(() => {});
+      else if (eventType === "complete") await storage.incrementDailyStat(videoId, today, "completions").catch(() => {});
+      else if (eventType === "cta_click") await storage.incrementDailyStat(videoId, today, "cta_clicks").catch(() => {});
+      else if (eventType === "lead_gate") await storage.incrementDailyStat(videoId, today, "lead_captures").catch(() => {});
+
+      // Upsert viewer profile
+      if (metadata) {
+        const profileData: any = { videoId, sessionId };
+        const meta = metadata as any;
+        if (meta.device) profileData.device = meta.device;
+        if (meta.browser) profileData.browser = meta.browser;
+        if (meta.os) profileData.os = meta.os;
+        if (meta.screenWidth) profileData.screenWidth = meta.screenWidth;
+        if (meta.country) profileData.country = meta.country;
+        if (meta.city) profileData.city = meta.city;
+        if (meta.referrer) profileData.referrer = meta.referrer;
+        if (meta.referrerDomain) profileData.referrerDomain = meta.referrerDomain;
+        if (meta.utmSource) profileData.utmSource = meta.utmSource;
+        if (meta.utmMedium) profileData.utmMedium = meta.utmMedium;
+        if (meta.utmCampaign) profileData.utmCampaign = meta.utmCampaign;
+        if (meta.visitorId) profileData.visitorId = meta.visitorId;
+        if (eventType === "progress" && position) profileData.maxPosition = position;
+        if (eventType === "complete") profileData.completionPct = 100;
+        if (meta.completionPct) profileData.completionPct = meta.completionPct;
+        if (meta.totalWatchSeconds) profileData.totalWatchSeconds = meta.totalWatchSeconds;
+        if (eventType === "cta_click") { profileData.ctaClicked = true; profileData.ctaClickedAt = position; }
+        if (eventType === "lead_gate") profileData.leadCaptured = true;
+        if (eventType === "pause") profileData.pauseCount = sql`COALESCE(pause_count, 0) + 1`;
+        if (eventType === "seek") profileData.seekCount = sql`COALESCE(seek_count, 0) + 1`;
+
+        await storage.upsertVideoViewerProfile(profileData).catch(() => {});
+      }
+
       res.status(201).json(event);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
+  });
+
+  // Video Analytics: Heatmap data for a video
+  app.get("/api/video-analytics/:videoId/heatmap", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const heatmap = await storage.getVideoHeatmap(p(req.params.videoId));
+      res.json(heatmap);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Video Analytics: Viewer profiles for a video
+  app.get("/api/video-analytics/:videoId/viewers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const profiles = await storage.getVideoViewerProfiles(p(req.params.videoId));
+      res.json(profiles);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Video Analytics: Daily stats for a video
+  app.get("/api/video-analytics/:videoId/daily", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const days = req.query.days ? Number(req.query.days) : 30;
+      const stats = await storage.getVideoDailyStats(p(req.params.videoId), days);
+      res.json(stats);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Video Analytics: Overview across all user's videos
+  app.get("/api/video-analytics-overview", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const overview = await storage.getVideoAnalyticsOverview(user.id);
+      res.json(overview);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // Video Marketing: Contacts / CRM

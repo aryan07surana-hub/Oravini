@@ -90,7 +90,7 @@ const PLATFORM_INSPIRATIONS: Record<StoryPlatform, InspirationItem[]> = {
   ],
 };
 
-const PLATFORM_CTA_OPTIONS: Record<StoryPlatform, typeof CTA_OPTIONS> = {
+const PLATFORM_CTA_OPTIONS: Record<StoryPlatform, Array<{ id: string; label: string }>> = {
   instagram: [
     { id: "follow", label: "Follow Me" }, { id: "dm", label: "DM Me" },
     { id: "link", label: "Link in Bio" }, { id: "buy", label: "Buy / Shop" },

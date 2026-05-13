@@ -9,11 +9,6 @@ export { AdminSchedulingTab } from './adminSchedulingTab';
 export { ShowUpRateOptimizer } from './showUpOptimization';
 export { AdvancedSchedulingFeatures } from './advancedSchedulingFeatures';
 
-// Admin Integration
-export { AdminSection } from './completeAdminSection';
-export { AdminUIFactory } from './adminUIComponents';
-export { AdminDashboardManager } from './adminDashboard';
-
 // Demo and Examples
 export { DistinproSchedulingDemo, createSchedulingDemo, runSchedulingDemo } from './schedulingDemo';
 
@@ -72,7 +67,6 @@ export default {
   AdminSchedulingTab,
   ShowUpRateOptimizer,
   AdvancedSchedulingFeatures,
-  AdminSection,
   DistinproSchedulingDemo,
   initializeSchedulingSystem,
   VERSION

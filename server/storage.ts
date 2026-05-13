@@ -20,7 +20,7 @@ import {
   meetings,
   videoEdits,
   brollClips,
-  meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens,
+  meetingTypes, availabilityRules, scheduledBookings, googleCalendarTokens, availabilityOverrides,
   readingMaterials, readingHighlights, readingStreaks, dailyReadings,
   webinars, webinarRegistrations, videoEvents, webinarRecordings, webinarLandingPages, webinarEvents,
   webinarDomains, videoMarketingSettings,
@@ -57,6 +57,7 @@ import {
   type BrollClip, type InsertBrollClip,
   type MeetingType, type InsertMeetingType,
   type AvailabilityRule, type InsertAvailabilityRule,
+  type AvailabilityOverride, type InsertAvailabilityOverride,
   type ScheduledBooking, type InsertScheduledBooking,
   type EmailSequence, type InsertEmailSequence,
   type SequenceEmail, type InsertSequenceEmail,
@@ -74,6 +75,9 @@ import {
   type WebinarContact, type InsertWebinarContact,
   type WebinarEvent, type InsertWebinarEvent,
   type VideoAnalyticsEvent, type InsertVideoAnalyticsEvent,
+  type VideoAnalyticsDailyStat, videoAnalyticsDailyStats,
+  type VideoHeatmapSegment, videoHeatmapSegments,
+  type VideoViewerProfile, type InsertVideoViewerProfile, videoViewerProfiles,
   type UserFeedback, type InsertUserFeedback,
   webinarContacts, videoAnalyticsEvents, userFeedback,
   // Content Intelligence Engine
@@ -261,11 +265,15 @@ export interface IStorage {
   updateDmTrigger(id: string, data: Partial<InsertDmTrigger>): Promise<DmTrigger>;
   deleteDmTrigger(id: string): Promise<void>;
   getDmSequences(userId: string): Promise<DmSequence[]>;
+  getDmSequence(id: string): Promise<DmSequence | null>;
   createDmSequence(data: InsertDmSequence): Promise<DmSequence>;
   updateDmSequence(id: string, data: Partial<InsertDmSequence>): Promise<DmSequence>;
   deleteDmSequence(id: string): Promise<void>;
   getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]>;
   upsertDmSequenceSteps(sequenceId: string, steps: Omit<InsertDmSequenceStep, "sequenceId">[]): Promise<DmSequenceStep[]>;
+  createDmSequenceStep(data: InsertDmSequenceStep): Promise<DmSequenceStep>;
+  updateDmSequenceStep(id: string, data: Partial<InsertDmSequenceStep>): Promise<DmSequenceStep>;
+  deleteDmSequenceStep(id: string): Promise<void>;
   getDmSequenceEnrollments(sequenceId: string): Promise<DmSequenceEnrollment[]>;
   enrollLeadInDmSequence(sequenceId: string, leadId: string, recipientIgId: string): Promise<DmSequenceEnrollment>;
   getPendingDmEnrollments(): Promise<(DmSequenceEnrollment & { sequenceId: string })[]>;
@@ -331,10 +339,16 @@ export interface IStorage {
   upsertAvailabilityRules(meetingTypeId: string, rules: Omit<InsertAvailabilityRule, "meetingTypeId">[]): Promise<AvailabilityRule[]>;
   getScheduledBookings(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
   getScheduledBookingsByMeetingType(meetingTypeId: string): Promise<ScheduledBooking[]>;
+  getScheduledBookingsByDateRange(start: Date, end: Date): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
   getScheduledBooking(id: string): Promise<ScheduledBooking | undefined>;
   createScheduledBooking(data: InsertScheduledBooking): Promise<ScheduledBooking>;
   updateScheduledBooking(id: string, data: Partial<ScheduledBooking>): Promise<ScheduledBooking | undefined>;
+  deleteScheduledBooking(id: string): Promise<void>;
   getUpcomingBookingsForReminders(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
+  getAvailabilityOverrides(meetingTypeId: string): Promise<AvailabilityOverride[]>;
+  getAvailabilityOverridesByDate(meetingTypeId: string, date: string): Promise<AvailabilityOverride | undefined>;
+  createAvailabilityOverride(data: InsertAvailabilityOverride): Promise<AvailabilityOverride>;
+  deleteAvailabilityOverride(id: string): Promise<void>;
 
   // Email Marketing
   getEmailSequences(): Promise<EmailSequence[]>;
@@ -419,6 +433,14 @@ export interface IStorage {
   createVideoAnalyticsEvent(data: InsertVideoAnalyticsEvent): Promise<VideoAnalyticsEvent>;
   getVideoAnalyticsEvents(videoId: string): Promise<VideoAnalyticsEvent[]>;
   getVideoAnalyticsSummary(videoId: string): Promise<{ totalViews: number; totalCompletions: number; avgWatchTime: number }>;
+  // Advanced Analytics
+  getVideoHeatmap(videoId: string): Promise<VideoHeatmapSegment[]>;
+  upsertHeatmapSegment(videoId: string, second: number, field: "viewCount" | "replayCount" | "dropOffCount"): Promise<void>;
+  getVideoViewerProfiles(videoId: string): Promise<VideoViewerProfile[]>;
+  upsertVideoViewerProfile(data: Partial<InsertVideoViewerProfile> & { videoId: string; sessionId: string }): Promise<VideoViewerProfile>;
+  getVideoDailyStats(videoId: string, days?: number): Promise<VideoAnalyticsDailyStat[]>;
+  incrementDailyStat(videoId: string, date: string, field: string): Promise<void>;
+  getVideoAnalyticsOverview(userId: string): Promise<any>;
   // Video Collections
   getVideoCollections(userId: string): Promise<VideoCollection[]>;
   createVideoCollection(data: InsertVideoCollection): Promise<VideoCollection>;
@@ -1666,6 +1688,45 @@ class DatabaseStorage implements IStorage {
     return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
   }
 
+  async getScheduledBookingsByDateRange(start: Date, end: Date): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]> {
+    const bookings = await db.select().from(scheduledBookings).where(
+      and(
+        gte(scheduledBookings.startTime, start),
+        lte(scheduledBookings.startTime, end)
+      )
+    ).orderBy(scheduledBookings.startTime);
+    const types = await db.select().from(meetingTypes);
+    return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
+  }
+
+  async deleteScheduledBooking(id: string): Promise<void> {
+    await db.delete(scheduledBookings).where(eq(scheduledBookings.id, id));
+  }
+
+  async getAvailabilityOverrides(meetingTypeId: string): Promise<AvailabilityOverride[]> {
+    return db.select().from(availabilityOverrides).where(eq(availabilityOverrides.meetingTypeId, meetingTypeId)).orderBy(availabilityOverrides.date);
+  }
+
+  async getAvailabilityOverridesByDate(meetingTypeId: string, date: string): Promise<AvailabilityOverride | undefined> {
+    const [row] = await db.select().from(availabilityOverrides).where(
+      and(eq(availabilityOverrides.meetingTypeId, meetingTypeId), eq(availabilityOverrides.date, date))
+    );
+    return row;
+  }
+
+  async createAvailabilityOverride(data: InsertAvailabilityOverride): Promise<AvailabilityOverride> {
+    // Upsert: delete existing override for same date, then insert
+    await db.delete(availabilityOverrides).where(
+      and(eq(availabilityOverrides.meetingTypeId, data.meetingTypeId), eq(availabilityOverrides.date, data.date))
+    );
+    const [row] = await db.insert(availabilityOverrides).values(data).returning();
+    return row;
+  }
+
+  async deleteAvailabilityOverride(id: string): Promise<void> {
+    await db.delete(availabilityOverrides).where(eq(availabilityOverrides.id, id));
+  }
+
   // ── Email Marketing ────────────────────────────────────────────────────────
   async getEmailSequences() {
     return db.select().from(emailSequences).orderBy(desc(emailSequences.createdAt));
@@ -1859,6 +1920,10 @@ class DatabaseStorage implements IStorage {
   async getDmSequences(userId: string): Promise<DmSequence[]> {
     return db.select().from(dmSequences).where(eq(dmSequences.userId, userId)).orderBy(desc(dmSequences.createdAt));
   }
+  async getDmSequence(id: string): Promise<DmSequence | null> {
+    const [row] = await db.select().from(dmSequences).where(eq(dmSequences.id, id));
+    return row ?? null;
+  }
   async createDmSequence(data: InsertDmSequence): Promise<DmSequence> {
     const [row] = await db.insert(dmSequences).values(data).returning();
     return row;
@@ -1873,6 +1938,17 @@ class DatabaseStorage implements IStorage {
 
   async getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]> {
     return db.select().from(dmSequenceSteps).where(eq(dmSequenceSteps.sequenceId, sequenceId)).orderBy(dmSequenceSteps.stepOrder);
+  }
+  async createDmSequenceStep(data: InsertDmSequenceStep): Promise<DmSequenceStep> {
+    const [row] = await db.insert(dmSequenceSteps).values(data).returning();
+    return row;
+  }
+  async updateDmSequenceStep(id: string, data: Partial<InsertDmSequenceStep>): Promise<DmSequenceStep> {
+    const [row] = await db.update(dmSequenceSteps).set(data).where(eq(dmSequenceSteps.id, id)).returning();
+    return row;
+  }
+  async deleteDmSequenceStep(id: string): Promise<void> {
+    await db.delete(dmSequenceSteps).where(eq(dmSequenceSteps.id, id));
   }
   async upsertDmSequenceSteps(sequenceId: string, steps: Omit<InsertDmSequenceStep, "sequenceId">[]): Promise<DmSequenceStep[]> {
     await db.delete(dmSequenceSteps).where(eq(dmSequenceSteps.sequenceId, sequenceId));
@@ -2173,6 +2249,102 @@ class DatabaseStorage implements IStorage {
     const watchTimes = events.filter(e => e.eventType === "progress").map(e => e.position);
     const avgWatchTime = watchTimes.length > 0 ? watchTimes.reduce((a, b) => a + b, 0) / watchTimes.length : 0;
     return { totalViews: uniqueSessions.size, totalCompletions: completions, avgWatchTime };
+  }
+
+  // ── Advanced Video Analytics ──────────────────────────────────────────────
+  async getVideoHeatmap(videoId: string): Promise<VideoHeatmapSegment[]> {
+    return db.select().from(videoHeatmapSegments).where(eq(videoHeatmapSegments.videoId, videoId)).orderBy(videoHeatmapSegments.segmentSecond);
+  }
+
+  async upsertHeatmapSegment(videoId: string, second: number, field: "viewCount" | "replayCount" | "dropOffCount"): Promise<void> {
+    const existing = await db.select().from(videoHeatmapSegments).where(and(eq(videoHeatmapSegments.videoId, videoId), eq(videoHeatmapSegments.segmentSecond, second)));
+    if (existing.length > 0) {
+      const update: any = { updatedAt: new Date() };
+      update[field === "viewCount" ? "viewCount" : field === "replayCount" ? "replayCount" : "dropOffCount"] = sqlExpr`${field === "viewCount" ? videoHeatmapSegments.viewCount : field === "replayCount" ? videoHeatmapSegments.replayCount : videoHeatmapSegments.dropOffCount} + 1`;
+      await db.update(videoHeatmapSegments).set(update).where(and(eq(videoHeatmapSegments.videoId, videoId), eq(videoHeatmapSegments.segmentSecond, second)));
+    } else {
+      const insert: any = { videoId, segmentSecond: second, viewCount: 0, replayCount: 0, dropOffCount: 0 };
+      insert[field] = 1;
+      await db.insert(videoHeatmapSegments).values(insert);
+    }
+  }
+
+  async getVideoViewerProfiles(videoId: string): Promise<VideoViewerProfile[]> {
+    return db.select().from(videoViewerProfiles).where(eq(videoViewerProfiles.videoId, videoId)).orderBy(desc(videoViewerProfiles.lastSeenAt));
+  }
+
+  async upsertVideoViewerProfile(data: Partial<InsertVideoViewerProfile> & { videoId: string; sessionId: string }): Promise<VideoViewerProfile> {
+    const existing = await db.select().from(videoViewerProfiles).where(and(eq(videoViewerProfiles.videoId, data.videoId), eq(videoViewerProfiles.sessionId, data.sessionId)));
+    if (existing.length > 0) {
+      const { videoId, sessionId, ...updates } = data;
+      const [row] = await db.update(videoViewerProfiles).set({ ...updates, lastSeenAt: new Date() } as any).where(and(eq(videoViewerProfiles.videoId, videoId), eq(videoViewerProfiles.sessionId, sessionId))).returning();
+      return row;
+    } else {
+      const [row] = await db.insert(videoViewerProfiles).values(data as any).returning();
+      return row;
+    }
+  }
+
+  async getVideoDailyStats(videoId: string, days: number = 30): Promise<VideoAnalyticsDailyStat[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().split("T")[0];
+    return db.select().from(videoAnalyticsDailyStats).where(and(eq(videoAnalyticsDailyStats.videoId, videoId), gte(videoAnalyticsDailyStats.date, cutoffStr))).orderBy(videoAnalyticsDailyStats.date);
+  }
+
+  async incrementDailyStat(videoId: string, date: string, field: string): Promise<void> {
+    const existing = await db.select().from(videoAnalyticsDailyStats).where(and(eq(videoAnalyticsDailyStats.videoId, videoId), eq(videoAnalyticsDailyStats.date, date)));
+    if (existing.length > 0) {
+      await db.execute(sqlExpr`UPDATE video_analytics_daily_stats SET ${sqlExpr.raw(field)} = ${sqlExpr.raw(field)} + 1 WHERE video_id = ${videoId} AND date = ${date}`);
+    } else {
+      const insert: any = { videoId, date, views: 0, uniqueViewers: 0, plays: 0, completions: 0, totalWatchSeconds: 0, avgCompletionPct: 0, ctaClicks: 0, leadCaptures: 0, avgEngagementPct: 0, bounceCount: 0 };
+      insert[field] = 1;
+      await db.insert(videoAnalyticsDailyStats).values(insert);
+    }
+  }
+
+  async getVideoAnalyticsOverview(userId: string): Promise<any> {
+    const videos = await this.getVideoEvents(userId);
+    const videoIds = videos.map(v => v.id);
+    if (videoIds.length === 0) return { totalViews: 0, totalVideos: 0, avgCompletion: 0, topReferrers: [], deviceBreakdown: {}, countryBreakdown: {}, dailyViews: [] };
+
+    const allProfiles = await db.select().from(videoViewerProfiles).where(inArray(videoViewerProfiles.videoId, videoIds));
+    const totalViews = videos.reduce((s, v) => s + (v.views || 0), 0);
+    const avgCompletion = allProfiles.length > 0 ? Math.round(allProfiles.reduce((s, p) => s + (p.completionPct || 0), 0) / allProfiles.length) : 0;
+
+    // Referrer breakdown
+    const referrerMap: Record<string, number> = {};
+    allProfiles.forEach(p => { if (p.referrerDomain) referrerMap[p.referrerDomain] = (referrerMap[p.referrerDomain] || 0) + 1; });
+    const topReferrers = Object.entries(referrerMap).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([domain, count]) => ({ domain, count }));
+
+    // Device breakdown
+    const deviceMap: Record<string, number> = {};
+    allProfiles.forEach(p => { if (p.device) deviceMap[p.device] = (deviceMap[p.device] || 0) + 1; });
+
+    // Browser breakdown
+    const browserMap: Record<string, number> = {};
+    allProfiles.forEach(p => { if (p.browser) browserMap[p.browser] = (browserMap[p.browser] || 0) + 1; });
+
+    // Country breakdown
+    const countryMap: Record<string, number> = {};
+    allProfiles.forEach(p => { if (p.country) countryMap[p.country] = (countryMap[p.country] || 0) + 1; });
+    const countryBreakdown = Object.entries(countryMap).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([country, count]) => ({ country, count }));
+
+    // Daily views (last 30 days)
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dailyStats = await db.select().from(videoAnalyticsDailyStats).where(and(inArray(videoAnalyticsDailyStats.videoId, videoIds), gte(videoAnalyticsDailyStats.date, thirtyDaysAgo.toISOString().split("T")[0]))).orderBy(videoAnalyticsDailyStats.date);
+
+    // Aggregate daily
+    const dailyMap: Record<string, { views: number; plays: number; completions: number }> = {};
+    dailyStats.forEach(s => {
+      if (!dailyMap[s.date]) dailyMap[s.date] = { views: 0, plays: 0, completions: 0 };
+      dailyMap[s.date].views += s.views;
+      dailyMap[s.date].plays += s.plays;
+      dailyMap[s.date].completions += s.completions;
+    });
+    const dailyViews = Object.entries(dailyMap).map(([date, data]) => ({ date, ...data }));
+
+    return { totalViews, totalVideos: videos.length, avgCompletion, topReferrers, deviceBreakdown: deviceMap, browserBreakdown: browserMap, countryBreakdown, dailyViews };
   }
 
   // ── Video Collections ─────────────────────────────────────────────────────

@@ -444,8 +444,8 @@ export async function buildTrainingPrompt(userId: string, platform: string, nich
     prompt += `Punctuation style: ${brandVoice.punctuationStyle}\n`;
     prompt += `Perspective: ${brandVoice.perspective}\n`;
     prompt += `Voice fingerprint: ${brandVoice.voiceFingerprint}\n`;
-    if (brandVoice.uniquePatterns.length > 0) {
-      prompt += `Unique patterns: ${brandVoice.uniquePatterns.join(", ")}\n`;
+    if ((brandVoice.uniquePatterns ?? []).length > 0) {
+      prompt += `Unique patterns: ${(brandVoice.uniquePatterns ?? []).join(", ")}\n`;
     }
     prompt += `\n`;
   }
@@ -890,7 +890,7 @@ export function getViralBreakdowns(filters?: {
   }
   
   if (filters?.minViralScore) {
-    breakdowns = breakdowns.filter(b => b.viralScore >= filters.minViralScore);
+    breakdowns = breakdowns.filter(b => b.viralScore >= filters.minViralScore!);
   }
   
   // Sort by viral score

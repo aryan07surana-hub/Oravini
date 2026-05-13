@@ -123,7 +123,7 @@ router.post("/api/brand-voice/analyze", async (req, res) => {
       return res.status(400).json({ error: "Need at least 5 posts to analyze brand voice" });
     }
 
-    const voiceData = await analyzeBrandVoice(userId, posts);
+    const voiceData = await analyzeBrandVoice(userId, posts.map(p => ({ ...p, title: p.title ?? "" })));
 
     // Save to database
     const existing = await storage.getBrandVoiceProfile(userId);
@@ -423,6 +423,7 @@ router.post("/api/performance-feedback", async (req, res) => {
       title: content.slice(0, 120),
       contentType: "post",
       funnelStage: "top",
+      postDate: new Date(),
       views: Number(views),
       likes: Number(likes),
       comments: Number(comments) || 0,

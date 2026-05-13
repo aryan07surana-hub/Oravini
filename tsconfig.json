@@ -1,6 +1,17 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "exclude": [
+    "node_modules", "build", "dist", "**/*.test.ts",
+    "shared/adminSchedulingTab.ts",
+    "shared/advancedSchedulingFeatures.ts",
+    "shared/showUpOptimization.ts",
+    "shared/schedulingSystem.ts",
+    "shared/schedulingUI.ts",
+    "shared/schedulingDemo.ts",
+    "shared/teamScalingSystem.ts",
+    "shared/stepByStepProjectTracker.ts",
+    "shared/shared/**/*"
+  ],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",

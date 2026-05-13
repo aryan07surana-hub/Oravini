@@ -32,7 +32,7 @@ export function ScheduledBroadcastDialog({ open, onClose, clientId }: { open: bo
       const tagRes = await fetch("/api/dm/contact-tags");
       const allTags = await tagRes.json();
       const uniqueTags = new Set(allTags.map((t: any) => t.tag));
-      return Array.from(uniqueTags);
+      return Array.from(uniqueTags) as string[];
     },
     enabled: open,
   });

@@ -1,9 +1,10 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
 
-function p(id: string | undefined): string {
-  if (!id) throw new Error("Missing ID");
-  return id;
+function p(id: string | string[] | undefined): string {
+  const s = Array.isArray(id) ? id[0] : id;
+  if (!s) throw new Error("Missing ID");
+  return s;
 }
 
 export function registerWebinarSeriesRoutes(app: Express, requireAuth: any) {
