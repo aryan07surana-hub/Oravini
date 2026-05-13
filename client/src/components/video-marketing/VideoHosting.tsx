@@ -29,7 +29,8 @@ const PROGRESS_BAR_PRESETS = [
 function EmbedDialog({ video, onClose }: { video: any; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const iframeCode = `<iframe src="${baseUrl}/watch-video/${video.id}" width="100%" height="480" frameborder="0" allowfullscreen style="border-radius:12px;"></iframe>`;
+  const embedUrl = `${baseUrl}/embed/${video.id}`;
+  const iframeCode = `<iframe src="${embedUrl}" width="100%" height="480" frameborder="0" allowfullscreen allow="autoplay; fullscreen; encrypted-media" style="border-radius:12px; aspect-ratio:16/9;"></iframe>`;
   const directUrl = `${baseUrl}/watch-video/${video.id}`;
 
   const copy = (text: string) => {
@@ -48,16 +49,26 @@ function EmbedDialog({ video, onClose }: { video: any; onClose: () => void }) {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div>
-            <Label className="text-xs text-zinc-400 mb-2 block">Embed Code (iframe)</Label>
+            <Label className="text-xs text-zinc-400 mb-2 block">Embed Code (iframe) — paste on any website</Label>
             <div className="relative">
               <pre className="text-xs text-zinc-300 bg-zinc-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all border border-zinc-700">{iframeCode}</pre>
               <button onClick={() => copy(iframeCode)} className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-zinc-700 transition-colors">
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-400" />}
               </button>
             </div>
+            <p className="text-[10px] text-zinc-600 mt-1.5">Custom player with Oravini branding, speed control, and analytics built in.</p>
           </div>
           <div>
-            <Label className="text-xs text-zinc-400 mb-2 block">Direct Player URL</Label>
+            <Label className="text-xs text-zinc-400 mb-2 block">Embed Player URL</Label>
+            <div className="flex gap-2">
+              <Input readOnly value={embedUrl} className="bg-zinc-800 border-zinc-700 text-zinc-300 text-xs font-mono" />
+              <Button variant="outline" size="sm" onClick={() => copy(embedUrl)} className="border-zinc-700 text-zinc-300 gap-1">
+                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-400 mb-2 block">Full Page URL (with title & description)</Label>
             <div className="flex gap-2">
               <Input readOnly value={directUrl} className="bg-zinc-800 border-zinc-700 text-zinc-300 text-xs font-mono" />
               <Button variant="outline" size="sm" onClick={() => copy(directUrl)} className="border-zinc-700 text-zinc-300 gap-1">

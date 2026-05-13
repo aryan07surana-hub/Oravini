@@ -185,7 +185,7 @@ export async function sendSuspiciousLoginAlert(
     `;
 
     await transporter.sendMail({
-      from: `"Oravini Security" <${emailUser}>`,
+      from: `"Oravini Security" <support@oravini.com>`,
       to: userEmail,
       subject: "⚠️ New login to your Oravini account",
       html,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,55 +14,44 @@ import { useToast } from "@/hooks/use-toast";
 import { SiGoogle } from "react-icons/si";
 import {
   Copy, CheckCheck, Link2, Clock, ExternalLink, Settings2,
-  CalendarDays, Video, ChevronRight, Calendar,
+  CalendarDays, Video, ChevronRight, ChevronLeft, Calendar,
   Ban, CheckCircle2, Plus, Trash2, GripVertical, Globe,
-  HelpCircle, Unlink,
+  HelpCircle, Unlink, Users, TrendingUp, Phone,
+  X, ArrowRight, Eye, VideoIcon,
 } from "lucide-react";
-import { format } from "date-fns";
+import {
+  format, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays,
+  isSameDay, isToday, isBefore, startOfDay, parseISO,
+} from "date-fns";
 
 const GOLD = "#d4b461";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DURATIONS = [15, 20, 30, 45, 60, 90];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const TIMEZONES: { value: string; label: string }[] = [
   { value: "UTC", label: "UTC — Coordinated Universal Time" },
-  { value: "America/New_York", label: "Eastern Time — US & Canada (EST/EDT)" },
-  { value: "America/Chicago", label: "Central Time — US & Canada (CST/CDT)" },
-  { value: "America/Denver", label: "Mountain Time — US & Canada (MST/MDT)" },
-  { value: "America/Los_Angeles", label: "Pacific Time — US & Canada (PST/PDT)" },
+  { value: "America/New_York", label: "Eastern Time (EST/EDT)" },
+  { value: "America/Chicago", label: "Central Time (CST/CDT)" },
+  { value: "America/Denver", label: "Mountain Time (MST/MDT)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PST/PDT)" },
   { value: "America/Anchorage", label: "Alaska Time (AKST/AKDT)" },
-  { value: "America/Honolulu", label: "Hawaii Time (HST)" },
-  { value: "America/Toronto", label: "Eastern Time — Toronto (EST/EDT)" },
-  { value: "America/Vancouver", label: "Pacific Time — Vancouver (PST/PDT)" },
-  { value: "America/Sao_Paulo", label: "Brasília Time — Brazil (BRT)" },
-  { value: "America/Buenos_Aires", label: "Argentina Time (ART)" },
-  { value: "America/Bogota", label: "Colombia Time (COT)" },
+  { value: "America/Toronto", label: "Eastern — Toronto" },
+  { value: "America/Vancouver", label: "Pacific — Vancouver" },
+  { value: "America/Sao_Paulo", label: "Brasília Time (BRT)" },
   { value: "America/Mexico_City", label: "Mexico City (CST/CDT)" },
-  { value: "Europe/London", label: "London Time (GMT/BST)" },
-  { value: "Europe/Paris", label: "Paris Time (CET/CEST)" },
-  { value: "Europe/Berlin", label: "Berlin Time (CET/CEST)" },
-  { value: "Europe/Amsterdam", label: "Amsterdam Time (CET/CEST)" },
-  { value: "Europe/Madrid", label: "Madrid Time (CET/CEST)" },
-  { value: "Europe/Rome", label: "Rome Time (CET/CEST)" },
-  { value: "Europe/Zurich", label: "Zurich Time (CET/CEST)" },
-  { value: "Europe/Stockholm", label: "Stockholm Time (CET/CEST)" },
-  { value: "Europe/Moscow", label: "Moscow Time (MSK)" },
-  { value: "Africa/Cairo", label: "Cairo Time (EET)" },
-  { value: "Africa/Lagos", label: "Lagos Time (WAT)" },
-  { value: "Africa/Johannesburg", label: "Johannesburg Time (SAST)" },
-  { value: "Asia/Dubai", label: "Dubai Time (GST)" },
-  { value: "Asia/Kolkata", label: "India Standard Time (IST)" },
-  { value: "Asia/Dhaka", label: "Bangladesh Time (BST)" },
-  { value: "Asia/Bangkok", label: "Indochina Time (ICT)" },
-  { value: "Asia/Singapore", label: "Singapore Time (SGT)" },
-  { value: "Asia/Hong_Kong", label: "Hong Kong Time (HKT)" },
-  { value: "Asia/Tokyo", label: "Japan Standard Time (JST)" },
-  { value: "Asia/Shanghai", label: "China Standard Time (CST)" },
-  { value: "Asia/Seoul", label: "Korea Standard Time (KST)" },
-  { value: "Australia/Sydney", label: "Sydney Time (AEST/AEDT)" },
-  { value: "Australia/Melbourne", label: "Melbourne Time (AEST/AEDT)" },
-  { value: "Australia/Brisbane", label: "Brisbane Time (AEST)" },
-  { value: "Pacific/Auckland", label: "New Zealand Time (NZST/NZDT)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
+  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
+  { value: "Europe/Moscow", label: "Moscow (MSK)" },
+  { value: "Asia/Dubai", label: "Dubai (GST)" },
+  { value: "Asia/Kolkata", label: "India (IST)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  { value: "Asia/Tokyo", label: "Japan (JST)" },
+  { value: "Asia/Shanghai", label: "China (CST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+  { value: "Pacific/Auckland", label: "New Zealand (NZST/NZDT)" },
 ];
 
 function slugify(s: string) {
@@ -71,20 +60,326 @@ function slugify(s: string) {
 
 function tzOffset(tz: string) {
   try {
-    const s = new Intl.DateTimeFormat("en", { timeZone: tz, timeZoneName: "short" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value ?? tz;
-    return s;
+    return new Intl.DateTimeFormat("en", { timeZone: tz, timeZoneName: "short" }).formatToParts(new Date()).find(p => p.type === "timeZoneName")?.value ?? tz;
   } catch { return tz; }
+}
+
+function formatHour(h: number) {
+  if (h === 0) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
 }
 
 /* ─── Types ─────────────────────────────────────────────────── */
 type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean };
 export type CustomQuestion = { id: string; label: string; required: boolean };
+type TabType = "calendar" | "bookings" | "settings" | "availability";
 
-/* ─── Availability row ─────────────────────────────────────── */
+/* ─── Weekly Calendar View ──────────────────────────────────── */
+function WeeklyCalendar({ bookings, weekStart, onPrev, onNext, onBookingClick, onSlotClick }: {
+  bookings: any[];
+  weekStart: Date;
+  onPrev: () => void;
+  onNext: () => void;
+  onBookingClick: (b: any) => void;
+  onSlotClick: (date: Date, hour: number) => void;
+}) {
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const visibleHours = HOURS.filter(h => h >= 7 && h <= 21); // 7 AM to 9 PM
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 bg-zinc-900/50">
+        <button onClick={onPrev} className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <h3 className="text-sm font-bold text-white">
+          {format(weekStart, "MMM d")} — {format(addDays(weekStart, 6), "MMM d, yyyy")}
+        </h3>
+        <button onClick={onNext} className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-zinc-800">
+        <div className="p-2" />
+        {weekDays.map(day => (
+          <div key={day.toISOString()} className={`p-2 text-center border-l border-zinc-800 ${isToday(day) ? "bg-yellow-500/5" : ""}`}>
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase">{format(day, "EEE")}</p>
+            <p className={`text-lg font-bold ${isToday(day) ? "text-yellow-500" : "text-white"}`}>{format(day, "d")}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Time grid */}
+      <div className="max-h-[520px] overflow-y-auto">
+        <div className="grid grid-cols-[60px_repeat(7,1fr)]">
+          {visibleHours.map(hour => (
+            <div key={hour} className="contents">
+              {/* Time label */}
+              <div className="h-14 flex items-start justify-end pr-2 pt-1 border-b border-zinc-800/50">
+                <span className="text-[10px] text-zinc-600 font-medium">{formatHour(hour)}</span>
+              </div>
+              {/* Day cells */}
+              {weekDays.map(day => {
+                const dayBookings = bookings.filter(b => {
+                  const bStart = new Date(b.startTime);
+                  return isSameDay(bStart, day) && bStart.getHours() === hour;
+                });
+                const isPast = isBefore(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour), new Date());
+
+                return (
+                  <div
+                    key={`${day.toISOString()}-${hour}`}
+                    className={`h-14 border-l border-b border-zinc-800/50 relative group cursor-pointer transition-colors ${isPast ? "bg-zinc-950" : "hover:bg-zinc-900/50"} ${isToday(day) ? "bg-yellow-500/[0.02]" : ""}`}
+                    onClick={() => !isPast && onSlotClick(day, hour)}
+                  >
+                    {/* Booking blocks */}
+                    {dayBookings.map(b => {
+                      const bStart = new Date(b.startTime);
+                      const bEnd = new Date(b.endTime);
+                      const durationMins = (bEnd.getTime() - bStart.getTime()) / 60000;
+                      const heightPx = Math.min((durationMins / 60) * 56, 112); // max 2 rows
+                      const topOffset = (bStart.getMinutes() / 60) * 56;
+                      const statusColor = b.status === "cancelled" ? "bg-red-500/20 border-red-500/40" :
+                        b.status === "completed" ? "bg-zinc-700/30 border-zinc-600/40" :
+                        "bg-emerald-500/15 border-emerald-500/40";
+
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={(e) => { e.stopPropagation(); onBookingClick(b); }}
+                          className={`absolute left-0.5 right-0.5 rounded-lg border px-1.5 py-0.5 overflow-hidden cursor-pointer hover:brightness-125 transition-all z-10 ${statusColor}`}
+                          style={{ top: `${topOffset}px`, height: `${heightPx}px`, minHeight: "20px" }}
+                        >
+                          <p className="text-[10px] font-bold text-white truncate">{b.clientName}</p>
+                          <p className="text-[9px] text-zinc-400 truncate">{format(bStart, "h:mm a")}</p>
+                        </div>
+                      );
+                    })}
+
+                    {/* Hover indicator */}
+                    {!isPast && dayBookings.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Plus className="w-3 h-3 text-zinc-600" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Booking Detail Dialog ─────────────────────────────────── */
+function BookingDetailDialog({ booking, open, onClose, onAction }: {
+  booking: any;
+  open: boolean;
+  onClose: () => void;
+  onAction: (id: string, status: string) => void;
+}) {
+  if (!booking) return null;
+  const isPast = new Date(booking.startTime) < new Date();
+  const statusColor = booking.status === "cancelled" ? "text-red-400" :
+    booking.status === "completed" ? "text-zinc-400" : "text-emerald-400";
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Phone className="w-4 h-4" style={{ color: GOLD }} />
+            Booking Details
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          {/* Client info */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-white">{booking.clientName}</p>
+              <Badge variant="outline" className={`text-[10px] ${statusColor} border-current/30`}>
+                {booking.status}
+              </Badge>
+            </div>
+            <p className="text-xs text-zinc-400">{booking.clientEmail}</p>
+          </div>
+
+          {/* Time */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <Calendar className="w-3.5 h-3.5" style={{ color: GOLD }} />
+              <span className="font-semibold text-white">{format(new Date(booking.startTime), "EEEE, MMMM d, yyyy")}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <Clock className="w-3.5 h-3.5" style={{ color: GOLD }} />
+              <span className="text-white">{format(new Date(booking.startTime), "h:mm a")} — {format(new Date(booking.endTime), "h:mm a")}</span>
+              <span className="text-zinc-600">({Math.round((new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()) / 60000)} min)</span>
+            </div>
+          </div>
+
+          {/* Meet link */}
+          {booking.meetLink && (
+            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <VideoIcon className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-400">Google Meet</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a href={booking.meetLink} target="_blank" rel="noreferrer" className="text-xs text-zinc-300 hover:text-white underline truncate flex-1">
+                  {booking.meetLink}
+                </a>
+                <Button size="sm" variant="outline" className="h-7 text-[10px] border-emerald-700/40 text-emerald-400 hover:bg-emerald-500/10" onClick={() => navigator.clipboard.writeText(booking.meetLink)}>
+                  <Copy className="w-3 h-3 mr-1" /> Copy
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {booking.notes && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1">Notes</p>
+              <p className="text-xs text-zinc-300 whitespace-pre-wrap">{booking.notes}</p>
+            </div>
+          )}
+
+          {/* Actions */}
+          {booking.status === "scheduled" && (
+            <div className="flex gap-2 pt-2">
+              {booking.meetLink && (
+                <Button size="sm" className="flex-1 gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={() => window.open(booking.meetLink, "_blank")}>
+                  <VideoIcon className="w-3.5 h-3.5" /> Join Meet
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="flex-1 gap-1.5 border-emerald-700/40 text-emerald-400" onClick={() => { onAction(booking.id, "completed"); onClose(); }}>
+                <CheckCircle2 className="w-3.5 h-3.5" /> Complete
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 border-red-700/40 text-red-400" onClick={() => { onAction(booking.id, "cancelled"); onClose(); }}>
+                <Ban className="w-3.5 h-3.5" /> Cancel
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Create Booking Dialog ─────────────────────────────────── */
+function CreateBookingDialog({ open, onClose, meetingType, prefillDate, prefillHour }: {
+  open: boolean;
+  onClose: () => void;
+  meetingType: any;
+  prefillDate?: Date;
+  prefillHour?: number;
+}) {
+  const { toast } = useToast();
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [date, setDate] = useState(prefillDate ? format(prefillDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
+  const [time, setTime] = useState(prefillHour !== undefined ? `${String(prefillHour).padStart(2, "0")}:00` : "09:00");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (prefillDate) setDate(format(prefillDate, "yyyy-MM-dd"));
+    if (prefillHour !== undefined) setTime(`${String(prefillHour).padStart(2, "0")}:00`);
+  }, [prefillDate, prefillHour]);
+
+  const createMutation = useMutation({
+    mutationFn: () => {
+      const startTime = new Date(`${date}T${time}:00`);
+      return apiRequest("POST", "/api/admin/scheduled-bookings", {
+        meetingTypeId: meetingType?.id,
+        clientName,
+        clientEmail,
+        startTime: startTime.toISOString(),
+        notes: notes || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/scheduled-bookings"] });
+      toast({ title: "Booking created!", description: "Confirmation email sent to client with Google Meet link." });
+      onClose();
+      setClientName(""); setClientEmail(""); setNotes("");
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Plus className="w-4 h-4" style={{ color: GOLD }} />
+            Create Booking
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client Name</label>
+            <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="John Smith" className="bg-zinc-900 border-zinc-700 text-white" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Client Email</label>
+            <Input value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="john@example.com" type="email" className="bg-zinc-900 border-zinc-700 text-white" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Date</label>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-zinc-900 border-zinc-700 text-white" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Time</label>
+              <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-zinc-900 border-zinc-700 text-white" />
+            </div>
+          </div>
+          {meetingType && (
+            <p className="text-xs text-zinc-500">Duration: {meetingType.duration} min · Ends at {(() => {
+              const [h, m] = time.split(":").map(Number);
+              const endMin = h * 60 + m + meetingType.duration;
+              return `${String(Math.floor(endMin / 60) % 24).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+            })()}</p>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Notes <span className="text-zinc-600 normal-case font-normal">(optional)</span></label>
+            <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes for this call..." rows={2} className="bg-zinc-900 border-zinc-700 text-white resize-none" />
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+            <p className="text-[11px] text-zinc-500">
+              <span className="text-emerald-400 font-semibold">✓</span> Confirmation email will be sent to the client<br/>
+              <span className="text-emerald-400 font-semibold">✓</span> Google Meet link auto-generated (if connected)<br/>
+              <span className="text-emerald-400 font-semibold">✓</span> 24h and 1h reminders will be sent automatically
+            </p>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 border-zinc-700" onClick={onClose}>Cancel</Button>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={!clientName.trim() || !clientEmail.trim() || createMutation.isPending}
+              className="flex-1 font-bold"
+              style={{ background: GOLD, color: "#000" }}
+            >
+              {createMutation.isPending ? "Creating…" : "Create Booking"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Availability Row (multi-block) ───────────────────────── */
 function AvailRow({ rule, onChange }: { rule: AvailRule; onChange: (r: AvailRule) => void }) {
   return (
     <div className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-colors ${rule.isEnabled ? "bg-zinc-900 border border-zinc-700" : "bg-zinc-950 border border-zinc-800/50"}`}>
-      <Switch checked={rule.isEnabled} onCheckedChange={v => onChange({ ...rule, isEnabled: v })} data-testid={`avail-toggle-${rule.dayOfWeek}`} />
+      <Switch checked={rule.isEnabled} onCheckedChange={v => onChange({ ...rule, isEnabled: v })} />
       <span className={`text-sm font-semibold w-24 ${rule.isEnabled ? "text-white" : "text-zinc-500"}`}>{DAYS[rule.dayOfWeek]}</span>
       {rule.isEnabled ? (
         <div className="flex items-center gap-2 flex-1">
@@ -102,37 +397,6 @@ function AvailRow({ rule, onChange }: { rule: AvailRule; onChange: (r: AvailRule
         </div>
       ) : (
         <span className="text-xs text-zinc-600">Unavailable</span>
-      )}
-    </div>
-  );
-}
-
-/* ─── Booking card ─────────────────────────────────────────── */
-function BookingCard({ booking, onAction }: { booking: any; onAction: (id: string, status: string) => void }) {
-  const isPast = new Date(booking.startTime) < new Date();
-  return (
-    <div data-testid={`booking-card-${booking.id}`} className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 transition-colors group">
-      <div className={`w-2 h-10 rounded-full flex-shrink-0 ${booking.status === "cancelled" ? "bg-red-500/60" : isPast ? "bg-zinc-600" : "bg-emerald-500"}`} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-white">{booking.clientName}</p>
-          <Badge variant="outline" className={`text-[10px] ${booking.status === "cancelled" ? "border-red-500/30 text-red-400" : booking.status === "completed" ? "border-zinc-500/30 text-zinc-400" : !isPast ? "border-emerald-500/30 text-emerald-400" : "border-zinc-600/30 text-zinc-500"}`}>
-            {booking.status === "scheduled" && isPast ? "past" : booking.status}
-          </Badge>
-        </div>
-        <p className="text-xs text-zinc-500 mt-0.5">{booking.clientEmail}</p>
-        {booking.notes && <p className="text-xs text-zinc-600 mt-0.5 italic truncate max-w-xs">{booking.notes}</p>}
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-xs font-semibold text-white">{format(new Date(booking.startTime), "MMM d, yyyy")}</p>
-        <p className="text-xs text-zinc-500">{format(new Date(booking.startTime), "h:mm a")}</p>
-        <p className="text-xs text-zinc-600">{booking.meetingType?.duration ?? 30} min</p>
-      </div>
-      {booking.status === "scheduled" && (
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={() => onAction(booking.id, "completed")} className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-zinc-500 hover:text-emerald-400 transition-colors" title="Mark complete"><CheckCircle2 className="w-3.5 h-3.5" /></button>
-          <button onClick={() => onAction(booking.id, "cancelled")} className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors" title="Cancel"><Ban className="w-3.5 h-3.5" /></button>
-        </div>
       )}
     </div>
   );
@@ -166,7 +430,7 @@ function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnectin
             <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
             <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
           </div>
-          <p className="text-xs text-zinc-500 mt-0.5">Every booking auto-generates a unique Google Meet link · <span className="text-emerald-400/70">{calStatus.email ?? ""}</span></p>
+          <p className="text-xs text-zinc-500 mt-0.5">Auto-generates unique Google Meet links · <span className="text-emerald-400/70">{calStatus.email ?? ""}</span></p>
         </div>
         <Button variant="outline" size="sm" className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0" onClick={onDisconnect} disabled={disconnecting}>
           <Unlink className="w-3.5 h-3.5" /> Disconnect
@@ -177,7 +441,6 @@ function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnectin
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-      {/* Header row */}
       <div className="p-5 flex items-center gap-4">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-zinc-800">
           <SiGoogle className="w-4 h-4 text-zinc-500" />
@@ -187,52 +450,33 @@ function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnectin
             <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
             <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
           </div>
-          <p className="text-xs text-zinc-500 mt-0.5">Connect once — every booking auto-creates a unique Google Meet link</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Connect to auto-create Google Meet links for every booking</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button variant="ghost" size="sm" className="text-zinc-500 text-xs gap-1 h-8 px-3" onClick={() => setShowSetup(s => !s)}>
-            <HelpCircle className="w-3.5 h-3.5" /> {showSetup ? "Hide" : "Setup guide"}
+            <HelpCircle className="w-3.5 h-3.5" /> {showSetup ? "Hide" : "Setup"}
           </Button>
-          <Button data-testid="button-connect-google-calendar" size="sm" className="gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={onConnect}>
+          <Button size="sm" className="gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={onConnect}>
             <SiGoogle className="w-3.5 h-3.5" /> Connect
           </Button>
         </div>
       </div>
-
-      {/* Setup instructions — collapsible */}
       {showSetup && (
-        <div className="border-t border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-4">
-          <p className="text-xs font-bold text-white uppercase tracking-wider">One-time Google Cloud setup</p>
-          <ol className="space-y-3 text-xs text-zinc-400">
-            <li className="flex gap-2">
-              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">1</span>
-              <span>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline text-zinc-300 hover:text-white">console.cloud.google.com/apis/credentials</a> and open your OAuth 2.0 Client ID.</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">2</span>
-              <span>Under <strong className="text-white">Authorized redirect URIs</strong>, click <strong className="text-white">Add URI</strong> and paste the URL below exactly:</span>
-            </li>
+        <div className="border-t border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-3">
+          <p className="text-xs font-bold text-white uppercase tracking-wider">Setup Guide</p>
+          <ol className="space-y-2 text-xs text-zinc-400">
+            <li>1. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline text-zinc-300">Google Cloud Console</a></li>
+            <li>2. Add this redirect URI:</li>
           </ol>
-          {/* Callback URL copy box */}
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2">
             <code className="flex-1 text-[11px] text-amber-300 font-mono break-all">{callbackUrl}</code>
-            <button onClick={copyCallback} className="flex-shrink-0 text-zinc-400 hover:text-white transition-colors ml-2">
+            <button onClick={copyCallback} className="text-zinc-400 hover:text-white">
               {copiedCb ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-          <ol className="space-y-3 text-xs text-zinc-400" start={3}>
-            <li className="flex gap-2">
-              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">3</span>
-              <span>Click <strong className="text-white">Save</strong> in Google Cloud Console.</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">4</span>
-              <span>Make sure the <strong className="text-white">Google Calendar API</strong> is enabled at <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" rel="noreferrer" className="underline text-zinc-300 hover:text-white">APIs &amp; Services → Library</a>.</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="text-[10px] font-bold rounded-full bg-zinc-800 text-zinc-300 w-5 h-5 flex-shrink-0 flex items-center justify-center">5</span>
-              <span>Click <strong className="text-white">Connect</strong> above and authorize. Done — every booking will now auto-generate a unique Meet link.</span>
-            </li>
+          <ol className="space-y-2 text-xs text-zinc-400" start={3}>
+            <li>3. Enable Google Calendar API</li>
+            <li>4. Click Connect above and authorize</li>
           </ol>
         </div>
       )}
@@ -240,13 +484,19 @@ function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnectin
   );
 }
 
-/* ─── Main ─────────────────────────────────────────────────── */
+/* ─── Main Component ───────────────────────────────────────── */
 export default function AdminScheduling() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<TabType>("calendar");
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [availOpen, setAvailOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [bookingFilter, setBookingFilter] = useState<"upcoming" | "all">("upcoming");
+  const [prefillDate, setPrefillDate] = useState<Date | undefined>();
+  const [prefillHour, setPrefillHour] = useState<number | undefined>();
 
   // Handle OAuth return params
   useEffect(() => {
@@ -327,7 +577,6 @@ export default function AdminScheduling() {
   const saveAvailMutation = useMutation({
     mutationFn: () => {
       if (!primary) return Promise.reject("No meeting type yet");
-      // Save availability rules + timezone together
       return Promise.all([
         apiRequest("PUT", `/api/admin/meeting-types/${primary.id}/availability`, rules),
         apiRequest("PATCH", `/api/admin/meeting-types/${primary.id}`, { timezone }),
@@ -371,183 +620,368 @@ export default function AdminScheduling() {
   const upcomingBookings = bookings.filter((b: any) => b.status === "scheduled" && new Date(b.startTime) > new Date());
   const displayBookings = bookingFilter === "upcoming" ? upcomingBookings : bookings;
   const enabledDays = rules.filter(r => r.isEnabled);
-  const tzLabel = TIMEZONES.find(t => t.value === (primary?.timezone ?? "UTC"))?.label ?? primary?.timezone ?? "UTC";
+
+  // Stats
+  const totalThisWeek = bookings.filter((b: any) => {
+    const d = new Date(b.startTime);
+    return d >= weekStart && d <= endOfWeek(weekStart, { weekStartsOn: 0 });
+  }).length;
+  const nextBooking = upcomingBookings.sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">
+      <div className="p-6 lg:p-8 space-y-6 max-w-6xl mx-auto">
 
-        {/* Title */}
-        <div>
-          <h1 className="text-2xl font-bold text-white">Scheduling</h1>
-          <p className="text-sm text-zinc-400 mt-1">Share your link — prospects pick a time and book a call with you</p>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Scheduling</h1>
+            <p className="text-sm text-zinc-400 mt-1">Manage your calendar, bookings, and availability</p>
+          </div>
+          <Button onClick={() => { setPrefillDate(undefined); setPrefillHour(undefined); setCreateOpen(true); }} className="gap-2 font-bold" style={{ background: GOLD, color: "#000" }}>
+            <Plus className="w-4 h-4" /> New Booking
+          </Button>
         </div>
 
-        {/* ── YOUR BOOKING LINK ── */}
-        <div className="rounded-2xl border border-zinc-700 bg-zinc-900 overflow-hidden">
-          <div className="px-6 py-5 border-b border-zinc-800 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}18` }}>
-              <Link2 className="w-4 h-4" style={{ color: GOLD }} />
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CalendarDays className="w-4 h-4" style={{ color: GOLD }} />
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase">This Week</span>
             </div>
-            <div>
-              <p className="text-sm font-bold text-white">Your Booking Link</p>
-              <p className="text-xs text-zinc-500">Share this with anyone you want to book a call</p>
-            </div>
+            <p className="text-2xl font-black text-white">{totalThisWeek}</p>
+            <p className="text-[10px] text-zinc-600">bookings</p>
           </div>
-          <div className="px-6 py-5">
-            {mtLoading ? (
-              <Skeleton className="h-12 w-full rounded-xl" />
-            ) : bookingUrl ? (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border border-zinc-700 bg-zinc-800/60 overflow-hidden">
-                  <span className="text-sm text-zinc-300 font-mono truncate">{bookingUrl}</span>
-                </div>
-                <Button data-testid="button-copy-link" onClick={copyLink} className="gap-2 font-bold flex-shrink-0 h-11" style={{ background: GOLD, color: "#000" }}>
-                  {copied ? <><CheckCheck className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy Link</>}
-                </Button>
-                <Button variant="outline" size="icon" className="h-11 w-11 border-zinc-700 flex-shrink-0" onClick={() => window.open(bookingUrl, "_blank")} title="Preview">
-                  <ExternalLink className="w-4 h-4" />
-                </Button>
-              </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase">Upcoming</span>
+            </div>
+            <p className="text-2xl font-black text-white">{upcomingBookings.length}</p>
+            <p className="text-[10px] text-zinc-600">scheduled</p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-blue-400" />
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase">Next Call</span>
+            </div>
+            {nextBooking ? (
+              <>
+                <p className="text-sm font-bold text-white truncate">{nextBooking.clientName}</p>
+                <p className="text-[10px] text-zinc-500">{format(new Date(nextBooking.startTime), "MMM d, h:mm a")}</p>
+              </>
             ) : (
-              <div className="text-center py-4">
-                <p className="text-zinc-400 text-sm mb-3">Set up your call type to get your booking link</p>
-                <Button onClick={() => setSettingsOpen(true)} style={{ background: GOLD, color: "#000" }} className="font-bold">Set Up Now</Button>
-              </div>
+              <p className="text-sm text-zinc-600">No upcoming</p>
             )}
-            {primary && (
-              <div className="flex items-center gap-6 mt-4 pt-4 border-t border-zinc-800 flex-wrap">
-                <div className="flex items-center gap-2 text-xs text-zinc-400"><Clock className="w-3.5 h-3.5" style={{ color: GOLD }} /><span>{primary.duration} min call</span></div>
-                {primary.location && <div className="flex items-center gap-2 text-xs text-zinc-400"><Video className="w-3.5 h-3.5" style={{ color: GOLD }} /><span className="truncate max-w-[160px]">{primary.location}</span></div>}
-                <div className="flex items-center gap-2 text-xs text-zinc-400"><Globe className="w-3.5 h-3.5" style={{ color: GOLD }} /><span>{tzOffset(primary.timezone ?? "UTC")}</span></div>
-                <div className="flex items-center gap-2 text-xs text-zinc-400"><CalendarDays className="w-3.5 h-3.5" style={{ color: GOLD }} /><span>{enabledDays.length} days available</span></div>
-                {(() => { try { const qs = JSON.parse(primary.customQuestions ?? "[]"); return qs.length > 0 ? <div className="flex items-center gap-2 text-xs text-zinc-400"><HelpCircle className="w-3.5 h-3.5" style={{ color: GOLD }} /><span>{qs.length} custom question{qs.length > 1 ? "s" : ""}</span></div> : null; } catch { return null; } })()}
-                <div className="flex items-center gap-2 text-xs"><div className={`w-2 h-2 rounded-full ${primary.isActive ? "bg-emerald-500" : "bg-zinc-500"}`} /><span className={primary.isActive ? "text-emerald-400" : "text-zinc-500"}>{primary.isActive ? "Accepting bookings" : "Paused"}</span></div>
-              </div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Link2 className="w-4 h-4" style={{ color: GOLD }} />
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase">Booking Link</span>
+            </div>
+            {bookingUrl ? (
+              <button onClick={copyLink} className="text-xs text-zinc-300 hover:text-white truncate block w-full text-left">
+                {copied ? "✓ Copied!" : primary?.slug ? `/book/${primary.slug}` : "—"}
+              </button>
+            ) : (
+              <p className="text-xs text-zinc-600">Not set up</p>
             )}
+            <p className="text-[10px] text-zinc-600">{primary?.isActive ? "Active" : "Paused"}</p>
           </div>
         </div>
 
-        {/* ── GOOGLE CALENDAR / MEET ── */}
-        <GoogleCalendarWidget calStatus={calStatus} onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} onDisconnect={() => disconnectCalMutation.mutate()} disconnecting={disconnectCalMutation.isPending} />
-
-        {/* ── CARDS ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Call Settings */}
-          <button onClick={() => setSettingsOpen(true)} data-testid="button-call-settings" className="text-left rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 hover:border-zinc-600 hover:bg-zinc-900 transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}15` }}>
-                <Settings2 className="w-4 h-4" style={{ color: GOLD }} />
-              </div>
-              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
-            </div>
-            <p className="text-sm font-bold text-white mb-1">Call Settings</p>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              {primary ? `"${primary.title}" · ${primary.duration} min` : "Set your call name, duration, and meeting link"}
-            </p>
-            {(() => { try { const qs = JSON.parse(primary?.customQuestions ?? "[]"); return qs.length > 0 ? <p className="text-xs mt-1" style={{ color: `${GOLD}aa` }}>{qs.length} custom question{qs.length > 1 ? "s" : ""} added</p> : null; } catch { return null; } })()}
-          </button>
-
-          {/* Availability */}
-          <button onClick={() => setAvailOpen(true)} data-testid="button-set-availability" disabled={!primary} className="text-left rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 hover:border-zinc-600 hover:bg-zinc-900 transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#3b82f615" }}>
-                <CalendarDays className="w-4 h-4 text-blue-400" />
-              </div>
-              <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
-            </div>
-            <p className="text-sm font-bold text-white mb-1">Your Availability</p>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              {enabledDays.length > 0 ? enabledDays.map(r => DAYS[r.dayOfWeek].slice(0, 3)).join(", ") : "Set which days and hours you're available"}
-            </p>
-            {primary?.timezone && primary.timezone !== "UTC" && (
-              <p className="text-xs mt-1 text-blue-400/80">{tzOffset(primary.timezone)}</p>
-            )}
-          </button>
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+          {([
+            { id: "calendar" as TabType, label: "Calendar", icon: Calendar },
+            { id: "bookings" as TabType, label: "Bookings", icon: Users },
+            { id: "availability" as TabType, label: "Availability", icon: CalendarDays },
+            { id: "settings" as TabType, label: "Settings", icon: Settings2 },
+          ]).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg font-semibold transition-colors"
+              style={{ background: activeTab === tab.id ? GOLD : "transparent", color: activeTab === tab.id ? "#000" : "#71717a" }}
+            >
+              <tab.icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* ── BOOKINGS ── */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-zinc-400" /> Bookings
-              <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">{upcomingBookings.length} upcoming</Badge>
-            </h2>
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
-              {(["upcoming", "all"] as const).map(f => (
-                <button key={f} onClick={() => setBookingFilter(f)} className="text-[11px] px-3 py-1 rounded-lg font-medium transition-colors capitalize"
-                  style={{ background: bookingFilter === f ? GOLD : "transparent", color: bookingFilter === f ? "#000" : "#71717a" }}>{f}</button>
-              ))}
+        {/* ═══ CALENDAR TAB ═══ */}
+        {activeTab === "calendar" && (
+          <div className="space-y-4">
+            <WeeklyCalendar
+              bookings={bookings}
+              weekStart={weekStart}
+              onPrev={() => setWeekStart(s => subWeeks(s, 1))}
+              onNext={() => setWeekStart(s => addWeeks(s, 1))}
+              onBookingClick={b => setSelectedBooking(b)}
+              onSlotClick={(date, hour) => {
+                setPrefillDate(date);
+                setPrefillHour(hour);
+                setCreateOpen(true);
+              }}
+            />
+            {/* Today's schedule */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4" style={{ color: GOLD }} />
+                Today's Schedule
+              </h3>
+              {(() => {
+                const todayBookings = bookings.filter((b: any) => isSameDay(new Date(b.startTime), new Date()) && b.status === "scheduled");
+                if (todayBookings.length === 0) return <p className="text-xs text-zinc-600">No calls scheduled for today</p>;
+                return (
+                  <div className="space-y-2">
+                    {todayBookings.sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map((b: any) => (
+                      <div key={b.id} onClick={() => setSelectedBooking(b)} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-800 bg-zinc-950 hover:bg-zinc-900 cursor-pointer transition-colors">
+                        <div className="w-1.5 h-8 rounded-full bg-emerald-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white">{b.clientName}</p>
+                          <p className="text-xs text-zinc-500">{b.clientEmail}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-white">{format(new Date(b.startTime), "h:mm a")}</p>
+                          <p className="text-[10px] text-zinc-500">{Math.round((new Date(b.endTime).getTime() - new Date(b.startTime).getTime()) / 60000)} min</p>
+                        </div>
+                        {b.meetLink && (
+                          <Button size="sm" variant="outline" className="h-7 text-[10px] border-emerald-700/40 text-emerald-400 gap-1" onClick={(e) => { e.stopPropagation(); window.open(b.meetLink, "_blank"); }}>
+                            <VideoIcon className="w-3 h-3" /> Join
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
-          {bookingsLoading ? (
-            <div className="space-y-2">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
-          ) : displayBookings.length === 0 ? (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 py-14 text-center">
-              <CalendarDays className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-              <p className="text-zinc-400 text-sm font-medium">No {bookingFilter === "upcoming" ? "upcoming" : ""} bookings yet</p>
-              <p className="text-zinc-600 text-xs mt-1">Share your booking link to start getting calls</p>
+        )}
+
+        {/* ═══ BOOKINGS TAB ═══ */}
+        {activeTab === "bookings" && (
+          <div className="space-y-4">
+            {/* Booking link card */}
+            <div className="rounded-2xl border border-zinc-700 bg-zinc-900 p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
+                  <Link2 className="w-4 h-4" style={{ color: GOLD }} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white">Your Booking Link</p>
+                  <p className="text-xs text-zinc-500">Share with prospects to let them book calls</p>
+                </div>
+              </div>
+              {bookingUrl ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex items-center px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/60">
+                    <span className="text-sm text-zinc-300 font-mono truncate">{bookingUrl}</span>
+                  </div>
+                  <Button onClick={copyLink} className="gap-2 font-bold flex-shrink-0" style={{ background: GOLD, color: "#000" }}>
+                    {copied ? <><CheckCheck className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
+                  </Button>
+                  <Button variant="outline" size="icon" className="border-zinc-700 flex-shrink-0" onClick={() => window.open(bookingUrl, "_blank")}>
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-3">
+                  <p className="text-zinc-400 text-sm mb-2">Set up your call type to get your booking link</p>
+                  <Button onClick={() => setActiveTab("settings")} style={{ background: GOLD, color: "#000" }} className="font-bold">Set Up Now</Button>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="space-y-2">{displayBookings.map((b: any) => (
-              <BookingCard key={b.id} booking={b} onAction={(id, status) => updateBookingMutation.mutate({ id, status })} />
-            ))}</div>
-          )}
-        </div>
-      </div>
 
-      {/* ── SETTINGS DIALOG ── */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800 max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-white">Call Settings</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-5 pt-2">
+            {/* Google Calendar */}
+            <GoogleCalendarWidget calStatus={calStatus} onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} onDisconnect={() => disconnectCalMutation.mutate()} disconnecting={disconnectCalMutation.isPending} />
 
-            {/* Call Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Call Name</label>
-              <Input data-testid="input-call-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Strategy Call" className="bg-zinc-900 border-zinc-700 text-white" />
-              {title && <p className="text-[11px] text-zinc-600">Link: /book/{slugify(title) || "strategy-call"}</p>}
+            {/* Bookings list */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-zinc-400" /> All Bookings
+                  <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">{upcomingBookings.length} upcoming</Badge>
+                </h2>
+                <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+                  {(["upcoming", "all"] as const).map(f => (
+                    <button key={f} onClick={() => setBookingFilter(f)} className="text-[11px] px-3 py-1 rounded-lg font-medium transition-colors capitalize"
+                      style={{ background: bookingFilter === f ? GOLD : "transparent", color: bookingFilter === f ? "#000" : "#71717a" }}>{f}</button>
+                  ))}
+                </div>
+              </div>
+              {bookingsLoading ? (
+                <div className="space-y-2">{Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+              ) : displayBookings.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 py-14 text-center">
+                  <CalendarDays className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-400 text-sm font-medium">No {bookingFilter === "upcoming" ? "upcoming" : ""} bookings</p>
+                  <p className="text-zinc-600 text-xs mt-1">Share your booking link or create one manually</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {displayBookings.map((b: any) => {
+                    const isPast = new Date(b.startTime) < new Date();
+                    return (
+                      <div key={b.id} onClick={() => setSelectedBooking(b)} className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 transition-colors cursor-pointer group">
+                        <div className={`w-2 h-10 rounded-full flex-shrink-0 ${b.status === "cancelled" ? "bg-red-500/60" : isPast ? "bg-zinc-600" : "bg-emerald-500"}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-white">{b.clientName}</p>
+                            <Badge variant="outline" className={`text-[10px] ${b.status === "cancelled" ? "border-red-500/30 text-red-400" : b.status === "completed" ? "border-zinc-500/30 text-zinc-400" : !isPast ? "border-emerald-500/30 text-emerald-400" : "border-zinc-600/30 text-zinc-500"}`}>
+                              {b.status === "scheduled" && isPast ? "past" : b.status}
+                            </Badge>
+                            {b.meetLink && <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px]">Meet</Badge>}
+                          </div>
+                          <p className="text-xs text-zinc-500 mt-0.5">{b.clientEmail}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-semibold text-white">{format(new Date(b.startTime), "MMM d, yyyy")}</p>
+                          <p className="text-xs text-zinc-500">{format(new Date(b.startTime), "h:mm a")} — {format(new Date(b.endTime), "h:mm a")}</p>
+                        </div>
+                        {b.status === "scheduled" && !isPast && (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => { e.stopPropagation(); updateBookingMutation.mutate({ id: b.id, status: "completed" }); }} className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-zinc-500 hover:text-emerald-400 transition-colors" title="Complete"><CheckCircle2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); updateBookingMutation.mutate({ id: b.id, status: "cancelled" }); }} className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors" title="Cancel"><Ban className="w-3.5 h-3.5" /></button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          </div>
+        )}
 
-            {/* Duration */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</label>
-              <Select value={String(duration)} onValueChange={v => setDuration(Number(v))}>
-                <SelectTrigger data-testid="select-duration" className="bg-zinc-900 border-zinc-700 text-white">
-                  <SelectValue />
+        {/* ═══ AVAILABILITY TAB ═══ */}
+        {activeTab === "availability" && (
+          <div className="space-y-5">
+            {/* Timezone */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="w-4 h-4" style={{ color: GOLD }} />
+                <p className="text-sm font-bold text-white">Timezone</p>
+              </div>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white text-sm">
+                  <SelectValue placeholder="Select timezone…" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-700">
-                  {DURATIONS.map(d => <SelectItem key={d} value={String(d)} className="text-white">{d} minutes</SelectItem>)}
+                <SelectContent className="bg-zinc-900 border-zinc-700 max-h-60">
+                  {TIMEZONES.map(tz => (
+                    <SelectItem key={tz.value} value={tz.value} className="text-white text-xs">{tz.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-zinc-600 mt-2">All times below are in your selected timezone. Prospects see slots in their local time.</p>
             </div>
 
-            {/* Meeting Link */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Meeting Link</label>
-              <Input data-testid="input-location" value={location} onChange={e => setLocation(e.target.value)} placeholder="Zoom link, Google Meet URL, or phone number" className="bg-zinc-900 border-zinc-700 text-white" />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Description <span className="text-zinc-600 normal-case font-normal">(optional)</span></label>
-              <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What will you cover in this call?" rows={2} className="bg-zinc-900 border-zinc-700 text-white resize-none" />
-            </div>
-
-            {/* Accept bookings toggle */}
-            <div className="flex items-center justify-between py-3 px-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
-              <div>
-                <p className="text-sm font-semibold text-white">Accept bookings</p>
-                <p className="text-xs text-zinc-500">Turn off to pause all new bookings</p>
+            {/* Weekly availability */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-blue-400" />
+                  <p className="text-sm font-bold text-white">Weekly Availability</p>
+                </div>
+                <p className="text-xs text-zinc-500">{enabledDays.length} days active</p>
               </div>
-              <Switch data-testid="toggle-active" checked={isActive} onCheckedChange={setIsActive} />
+              <div className="space-y-2">
+                {rules.map((rule, i) => (
+                  <AvailRow key={i} rule={rule} onChange={r => setRules(rs => rs.map((x, j) => j === i ? r : x))} />
+                ))}
+              </div>
+              <div className="flex justify-end mt-4">
+                <Button
+                  onClick={() => saveAvailMutation.mutate()}
+                  disabled={saveAvailMutation.isPending || !primary}
+                  className="font-bold"
+                  style={{ background: GOLD, color: "#000" }}
+                >
+                  {saveAvailMutation.isPending ? "Saving…" : "Save Availability"}
+                </Button>
+              </div>
             </div>
 
-            {/* ── CUSTOM QUESTIONS ── */}
-            <div className="space-y-3 pt-1 border-t border-zinc-800">
-              <div className="flex items-center gap-2 pt-3">
+            {/* Quick reference: what the calendar looks like */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Eye className="w-4 h-4 text-zinc-400" />
+                <p className="text-sm font-bold text-white">Schedule Preview</p>
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {rules.map((rule, i) => (
+                  <div key={i} className={`rounded-lg p-2 text-center ${rule.isEnabled ? "bg-zinc-800 border border-zinc-700" : "bg-zinc-950 border border-zinc-800/30"}`}>
+                    <p className={`text-[10px] font-bold ${rule.isEnabled ? "text-white" : "text-zinc-600"}`}>{DAYS_SHORT[i]}</p>
+                    {rule.isEnabled ? (
+                      <div className="mt-1">
+                        <p className="text-[9px] text-zinc-400">{rule.startTime}</p>
+                        <p className="text-[9px] text-zinc-600">to</p>
+                        <p className="text-[9px] text-zinc-400">{rule.endTime}</p>
+                      </div>
+                    ) : (
+                      <p className="text-[9px] text-zinc-700 mt-1">Off</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ SETTINGS TAB ═══ */}
+        {activeTab === "settings" && (
+          <div className="space-y-5 max-w-2xl">
+            {/* Call Settings */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4" style={{ color: GOLD }} />
+                <p className="text-sm font-bold text-white">Call Settings</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Call Name</label>
+                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Strategy Call" className="bg-zinc-900 border-zinc-700 text-white" />
+                {title && <p className="text-[11px] text-zinc-600">Link: /book/{slugify(title) || "strategy-call"}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</label>
+                <Select value={String(duration)} onValueChange={v => setDuration(Number(v))}>
+                  <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {DURATIONS.map(d => <SelectItem key={d} value={String(d)} className="text-white">{d} minutes</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Meeting Link</label>
+                <Input value={location} onChange={e => setLocation(e.target.value)} placeholder="Zoom link, Google Meet URL, or phone number" className="bg-zinc-900 border-zinc-700 text-white" />
+                <p className="text-[11px] text-zinc-600">If Google Calendar is connected, a unique Meet link is auto-generated for each booking.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Description <span className="text-zinc-600 normal-case font-normal">(optional)</span></label>
+                <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="What will you cover in this call?" rows={2} className="bg-zinc-900 border-zinc-700 text-white resize-none" />
+              </div>
+
+              <div className="flex items-center justify-between py-3 px-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+                <div>
+                  <p className="text-sm font-semibold text-white">Accept bookings</p>
+                  <p className="text-xs text-zinc-500">Turn off to pause all new bookings</p>
+                </div>
+                <Switch checked={isActive} onCheckedChange={setIsActive} />
+              </div>
+            </div>
+
+            {/* Custom Questions */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
+              <div className="flex items-center gap-2">
                 <HelpCircle className="w-4 h-4" style={{ color: GOLD }} />
                 <p className="text-sm font-bold text-white">Custom Questions</p>
                 <span className="text-xs text-zinc-500">— ask prospects anything extra</span>
@@ -556,24 +990,18 @@ export default function AdminScheduling() {
               {customQuestions.length > 0 && (
                 <div className="space-y-2">
                   {customQuestions.map((q, i) => (
-                    <div key={q.id} data-testid={`custom-question-${i}`} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50">
+                    <div key={q.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50">
                       <GripVertical className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" />
                       <span className="text-sm text-white flex-1 truncate">{q.label}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => setCustomQuestions(qs => qs.map((x, j) => j === i ? { ...x, required: !x.required } : x))}
-                          className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold transition-colors ${q.required ? "border-yellow-600/40 text-yellow-500 bg-yellow-600/10" : "border-zinc-700 text-zinc-500"}`}
-                        >
-                          {q.required ? "Required" : "Optional"}
-                        </button>
-                        <button
-                          onClick={() => setCustomQuestions(qs => qs.filter((_, j) => j !== i))}
-                          data-testid={`remove-question-${i}`}
-                          className="text-zinc-600 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setCustomQuestions(qs => qs.map((x, j) => j === i ? { ...x, required: !x.required } : x))}
+                        className={`text-[10px] px-2 py-0.5 rounded-md border font-semibold transition-colors ${q.required ? "border-yellow-600/40 text-yellow-500 bg-yellow-600/10" : "border-zinc-700 text-zinc-500"}`}
+                      >
+                        {q.required ? "Required" : "Optional"}
+                      </button>
+                      <button onClick={() => setCustomQuestions(qs => qs.filter((_, j) => j !== i))} className="text-zinc-600 hover:text-red-400 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -581,81 +1009,52 @@ export default function AdminScheduling() {
 
               <div className="flex gap-2">
                 <Input
-                  data-testid="input-new-question"
                   value={newQuestion}
                   onChange={e => setNewQuestion(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addQuestion()}
                   placeholder="e.g. What's your biggest challenge right now?"
                   className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 text-sm"
                 />
-                <Button
-                  data-testid="button-add-question"
-                  type="button"
-                  onClick={addQuestion}
-                  disabled={!newQuestion.trim()}
-                  variant="outline"
-                  className="border-zinc-700 flex-shrink-0 gap-1"
-                >
+                <Button type="button" onClick={addQuestion} disabled={!newQuestion.trim()} variant="outline" className="border-zinc-700 flex-shrink-0 gap-1">
                   <Plus className="w-3.5 h-3.5" /> Add
                 </Button>
               </div>
-              <p className="text-[11px] text-zinc-600">These questions appear in the booking form after name and email. Press Enter or click Add.</p>
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1 border-zinc-700" onClick={() => setSettingsOpen(false)}>Cancel</Button>
-              <Button data-testid="button-save-settings" onClick={() => saveSettingsMutation.mutate()} disabled={saveSettingsMutation.isPending || !title.trim()} className="flex-1 font-bold" style={{ background: GOLD, color: "#000" }}>
+            {/* Google Calendar */}
+            <GoogleCalendarWidget calStatus={calStatus} onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} onDisconnect={() => disconnectCalMutation.mutate()} disconnecting={disconnectCalMutation.isPending} />
+
+            {/* Save */}
+            <div className="flex justify-end">
+              <Button
+                onClick={() => saveSettingsMutation.mutate()}
+                disabled={saveSettingsMutation.isPending || !title.trim()}
+                className="font-bold px-8"
+                style={{ background: GOLD, color: "#000" }}
+              >
                 {saveSettingsMutation.isPending ? "Saving…" : "Save Settings"}
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      {/* ── AVAILABILITY DIALOG ── */}
-      <Dialog open={availOpen} onOpenChange={setAvailOpen}>
-        <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800">
-          <DialogHeader>
-            <DialogTitle className="text-white">Your Availability</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-zinc-500 -mt-1">Set which days and hours prospects can book a call</p>
+        {/* ═══ DIALOGS ═══ */}
+        <BookingDetailDialog
+          booking={selectedBooking}
+          open={!!selectedBooking}
+          onClose={() => setSelectedBooking(null)}
+          onAction={(id, status) => updateBookingMutation.mutate({ id, status })}
+        />
 
-          {/* Timezone selector */}
-          <div className="space-y-1.5 pt-1 pb-2 border-b border-zinc-800">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              <Globe className="w-3.5 h-3.5" /> Your Timezone
-            </label>
-            <Select value={timezone} onValueChange={setTimezone}>
-              <SelectTrigger data-testid="select-timezone" className="bg-zinc-900 border-zinc-700 text-white text-sm">
-                <SelectValue placeholder="Select timezone…" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-700 max-h-60">
-                {TIMEZONES.map(tz => (
-                  <SelectItem key={tz.value} value={tz.value} className="text-white text-xs">{tz.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-zinc-600">
-              All times below are in your selected timezone. Prospects see slots in their own local time.
-            </p>
-          </div>
+        <CreateBookingDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          meetingType={primary}
+          prefillDate={prefillDate}
+          prefillHour={prefillHour}
+        />
 
-          {/* Day rows */}
-          <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-            {rules.map((rule, i) => (
-              <AvailRow key={i} rule={rule} onChange={r => setRules(rs => rs.map((x, j) => j === i ? r : x))} />
-            ))}
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" className="flex-1 border-zinc-700" onClick={() => setAvailOpen(false)}>Cancel</Button>
-            <Button data-testid="button-save-availability" onClick={() => saveAvailMutation.mutate()} disabled={saveAvailMutation.isPending} className="flex-1 font-bold" style={{ background: GOLD, color: "#000" }}>
-              {saveAvailMutation.isPending ? "Saving…" : "Save Availability"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
+      </div>
     </AdminLayout>
   );
 }

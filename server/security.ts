@@ -168,6 +168,8 @@ function applyRateLimiting(app: Express) {
   app.use("/api/auth/register", authLimiter);
   app.use("/api/auth/send-otp", otpLimiter);
   app.use("/api/auth/verify-otp", otpLimiter);
+  app.use("/api/auth/forgot-password", otpLimiter);
+  app.use("/api/auth/reset-password", otpLimiter);
   app.use("/api/ai", aiLimiter);
 }
 

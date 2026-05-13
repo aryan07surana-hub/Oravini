@@ -367,7 +367,7 @@ async function sendBookingReminders() {
       if (hoursUntil <= 25 && hoursUntil >= 23 && !booking.reminder24Sent) {
         try {
           if (process.env.EMAIL_USER) {
-            await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 24 hours`, html: html("24 hours") });
+            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 24 hours`, html: html("24 hours") });
           }
           await storage.updateScheduledBooking(booking.id, { reminder24Sent: true });
           log(`Booking reminder 24h sent to ${booking.clientEmail}`, "cron");
@@ -377,7 +377,7 @@ async function sendBookingReminders() {
       if (hoursUntil <= 1.25 && hoursUntil > 0 && !booking.reminder1Sent) {
         try {
           if (process.env.EMAIL_USER) {
-            await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 1 hour`, html: html("1 hour") });
+            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 1 hour`, html: html("1 hour") });
           }
           await storage.updateScheduledBooking(booking.id, { reminder1Sent: true });
           log(`Booking reminder 1h sent to ${booking.clientEmail}`, "cron");
@@ -421,7 +421,7 @@ export async function processEmailSequences() {
         const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;"><div style="max-width:580px;margin:0 auto;padding:40px 24px;"><div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,0.08);"><span style="color:#d4b461;font-size:11px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">ORAVINI</span></div>${filledHtml}${openPixel}<div style="margin-top:48px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.07);"><p style="color:rgba(255,255,255,0.22);font-size:11px;line-height:1.7;margin:0;">You're receiving this because you joined Oravini.<br><a href="${unsubUrl}" style="color:#d4b461;text-decoration:none;">Unsubscribe</a></p></div></div></body></html>`;
         const nodemailer = await import("nodemailer");
         const transporter = nodemailer.default.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
-        await transporter.sendMail({ from: `"Oravini" <${process.env.EMAIL_USER}>`, to: enrollment.userEmail, subject: emailToSend.subject, html: fullHtml });
+        await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: enrollment.userEmail, subject: emailToSend.subject, html: fullHtml });
         // Advance to next step
         const nextStep = enrollment.currentStep + 1;
         const isLast = nextStep >= seqEmails.length;

@@ -13,7 +13,7 @@ const oraviniLogoPath = "/oravini-logo.png";
 
 const GOLD = "#d4b461";
 
-type Tab = "login" | "register";
+type Tab = "login" | "register" | "forgot";
 
 function AnimatedBackground() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -89,6 +89,14 @@ export default function Login() {
   const [regConfirm, setRegConfirm] = useState("");
   const [showRegPw, setShowRegPw] = useState(false);
 
+  // Forgot password state
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPw, setForgotNewPw] = useState("");
+  const [forgotConfirmPw, setForgotConfirmPw] = useState("");
+  const [forgotStep, setForgotStep] = useState<"email" | "code" | "done">("email");
+  const [showForgotPw, setShowForgotPw] = useState(false);
+
   useEffect(() => {
     if (!isLoading && user) {
       if (user.role === "admin") return navigate("/admin");
@@ -150,6 +158,29 @@ export default function Login() {
     },
     onSuccess: redirectAfterAuth,
     onError: (err: any) => toast({ title: "Registration failed", description: err.message, variant: "destructive" }),
+  });
+
+  const sendResetCode = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/auth/forgot-password", { email: forgotEmail.trim() }),
+    onSuccess: () => {
+      setForgotStep("code");
+      toast({ title: "Code sent!", description: "Check your email for the 6-digit reset code." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: async () => {
+      if (!forgotCode || forgotCode.length !== 6) throw new Error("Enter the 6-digit code from your email");
+      if (!forgotNewPw) throw new Error("Enter a new password");
+      if (forgotNewPw !== forgotConfirmPw) throw new Error("Passwords do not match");
+      return apiRequest("POST", "/api/auth/reset-password", { email: forgotEmail.trim(), code: forgotCode.trim(), newPassword: forgotNewPw });
+    },
+    onSuccess: () => {
+      setForgotStep("done");
+      toast({ title: "Password reset!", description: "You can now sign in with your new password." });
+    },
+    onError: (err: any) => toast({ title: "Reset failed", description: err.message, variant: "destructive" }),
   });
 
   if (isLoading) return null;
@@ -235,6 +266,7 @@ export default function Login() {
           </button>
 
           {/* Tabs */}
+          {tab !== "forgot" && (
           <div className="flex rounded-xl p-1 mb-8" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
             {(["login", "register"] as Tab[]).map(t => (
               <button key={t} data-testid={`tab-${t}`} onClick={() => { setTab(t); setGoogleHint(false); }}
@@ -244,6 +276,7 @@ export default function Login() {
               </button>
             ))}
           </div>
+          )}
 
           {/* LOGIN */}
           {tab === "login" && (
@@ -276,6 +309,16 @@ export default function Login() {
                   {login.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Signing in...</span> : "Sign In →"}
                 </Button>
               </form>
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => { setTab("forgot"); setForgotEmail(email); setForgotStep("email"); }}
+                  className="text-sm hover:underline transition-colors"
+                  style={{ color: "rgba(212,180,97,0.7)", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </>
           )}
 
@@ -329,6 +372,89 @@ export default function Login() {
               <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
                 After signing up, you'll be taken directly to your free audit.
               </p>
+            </>
+          )}
+
+          {/* FORGOT PASSWORD */}
+          {tab === "forgot" && (
+            <>
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>Reset your password</h2>
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  {forgotStep === "email" && "Enter your email and we'll send you a reset code."}
+                  {forgotStep === "code" && "Enter the 6-digit code from your email and set a new password."}
+                  {forgotStep === "done" && "Your password has been reset successfully."}
+                </p>
+              </div>
+
+              {forgotStep === "email" && (
+                <form onSubmit={e => { e.preventDefault(); if (!forgotEmail.trim()) { toast({ title: "Enter your email", variant: "destructive" }); return; } sendResetCode.mutate(); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>Email address</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+                      <Input type="email" placeholder="you@example.com" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="email" />
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={sendResetCode.isPending}>
+                    {sendResetCode.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Sending...</span> : "Send Reset Code →"}
+                  </Button>
+                </form>
+              )}
+
+              {forgotStep === "code" && (
+                <form onSubmit={e => { e.preventDefault(); resetPassword.mutate(); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>6-digit code</Label>
+                    <Input type="text" placeholder="123456" value={forgotCode} onChange={e => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20 text-center text-lg tracking-[0.3em] font-mono" maxLength={6} autoComplete="one-time-code" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>New Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+                      <Input type={showForgotPw ? "text" : "password"} placeholder="Min 8 chars, uppercase, number, symbol" value={forgotNewPw} onChange={e => setForgotNewPw(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password" />
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        {showForgotPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label style={{ color: "rgba(255,255,255,0.55)" }}>Confirm New Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+                      <Input type="password" placeholder="Repeat new password" value={forgotConfirmPw} onChange={e => setForgotConfirmPw(e.target.value)} className="pl-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password"
+                        style={{ borderColor: forgotConfirmPw && forgotConfirmPw !== forgotNewPw ? "rgba(239,68,68,0.5)" : undefined }} />
+                    </div>
+                    {forgotConfirmPw && forgotConfirmPw !== forgotNewPw && <p style={{ fontSize: 11, color: "rgba(239,68,68,0.8)" }}>Passwords do not match</p>}
+                  </div>
+                  <Button type="submit" className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }} disabled={resetPassword.isPending}>
+                    {resetPassword.isPending ? <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />Resetting...</span> : "Reset Password →"}
+                  </Button>
+                  <button type="button" onClick={() => sendResetCode.mutate()} className="w-full text-center text-xs mt-2" style={{ color: "rgba(212,180,97,0.6)", background: "none", border: "none", cursor: "pointer" }}>
+                    Didn't get the code? Resend
+                  </button>
+                </form>
+              )}
+
+              {forgotStep === "done" && (
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center" style={{ background: "rgba(212,180,97,0.1)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                    <Lock className="w-7 h-7" style={{ color: GOLD }} />
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>Your password has been updated. You can now sign in.</p>
+                  <Button onClick={() => { setTab("login"); setPassword(""); }} className="w-full h-11 font-semibold border-0" style={{ background: "linear-gradient(135deg, #f0c84b, #d4b461)", color: "#1a1a1a" }}>
+                    Back to Sign In →
+                  </Button>
+                </div>
+              )}
+
+              {forgotStep !== "done" && (
+                <div className="text-center mt-4">
+                  <button type="button" onClick={() => setTab("login")} className="text-sm hover:underline" style={{ color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer" }}>
+                    ← Back to Sign In
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

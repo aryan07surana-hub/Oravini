@@ -992,7 +992,7 @@ export default function Brandverse() {
       {/* Navbar */}
       <nav style={{ position: "sticky", top: 0, zIndex: 100, background: "rgba(0,0,0,0.9)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(212,180,97,0.08)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 28px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <button onClick={() => nav("/")} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer" }}>
+          <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer" }}>
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 38, width: 38, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 7 }} />
           </button>
           <div style={{ display: "flex", gap: 12 }}>
@@ -1397,7 +1397,7 @@ export default function Brandverse() {
             <img src={oraviniLogoPath} alt="Oravini" style={{ height: 28, width: 28, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 5 }} />
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Powered by Oravini</span>
           </div>
-          <button onClick={() => nav("/")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 13, cursor: "pointer" }}
+          <button onClick={() => nav("/oravini")} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 13, cursor: "pointer" }}
             onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
             onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}>
             ← Back to Oravini

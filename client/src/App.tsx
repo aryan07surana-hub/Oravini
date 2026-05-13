@@ -1,3 +1,4 @@
+import { Component, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,28 @@ import { JarvisProvider } from "@/contexts/JarvisContext";
 import { TourProvider } from "@/components/ui/TourGuide";
 import CookieBanner from "@/components/CookieBanner";
 import NotFound from "@/pages/not-found";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error("[ErrorBoundary]", error, info); }
+  render() {
+    if (this.state.error) {
+      const err = this.state.error as Error;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0a0910", color: "#fff", padding: 24, fontFamily: "system-ui, sans-serif" }}>
+          <div style={{ maxWidth: 480, textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(212,180,97,0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 24 }}>⚠️</div>
+            <h1 style={{ color: "#d4b461", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>Something went wrong</h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: "0 0 8px", lineHeight: 1.6 }}>{err.message}</p>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 20px", background: "#d4b461", color: "#0a0910", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Reload page</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
@@ -75,6 +98,7 @@ import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
 import WatchVideo from "@/pages/public/WatchVideo";
+import EmbedPlayer from "@/pages/public/EmbedPlayer";
 import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
 import IgCommentBot from "@/pages/client/IgCommentBot";
@@ -164,6 +188,7 @@ function Router() {
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
       <Route path="/join/:code">{() => <WatchWebinar />}</Route>
       <Route path="/watch-video/:id">{() => <WatchVideo />}</Route>
+      <Route path="/embed/:id">{() => <EmbedPlayer />}</Route>
       <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
 
       {/* Client — protected */}
@@ -271,16 +296,18 @@ function Router() {
 
 export default function App() {
   return (
-    <TooltipProvider>
-      <JarvisProvider>
-        <TourProvider>
-          <Toaster />
-          <GlobalBackground />
-          <CustomCursor />
-          <CookieBanner />
-          <Router />
-        </TourProvider>
-      </JarvisProvider>
-    </TooltipProvider>
+    <ErrorBoundary>
+      <TooltipProvider>
+        <JarvisProvider>
+          <TourProvider>
+            <Toaster />
+            <GlobalBackground />
+            <CustomCursor />
+            <CookieBanner />
+            <Router />
+          </TourProvider>
+        </JarvisProvider>
+      </TooltipProvider>
+    </ErrorBoundary>
   );
 }

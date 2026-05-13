@@ -133,6 +133,8 @@ export default function WatchVideo() {
   const embed = isEmbed(video.videoUrl);
   const direct = isDirectVideo(video.videoUrl);
   const hasChapters = chapters.length > 0;
+  const showWatermark = video.showOraviniWatermark !== false;
+  const watermarkPosition = video.oraviniWatermarkPosition || "bottom-right";
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#040406", color: "#fff" }}>
@@ -206,6 +208,28 @@ export default function WatchVideo() {
                     title={video.title}
                     onLoad={trackView}
                   />
+                )}
+                {/* Oravini Watermark */}
+                {showWatermark && (
+                  <a
+                    href="https://oravini.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute z-20 flex items-center gap-1.5 px-2 py-1 rounded-md transition-opacity opacity-60 hover:opacity-100"
+                    style={{
+                      ...(watermarkPosition === "bottom-left" ? { bottom: 52, left: 12 } :
+                         watermarkPosition === "top-right" ? { top: 12, right: 12 } :
+                         watermarkPosition === "top-left" ? { top: 12, left: 12 } :
+                         { bottom: 52, right: 12 }),
+                      background: "rgba(0,0,0,0.5)",
+                      backdropFilter: "blur(4px)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                    title="Powered by Oravini"
+                  >
+                    <img src="/oravini-logo.png" alt="Oravini" className="w-4 h-4 rounded-sm object-cover" style={{ objectPosition: "50% 32%" }} />
+                    <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider">Oravini</span>
+                  </a>
                 )}
               </div>
 
