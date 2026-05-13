@@ -10,11 +10,12 @@ import {
   Sparkles, Layers, ChevronLeft, ChevronRight,
   Download, ImagePlus, RefreshCw, Upload, Check, Palette,
   LayoutTemplate, Wand2, Zap, History, Plus, Trash2, Clock,
-  ArrowLeft, PlusCircle, Brain,
+  ArrowLeft, PlusCircle, Brain, Target, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface AiSlide { role: string; headline: string; body: string; }
@@ -41,6 +42,83 @@ const THEMES: Record<ThemeKey, ThemeData> = {
 const TONES = ["Engaging & Educational", "Bold & Direct", "Motivational", "Storytelling", "Data-Driven", "Conversational"];
 const SLIDE_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10];
 const ROLE_COLORS: Record<string, string> = { Hook: "#d4b461", Problem: "#f87171", Insight: "#818cf8", Solution: "#34d399", CTA: "#fb923c", Benefit: "#38bdf8", Step: "#a78bfa" };
+
+// ── Carousel Config Options ──────────────────────────────────────────────────
+interface CarouselInspo {
+  id: string; emoji: string; label: string; desc: string;
+  niche: string; goal: string; topic: string; targetAudience: string;
+  ctaType: string; slideCount: number; tone: string; color: string;
+}
+
+const CAROUSEL_INSPIRATIONS: CarouselInspo[] = [
+  { id: "listicle", emoji: "📋", label: "Top 5 Listicle", desc: "Value-packed numbered list", niche: "Business", goal: "educate", topic: "5 mistakes killing your Instagram growth in 2025", targetAudience: "Creators with under 10K followers", ctaType: "save", slideCount: 7, tone: "Bold & Direct", color: "#dc2626" },
+  { id: "howto", emoji: "🔧", label: "Step-by-Step Guide", desc: "Actionable how-to carousel", niche: "Marketing", goal: "educate", topic: "How to write hooks that stop the scroll every time", targetAudience: "Content creators and marketers", ctaType: "save", slideCount: 8, tone: "Engaging & Educational", color: "#2563eb" },
+  { id: "myths", emoji: "💥", label: "Myth Buster", desc: "Controversial takes that get shares", niche: "Finance", goal: "viral", topic: "5 money myths that are keeping you broke", targetAudience: "Young professionals wanting financial freedom", ctaType: "share", slideCount: 6, tone: "Bold & Direct", color: "#7c3aed" },
+  { id: "results", emoji: "📈", label: "Client Results", desc: "Proof-based credibility carousel", niche: "Coaching", goal: "sell", topic: "How my client went from 0 to $10K/mo in 90 days", targetAudience: "Aspiring coaches and consultants", ctaType: "dm", slideCount: 7, tone: "Storytelling", color: "#d4b461" },
+  { id: "framework", emoji: "🧩", label: "Framework Breakdown", desc: "Teach a system in slides", niche: "Productivity", goal: "authority", topic: "The 4-step system I use to get 10x more done", targetAudience: "Entrepreneurs and founders", ctaType: "follow", slideCount: 6, tone: "Engaging & Educational", color: "#10b981" },
+  { id: "story", emoji: "✨", label: "Origin Story", desc: "Personal journey that builds trust", niche: "Personal Brand", goal: "authority", topic: "How I went from broke to building a 6-figure brand", targetAudience: "Aspiring creators and entrepreneurs", ctaType: "follow", slideCount: 9, tone: "Storytelling", color: "#ec4899" },
+  { id: "comparison", emoji: "⚔️", label: "This vs That", desc: "Comparison that educates", niche: "Tech", goal: "educate", topic: "Notion vs Obsidian — which one actually wins?", targetAudience: "Productivity enthusiasts and knowledge workers", ctaType: "save", slideCount: 6, tone: "Data-Driven", color: "#0ea5e9" },
+  { id: "launch", emoji: "🚀", label: "Product Launch", desc: "Hype-building sales carousel", niche: "E-commerce", goal: "sell", topic: "Introducing my new course — here's what's inside", targetAudience: "People interested in the niche topic", ctaType: "link", slideCount: 8, tone: "Motivational", color: "#f97316" },
+];
+
+const CAROUSEL_GOALS = [
+  { id: "educate", label: "Educate", icon: "📚", desc: "Teach something valuable" },
+  { id: "grow", label: "Grow Followers", icon: "📈", desc: "Attract new audience" },
+  { id: "sell", label: "Drive Sales", icon: "🛒", desc: "Sell a product or offer" },
+  { id: "authority", label: "Build Authority", icon: "🏆", desc: "Position as expert" },
+  { id: "viral", label: "Go Viral", icon: "🚀", desc: "Maximize shares & reach" },
+  { id: "engagement", label: "Boost Engagement", icon: "❤️", desc: "Get saves & comments" },
+];
+
+const CAROUSEL_CTA_OPTIONS = [
+  { id: "save", label: "Save This" },
+  { id: "share", label: "Share" },
+  { id: "follow", label: "Follow Me" },
+  { id: "dm", label: "DM Me" },
+  { id: "link", label: "Link in Bio" },
+  { id: "comment", label: "Comment Below" },
+  { id: "swipe", label: "Swipe →" },
+  { id: "custom", label: "Custom" },
+];
+
+const CAROUSEL_STYLES = [
+  { id: "minimal", label: "Minimal", desc: "Clean & elegant" },
+  { id: "bold", label: "Bold", desc: "High contrast" },
+  { id: "aesthetic", label: "Aesthetic", desc: "Warm & soft" },
+  { id: "modern", label: "Modern", desc: "Dark & sharp" },
+  { id: "luxury", label: "Luxury", desc: "Black & gold" },
+  { id: "casual", label: "Casual", desc: "Light & fun" },
+];
+
+const CAROUSEL_STYLE_PREVIEWS: Record<string, { bg: string; accent: string }> = {
+  minimal: { bg: "#f8f9fa", accent: "#111111" },
+  bold: { bg: "#000000", accent: "#ff3366" },
+  aesthetic: { bg: "#faf5ee", accent: "#c9a96e" },
+  modern: { bg: "#0f172a", accent: "#38bdf8" },
+  luxury: { bg: "#0c0c0c", accent: "#d4b461" },
+  casual: { bg: "#f0f9ff", accent: "#06b6d4" },
+};
+
+const CAROUSEL_HOOK_STYLES = [
+  { id: "curiosity", label: "Curiosity Question", example: '"What if I told you…"' },
+  { id: "bold-stat", label: "Bold Statistic", example: '"95% of creators fail at this…"' },
+  { id: "story", label: "Story Opening", example: '"3 years ago I was broke…"' },
+  { id: "challenge", label: "Challenge", example: '"Most people can\'t answer this…"' },
+  { id: "bold-claim", label: "Bold Claim", example: '"This changed everything…"' },
+  { id: "relatable", label: "Relatable", example: '"We\'ve all been there…"' },
+];
+
+const CAROUSEL_DEPTH = [
+  { id: "quick", label: "Quick Hits", desc: "Punchy, fast-paced slides", emoji: "⚡" },
+  { id: "balanced", label: "Balanced", desc: "Mix of hooks + insights", emoji: "⚖️" },
+  { id: "deep-dive", label: "Deep Dive", desc: "Detailed, educational", emoji: "🔬" },
+];
+
+const NICHE_SUGGESTIONS = [
+  "Fitness", "Personal Finance", "Marketing", "Coaching", "E-commerce",
+  "Personal Brand", "Tech", "Health", "Real Estate", "Productivity",
+  "Mindset", "Fashion", "Food", "Travel", "Photography",
+];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 
@@ -143,6 +221,20 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const [apiDone, setApiDone] = useState(false);
   const [pendingSlides, setPendingSlides] = useState<DesignSlide[]>([]);
 
+  // New config state (Story-Generator style)
+  const [, navigate] = useLocation();
+  const [carouselGoal, setCarouselGoal] = useState("");
+  const [nicheInput, setNicheInput] = useState(surveyNiche || "");
+  const [showNicheSugg, setShowNicheSugg] = useState(false);
+  const [targetAudience, setTargetAudience] = useState("");
+  const [ctaType, setCtaType] = useState("save");
+  const [ctaCustom, setCtaCustom] = useState("");
+  const [visualStyle, setVisualStyle] = useState("minimal");
+  const [hookStyle, setHookStyle] = useState("curiosity");
+  const [contentDepth, setContentDepth] = useState("balanced");
+  const [selectedInspo, setSelectedInspo] = useState<string | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
   // Slides state
   const [slides, setSlides] = useState<DesignSlide[]>([]);
   const [regenIdx, setRegenIdx] = useState<number | null>(null);
@@ -223,6 +315,17 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   }
 
   // ── Generate text (with 45s GeneratingScreen) ─────────────────────────────
+  function applyCarouselInspo(ins: CarouselInspo) {
+    setSelectedInspo(ins.id);
+    setCarouselGoal(ins.goal);
+    setTopic(ins.topic);
+    setNicheInput(ins.niche);
+    setTargetAudience(ins.targetAudience);
+    setCtaType(ins.ctaType);
+    setSlideCount(ins.slideCount);
+    setTone(ins.tone);
+  }
+
   async function generateText() {
     if (!topic.trim()) { toast({ title: "Enter a topic first", variant: "destructive" }); return; }
     setGenerating(true);
@@ -626,101 +729,238 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       </div>
 
       {slides.length === 0 ? (
-        /* ── SETUP SCREEN (no slides yet) ────────────────────────────────── */
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-          {/* Left: Setup form */}
-          <div className="lg:col-span-3 space-y-5">
-            <div className="rounded-2xl p-6 space-y-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">What's your carousel about? <span style={{ color: "#d4b461" }}>*</span></Label>
-                <Input
-                  value={topic}
-                  onChange={e => setTopic(e.target.value)}
-                  placeholder={surveyNiche
-                    ? `e.g. ${topStruggle ? `How to fix: ${topStruggle.toLowerCase()}` : `5 mistakes in ${surveyNiche.toLowerCase()} that hold you back`}, morning routine for ${surveyNiche.toLowerCase()}…`
-                    : "e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs, morning routine for productivity…"}
-                  className="bg-white/5 border-white/10 text-sm h-12"
-                  data-testid="input-topic"
-                  onKeyDown={e => e.key === "Enter" && generateText()}
-                />
-                {surveyNiche && !topic && (
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[10px] text-zinc-500">Quick start:</span>
-                    {[
-                      topStruggle ? `How to overcome: ${topStruggle.toLowerCase()}` : null,
-                      `5 mistakes in ${surveyNiche.toLowerCase()}`,
-                      `${surveyNiche} tips for beginners`,
-                    ].filter(Boolean).map(suggestion => (
-                      <button
-                        key={suggestion!}
-                        onClick={() => setTopic(suggestion!)}
-                        className="text-[10px] px-2.5 py-1 rounded-full border transition-all hover:border-primary/40 hover:text-primary"
-                        style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)", color: "#d4b461" }}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">Tone</Label>
-                <div className="flex flex-wrap gap-2">
-                  {TONES.map(tn => (
-                    <button key={tn} onClick={() => setTone(tn)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${tone === tn ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
-                      data-testid={`tone-${tn.toLowerCase().replace(/ /g, "-")}`}>
-                      {tn}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">Number of slides</Label>
-                <div className="flex flex-wrap gap-2">
-                  {SLIDE_COUNTS.map(n => (
-                    <button key={n} onClick={() => setSlideCount(n)}
-                      className={`w-10 h-10 rounded-lg text-sm font-bold border transition-all ${slideCount === n ? "border-[#d4b461]/60 text-[#d4b461] bg-[#d4b461]/10" : "border-white/10 text-muted-foreground hover:border-white/25"}`}
-                      data-testid={`slide-count-${n}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        /* ── SETUP SCREEN — Story-Generator style ────────────────────────── */
+        <div className="max-w-2xl mx-auto px-2 py-12 space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <button
+              onClick={() => navigate("/ai-design")}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors mx-auto mb-2"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />AI Design Hub
+            </button>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+              <Layers className="w-3.5 h-3.5" />Carousel Generator
             </div>
+            <h1 className="text-3xl font-black text-white tracking-tight">
+              Build a <span className="text-primary">High-Converting</span> Carousel
+            </h1>
+            <p className="text-zinc-400 text-sm max-w-md mx-auto">
+              AI writes your slides — hook, value, CTA — then you design and export as 1080×1080 PNG.
+            </p>
+          </div>
 
-            <Button onClick={generateText} disabled={generating || !topic.trim()}
-              className="w-full h-13 font-bold text-base gap-3 bg-[#d4b461] hover:bg-[#c4a451] text-black"
-              data-testid="button-generate-text">
-              {generating ? (
-                <><RefreshCw className="w-5 h-5 animate-spin" />Generating {slideCount} slides…</>
-              ) : (
-                <><Wand2 className="w-5 h-5" />Generate Carousel with AI</>
+          {/* History button */}
+          <div className="flex justify-end">
+            <button onClick={() => setShowHistoryModal(true)} className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-primary/30 bg-zinc-900">
+              <Clock className="w-3.5 h-3.5" />View History
+            </button>
+          </div>
+
+          {/* Inspirations */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />Start with an Inspiration
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {CAROUSEL_INSPIRATIONS.map(ins => (
+                <button key={ins.id} onClick={() => applyCarouselInspo(ins)}
+                  className={`relative rounded-xl border p-3 text-left transition-all hover:scale-[1.02] ${selectedInspo === ins.id ? "border-primary bg-primary/8" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
+                  {selectedInspo === ins.id && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />}
+                  <div className="text-xl mb-1">{ins.emoji}</div>
+                  <div style={{ color: ins.color }} className="text-[9px] font-bold uppercase tracking-wide mb-0.5">{ins.niche}</div>
+                  <div className="text-xs font-bold text-white leading-tight">{ins.label}</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5 leading-tight">{ins.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-zinc-800/60" />
+
+          {/* Goal */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-white">Goal <span className="text-red-400">*</span></label>
+            <div className="grid grid-cols-3 gap-2">
+              {CAROUSEL_GOALS.map(opt => (
+                <button key={opt.id} onClick={() => setCarouselGoal(opt.id)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${carouselGoal === opt.id ? "border-primary bg-primary/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
+                  <span className="text-xl">{opt.icon}</span>
+                  <span className={`text-xs font-semibold ${carouselGoal === opt.id ? "text-primary" : "text-zinc-300"}`}>{opt.label}</span>
+                  <span className="text-[9px] text-zinc-600">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Niche */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white">Niche</label>
+            <div className="relative">
+              <Input placeholder="Type your niche…" value={nicheInput}
+                onChange={e => { setNicheInput(e.target.value); setShowNicheSugg(true); }}
+                onFocus={() => setShowNicheSugg(true)}
+                onBlur={() => setTimeout(() => setShowNicheSugg(false), 150)}
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" />
+              {showNicheSugg && nicheInput.length < 20 && (
+                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden">
+                  {NICHE_SUGGESTIONS.filter(s => s.toLowerCase().includes(nicheInput.toLowerCase()) || !nicheInput).slice(0, 6).map(s => (
+                    <button key={s} onMouseDown={() => { setNicheInput(s); setShowNicheSugg(false); }} className="w-full text-left px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">{s}</button>
+                  ))}
+                </div>
               )}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {NICHE_SUGGESTIONS.slice(0, 8).map(s => (
+                <button key={s} onMouseDown={() => setNicheInput(s)}
+                  className={`text-xs px-3 py-1 rounded-full border transition-all ${nicheInput === s ? "bg-primary/20 text-primary border-primary/40" : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:border-zinc-500"}`}>{s}</button>
+              ))}
+            </div>
           </div>
 
-          {/* Right: History */}
-          <div className="lg:col-span-2">
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.015)" }}>
-              <div className="px-4 py-3 border-b border-white/8 flex items-center gap-2">
-                <History className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs font-semibold text-muted-foreground">Past Carousels</span>
-                {carouselHistory.length > 0 && (
-                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: "#d4b461" }}>
-                    {carouselHistory.length}
-                  </span>
-                )}
+          {/* Topic + Audience */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-300">Topic <span className="text-red-400">*</span></label>
+              <Input placeholder="e.g. 5 mistakes that stop Instagram growth, how to get clients from DMs…" value={topic} onChange={e => setTopic(e.target.value)}
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" />
+              {surveyNiche && !topic && (
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[10px] text-zinc-500">Quick start:</span>
+                  {[
+                    topStruggle ? `How to overcome: ${topStruggle.toLowerCase()}` : null,
+                    `5 mistakes in ${surveyNiche.toLowerCase()}`,
+                    `${surveyNiche} tips for beginners`,
+                  ].filter(Boolean).map(suggestion => (
+                    <button key={suggestion!} onClick={() => setTopic(suggestion!)}
+                      className="text-[10px] px-2.5 py-1 rounded-full border transition-all hover:border-primary/40 hover:text-primary"
+                      style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)", color: "#d4b461" }}>
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-300">Target Audience</label>
+              <Input placeholder="e.g. Coaches with under 1k followers wanting to monetize" value={targetAudience} onChange={e => setTargetAudience(e.target.value)}
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600" />
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-white">CTA Type</label>
+            <div className="flex flex-wrap gap-2">
+              {CAROUSEL_CTA_OPTIONS.map(c => (
+                <button key={c.id} onClick={() => setCtaType(c.id)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${ctaType === c.id ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>{c.label}</button>
+              ))}
+            </div>
+            {ctaType === "custom" && (
+              <Input placeholder="e.g. Subscribe to my newsletter" value={ctaCustom} onChange={e => setCtaCustom(e.target.value)} className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 mt-2" />
+            )}
+          </div>
+
+          {/* Design & Style section */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white"><Palette className="w-4 h-4 text-primary" />Carousel Design & Style</div>
+
+            {/* Slide count slider */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-zinc-400">Number of slides</label>
+                <span className="text-primary font-bold text-sm">{slideCount}</span>
               </div>
-              <div className="p-3 max-h-96 overflow-y-auto">
-                <HistoryPanel />
+              <input type="range" min={3} max={10} value={slideCount} onChange={e => setSlideCount(Number(e.target.value))} className="w-full accent-primary" />
+              <div className="flex justify-between text-[10px] text-zinc-600"><span>3</span><span>10</span></div>
+            </div>
+
+            {/* Visual style */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-400">Visual style</label>
+              <div className="grid grid-cols-3 gap-2">
+                {CAROUSEL_STYLES.map(s => (
+                  <button key={s.id} onClick={() => setVisualStyle(s.id)}
+                    className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${visualStyle === s.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                    <div className="w-6 h-4 rounded" style={{ background: CAROUSEL_STYLE_PREVIEWS[s.id]?.bg || "#fff", border: `2px solid ${CAROUSEL_STYLE_PREVIEWS[s.id]?.accent || "#d4b461"}` }} />
+                    <span className={`text-[10px] font-semibold ${visualStyle === s.id ? "text-primary" : "text-zinc-400"}`}>{s.label}</span>
+                    <span className="text-[9px] text-zinc-600">{s.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tone */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-400">Tone of voice</label>
+              <div className="grid grid-cols-3 gap-2">
+                {TONES.map(tn => (
+                  <button key={tn} onClick={() => setTone(tn)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${tone === tn ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>
+                    {tn}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Hook Style */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-400">Opening hook style</label>
+              <div className="space-y-1.5">
+                {CAROUSEL_HOOK_STYLES.map(h => (
+                  <button key={h.id} onClick={() => setHookStyle(h.id)}
+                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${hookStyle === h.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                    <div className={`w-3 h-3 rounded-full border-2 mt-0.5 flex-shrink-0 ${hookStyle === h.id ? "bg-primary border-primary" : "border-zinc-600"}`} />
+                    <div>
+                      <div className={`text-xs font-semibold ${hookStyle === h.id ? "text-primary" : "text-zinc-300"}`}>{h.label}</div>
+                      <div className="text-[10px] text-zinc-600 mt-0.5">{h.example}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Content Depth */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-zinc-400">Content depth</label>
+              <div className="grid grid-cols-3 gap-2">
+                {CAROUSEL_DEPTH.map(d => (
+                  <button key={d.id} onClick={() => setContentDepth(d.id)}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all ${contentDepth === d.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
+                    <span className="text-lg">{d.emoji}</span>
+                    <span className={`text-[10px] font-bold ${contentDepth === d.id ? "text-primary" : "text-zinc-300"}`}>{d.label}</span>
+                    <span className="text-[9px] text-zinc-600 leading-tight">{d.desc}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
+
+          {/* Generate button */}
+          <Button onClick={generateText} disabled={generating || !topic.trim() || !carouselGoal}
+            className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl">
+            <Wand2 className="w-4 h-4 mr-2" />Generate Carousel ({slideCount} slides)
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
+
+          {/* History modal */}
+          {showHistoryModal && (
+            <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur flex items-center justify-center p-4">
+              <div className="relative w-full max-w-lg bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden" style={{ maxHeight: 500 }}>
+                <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-white">Past Carousels</span>
+                  </div>
+                  <button onClick={() => setShowHistoryModal(false)} className="text-zinc-400 hover:text-white text-lg">×</button>
+                </div>
+                <div className="p-4 max-h-96 overflow-y-auto">
+                  <HistoryPanel />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* ── EDITOR SCREEN (slides generated) ────────────────────────────── */

@@ -321,6 +321,256 @@ const STATS = [
   { val: 14, suffix: "", label: "Powerful Tools", prefix: "" },
 ];
 
+// ── Pricing Quiz ──────────────────────────────────────────────────────────────
+const QUIZ_QUESTIONS = [
+  {
+    question: "What's your #1 goal right now?",
+    options: [
+      { text: "Grow my audience consistently", tier: 3 },
+      { text: "Monetize & build a real brand", tier: 4 },
+      { text: "Build a full content empire / platform", tier: 5 },
+    ],
+  },
+  {
+    question: "How fast do you want to see results?",
+    options: [
+      { text: "Steady growth over 3–6 months", tier: 3 },
+      { text: "Noticeable results within 30–60 days", tier: 4 },
+      { text: "I want to move aggressively — now", tier: 5 },
+    ],
+  },
+  {
+    question: "How do you feel about your current content strategy?",
+    options: [
+      { text: "I post but it feels random", tier: 3 },
+      { text: "I have some structure but I'm leaving growth on the table", tier: 4 },
+      { text: "I need a full system — strategy, automation, everything", tier: 5 },
+    ],
+  },
+  {
+    question: "Are you currently studying your competitors?",
+    options: [
+      { text: "Not really, I should be", tier: 3 },
+      { text: "I look at them but don't have a system", tier: 4 },
+      { text: "I want deep competitor intelligence + a plan to outperform them", tier: 5 },
+    ],
+  },
+  {
+    question: "How important is saving time on content creation?",
+    options: [
+      { text: "I'd love to save a few hours a week", tier: 3 },
+      { text: "I need to cut my content time in half", tier: 4 },
+      { text: "I want AI doing the heavy lifting so I focus on strategy", tier: 5 },
+    ],
+  },
+  {
+    question: "Where do you see yourself in 12 months?",
+    options: [
+      { text: "A growing creator with consistent content", tier: 3 },
+      { text: "A recognized brand with multiple revenue streams", tier: 4 },
+      { text: "Running my own platform / community with a team", tier: 5 },
+    ],
+  },
+  {
+    question: "What would make the biggest difference for you right now?",
+    options: [
+      { text: "Better content ideas + a posting rhythm", tier: 3 },
+      { text: "Full strategy + video tools + content coaching", tier: 4 },
+      { text: "A custom-built system + mentorship to scale everything", tier: 5 },
+    ],
+  },
+  {
+    question: "What's your monthly budget for growing your brand?",
+    options: [
+      { text: "Under $50 — I want maximum value at a low cost", tier: 3 },
+      { text: "$50–$100 — I'm ready to invest in real tools", tier: 4 },
+      { text: "$100+ — I'll pay for a system that actually scales me", tier: 5 },
+    ],
+  },
+];
+
+const TIER_RESULTS: Record<number, { name: string; tagline: string; price: string; features: string[]; accent: string }> = {
+  3: {
+    name: "Tier 3 — Growth",
+    tagline: "You're ready to stop guessing and start growing with a real system.",
+    price: "$49/mo",
+    features: ["250 AI credits / month", "Competitor Analysis", "Niche Intelligence Engine", "ICP Builder", "Audience Psychology Map", "No watermarks"],
+    accent: GOLD,
+  },
+  4: {
+    name: "Tier 4 — Pro",
+    tagline: "You need the full toolkit — video, coaching, planning, and automation.",
+    price: "$59/mo",
+    features: ["500 AI credits / month", "Full Video Marketing Suite", "AI Content Coach", "AI Content Planner", "DM Tracker", "Priority support"],
+    accent: "#34d399",
+  },
+  5: {
+    name: "Tier 5 — Elite",
+    tagline: "You're thinking bigger than a subscription. Let's build your platform.",
+    price: "Custom",
+    features: ["Unlimited AI credits", "Custom-built platform", "AI Workers trained on your voice", "Weekly strategy calls", "Dedicated build team", "Full done-with-you system"],
+    accent: GOLD_BRIGHT,
+  },
+};
+
+function PricingQuiz({ onClose, onGoToPricing }: { onClose: () => void; onGoToPricing: () => void }) {
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<number[]>([]);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [resultTier, setResultTier] = useState<number | null>(null);
+
+  const handleSelect = (optionIndex: number, tier: number) => {
+    setSelectedOption(optionIndex);
+    setTimeout(() => {
+      const newAnswers = [...answers, tier];
+      setAnswers(newAnswers);
+      setSelectedOption(null);
+      if (step < QUIZ_QUESTIONS.length - 1) {
+        setStep(step + 1);
+      } else {
+        // Calculate result
+        const counts: Record<number, number> = { 3: 0, 4: 0, 5: 0 };
+        newAnswers.forEach(t => counts[t]++);
+        // Ties break upward
+        if (counts[5] >= counts[4] && counts[5] >= counts[3]) setResultTier(5);
+        else if (counts[4] >= counts[3]) setResultTier(4);
+        else setResultTier(3);
+      }
+    }, 400);
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
+      setAnswers(answers.slice(0, -1));
+    }
+  };
+
+  const handleRetake = () => {
+    setStep(0);
+    setAnswers([]);
+    setSelectedOption(null);
+    setResultTier(null);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }} />
+
+      {/* Modal */}
+      <div style={{ position: "relative", background: "#0a0a0f", border: `1px solid ${GOLD}33`, borderRadius: 24, padding: "40px 36px", maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: `0 0 80px rgba(212,180,97,0.1)`, animation: "bvExpand 0.3s ease" }}>
+        {/* Close button */}
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 22, cursor: "pointer", lineHeight: 1 }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
+          onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}>
+          ✕
+        </button>
+
+        {resultTier === null ? (
+          <>
+            {/* Progress bar */}
+            <div style={{ marginBottom: 32 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.15em", textTransform: "uppercase" }}>Find Your Plan</span>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{step + 1} of {QUIZ_QUESTIONS.length}</span>
+              </div>
+              <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${((step + 1) / QUIZ_QUESTIONS.length) * 100}%`, background: `linear-gradient(90deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, transition: "width 0.4s ease" }} />
+              </div>
+            </div>
+
+            {/* Question */}
+            <h3 style={{ fontSize: "clamp(18px, 3vw, 24px)", fontWeight: 800, color: "#fff", marginBottom: 28, lineHeight: 1.3 }}>
+              {QUIZ_QUESTIONS[step].question}
+            </h3>
+
+            {/* Options */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {QUIZ_QUESTIONS[step].options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSelect(i, opt.tier)}
+                  style={{
+                    background: selectedOption === i ? `${GOLD}15` : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${selectedOption === i ? `${GOLD}66` : "rgba(255,255,255,0.08)"}`,
+                    borderRadius: 14,
+                    padding: "18px 22px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    transform: selectedOption === i ? "scale(1.02)" : "none",
+                  }}
+                  onMouseEnter={e => { if (selectedOption === null) { e.currentTarget.style.borderColor = `${GOLD}44`; e.currentTarget.style.background = `${GOLD}08`; } }}
+                  onMouseLeave={e => { if (selectedOption === null) { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
+                >
+                  <span style={{ fontSize: 15, fontWeight: 600, color: selectedOption === i ? GOLD : "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
+                    {opt.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Back button */}
+            {step > 0 && (
+              <button onClick={handleBack} style={{ marginTop: 20, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: "8px 0" }}
+                onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}>
+                ← Back
+              </button>
+            )}
+          </>
+        ) : (
+          /* ── RESULT SCREEN ── */
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: TIER_RESULTS[resultTier].accent, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>Based on your answers</div>
+            <h3 style={{ fontSize: "clamp(24px, 4vw, 34px)", fontWeight: 900, color: "#fff", marginBottom: 8, lineHeight: 1.2 }}>
+              We recommend <span style={{ color: TIER_RESULTS[resultTier].accent }}>{TIER_RESULTS[resultTier].name}</span>
+            </h3>
+            <div style={{ fontSize: 28, fontWeight: 900, color: TIER_RESULTS[resultTier].accent, marginBottom: 12 }}>{TIER_RESULTS[resultTier].price}</div>
+            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.55)", marginBottom: 28, lineHeight: 1.7, maxWidth: 400, margin: "0 auto 28px" }}>
+              {TIER_RESULTS[resultTier].tagline}
+            </p>
+
+            {/* Features */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center", marginBottom: 36 }}>
+              {TIER_RESULTS[resultTier].features.map(f => (
+                <div key={f} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ color: TIER_RESULTS[resultTier].accent, fontSize: 13 }}>✦</span>
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,0.7)" }}>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTAs */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+              <button
+                onClick={onGoToPricing}
+                style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "16px 36px", cursor: "pointer", width: "100%", maxWidth: 320 }}>
+                View Pricing & Sign Up →
+              </button>
+              <button
+                onClick={onClose}
+                style={{ background: "none", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", fontWeight: 600, fontSize: 14, borderRadius: 12, padding: "14px 32px", cursor: "pointer", width: "100%", maxWidth: 320, transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}44`; e.currentTarget.style.color = GOLD; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}>
+                Back to Landing Page
+              </button>
+            </div>
+
+            {/* Retake */}
+            <button onClick={handleRetake} style={{ marginTop: 20, background: "none", border: "none", color: "rgba(255,255,255,0.3)", fontSize: 12, cursor: "pointer" }}
+              onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+              onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.3)")}>
+              Retake Quiz
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Pricing tiers ─────────────────────────────────────────────────────────────
 const PRICING_TIERS = [
   { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
@@ -375,6 +625,7 @@ export default function OraviniLanding() {
   const [showSplash, setShowSplash] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [heroReady, setHeroReady] = useState(false);
 
@@ -434,6 +685,7 @@ export default function OraviniLanding() {
       {showSplash && <SplashModal onDone={handleSplashDone} />}
       {showEmailPopup && <EmailPopup onClose={() => setShowEmailPopup(false)} />}
       {showStrategy && <StrategyModal onClose={() => setShowStrategy(false)} />}
+      {showQuiz && <PricingQuiz onClose={() => setShowQuiz(false)} onGoToPricing={() => { setShowQuiz(false); setTimeout(() => { const el = document.getElementById("pricing"); if (el) el.scrollIntoView({ behavior: "smooth" }); }, 100); }} />}
 
       <Navbar />
 
@@ -915,6 +1167,28 @@ export default function OraviniLanding() {
         </div>
       </section>
 
+      {/* ── QUIZ BANNER (above pricing) ────────────────────────────────────── */}
+      <section style={{ padding: "0 24px 0", marginTop: -40 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <Anim>
+            <div
+              onClick={() => setShowQuiz(true)}
+              style={{ background: `linear-gradient(135deg, ${GOLD}0a, ${GOLD}04)`, border: `1px solid ${GOLD}33`, borderRadius: 18, padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, cursor: "pointer", transition: "border-color 0.3s, box-shadow 0.3s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}66`; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 40px ${GOLD}15`; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${GOLD}33`; (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+            >
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 6 }}>Not sure which plan is right?</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>Take a 30-second quiz and find your perfect tier →</div>
+              </div>
+              <div style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 14, borderRadius: 10, padding: "12px 24px", whiteSpace: "nowrap" }}>
+                Take the Quiz
+              </div>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
       {/* ── PRICING ──────────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -1318,6 +1592,19 @@ export default function OraviniLanding() {
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>© 2026 Oravini. All rights reserved.</div>
         </div>
       </footer>
+
+      {/* ── FLOATING QUIZ WIDGET (bottom-right) ──────────────────────────────── */}
+      {!showQuiz && (
+        <div
+          onClick={() => setShowQuiz(true)}
+          style={{ position: "fixed", bottom: 24, right: 24, zIndex: 900, background: "#0a0a0f", border: `1px solid ${GOLD}44`, borderRadius: 16, padding: "14px 20px", maxWidth: 260, cursor: "pointer", boxShadow: `0 4px 30px rgba(0,0,0,0.6), 0 0 40px ${GOLD}10`, transition: "transform 0.3s, box-shadow 0.3s" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-4px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 40px rgba(0,0,0,0.7), 0 0 60px ${GOLD}20`; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = "none"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 30px rgba(0,0,0,0.6), 0 0 40px ${GOLD}10`; }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>🎯 Take a Quiz</div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>Confused about which tier is best for you? Find out in 30 seconds.</div>
+        </div>
+      )}
     </div>
   );
 }
