@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1257,6 +1257,7 @@ export default function AIIdeas() {
   const [niche, setNiche] = useState(defaultNiche);
   const [contentType, setContentType] = useState("");
   const [goal, setGoal] = useState(defaultGoal);
+  const [goalCat, setGoalCat] = useState<string>("core");
   const [audience, setAudience] = useState("");
   const [additionalContext, setAdditionalContext] = useState("");
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
@@ -1847,35 +1848,73 @@ export default function AIIdeas() {
               </div>
             </div>
 
-            {/* Goal — grouped select */}
-            <div className="space-y-2">
+            {/* Goal — tabbed card layout */}
+            <div className="space-y-3">
               <label className="text-sm font-semibold text-white flex items-center gap-2">
                 <Zap className="w-4 h-4 text-primary" />Goal
+                {goal && (
+                  <span className="ml-auto text-[11px] font-medium text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-0.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {GOALS.find(g => g.value === goal)?.label || goal}
+                  </span>
+                )}
               </label>
-              <Select value={goal} onValueChange={setGoal}>
-                <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white" data-testid="select-goal">
-                  <SelectValue placeholder="Select your goal" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[340px]">
-                  {GOAL_CATEGORIES.map(cat => (
-                    <SelectGroup key={cat.key}>
-                      <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold px-2 pt-2 pb-1 flex items-center gap-1.5">
-                        <span>{cat.emoji}</span> {cat.label}
-                      </SelectLabel>
-                      {cat.items.map(item => (
-                        <SelectItem key={item.value} value={item.value} className="py-2">
-                          <div className="flex flex-col gap-0">
-                            <span className="text-sm">{item.label}</span>
-                            {item.hint && (
-                              <span className="text-[11px] text-muted-foreground leading-tight">{item.hint}</span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
+
+              {/* Category tabs */}
+              <div className="flex flex-wrap gap-1.5" data-testid="goal-category-tabs">
+                {GOAL_CATEGORIES.map(cat => {
+                  const isActive = goalCat === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      onClick={() => setGoalCat(cat.key)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                        isActive
+                          ? "border-primary bg-primary/10 text-primary font-bold"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300"
+                      }`}
+                    >
+                      <span>{cat.emoji}</span>
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Goal cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" data-testid="goal-cards-grid">
+                {GOAL_CATEGORIES.find(c => c.key === goalCat)?.items.map(item => {
+                  const isSelected = goal === item.value;
+                  return (
+                    <button
+                      key={item.value}
+                      onClick={() => setGoal(isSelected ? "" : item.value)}
+                      data-testid={`goal-card-${item.value.slice(0, 20)}`}
+                      className={`group relative text-left rounded-xl border p-3.5 transition-all duration-200 ${
+                        isSelected
+                          ? "border-primary bg-primary/8 shadow-[0_0_16px_rgba(212,180,97,0.12)]"
+                          : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-900"
+                      }`}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-2.5 right-2.5">
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                        </div>
+                      )}
+                      <div className={`text-[13px] font-semibold leading-tight pr-5 ${
+                        isSelected ? "text-primary" : "text-zinc-200 group-hover:text-white"
+                      }`}>
+                        {item.label}
+                      </div>
+                      {item.hint && (
+                        <div className="text-[11px] text-zinc-500 leading-snug mt-1.5 pr-4">
+                          {item.hint}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Target Audience */}
