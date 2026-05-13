@@ -307,7 +307,7 @@ export default function Login() {
                   <Label style={{ color: "rgba(255,255,255,0.55)" }}>Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-                    <Input data-testid="input-reg-password" type={showRegPw ? "text" : "password"} placeholder="At least 6 characters" value={regPassword} onChange={e => setRegPassword(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password" />
+                    <Input data-testid="input-reg-password" type={showRegPw ? "text" : "password"} placeholder="Min 8 chars, uppercase, number, symbol" value={regPassword} onChange={e => setRegPassword(e.target.value)} className="pl-10 pr-10 h-11 border-white/10 bg-white/5 text-white placeholder:text-white/20" autoComplete="new-password" />
                     <button type="button" onClick={() => setShowRegPw(!showRegPw)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "rgba(255,255,255,0.3)" }}>
                       {showRegPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>

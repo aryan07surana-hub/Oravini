@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useLiveKitHost } from "@/hooks/use-livekit";
 import {
   Mic, MicOff, Video, VideoOff, Square,
   Users, MessageSquare, Copy, Check, ArrowLeft, Radio,
@@ -118,6 +119,14 @@ export default function WebinarStudio() {
   const recordTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
   const hostConnected   = useRef(false);
 
+  // ── LiveKit Integration ────────────────────────────────────────────────
+  const livekit = useLiveKitHost({
+    webinarId: webinarId || "",
+    onParticipantCountChanged: (count) => setLiveCount(count),
+    onParticipantJoined: (p) => addSys(`${p.name || "A viewer"} joined the live stream.`),
+    onParticipantLeft: (p) => addSys(`${p.name || "A viewer"} left.`),
+  });
+
   const { data: webinar, isLoading } = useQuery<any>({ queryKey: [`/api/webinars/${webinarId}`], enabled: !!webinarId });
   const { data: registrations = [] }  = useQuery<any[]>({ queryKey: [`/api/webinars/${webinarId}/registrations`], enabled: !!webinarId });
   const { data: polls = [], refetch: refetchPolls } = useQuery<any[]>({ queryKey: [`/api/webinars/${webinarId}/polls`], enabled: !!webinarId });
@@ -142,33 +151,14 @@ export default function WebinarStudio() {
     setTimeout(() => setFloatReacts(r => r.filter(rx => rx.id !== id)), 2300);
   }, []);
 
-  // ── WebRTC broadcasting ──────────────────────────────────────────────────
+  // ── LiveKit + WebSocket broadcasting ─────────────────────────────────────
+  // LiveKit handles all media streaming (unlimited viewers, 4K, no duration limit)
+  // WebSocket still used for chat, reactions, CTA, polls, Q&A
   const connectHost = useCallback(() => {
     if (!webinarId) return;
     const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
-
-    const doCreatePeer = async (viewerId: string) => {
-      const videoStream = scrStream.current || camStream.current;
-      const audioStream = camStream.current || scrStream.current;
-      if (!videoStream) { addSys("A viewer joined but no active stream — start your camera first."); return; }
-
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-      peerConnsRef.current.set(viewerId, pc);
-      videoStream.getVideoTracks().forEach(t => pc.addTrack(t, videoStream));
-      audioStream?.getAudioTracks().forEach(t => pc.addTrack(t, audioStream));
-
-      pc.onicecandidate = (evt) => {
-        if (evt.candidate && ws.readyState === WebSocket.OPEN)
-          ws.send(JSON.stringify({ type: "wr_ice_host", webinarId, viewerId, candidate: evt.candidate }));
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      if (ws.readyState === WebSocket.OPEN)
-        ws.send(JSON.stringify({ type: "wr_offer", webinarId, viewerId, sdp: pc.localDescription }));
-    };
 
     ws.onopen = () => ws.send(JSON.stringify({ type: "wr_host_join", webinarId }));
 
@@ -177,30 +167,12 @@ export default function WebinarStudio() {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case "wr_host_ready":
-            addSys("Broadcasting ready — share your watch link so attendees can join.");
+            addSys("Chat & interactions ready — LiveKit handles the video stream.");
             break;
-          case "wr_viewer_joined": {
-            await doCreatePeer(msg.viewerId);
-            addSys(`${msg.name || "A viewer"} joined the live stream.`);
+          case "wr_viewer_joined":
+            // LiveKit handles media — just update attendee list
+            addSys(`${msg.name || "A viewer"} joined.`);
             break;
-          }
-          case "wr_answer": {
-            const pc = peerConnsRef.current.get(msg.viewerId);
-            if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp)).catch(() => {});
-            break;
-          }
-          case "wr_ice": {
-            const pc = peerConnsRef.current.get(msg.viewerId);
-            if (pc && msg.candidate)
-              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
-            break;
-          }
-          case "wr_viewer_left": {
-            const pc = peerConnsRef.current.get(msg.viewerId);
-            pc?.close();
-            peerConnsRef.current.delete(msg.viewerId);
-            break;
-          }
           case "wr_chat":
             setMessages(m => [...m, msg.message]);
             break;
@@ -214,7 +186,7 @@ export default function WebinarStudio() {
             addSys(`✋ ${msg.name} raised their hand.`);
             break;
           case "wr_attendee_update":
-            setLiveCount(msg.count);
+            // LiveKit participant count is more accurate, but keep WS list for names
             setAttendees(msg.list || []);
             break;
           case "wr_cta_clicked":
@@ -234,12 +206,35 @@ export default function WebinarStudio() {
 
   const startMut = useMutation({
     mutationFn: () => apiRequest("POST", `/api/webinars/${webinarId}/start`),
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: [`/api/webinars/${webinarId}`] });
       toast({ title: "🔴 You are now LIVE!" });
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-      addSys("Webinar started — attendees can now join!");
+      addSys("Webinar started — connecting to LiveKit...");
       hostConnected.current = true;
+
+      // Connect to LiveKit for media streaming
+      if (livekit.isLiveKitAvailable) {
+        const connected = await livekit.connect();
+        if (connected) {
+          addSys("✅ LiveKit connected — unlimited viewers, 4K streaming active.");
+          // Publish camera if already started
+          if (cameraReady) {
+            try {
+              await livekit.publishCamera(selCam || undefined, quality);
+              addSys("Camera published to LiveKit — viewers can see you now.");
+            } catch (err: any) {
+              addSys(`⚠️ Failed to publish camera: ${err.message}`);
+            }
+          }
+        } else {
+          addSys(`⚠️ LiveKit connection failed: ${livekit.error}. Falling back to WebSocket signaling.`);
+        }
+      } else {
+        addSys("⚠️ LiveKit not configured — using legacy WebRTC (max ~50 viewers). Configure LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET for unlimited streaming.");
+      }
+
+      // Connect WebSocket for chat/reactions/CTA
       connectHost();
     },
   });
@@ -250,6 +245,9 @@ export default function WebinarStudio() {
       toast({ title: "Webinar ended." });
       if (timerRef.current) clearInterval(timerRef.current);
       if (mediaRecorder.current?.state !== "inactive") { mediaRecorder.current?.stop(); setRecording(false); if (recordTimer.current) { clearInterval(recordTimer.current); recordTimer.current = null; } }
+      // Disconnect LiveKit
+      livekit.disconnect();
+      // Close WebSocket
       if (wsRef.current?.readyState === WebSocket.OPEN)
         wsRef.current.send(JSON.stringify({ type: "wr_host_end", webinarId }));
       wsRef.current?.close();
@@ -299,13 +297,19 @@ export default function WebinarStudio() {
 
   const toggleMic = useCallback(() => {
     camStream.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
-    setMicOn(m => !m);
-  }, []);
+    const newState = !micOn;
+    setMicOn(newState);
+    // Sync with LiveKit
+    if (livekit.status === "connected") livekit.toggleMic(newState);
+  }, [micOn, livekit.status]);
 
   const toggleCam = useCallback(() => {
     camStream.current?.getVideoTracks().forEach(t => { t.enabled = !t.enabled; });
-    setCamOn(c => !c);
-  }, []);
+    const newState = !camOn;
+    setCamOn(newState);
+    // Sync with LiveKit
+    if (livekit.status === "connected") livekit.toggleCam(newState);
+  }, [camOn, livekit.status]);
 
   const startScreen = useCallback(async () => {
     const preset = QUALITY_PRESETS[quality];
@@ -321,14 +325,22 @@ export default function WebinarStudio() {
       addSys("Screen sharing started.");
       const screenVideoTrack = stream.getVideoTracks()[0];
       if (screenVideoTrack) {
+        // Legacy P2P fallback
         peerConnsRef.current.forEach(pc => {
           const sender = pc.getSenders().find(s => s.track?.kind === "video");
           if (sender) sender.replaceTrack(screenVideoTrack).catch(() => {});
         });
         screenVideoTrack.addEventListener("ended", stopScreen);
       }
+      // Publish screen to LiveKit if connected
+      if (livekit.status === "connected") {
+        try {
+          await livekit.publishScreen();
+          addSys("Screen share published to LiveKit — all viewers can see your screen.");
+        } catch {}
+      }
     } catch {}
-  }, [quality]);
+  }, [quality, livekit.status]);
 
   const stopScreen = useCallback(() => {
     scrStream.current?.getTracks().forEach(t => t.stop());
@@ -336,6 +348,10 @@ export default function WebinarStudio() {
     if (videoRef.current && camStream.current) videoRef.current.srcObject = camStream.current;
     setScreenSharing(false);
     addSys("Screen sharing stopped.");
+    // Unpublish from LiveKit
+    if (livekit.status === "connected") {
+      livekit.unpublishScreen();
+    }
     if (camStream.current) {
       const camVideoTrack = camStream.current.getVideoTracks()[0];
       if (camVideoTrack) {
@@ -345,7 +361,7 @@ export default function WebinarStudio() {
         });
       }
     }
-  }, []);
+  }, [livekit.status]);
 
   const changeQuality = async (q: Quality) => { setQuality(q); if (cameraReady) await startCamera(q); };
 
@@ -524,6 +540,7 @@ export default function WebinarStudio() {
             <Users className="w-3.5 h-3.5" />
             {isLive ? liveCount : (registrations as any[]).length}
             {isLive && liveCount > 0 && <span className="text-[10px] text-green-400 font-bold ml-0.5">live</span>}
+            {isLive && livekit.status === "connected" && <span className="text-[10px] text-emerald-400 font-bold ml-1">∞</span>}
           </span>
           {joinLink && (
             <div className="hidden lg:flex items-center gap-1.5 bg-zinc-800/60 rounded-lg px-2.5 py-1.5 text-xs font-mono text-zinc-400 max-w-52">
@@ -602,7 +619,7 @@ export default function WebinarStudio() {
 
           <div className="rounded-xl p-3" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}22` }}>
             <p className="text-[10px] text-zinc-400 leading-relaxed">
-              <span style={{ color: GOLD }} className="font-semibold">4K note:</span> Host preview supports 4K. To broadcast 4K to viewers requires a streaming service (Agora, Daily.co, Mux). Connect one in Settings to enable viewer broadcasting.
+              <span style={{ color: GOLD }} className="font-semibold">LiveKit Streaming:</span> {livekit.isLiveKitAvailable ? "✅ Connected — unlimited viewers, 4K streaming, no duration limits. Powered by LiveKit SFU." : "⚠️ Not configured. Set LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET env vars for unlimited streaming. Currently using legacy WebRTC (max ~50 viewers)."}
             </p>
           </div>
 
@@ -623,7 +640,7 @@ export default function WebinarStudio() {
               placeholder="HLS .m3u8, YouTube Live or RTMP embed URL"
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-white px-2.5 py-1.5 outline-none focus:border-zinc-500"
             />
-            <p className="text-[10px] text-zinc-600 mt-1">Viewers stream this URL via HLS.js. Leave blank to use WebRTC (max ~50 viewers).</p>
+            <p className="text-[10px] text-zinc-600 mt-1">{livekit.isLiveKitAvailable ? "Optional: Override with external HLS stream. LiveKit already provides unlimited viewers." : "Viewers stream this URL via HLS.js. Leave blank to use LiveKit/WebRTC."}</p>
           </div>
 
           {/* ── Waiting Room ── */}

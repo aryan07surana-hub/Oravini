@@ -121,7 +121,74 @@ export default function WatchWebinar() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [phase, code]);
 
-  // ── WebRTC viewer ──────────────────────────────────────────────────────
+  // ── LiveKit + WebSocket viewer ──────────────────────────────────────────
+  // LiveKit handles media streaming; WebSocket handles chat/reactions/CTA/polls
+  const liveKitRoomRef = useRef<any>(null);
+  const [liveKitAvailable, setLiveKitAvailable] = useState<boolean | null>(null);
+
+  // Check LiveKit availability on mount
+  useEffect(() => {
+    fetch("/api/livekit/status", { credentials: "include" })
+      .then(r => r.json())
+      .then(d => setLiveKitAvailable(d.configured))
+      .catch(() => setLiveKitAvailable(false));
+  }, []);
+
+  const connectLiveKitViewer = useCallback(async () => {
+    if (!webinar?.id) return;
+    try {
+      setConnState("connecting");
+      const resp = await fetch(`/api/webinars/${webinar.id}/livekit/viewer-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: regForm.name || "Anonymous", viewerId: vidRef.current }),
+      });
+      if (!resp.ok) throw new Error("Token fetch failed");
+      const { token, url } = await resp.json();
+
+      // Dynamic import to avoid bundling issues if livekit-client isn't available
+      const { Room, RoomEvent, Track, ConnectionState } = await import("livekit-client");
+
+      const room = new Room({ adaptiveStream: true, dynacast: true });
+      liveKitRoomRef.current = room;
+
+      room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
+        if (track.kind === Track.Kind.Video) {
+          const el = track.attach();
+          el.style.width = "100%";
+          el.style.height = "100%";
+          el.style.objectFit = "contain";
+          // Replace video element content
+          if (videoRef.current) {
+            videoRef.current.style.display = "none";
+            videoRef.current.parentElement?.appendChild(el);
+          }
+          setStreamReady(true);
+          setConnState("connected");
+        }
+        if (track.kind === Track.Kind.Audio) {
+          track.attach(); // Auto-play audio
+        }
+      });
+
+      room.on(RoomEvent.ConnectionStateChanged, (state: any) => {
+        if (state === ConnectionState.Connected) setConnState("connected");
+        else if (state === ConnectionState.Disconnected) { setConnState("disconnected"); setPhase("ended"); }
+        else if (state === ConnectionState.Reconnecting) setConnState("connecting");
+      });
+
+      room.on(RoomEvent.Disconnected, () => {
+        setConnState("disconnected");
+      });
+
+      await room.connect(url, token);
+      setConnState("connected");
+    } catch (err) {
+      console.error("LiveKit viewer connection failed:", err);
+      setConnState("poor");
+    }
+  }, [webinar?.id, regForm.name]);
+
   const connectViewer = useCallback(() => {
     if (!webinar?.id) return;
     setConnState("connecting");
@@ -141,9 +208,15 @@ export default function WatchWebinar() {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case "wr_viewer_ready":
+            // If LiveKit is available, connect via LiveKit for media
+            if (liveKitAvailable) {
+              connectLiveKitViewer();
+            }
             break;
 
           case "wr_offer": {
+            // Legacy P2P fallback — only used if LiveKit is NOT configured
+            if (liveKitAvailable) break; // Skip P2P if LiveKit handles media
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
 
@@ -196,6 +269,11 @@ export default function WatchWebinar() {
           case "wr_host_left":
             setPhase("ended");
             setConnState("disconnected");
+            // Disconnect LiveKit room
+            if (liveKitRoomRef.current) {
+              liveKitRoomRef.current.disconnect();
+              liveKitRoomRef.current = null;
+            }
             break;
 
           case "wr_cta_show":
@@ -223,8 +301,15 @@ export default function WatchWebinar() {
 
     ws.onclose = () => setConnState("disconnected");
 
-    return () => { ws.close(); pcRef.current?.close(); };
-  }, [webinar?.id, regForm.name, addFloat]);
+    return () => {
+      ws.close();
+      pcRef.current?.close();
+      if (liveKitRoomRef.current) {
+        liveKitRoomRef.current.disconnect();
+        liveKitRoomRef.current = null;
+      }
+    };
+  }, [webinar?.id, regForm.name, addFloat, liveKitAvailable, connectLiveKitViewer]);
 
   // ── HLS broadcast URL player ──────────────────────────────────────────
   useEffect(() => {

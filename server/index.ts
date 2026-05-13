@@ -14,6 +14,8 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
+import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
+import { initAuditLog, initSessionManager, initSuspiciousLoginDetection, initWsAuth, registerCspReportingEndpoint, writeAuditLog, AuditActions, checkLoginDevice, sendSuspiciousLoginAlert } from "./security/index";
 
 const app = express();
 const httpServer = createServer(app);
@@ -24,45 +26,74 @@ declare module "http" {
   }
 }
 
+// ─── Security Middleware (must be applied early) ────────────────────────────
+applySecurityMiddleware(app);
+
 app.use(
   express.json({
-    limit: "50mb",
+    limit: "10mb", // Reduced from 50mb to prevent payload DoS attacks
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(cookieParser());
 
 const PgSession = connectPgSimple(session);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+// ─── Secure Session Configuration ──────────────────────────────────────────
+const sessionConfig = getSecureSessionConfig();
 app.use(
   session({
     store: new PgSession({ pool, createTableIfMissing: true }),
-    secret: process.env.SESSION_SECRET || "brandverse-secret-2024",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true },
+    ...sessionConfig,
   })
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
 
+// ─── Track session metadata (IP + User-Agent) for session management ────
+app.use((req, _res, next) => {
+  if (req.session && req.isAuthenticated()) {
+    (req.session as any)._ip = req.ip || req.socket.remoteAddress;
+    (req.session as any)._userAgent = req.get("user-agent");
+    if (!(req.session as any)._createdAt) {
+      (req.session as any)._createdAt = new Date().toISOString();
+    }
+  }
+  next();
+});
+
 passport.use(
   new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
     try {
+      // ─── Account Lockout Check ──────────────────────────────────────────
+      const lockout = checkAccountLockout(email);
+      if (lockout.locked) {
+        const minutes = Math.ceil((lockout.remainingMs || 0) / 60000);
+        return done(null, false, { message: `Account locked. Try again in ${minutes} minutes.` });
+      }
+
       const user = await storage.getUserByEmail(email);
-      if (!user) return done(null, false, { message: "NO_ACCOUNT" });
+      if (!user) {
+        recordFailedLogin(email);
+        return done(null, false, { message: "NO_ACCOUNT" });
+      }
       // Google-only accounts have no real password — direct them to Google sign-in
       if (user.googleId && !user.password) return done(null, false, { message: "GOOGLE_ACCOUNT" });
       const valid = await comparePassword(password, user.password || "");
       // If password fails and they have a googleId, their account is Google-linked
       if (!valid && user.googleId) return done(null, false, { message: "GOOGLE_ACCOUNT" });
-      if (!valid) return done(null, false, { message: "Invalid email or password" });
+      if (!valid) {
+        recordFailedLogin(email);
+        return done(null, false, { message: "Invalid email or password" });
+      }
+      // Successful login — clear failed attempts
+      clearFailedLogins(email);
       return done(null, user);
     } catch (err) {
       return done(err);
@@ -216,12 +247,23 @@ async function runMigrations() {
 
 (async () => {
   await runMigrations();
+
+  // ─── Initialize Security Modules ────────────────────────────────────────
+  await initAuditLog(pool);
+  initSessionManager(pool);
+  await initSuspiciousLoginDetection(pool);
+  initWsAuth(pool);
+  registerCspReportingEndpoint(app);
+
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const message = process.env.NODE_ENV === "production" && status === 500
+      ? "Internal Server Error"
+      : err.message || "Internal Server Error";
+    // Only log full error details server-side
     console.error("Internal Server Error:", err);
     if (res.headersSent) return next(err);
     return res.status(status).json({ message });

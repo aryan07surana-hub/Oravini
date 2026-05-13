@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./storage";
+import { encryptToken, decryptToken } from "./security/tokenEncryption";
 
 // Helper to require authentication
 function requireAuth(req: Request, res: Response, next: Function) {
@@ -76,7 +77,8 @@ export function registerOAuthRoutes(app: Express) {
         }
       }
 
-      // Save to database
+      // Save to database (encrypt token at rest)
+      const encryptedToken = encryptToken(accessToken);
       await pool.query(
         `INSERT INTO meta_tokens (user_id, access_token, expires_at, scope, ig_account_id, ig_username, fb_page_id, fb_page_name, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
@@ -89,7 +91,7 @@ export function registerOAuthRoutes(app: Express) {
            fb_page_id = EXCLUDED.fb_page_id,
            fb_page_name = EXCLUDED.fb_page_name,
            updated_at = NOW()`,
-        [userId, accessToken, expiresAt, "instagram_basic,pages_show_list", igAccountId, igUsername, fbPageId, fbPageName]
+        [userId, encryptedToken, expiresAt, "instagram_basic,pages_show_list", igAccountId, igUsername, fbPageId, fbPageName]
       );
 
       res.redirect("/dashboard?connected=instagram");
@@ -186,16 +188,17 @@ export function registerOAuthRoutes(app: Express) {
 
       // Check if token already exists
       const existing = await pool.query("SELECT id FROM linkedin_tokens WHERE user_id = $1", [userId]);
+      const encryptedLinkedinToken = encryptToken(accessToken);
       
       if (existing.rows.length > 0) {
         await pool.query(
           "UPDATE linkedin_tokens SET access_token = $1, expires_at = $2, linkedin_name = $3 WHERE user_id = $4",
-          [accessToken, expiresAt, profileData.name || profileData.given_name, userId]
+          [encryptedLinkedinToken, expiresAt, profileData.name || profileData.given_name, userId]
         );
       } else {
         await pool.query(
           "INSERT INTO linkedin_tokens (user_id, access_token, expires_at, linkedin_user_id, linkedin_name) VALUES ($1, $2, $3, $4, $5)",
-          [userId, accessToken, expiresAt, profileData.sub, profileData.name || profileData.given_name]
+          [userId, encryptedLinkedinToken, expiresAt, profileData.sub, profileData.name || profileData.given_name]
         );
       }
 
@@ -276,16 +279,18 @@ export function registerOAuthRoutes(app: Express) {
 
       // Check if token already exists
       const existing = await pool.query("SELECT id FROM twitter_tokens WHERE user_id = $1", [userId]);
+      const encryptedTwitterToken = encryptToken(accessToken);
+      const encryptedRefreshToken = refreshToken ? encryptToken(refreshToken) : null;
       
       if (existing.rows.length > 0) {
         await pool.query(
           "UPDATE twitter_tokens SET access_token = $1, refresh_token = $2, expires_at = $3, twitter_user_id = $4, twitter_handle = $5 WHERE user_id = $6",
-          [accessToken, refreshToken, expiresAt, twitterUserId, twitterHandle, userId]
+          [encryptedTwitterToken, encryptedRefreshToken, expiresAt, twitterUserId, twitterHandle, userId]
         );
       } else {
         await pool.query(
           "INSERT INTO twitter_tokens (user_id, access_token, refresh_token, expires_at, twitter_user_id, twitter_handle) VALUES ($1, $2, $3, $4, $5, $6)",
-          [userId, accessToken, refreshToken, expiresAt, twitterUserId, twitterHandle]
+          [userId, encryptedTwitterToken, encryptedRefreshToken, expiresAt, twitterUserId, twitterHandle]
         );
       }
 

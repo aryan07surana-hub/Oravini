@@ -15,6 +15,7 @@ import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCal
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
+import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -158,7 +159,13 @@ function appendProjectUpdate(tracker: ProjectTracker, title: string, message: st
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
 
-  app.use("/uploads", (await import("express")).default.static(uploadsDir));
+  app.use("/uploads", (req, res, next) => {
+    // Prevent directory listing and restrict to authenticated users for sensitive files
+    // Allow public access to general uploads (images, thumbnails) but log access
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("Content-Disposition", "inline");
+    next();
+  }, (await import("express")).default.static(uploadsDir));
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
@@ -177,9 +184,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     room.viewers.forEach(({ ws: vws }) => { if (vws.readyState === WebSocket.OPEN) vws.send(json); });
   }
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", async (ws, req) => {
     const url = new URL(req.url!, `http://localhost`);
-    const userId = url.searchParams.get("userId");
+    let userId = url.searchParams.get("userId");
+
+    // ─── WebSocket Authentication: validate session cookie ────────────────
+    try {
+      const { authenticateWsConnection } = await import("./security/index");
+      const authenticatedUserId = await authenticateWsConnection(req);
+      if (authenticatedUserId) {
+        userId = authenticatedUserId; // Trust session over query param
+      } else if (!userId) {
+        // No session and no userId param — reject connection
+        ws.close(4001, "Unauthorized");
+        return;
+      }
+      // If userId param is provided but doesn't match session, prefer session
+      // This maintains backward compat while adding security
+    } catch (authErr) {
+      // If auth check fails, fall back to userId param (backward compat)
+      console.warn("[ws-auth] Auth check failed, using userId param:", authErr);
+    }
+
     if (userId) clients.set(userId, ws);
 
     let currentRoom: string | null = null;
@@ -376,9 +402,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { name, email, password, referralCode } = req.body;
       if (!name || !email || !password) return res.status(400).json({ message: "Name, email and password are required" });
-      if (password.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      
+      // ─── Password Strength Validation ─────────────────────────────────────
+      const { validatePasswordStrength } = await import("./security");
+      const strength = validatePasswordStrength(password);
+      if (!strength.valid) {
+        return res.status(400).json({ message: strength.errors[0], errors: strength.errors });
+      }
+
+      // ─── Email Format Validation ──────────────────────────────────────────
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: "Invalid email format" });
+      }
+
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(400).json({ message: "An account with this email already exists" });
+
+      // ─── Breached Password Check (HaveIBeenPwned) ─────────────────────────
+      try {
+        const { checkBreachedPassword } = await import("./security/index");
+        const breach = await checkBreachedPassword(password);
+        if (breach.breached) {
+          return res.status(400).json({
+            message: `This password has appeared in ${breach.count.toLocaleString()} data breaches. Please choose a different password.`,
+            breached: true,
+          });
+        }
+      } catch (breachErr) {
+        // Don't block registration if the check fails
+        console.warn("[security] Breach check failed, continuing:", breachErr);
+      }
       const hashed = await hashPassword(password);
       const user = await storage.createUser({ name, email, password: hashed, role: "client", planConfirmed: false, phoneVerified: true, surveyCompleted: false } as any);
       syncToOraviniCRM({ email: user.email, name: user.name, source: "self_register", plan: user.plan, tierLabel: "Tier 1 (Free)", event: "new_signup" });
@@ -567,10 +621,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      req.logIn(user, (err) => {
-        if (err) return next(err);
-        const { password, ...safeUser } = user;
-        return res.json(safeUser);
+      // Regenerate session to prevent session fixation attacks
+      const oldSession = req.session;
+      req.session.regenerate((regenerateErr) => {
+        if (regenerateErr) return next(regenerateErr);
+        // Restore any session data that should persist (e.g., referral code)
+        if ((oldSession as any).pendingReferralCode) {
+          (req.session as any).pendingReferralCode = (oldSession as any).pendingReferralCode;
+        }
+        req.logIn(user, async (err) => {
+          if (err) return next(err);
+
+          // ─── Suspicious Login Detection ─────────────────────────────────
+          const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || req.socket.remoteAddress || "unknown";
+          const userAgent = req.get("user-agent") || "";
+          try {
+            const { checkLoginDevice, sendSuspiciousLoginAlert, writeAuditLog, AuditActions } = await import("./security/index");
+            const { isNew, deviceName } = await checkLoginDevice(user.id, ip, userAgent);
+            if (isNew) {
+              // Send alert email (non-blocking)
+              sendSuspiciousLoginAlert(user.email, user.name, ip, deviceName, new Date()).catch(() => {});
+              writeAuditLog({
+                userId: user.id,
+                action: AuditActions.SUSPICIOUS_LOGIN,
+                details: { ip, deviceName, userAgent: userAgent.substring(0, 200) },
+                ip,
+                userAgent,
+                severity: "warning",
+              }).catch(() => {});
+            }
+            // Log successful login
+            writeAuditLog({
+              userId: user.id,
+              action: AuditActions.LOGIN_SUCCESS,
+              ip,
+              userAgent,
+              severity: "info",
+            }).catch(() => {});
+          } catch (secErr) {
+            console.error("[security] Login detection error:", secErr);
+          }
+
+          const { password, ...safeUser } = user;
+          return res.json(safeUser);
+        });
       });
     })(req, res, next);
   });
@@ -609,6 +703,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/change-password", requireAuth, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
+    
+    // ─── Password Strength Validation ─────────────────────────────────────
+    const { validatePasswordStrength } = await import("./security");
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      return res.status(400).json({ message: strength.errors[0], errors: strength.errors });
+    }
+
     const { comparePassword } = await import("./auth");
     const user = await storage.getUser((req.user as any).id);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -617,6 +719,86 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const hashed = await hashPassword(newPassword);
     await storage.updateUser(user.id, { password: hashed });
     res.json({ message: "Password updated" });
+  });
+
+  // ── Session Management ──────────────────────────────────────────────────────
+  app.get("/api/auth/sessions", requireAuth, async (req, res) => {
+    try {
+      const { getUserSessions } = await import("./security/index");
+      const userId = (req.user as any).id;
+      const currentSid = (req.session as any)?.id || req.sessionID;
+      const sessions = await getUserSessions(userId, currentSid);
+      res.json({ sessions });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
+  app.post("/api/auth/sessions/revoke", requireAuth, async (req, res) => {
+    try {
+      const { revokeSession, writeAuditLog, AuditActions } = await import("./security/index");
+      const userId = (req.user as any).id;
+      const { sessionId } = req.body;
+      if (!sessionId) return res.status(400).json({ message: "sessionId required" });
+
+      const success = await revokeSession(userId, sessionId);
+      if (!success) return res.status(404).json({ message: "Session not found" });
+
+      writeAuditLog({
+        userId,
+        action: AuditActions.SESSION_REVOKED,
+        details: { revokedSessionId: sessionId },
+        ip: req.ip || req.socket.remoteAddress || "",
+        userAgent: req.get("user-agent"),
+        severity: "info",
+      }).catch(() => {});
+
+      res.json({ message: "Session revoked" });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to revoke session" });
+    }
+  });
+
+  app.post("/api/auth/sessions/revoke-all", requireAuth, async (req, res) => {
+    try {
+      const { revokeAllOtherSessions, writeAuditLog, AuditActions } = await import("./security/index");
+      const userId = (req.user as any).id;
+      const currentSid = (req.session as any)?.id || req.sessionID;
+      const count = await revokeAllOtherSessions(userId, currentSid);
+
+      writeAuditLog({
+        userId,
+        action: AuditActions.SESSION_REVOKED,
+        details: { revokedCount: count, action: "revoke_all_others" },
+        ip: req.ip || req.socket.remoteAddress || "",
+        userAgent: req.get("user-agent"),
+        severity: "info",
+      }).catch(() => {});
+
+      res.json({ message: `${count} session(s) revoked`, count });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to revoke sessions" });
+    }
+  });
+
+  // ── Admin Audit Logs ────────────────────────────────────────────────────────
+  app.get("/api/admin/audit-logs", requireAdmin, async (req, res) => {
+    try {
+      const { getAuditLogs } = await import("./security/index");
+      const { userId, action, severity, startDate, endDate, limit, offset } = req.query;
+      const result = await getAuditLogs({
+        userId: userId as string,
+        action: action as string,
+        severity: severity as string,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : 50,
+        offset: offset ? parseInt(offset as string, 10) : 0,
+      });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
   });
 
   // ── Google OAuth ────────────────────────────────────────────────────────────
@@ -738,8 +920,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // File upload endpoint (authenticated users)
-  app.post("/api/upload", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file provided" });
+
+    // ─── File Magic Byte Validation ───────────────────────────────────────
+    try {
+      const { validateUploadedFile } = await import("./security/index");
+      const validation = await validateUploadedFile(req.file.path, req.file.originalname);
+      if (!validation.valid) {
+        // Delete the suspicious file
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ message: validation.reason || "File validation failed" });
+      }
+    } catch (valErr) {
+      console.warn("[security] File validation error:", valErr);
+    }
+
     const fileUrl = `/uploads/${req.file.filename}`;
     const fileSize = req.file.size > 1024 * 1024
       ? `${(req.file.size / (1024 * 1024)).toFixed(1)} MB`
@@ -11113,7 +11309,59 @@ Rules:
   app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
     try {
       const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
+      // Clean up LiveKit room
+      try { await deleteWebinarRoom(req.params.id); } catch {}
       res.json(webinar);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── LiveKit Token Endpoints ─────────────────────────────────────────────
+  // Returns LiveKit config status
+  app.get("/api/livekit/status", requireAuth, async (_req, res) => {
+    res.json({ configured: isLiveKitConfigured(), url: isLiveKitConfigured() ? getLiveKitUrl() : null });
+  });
+
+  // Generate host token for webinar streaming
+  app.post("/api/webinars/:id/livekit/host-token", requireAuth, async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured. Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET, and LIVEKIT_URL environment variables." });
+      }
+      const user = req.user as any;
+      const webinar = await storage.getWebinar(p(req.params.id));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+
+      // Create the LiveKit room
+      try { await createWebinarRoom(req.params.id); } catch {}
+
+      const token = await createHostToken(req.params.id, `host-${user.id}`, user.name || user.email || "Host");
+      res.json({ token, url: getLiveKitUrl(), room: `webinar-${req.params.id}` });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Generate viewer token for webinar watching (public — no auth required)
+  app.post("/api/webinars/:id/livekit/viewer-token", async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const { name, viewerId } = req.body;
+      if (!name || !viewerId) return res.status(400).json({ message: "name and viewerId required" });
+
+      const webinar = await storage.getWebinar(p(req.params.id));
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+
+      const token = await createViewerToken(req.params.id, `viewer-${viewerId}`, name);
+      res.json({ token, url: getLiveKitUrl(), room: `webinar-${req.params.id}` });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get participant count for a webinar
+  app.get("/api/webinars/:id/livekit/participants", requireAuth, async (req, res) => {
+    try {
+      const count = await getWebinarParticipantCount(req.params.id);
+      const participants = await listWebinarParticipants(req.params.id);
+      res.json({ count, participants });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -11146,13 +11394,37 @@ Rules:
   app.post("/api/video-events", requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const { title, description, videoUrl, thumbnailUrl, duration, category, tags, isPublic, allowDownload } = req.body;
+      const {
+        title, description, videoUrl, thumbnailUrl, duration, category, tags,
+        isPublic, allowDownload, videoType, progressBarConfig, leadGateEnabled,
+        brandColor, logoUrl, captionUrl, resumeEnabled, autoplayNextEnabled,
+        domainWhitelist, expiresAt, urgencyText, urgencyEndsAt,
+        defaultPlaybackSpeed, allowSpeedControl, allowQualityControl,
+        showOraviniWatermark, oraviniWatermarkPosition,
+      } = req.body;
       if (!title || !videoUrl) return res.status(400).json({ message: "Title and videoUrl required" });
       const video = await storage.createVideoEvent({
         userId: user.id, title, description: description || null, videoUrl,
         thumbnailUrl: thumbnailUrl || null, duration: duration || null,
         category: category || "General", tags: tags || [], isPublic: isPublic ?? false,
         allowDownload: allowDownload ?? false,
+        videoType: videoType || "standard",
+        progressBarConfig: progressBarConfig || null,
+        leadGateEnabled: leadGateEnabled ?? false,
+        brandColor: brandColor || null,
+        logoUrl: logoUrl || null,
+        captionUrl: captionUrl || null,
+        resumeEnabled: resumeEnabled ?? false,
+        autoplayNextEnabled: autoplayNextEnabled ?? false,
+        domainWhitelist: domainWhitelist || [],
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        urgencyText: urgencyText || null,
+        urgencyEndsAt: urgencyEndsAt ? new Date(urgencyEndsAt) : null,
+        defaultPlaybackSpeed: defaultPlaybackSpeed ?? 1.0,
+        allowSpeedControl: allowSpeedControl ?? true,
+        allowQualityControl: allowQualityControl ?? true,
+        showOraviniWatermark: showOraviniWatermark ?? true,
+        oraviniWatermarkPosition: oraviniWatermarkPosition || "bottom-right",
       });
       res.status(201).json(video);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

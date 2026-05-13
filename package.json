@@ -69,6 +69,7 @@
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
     "date-fns": "^3.6.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.8",
@@ -77,13 +78,18 @@
     "embla-carousel-react": "^8.6.0",
     "esbuild": "^0.25.0",
     "express": "^5.0.1",
+    "express-rate-limit": "^8.5.1",
     "express-session": "^1.18.1",
     "framer-motion": "^11.13.1",
     "googleapis": "^171.4.0",
+    "helmet": "^8.1.0",
+    "hpp": "^0.2.3",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
+    "livekit-client": "^2.18.8",
+    "livekit-server-sdk": "^2.15.2",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "multer": "^2.1.1",
@@ -128,5 +134,9 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/hpp": "^0.2.7"
   }
 }
