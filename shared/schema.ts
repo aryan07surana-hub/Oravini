@@ -737,6 +737,19 @@ export const scheduledBookings = pgTable("scheduled_bookings", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const availabilityOverrides = pgTable("availability_overrides", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  meetingTypeId: varchar("meeting_type_id").notNull().references(() => meetingTypes.id, { onDelete: "cascade" }),
+  date: text("date").notNull(), // "2025-12-25" specific date
+  type: text("type").notNull().default("unavailable"), // "unavailable" | "custom"
+  timeBlocks: text("time_blocks").default("[]"), // JSON array of {start, end} for custom availability
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertAvailabilityOverrideSchema = createInsertSchema(availabilityOverrides).omit({ id: true, createdAt: true });
+export type InsertAvailabilityOverride = z.infer<typeof insertAvailabilityOverrideSchema>;
+export type AvailabilityOverride = typeof availabilityOverrides.$inferSelect;
+
 export const googleCalendarTokens = pgTable("google_calendar_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
@@ -1287,13 +1300,88 @@ export const videoAnalyticsEvents = pgTable("video_analytics_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   videoId: varchar("video_id").notNull(),
   sessionId: text("session_id").notNull(),
-  eventType: text("event_type").notNull(), // play, pause, seek, complete, progress
+  eventType: text("event_type").notNull(), // play, pause, seek, complete, progress, cta_click, lead_gate, buffer, error
   position: real("position").notNull().default(0),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata"), // { device, browser, os, referrer, country, city, screenWidth, etc. }
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type VideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferSelect;
 export type InsertVideoAnalyticsEvent = typeof videoAnalyticsEvents.$inferInsert;
+
+// ── Video Analytics: Aggregated Daily Stats ─────────────────────────────────
+export const videoAnalyticsDailyStats = pgTable("video_analytics_daily_stats", {
+  id: serial("id").primaryKey(),
+  videoId: varchar("video_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  views: integer("views").notNull().default(0),
+  uniqueViewers: integer("unique_viewers").notNull().default(0),
+  plays: integer("plays").notNull().default(0),
+  completions: integer("completions").notNull().default(0),
+  totalWatchSeconds: integer("total_watch_seconds").notNull().default(0),
+  avgCompletionPct: real("avg_completion_pct").notNull().default(0),
+  ctaClicks: integer("cta_clicks").notNull().default(0),
+  leadCaptures: integer("lead_captures").notNull().default(0),
+  // Engagement
+  avgEngagementPct: real("avg_engagement_pct").notNull().default(0),
+  bounceCount: integer("bounce_count").notNull().default(0), // played < 3 seconds
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type VideoAnalyticsDailyStat = typeof videoAnalyticsDailyStats.$inferSelect;
+
+// ── Video Analytics: Heatmap Segments ───────────────────────────────────────
+// Pre-computed engagement data per 1-second segment of the video
+export const videoHeatmapSegments = pgTable("video_heatmap_segments", {
+  id: serial("id").primaryKey(),
+  videoId: varchar("video_id").notNull(),
+  segmentSecond: integer("segment_second").notNull(), // 0, 1, 2, 3... (each second)
+  viewCount: integer("view_count").notNull().default(0), // how many viewers watched this second
+  replayCount: integer("replay_count").notNull().default(0), // how many times this second was replayed
+  dropOffCount: integer("drop_off_count").notNull().default(0), // how many viewers stopped here
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type VideoHeatmapSegment = typeof videoHeatmapSegments.$inferSelect;
+
+// ── Video Analytics: Viewer Profiles ────────────────────────────────────────
+// Enriched viewer data for the Viewer CRM
+export const videoViewerProfiles = pgTable("video_viewer_profiles", {
+  id: serial("id").primaryKey(),
+  videoId: varchar("video_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  visitorId: text("visitor_id"), // email if lead-gated, fingerprint otherwise
+  // Device & Browser
+  device: text("device"), // desktop | mobile | tablet
+  browser: text("browser"), // Chrome | Safari | Firefox | Edge
+  os: text("os"), // Windows | macOS | iOS | Android | Linux
+  screenWidth: integer("screen_width"),
+  // Location
+  country: text("country"),
+  city: text("city"),
+  region: text("region"),
+  // Source
+  referrer: text("referrer"),
+  referrerDomain: text("referrer_domain"),
+  utmSource: text("utm_source"),
+  utmMedium: text("utm_medium"),
+  utmCampaign: text("utm_campaign"),
+  // Engagement
+  totalWatchSeconds: integer("total_watch_seconds").notNull().default(0),
+  completionPct: integer("completion_pct").notNull().default(0),
+  maxPosition: real("max_position").notNull().default(0),
+  playCount: integer("play_count").notNull().default(1),
+  pauseCount: integer("pause_count").notNull().default(0),
+  seekCount: integer("seek_count").notNull().default(0),
+  replayCount: integer("replay_count").notNull().default(0),
+  ctaClicked: boolean("cta_clicked").notNull().default(false),
+  ctaClickedAt: real("cta_clicked_at"), // position in seconds when CTA was clicked
+  leadCaptured: boolean("lead_captured").notNull().default(false),
+  // Timeline (JSON array of events: [{type, position, timestamp}])
+  timeline: jsonb("timeline"),
+  // Timestamps
+  firstSeenAt: timestamp("first_seen_at").defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow(),
+});
+export type VideoViewerProfile = typeof videoViewerProfiles.$inferSelect;
+export type InsertVideoViewerProfile = typeof videoViewerProfiles.$inferInsert;
 
 // ── User Feedback ──────────────────────────────────────────────────────────────
 export const userFeedback = pgTable("user_feedback", {
