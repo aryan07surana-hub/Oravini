@@ -16,7 +16,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 // @ts-ignore - no type declarations available
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // @ts-ignore - no type declarations available
 import hpp from "hpp";
 
@@ -139,9 +139,11 @@ function applyRateLimiting(app: Express) {
     legacyHeaders: false,
     message: { message: "Too many authentication attempts. Please try again in 15 minutes." },
     keyGenerator: (req) => {
-      // Rate limit by IP + email combo to prevent distributed attacks
+      // Rate limit by IP + email combo to prevent distributed attacks.
+      // Use ipKeyGenerator helper for IPv6-safe IP normalization.
       const email = req.body?.email || "";
-      return `${req.ip}-${email}`;
+      const ip = ipKeyGenerator(req.ip ?? "");
+      return `${ip}-${email}`;
     },
   });
 
