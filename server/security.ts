@@ -22,13 +22,41 @@ import hpp from "hpp";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function getAllowedOrigins(): string[] {
+  // Build the allow-list from any/all of the configured env vars so deployments
+  // that only set one of APP_URL / SITE_URL / PUBLIC_BASE_URL / RENDER_EXTERNAL_URL
+  // still match same-origin browser requests. We also auto-include the public
+  // production domains so a missing env var can never lock the site out.
+  const fromEnv = [
+    process.env.APP_URL,
+    process.env.SITE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.RENDER_EXTERNAL_URL,
+  ]
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
+    .map((v) => v.replace(/\/$/, ""));
+
+  const productionDefaults = [
+    "https://oravini.com",
+    "https://www.oravini.com",
+  ];
+
+  // De-duplicate while preserving order
+  return Array.from(new Set([...fromEnv, ...productionDefaults]));
+}
+
 function getAppOrigin(): string {
-  return (
+  // Primary origin used for CSRF / referer checks. Prefer explicit env, fall
+  // back to the first known production origin, then localhost for dev.
+  const explicit = (
     process.env.APP_URL ||
     process.env.SITE_URL ||
     process.env.PUBLIC_BASE_URL ||
-    "http://localhost:5000"
+    process.env.RENDER_EXTERNAL_URL ||
+    ""
   ).replace(/\/$/, "");
+  if (explicit) return explicit;
+  return isProduction() ? "https://oravini.com" : "http://localhost:5000";
 }
 
 function isProduction(): boolean {
@@ -83,36 +111,42 @@ function applyHelmet(app: Express) {
 // ─── CORS ───────────────────────────────────────────────────────────────────
 
 function applyCors(app: Express) {
-  const origin = getAppOrigin();
-  const allowedOrigins = [origin];
+  const allowedOrigins = new Set(getAllowedOrigins());
 
   // In development, also allow common local origins
   if (!isProduction()) {
-    allowedOrigins.push(
+    [
       "http://localhost:5000",
       "http://localhost:5173",
       "http://localhost:3000",
-      "http://127.0.0.1:5000"
-    );
+      "http://127.0.0.1:5000",
+    ].forEach((o) => allowedOrigins.add(o));
   }
 
-  app.use(
-    cors({
+  // Only run CORS for /api requests. Static assets (HTML, JS, CSS, images) are
+  // same-origin by construction and must NEVER be gated by CORS — gating them
+  // turns any disallowed Origin into a 500 from the global error handler,
+  // which produces a white screen.
+  app.use("/api", (req, res, next) => {
+    const corsMw = cors({
       origin: (requestOrigin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // Allow requests with no origin (mobile apps, curl, server-to-server)
+        // Allow requests with no Origin header (mobile apps, curl, server-to-server, same-origin GETs)
         if (!requestOrigin) return callback(null, true);
-        if (allowedOrigins.includes(requestOrigin)) {
+        if (allowedOrigins.has(requestOrigin)) {
           return callback(null, true);
         }
-        callback(new Error(`CORS: Origin ${requestOrigin} not allowed`));
+        // Don't throw — CORS spec says simply omit the ACAO header for
+        // disallowed origins. Throwing here would 500 the request.
+        return callback(null, false);
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
       exposedHeaders: ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
       maxAge: 86400, // Cache preflight for 24 hours
-    })
-  );
+    });
+    return corsMw(req, res, next);
+  });
 }
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────────
@@ -241,11 +275,11 @@ function applyCsrfProtection(app: Express) {
 
     const origin = req.get("origin");
     const referer = req.get("referer");
-    const appOrigin = getAppOrigin();
+    const allowedOrigins = new Set(getAllowedOrigins());
 
-    // If origin header is present, validate it
+    // If origin header is present, validate it against the allow-list
     if (origin) {
-      if (origin === appOrigin || origin.startsWith("http://localhost")) {
+      if (allowedOrigins.has(origin) || origin.startsWith("http://localhost")) {
         return next();
       }
       // In production, reject mismatched origins
@@ -254,13 +288,14 @@ function applyCsrfProtection(app: Express) {
       }
     }
 
-    // If no origin but referer is present, validate referer
+    // If no origin but referer is present, validate referer host against any allowed origin
     if (!origin && referer) {
       try {
-        const refererUrl = new URL(referer);
-        const appUrl = new URL(appOrigin);
-        if (refererUrl.host === appUrl.host) {
-          return next();
+        const refererHost = new URL(referer).host;
+        for (const allowed of allowedOrigins) {
+          if (new URL(allowed).host === refererHost) {
+            return next();
+          }
         }
       } catch {
         // Invalid referer URL, continue
