@@ -1,0 +1,104 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run weekly on Monday at 9am UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  dependency-audit:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run npm audit (JSON output for CI)
+        run: npm audit --json > audit-results.json || true
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-results
+          path: audit-results.json
+          retention-days: 30
+
+      - name: Check for critical vulnerabilities
+        run: |
+          CRITICAL=$(npm audit --json 2>/dev/null | node -e "
+            const data = require('fs').readFileSync('/dev/stdin', 'utf8');
+            try {
+              const audit = JSON.parse(data);
+              const critical = audit.metadata?.vulnerabilities?.critical || 0;
+              const high = audit.metadata?.vulnerabilities?.high || 0;
+              console.log(critical + high);
+            } catch { console.log('0'); }
+          " || echo "0")
+          echo "Critical + High vulnerabilities: $CRITICAL"
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "::warning::Found $CRITICAL critical/high vulnerabilities. Review npm audit output."
+          fi
+
+  code-security:
+    name: Code Security Patterns
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Checking for potential hardcoded secrets..."
+          # Check for common secret patterns (excluding .env.example and test files)
+          FINDINGS=$(grep -rn --include="*.ts" --include="*.js" --include="*.tsx" \
+            -e "password\s*=\s*['\"]" \
+            -e "secret\s*=\s*['\"]" \
+            -e "api_key\s*=\s*['\"]" \
+            -e "apiKey\s*=\s*['\"]" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            --exclude="*.test.*" \
+            --exclude="*.spec.*" \
+            --exclude=".env.example" \
+            . 2>/dev/null | grep -v "process.env" | grep -v "// " | grep -v "TODO" | head -20 || true)
+          if [ -n "$FINDINGS" ]; then
+            echo "::warning::Potential hardcoded secrets found. Please review:"
+            echo "$FINDINGS"
+          else
+            echo "No obvious hardcoded secrets detected."
+          fi
+
+      - name: Check for SQL injection patterns
+        run: |
+          echo "Checking for potential SQL injection..."
+          # Look for string concatenation in SQL queries
+          FINDINGS=$(grep -rn --include="*.ts" --include="*.js" \
+            -e 'query.*`.*\${' \
+            -e "query.*'.*\\+" \
+            --exclude-dir=node_modules \
+            --exclude-dir=dist \
+            . 2>/dev/null | grep -v "\\$[0-9]" | head -10 || true)
+          if [ -n "$FINDINGS" ]; then
+            echo "::warning::Potential SQL injection patterns found. Verify parameterized queries:"
+            echo "$FINDINGS"
+          fi
