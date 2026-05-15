@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 
+
 const GOLD = "#d4b461";
 const GOLD_BRIGHT = "#f0c84b";
 
@@ -10,97 +11,6 @@ export function hasVideoMarketingAccess(plan: string | undefined | null, hasVide
     if (plan === "pro" || plan === "elite") return true;
     if (plan === "growth" && hasVideoMarketing) return true;
     return false;
-}
-
-// ── Particle Canvas ───────────────────────────────────────────────────────────
-function ParticleCanvas() {
-    const ref = useRef<HTMLCanvasElement>(null);
-    const mouseRef = useRef({ x: -9999, y: -9999 });
-    const activeRef = useRef(false);
-
-    useEffect(() => {
-        const canvas = ref.current!;
-        const ctx = canvas.getContext("2d")!;
-        let raf: number;
-
-        const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-        resize();
-        window.addEventListener("resize", resize);
-
-        const N = 90;
-        const CONNECT_DIST = 150;
-        const CURSOR_PULL_DIST = 160;
-        const CURSOR_PUSH_DIST = 55;
-
-        type P = { x: number; y: number; vx: number; vy: number; r: number; o: number };
-        const ps: P[] = Array.from({ length: N }, () => ({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            vx: (Math.random() - 0.5) * 0.3,
-            vy: (Math.random() - 0.5) * 0.3,
-            r: Math.random() * 1.6 + 0.4,
-            o: Math.random() * 0.45 + 0.12,
-        }));
-
-        const onMouse = (e: MouseEvent) => { mouseRef.current = { x: e.clientX, y: e.clientY }; activeRef.current = true; };
-        window.addEventListener("mousemove", onMouse);
-
-        const draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const mx = mouseRef.current.x, my = mouseRef.current.y;
-            const active = activeRef.current;
-
-            ps.forEach(p => {
-                if (active) {
-                    const dx = p.x - mx, dy = p.y - my;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < CURSOR_PUSH_DIST && dist > 0) {
-                        const f = (CURSOR_PUSH_DIST - dist) / CURSOR_PUSH_DIST;
-                        p.vx += (dx / dist) * f * 0.6; p.vy += (dy / dist) * f * 0.6;
-                    } else if (dist < CURSOR_PULL_DIST && dist > 0) {
-                        const pull = (1 - dist / CURSOR_PULL_DIST) * 0.018;
-                        p.vx -= (dx / dist) * pull; p.vy -= (dy / dist) * pull;
-                    }
-                }
-                p.vx *= 0.97; p.vy *= 0.97;
-                p.x += p.vx; p.y += p.vy;
-                if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
-                if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(212,180,97,${p.o})`; ctx.fill();
-            });
-
-            for (let i = 0; i < ps.length; i++) {
-                for (let j = i + 1; j < ps.length; j++) {
-                    const dx = ps[i].x - ps[j].x, dy = ps[i].y - ps[j].y;
-                    const d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < CONNECT_DIST) {
-                        ctx.beginPath(); ctx.moveTo(ps[i].x, ps[i].y); ctx.lineTo(ps[j].x, ps[j].y);
-                        ctx.strokeStyle = `rgba(212,180,97,${0.22 * (1 - d / CONNECT_DIST)})`;
-                        ctx.lineWidth = 0.6; ctx.stroke();
-                    }
-                }
-            }
-
-            if (active) {
-                ps.forEach(p => {
-                    const dx = p.x - mx, dy = p.y - my;
-                    const d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < CURSOR_PULL_DIST) {
-                        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mx, my);
-                        ctx.strokeStyle = `rgba(212,180,97,${0.3 * (1 - d / CURSOR_PULL_DIST)})`;
-                        ctx.lineWidth = 0.4; ctx.stroke();
-                    }
-                });
-            }
-
-            raf = requestAnimationFrame(draw);
-        };
-        draw();
-        return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); window.removeEventListener("mousemove", onMouse); };
-    }, []);
-
-    return <canvas ref={ref} style={{ position: "absolute", inset: 0, zIndex: 0, display: "block" }} />;
 }
 
 // ── Scroll Animate ────────────────────────────────────────────────────────────
@@ -278,14 +188,8 @@ interface TierGateProps {
 
 export default function TierGate({ currentPlan, userName, hasVideoMarketing = false }: TierGateProps) {
     const [, nav] = useLocation();
-    const [heroReady, setHeroReady] = useState(false);
 
     useScrollAnim();
-
-    useEffect(() => {
-        const t = setTimeout(() => setHeroReady(true), 200);
-        return () => clearTimeout(t);
-    }, []);
 
     const plan = (currentPlan || "free").toLowerCase();
     const isGrowth = plan === "growth";
@@ -300,92 +204,13 @@ export default function TierGate({ currentPlan, userName, hasVideoMarketing = fa
     return (
         <div style={{ background: "#000", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", overflowX: "hidden" }}>
             <style>{`
-                @keyframes popIn { to { opacity:1; transform:scale(1.2); } }
-                @keyframes floatY { 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-16px); } }
                 @keyframes shimmer { 0%{ background-position:-400px 0; } 100%{ background-position:400px 0; } }
-                @keyframes pulse-ring { 0%,100%{ box-shadow:0 0 0 0 rgba(212,180,97,0.4); } 70%{ box-shadow:0 0 0 20px rgba(212,180,97,0); } }
-                @keyframes fadeUp { from{ opacity:0; transform:translateY(30px); } to{ opacity:1; transform:none; } }
-                .vm-hero-tag { animation: fadeUp 1s ease 0.2s both; }
-                .vm-hero-welcome { animation: fadeUp 1s ease 0.3s both; }
-                .vm-hero-title { animation: fadeUp 1s ease 0.5s both; }
-                .vm-hero-powered { animation: fadeUp 1s ease 0.8s both; }
-                .vm-hero-cta { animation: fadeUp 1s ease 1s both; }
-                .vm-hero-scroll { animation: fadeUp 1s ease 1.3s both; }
+
                 .vm-feature-card:hover { border-color: rgba(212,180,97,0.4) !important; box-shadow: 0 0 40px rgba(212,180,97,0.08) !important; }
                 .vm-pricing-card:hover { transform: translateY(-6px) !important; }
             `}</style>
 
             <Navbar onUpgrade={handleUpgrade} needsAddon={needsAddon} />
-
-            {/* ── HERO ─────────────────────────────────────────────────────────── */}
-            <section style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", textAlign: "center", overflow: "hidden" }}>
-                <ParticleCanvas />
-                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(212,180,97,0.07) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 }} />
-
-                <div style={{ position: "relative", zIndex: 2, padding: "0 24px" }}>
-                    <div className="vm-hero-tag" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: `${GOLD}14`, border: `1px solid ${GOLD}28`, borderRadius: 99, padding: "6px 18px", marginBottom: 24 }}>
-                        <span style={{ fontSize: 13 }}>🎬</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: GOLD, letterSpacing: "0.2em", textTransform: "uppercase" }}>
-                            {needsAddon ? "Growth Add-on" : "Pro & Elite Feature"}
-                        </span>
-                    </div>
-
-                    <div className="vm-hero-welcome" style={{ fontSize: "clamp(13px, 2vw, 15px)", letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", marginBottom: 16, fontWeight: 600 }}>
-                        Welcome to
-                    </div>
-
-                    <div className="vm-hero-title" style={{ fontSize: "clamp(42px, 9vw, 110px)", fontWeight: 900, letterSpacing: "0.06em", lineHeight: 0.88, textTransform: "uppercase", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 45%, #b8962e 80%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 16, filter: "drop-shadow(0 0 60px rgba(212,180,97,0.25))" }}>
-                        ORAVINI
-                    </div>
-                    <div className="vm-hero-title" style={{ fontSize: "clamp(18px, 3.5vw, 42px)", fontWeight: 900, letterSpacing: "0.14em", lineHeight: 1, textTransform: "uppercase", color: "rgba(255,255,255,0.9)", marginBottom: 20 }}>
-                        VIDEO MARKETING
-                    </div>
-
-                    <div className="vm-hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.32)", textTransform: "uppercase", marginBottom: 52 }}>
-                        Powered by Brandverse
-                    </div>
-
-                    <div className="vm-hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-                        <button
-                            onClick={handleUpgrade}
-                            style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "16px 36px", cursor: "pointer", animation: "pulse-ring 2.5s ease 2s infinite" }}
-                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")}
-                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}
-                        >
-                            {needsAddon ? "Add Video Marketing (+$20/mo) →" : "Upgrade to Pro — Get Access →"}
-                        </button>
-                        <button
-                            onClick={() => document.getElementById("vm-features")?.scrollIntoView({ behavior: "smooth" })}
-                            style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = `${GOLD}55`; e.currentTarget.style.color = GOLD; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
-                        >
-                            See What's Inside
-                        </button>
-                        {firstName && (
-                            <button
-                                onClick={() => nav("/dashboard")}
-                                style={{ background: `rgba(212,180,97,0.07)`, color: GOLD, fontWeight: 600, fontSize: 15, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(212,180,97,0.12)`; (e.currentTarget as HTMLButtonElement).style.borderColor = `${GOLD}88`; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = `rgba(212,180,97,0.07)`; (e.currentTarget as HTMLButtonElement).style.borderColor = `${GOLD}44`; }}
-                            >
-                                Back to Dashboard →
-                            </button>
-                        )}
-                    </div>
-
-                    {firstName && (
-                        <div style={{ marginTop: 32, fontSize: 13, color: "rgba(255,255,255,0.28)" }}>
-                            Hey {firstName} — {needsAddon ? "you're one step away from full access." : "this feature is included free on Pro and Elite."}
-                        </div>
-                    )}
-                </div>
-
-                <div className="vm-hero-scroll" style={{ position: "absolute", bottom: 36, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 2 }}>
-                    <div style={{ fontSize: 10, letterSpacing: "0.25em", color: "rgba(255,255,255,0.25)", textTransform: "uppercase" }}>Scroll</div>
-                    <div style={{ width: 1, height: 40, background: `linear-gradient(to bottom, ${GOLD}66, transparent)`, animation: "floatY 1.8s ease-in-out infinite" }} />
-                </div>
-            </section>
 
             {/* ── WHAT IS ORAVINI VIDEO MARKETING ──────────────────────────────── */}
             <section style={{ padding: "120px 24px", maxWidth: 960, margin: "0 auto", textAlign: "center" }}>

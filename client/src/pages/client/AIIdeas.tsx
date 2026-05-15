@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import ClientLayout from "@/components/layout/ClientLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1236,13 +1238,13 @@ const SURVEY_PLATFORM_MAP: Record<string, "instagram" | "youtube" | "linkedin" |
 
 export default function AIIdeas() {
   const { toast } = useToast();
+  const { user: meData } = useAuth();
 
   // Pull survey data for pre-filling
   const { data: onboardingStatus } = useQuery<{ done: boolean; survey: any }>({
     queryKey: ["/api/user/onboarding-status"],
     staleTime: Infinity,
   });
-  const { data: meData } = useQuery<any>({ queryKey: ["/api/auth/me"] });
   const surveyUser = meData as any;
   const surveyFields: string[] = surveyUser?.fields || onboardingStatus?.survey?.fields || [];
   const surveyPlatforms: string[] = surveyUser?.platforms || onboardingStatus?.survey?.platforms || [];
@@ -1480,6 +1482,7 @@ export default function AIIdeas() {
 
   return (
     <ClientLayout>
+    <ErrorBoundary>
       {screenVisible && (
         <GeneratingScreen
           label="your content ideas"
@@ -2356,6 +2359,7 @@ export default function AIIdeas() {
           ideaTitle={publishIdea.title}
         />
       )}
+    </ErrorBoundary>
     </ClientLayout>
   );
 }
