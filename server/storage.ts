@@ -3260,15 +3260,6 @@ class DatabaseStorage implements IStorage {
     const [row] = await db.insert(smsLogs).values({ ...data, sentAt: new Date() }).returning();
     return row;
   }
-  async getSmsStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const allLogs = await db.select().from(smsLogs);
-    const totalSent = allLogs.length;
-    const sentToday = allLogs.filter(l => l.sentAt && l.sentAt >= today).length;
-    const activeEnrollments = await db.select().from(smsEnrollments).where(and(eq(smsEnrollments.completed, false), eq(smsEnrollments.unsubscribed, false)));
-    return { totalSent, sentToday, activeEnrollments: activeEnrollments.length };
-  }
   async getSmsLogs(limit = 50) {
     return db.select().from(smsLogs).orderBy(desc(smsLogs.sentAt)).limit(limit);
   }
@@ -3281,6 +3272,9 @@ class DatabaseStorage implements IStorage {
   }
   async updateSmsBroadcast(id: string, data: Partial<SmsBroadcast>) {
     await db.update(smsBroadcasts).set(data).where(eq(smsBroadcasts.id, id));
+  }
+  async getScheduledBroadcasts() {
+    return db.select().from(smsBroadcasts).where(and(isNull(smsBroadcasts.sentAt), sqlExpr`${smsBroadcasts.scheduled_for} IS NOT NULL`));
   }
   async getSmsCarrierGateway(phone: string) {
     const [row] = await db.select().from(smsCarrierGateways).where(eq(smsCarrierGateways.phone, phone));
@@ -3297,6 +3291,98 @@ class DatabaseStorage implements IStorage {
   async addSmsUnsubscribe(phone: string) {
     await db.insert(smsUnsubscribes).values({ phone }).onConflictDoNothing();
   }
+
+  // ── SMS Templates ──
+  async getSmsTemplates(category?: string) {
+    if (category && category !== "all") return db.select().from(smsTemplates).where(eq(smsTemplates.category, category)).orderBy(desc(smsTemplates.createdAt));
+    return db.select().from(smsTemplates).orderBy(desc(smsTemplates.createdAt));
+  }
+  async createSmsTemplate(data: InsertSmsTemplate) {
+    const [row] = await db.insert(smsTemplates).values(data).returning();
+    return row;
+  }
+  async deleteSmsTemplate(id: string) {
+    await db.delete(smsTemplates).where(eq(smsTemplates.id, id));
+  }
+
+  // ── SMS Contact Tags ──
+  async getSmsContactTags() {
+    return db.select().from(smsContactTags).orderBy(smsContactTags.name);
+  }
+  async createSmsContactTag(name: string, color: string) {
+    const [row] = await db.insert(smsContactTags).values({ name, color }).returning();
+    return row;
+  }
+  async deleteSmsContactTag(id: string) {
+    await db.delete(smsContactTags).where(eq(smsContactTags.id, id));
+  }
+  async getContactTagsForPhone(phone: string) {
+    const rows = await db.select({ tag: smsContactTags }).from(smsContactTagAssignments)
+      .innerJoin(smsContactTags, eq(smsContactTagAssignments.tagId, smsContactTags.id))
+      .where(eq(smsContactTagAssignments.phone, phone));
+    return rows.map(r => r.tag);
+  }
+  async assignTagToPhone(phone: string, tagId: string) {
+    const [row] = await db.insert(smsContactTagAssignments).values({ phone, tagId }).returning();
+    return row;
+  }
+  async unassignTagFromPhone(phone: string, tagId: string) {
+    await db.delete(smsContactTagAssignments).where(and(eq(smsContactTagAssignments.phone, phone), eq(smsContactTagAssignments.tagId, tagId)));
+  }
+
+  // ── SMS Step Variants (A/B Testing) ──
+  async getStepVariants(stepId: string) {
+    return db.select().from(smsStepVariants).where(eq(smsStepVariants.stepId, stepId)).orderBy(smsStepVariants.createdAt);
+  }
+  async createStepVariant(data: { stepId: string; message: string; isControl?: boolean }) {
+    const [row] = await db.insert(smsStepVariants).values(data).returning();
+    return row;
+  }
+  async deleteStepVariant(id: string) {
+    await db.delete(smsStepVariants).where(eq(smsStepVariants.id, id));
+  }
+  async incrementVariantClick(id: string) {
+    await db.update(smsStepVariants).set({ clicks: sqlExpr`${smsStepVariants.clicks} + 1` }).where(eq(smsStepVariants.id, id));
+  }
+
+  // ── Enhanced Stats ──
+  async getSmsStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const allLogs = await db.select().from(smsLogs);
+    const totalSent = allLogs.length;
+    const sentToday = allLogs.filter(l => l.sentAt && l.sentAt >= today).length;
+    const activeEnrollments = await db.select().from(smsEnrollments).where(and(eq(smsEnrollments.completed, false), eq(smsEnrollments.unsubscribed, false)));
+    const unsubscribedCount = await db.select().from(smsUnsubscribes);
+    const contactCount = (await db.select().from(smsCarrierGateways)).length;
+    const totalAttempts = totalSent + unsubscribedCount.length;
+    const deliveredRate = totalAttempts > 0 ? Math.round((totalSent / totalAttempts) * 100) : 100;
+    const optOutRate = totalSent > 0 ? Math.round((unsubscribedCount.length / totalSent) * 1000) / 10 : 0;
+    return { totalSent, sentToday, activeEnrollments: activeEnrollments.length, deliveredRate, optOutRate, contactCount };
+  }
+  async getDailySmsVolume(days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const logs = await db.select().from(smsLogs).where(gte(smsLogs.sentAt, since));
+    const map = new Map<string, number>();
+    for (const l of logs) {
+      if (l.sentAt) {
+        const d = new Date(l.sentAt).toISOString().slice(0, 10);
+        map.set(d, (map.get(d) || 0) + 1);
+      }
+    }
+    const result: { date: string; count: number }[] = [];
+    for (let i = days; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      result.push({ date: d, count: map.get(d) || 0 });
+    }
+    return result;
+  }
+  async reorderSmsSequenceSteps(sequenceId: string, stepIds: string[]) {
+    for (let i = 0; i < stepIds.length; i++) {
+      await db.update(smsSequenceSteps).set({ sortOrder: i }).where(and(eq(smsSequenceSteps.id, stepIds[i]), eq(smsSequenceSteps.sequenceId, sequenceId)));
+    }
+  }
+
   async getUsersWithPhone() {
     const rows = await db.select({
       id: users.id, name: users.name, phone: users.phone, carrierName: smsCarrierGateways.carrierName, gatewayDomain: smsCarrierGateways.gatewayDomain,

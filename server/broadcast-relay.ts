@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, spawnSync, type ChildProcess } from "child_process";
 import { WebSocket } from "ws";
 import fs from "fs";
 import path from "path";
@@ -50,7 +50,8 @@ const PRESETS: Record<string, VideoVariant[]> = {
 
 const isMac = os.platform() === "darwin";
 
-if (!fs.existsSync(HLS_DIR)) fs.mkdirSync(HLS_DIR, { recursive: true });
+const RECORDINGS_DIR = path.resolve("recordings");
+if (!fs.existsSync(RECORDINGS_DIR)) fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
 const liveHlsDir = path.join(HLS_DIR, "live");
 if (!fs.existsSync(liveHlsDir)) fs.mkdirSync(liveHlsDir, { recursive: true });
 
@@ -134,10 +135,12 @@ function adaptiveStreamArgs(variants: VideoVariant[], streamDir: string): string
     splits.push(`[v${i}]`);
     filters.push(`[v${i}]scale=${v.width}:${v.height}:force_original_aspect_ratio=decrease,pad=${v.width}:${v.height}:(ow-iw)/2:(oh-ih)/2,setsar=1[vo${i}]`);
     maps.push("-map", `[vo${i}]`);
+    const enc = isMac ? "videotoolbox" : "libx264";
+    encoders.push(`-c:v:${i}`, enc);
     if (isMac) {
-      encoders.push("-c:v:0", "videotoolbox", "-b:v:0", `${v.bitrateK}k`, "-maxrate:v:0", `${v.maxrateK}k`, "-bufsize:v:0", `${v.bufsizeK}k`, "-quality", "85");
+      encoders.push(`-b:v:${i}`, `${v.bitrateK}k`, `-maxrate:v:${i}`, `${v.maxrateK}k`, `-bufsize:v:${i}`, `${v.bufsizeK}k`);
     } else {
-      encoders.push("-c:v:0", "libx264", "-preset", "fast", "-crf", "23");
+      encoders.push("-preset", "fast", "-crf", "23");
     }
   });
 
@@ -203,8 +206,119 @@ export function stopRelay(streamKey: string): void {
   try { session.ffmpeg.stdin?.end(); } catch {}
   const elapsed = ((Date.now() - session.startTime) / 1000).toFixed(1);
   console.log(`[relay] Stopped: ${streamKey} (${session.chunkCount} chunks, ${elapsed}s)`);
+
+  // Wait a moment for ffmpeg to finalize HLS, then create replay
+  setTimeout(() => {
+    const replayPath = concatToReplay(streamKey);
+    if (replayPath) {
+      console.log(`[relay] Replay saved: ${replayPath}`);
+    }
+    cleanupHlsFiles(streamKey);
+  }, 2000);
+
   cleanupRelay(streamKey);
-  cleanupHlsFiles(streamKey);
+}
+
+function concatToReplay(streamKey: string): string | null {
+  const streamDir = path.join(HLS_DIR, "live", streamKey);
+  if (!fs.existsSync(streamDir)) return null;
+
+  // Try to find the best variant's segments
+  const variants = fs.readdirSync(streamDir).filter(f => {
+    const p = path.join(streamDir, f);
+    return fs.statSync(p).isDirectory() && f !== "recordings";
+  }).sort();
+
+  if (variants.length === 0) return null;
+
+  // Use the highest bitrate variant (first in sorted list: 1080p > 720p > 480p > 360p)
+  const bestVariant = variants[0];
+  const variantDir = path.join(streamDir, bestVariant);
+
+  // Read the playlist to get segment files
+  const playlist = path.join(variantDir, "stream.m3u8");
+  if (!fs.existsSync(playlist)) {
+    // Try single-stream mode
+    const singlePlaylist = path.join(streamDir, "index.m3u8");
+    if (!fs.existsSync(singlePlaylist)) return null;
+    return concatSingleStream(streamKey, streamDir, singlePlaylist);
+  }
+
+  const content = fs.readFileSync(playlist, "utf-8");
+  const segmentFiles: string[] = [];
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.endsWith(".ts") && !trimmed.startsWith("#")) {
+      segmentFiles.push(path.join(variantDir, trimmed));
+    }
+  }
+
+  if (segmentFiles.length === 0) return null;
+
+  // Create a concat file for ffmpeg
+  const concatFile = path.join(streamDir, "segments.txt");
+  const concatContent = segmentFiles.map(f => `file '${f}'`).join("\n");
+  fs.writeFileSync(concatFile, concatContent);
+
+  const replayFilename = `${streamKey}_${Date.now()}.mp4`;
+  const replayPath = path.join(RECORDINGS_DIR, replayFilename);
+
+  try {
+    const result = spawnSync(FFMPEG_PATH, [
+      "-f", "concat",
+      "-safe", "0",
+      "-i", concatFile,
+      "-c", "copy",
+      "-movflags", "+faststart",
+      replayPath,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+
+    if (result.status === 0) {
+      fs.rmSync(concatFile, { force: true });
+      const size = (fs.statSync(replayPath).size / 1024 / 1024).toFixed(1);
+      console.log(`[relay] Replay created: ${replayFilename} (${size}MB)`);
+      return replayPath;
+    } else {
+      console.error(`[relay] Concat failed: ${result.stderr?.toString().substring(0, 200)}`);
+      return null;
+    }
+  } catch (err) {
+    console.error(`[relay] Concat error: ${err}`);
+    return null;
+  }
+}
+
+function concatSingleStream(streamKey: string, streamDir: string, playlist: string): string | null {
+  const content = fs.readFileSync(playlist, "utf-8");
+  const segmentFiles: string[] = [];
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.endsWith(".ts") && !trimmed.startsWith("#")) {
+      segmentFiles.push(path.join(streamDir, trimmed));
+    }
+  }
+  if (segmentFiles.length === 0) return null;
+
+  const concatFile = path.join(streamDir, "segments.txt");
+  fs.writeFileSync(concatFile, segmentFiles.map(f => `file '${f}'`).join("\n"));
+
+  const replayFilename = `${streamKey}_${Date.now()}.mp4`;
+  const replayPath = path.join(RECORDINGS_DIR, replayFilename);
+
+  try {
+    const result = spawnSync(FFMPEG_PATH, [
+      "-f", "concat", "-safe", "0", "-i", concatFile,
+      "-c", "copy", "-movflags", "+faststart", replayPath,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+
+    if (result.status === 0) {
+      fs.rmSync(concatFile, { force: true });
+      const size = (fs.statSync(replayPath).size / 1024 / 1024).toFixed(1);
+      console.log(`[relay] Replay created: ${replayFilename} (${size}MB)`);
+      return replayPath;
+    }
+    return null;
+  } catch { return null; }
 }
 
 function cleanupHlsFiles(streamKey: string): void {

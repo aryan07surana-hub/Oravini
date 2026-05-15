@@ -181,6 +181,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
   }));
 
+  const recordingsDir = pathMod.resolve("recordings");
+  if (!fsMod.existsSync(recordingsDir)) fsMod.mkdirSync(recordingsDir, { recursive: true });
+  app.use("/recordings", (await import("express")).default.static(recordingsDir));
+
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
   // Webinar rooms: webinarId → { host, viewers }
@@ -375,14 +379,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // ── RTMP RELAY (Browser Streaming) ─────────────────────────────
           case "relay_start": {
-            console.log(`[relay] relay_start received: meetingCode=${msg.meetingCode}, webinarId=${webinarId}`);
+            console.log(`[relay] relay_start received: meetingCode=${msg.meetingCode}, webinarId=${webinarId}, quality=${msg.quality || "1080p"}`);
             const streamKey = `webinar-${msg.meetingCode}`;
             (ws as any)._relayStreamKey = streamKey;
             try {
-              const relay = startRelay(ws, streamKey);
+              const relay = startRelay(ws, streamKey, msg.quality);
               if (relay) {
-                ws.send(JSON.stringify({ type: "relay_started", streamKey }));
-                console.log(`[relay] Started browser relay for ${streamKey}`);
+                ws.send(JSON.stringify({ type: "relay_started", streamKey, quality: msg.quality || "1080p" }));
+                console.log(`[relay] Started browser relay for ${streamKey} at ${msg.quality || "1080p"}`);
               } else {
                 console.log(`[relay] Relay already active for ${streamKey}, sending error`);
                 ws.send(JSON.stringify({ type: "relay_error", message: "Relay already active for this stream" }));
@@ -2469,7 +2473,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (text) return text;
       } catch (e: any) { lastError = e.message; }
     }
-    throw new Error(`Groq JSON generation failed: ${lastError}`);
+      throw new Error(`Groq JSON generation failed: ${lastError}`);
+  }
+
+  async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens = 1000): Promise<string> {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+    const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+    let lastError = "";
+    for (const model of models) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+            temperature: 0.7,
+            max_tokens: maxTokens,
+          }),
+        });
+        if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
+        const data: any = await r.json();
+        if (data?.error) { lastError = data.error.message; continue; }
+        const text = data?.choices?.[0]?.message?.content;
+        if (text) return text;
+      } catch (e: any) { lastError = e.message; }
+    }
+    throw new Error(`Groq text generation failed: ${lastError}`);
   }
 
   type IdeaContextPost = {
@@ -5047,6 +5078,42 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
       if (!niche) return res.status(400).json({ message: "niche query param required" });
       const gaps = await storage.getNicheContentGaps(user.id, niche, platform);
       return res.json(gaps);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/niche-intelligence/ai-insights", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, platform, avgEngagementRate, avgViralScore, trend30d, topHookType, topContentType, totalPosts, totalUsers, healthScore } = req.body;
+      if (!niche) return res.status(400).json({ message: "niche required" });
+
+      const sysPrompt = `You are an elite content strategist. Given niche performance data, produce 3 sharp, actionable insights. Each insight must have a title (under 60 chars), a 1-2 sentence explanation, and a "do this" action step. Return valid JSON array only: [{ "title": string, "explanation": string, "action": string }]. Be specific — reference the actual numbers. No markdown, no wrapper.`;
+
+      const userPrompt = `Niche: ${niche} (${platform || "general"})\nAvg Engagement Rate: ${avgEngagementRate}%\nAvg Viral Score: ${avgViralScore}/10\n30-Day Trend: ${trend30d}%\nHealth Score: ${healthScore}/100\nTop Hook Type: ${topHookType || "N/A"}\nTop Content Type: ${topContentType || "N/A"}\nTotal Posts Analysed: ${totalPosts}\nTotal Creators: ${totalUsers}\n\nGenerate 3 specific, data-backed content strategy insights for this niche.`;
+
+      const raw = await callGroqJson(sysPrompt, userPrompt, 1500);
+      const insights = JSON.parse(raw);
+      return res.json(Array.isArray(insights) ? insights : []);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/niche-intelligence/content-ideas", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { niche, platform, topHookType, topContentType, gaps } = req.body;
+      if (!niche) return res.status(400).json({ message: "niche required" });
+
+      const sysPrompt = `You are a content strategist. Generate 4 specific content post ideas for a creator in a given niche. Each idea must include: title (under 80 chars), hook (under 120 chars), format (e.g. Reel, Carousel, Short), and whyItWorks (1 sentence). Return valid JSON array only: [{ "title": string, "hook": string, "format": string, "whyItWorks": string }]. No markdown.`;
+
+      const gapsContext = gaps?.length ? `\nUntapped opportunities (content gaps): ${gaps.map((g: any) => `${g.hookType} hooks + ${g.contentType}`).join(", ")}` : "";
+
+      const userPrompt = `Create 4 content ideas for ${niche} on ${platform || "social media"}. Top hook type: ${topHookType || "various"}. Top format: ${topContentType || "various"}.${gapsContext}\n\nMake each idea specific and actionable — not generic.`;
+
+      const raw = await callGroqJson(sysPrompt, userPrompt, 1500);
+      const ideas = JSON.parse(raw);
+      return res.json(Array.isArray(ideas) ? ideas : []);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -11993,7 +12060,7 @@ Rules:
       if (!webinar) return res.status(404).json({ message: "Webinar not found" });
       const usingRelay = req.body.useRelay === true;
       const broadcastUrl = usingRelay
-        ? `/hls/live/webinar-${webinar.meetingCode}.m3u8`
+        ? `/hls/live/webinar-${webinar.meetingCode}/master.m3u8`
         : webinar.broadcastUrl;
       const updated = await storage.updateWebinar(p(req.params.id), {
         status: "live",
@@ -13462,6 +13529,87 @@ Return ONLY valid JSON in this exact format:
     await storage.createSmsSequenceStep({ sequenceId: promoSeq.id, message: "Exclusive offer just for you {{name}} 🎁 Upgrade to Starter plan and get 50% off your first month! Use code STARTER50 at checkout: https://oravini.com/select-plan", delayMinutes: 0, sortOrder: 1 });
 
     res.json({ seeded: true, sequences: 3 });
+  });
+
+  // SMS — Templates
+  app.get("/api/admin/sms/templates", requireAdmin, async (req, res) => {
+    const cat = (req.query as any).category;
+    res.json(await storage.getSmsTemplates(cat));
+  });
+  app.post("/api/admin/sms/templates", requireAdmin, async (req, res) => {
+    const { name, message, category } = req.body;
+    if (!name || !message) return res.status(400).json({ message: "name and message required" });
+    const t = await storage.createSmsTemplate({ name, message, category: category || "general" });
+    res.json(t);
+  });
+  app.delete("/api/admin/sms/templates/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSmsTemplate(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // SMS — Contact Tags
+  app.get("/api/admin/sms/tags", requireAdmin, async (_req, res) => {
+    res.json(await storage.getSmsContactTags());
+  });
+  app.post("/api/admin/sms/tags", requireAdmin, async (req, res) => {
+    const { name, color } = req.body;
+    if (!name) return res.status(400).json({ message: "name required" });
+    const tag = await storage.createSmsContactTag(name, color || "#d4b461");
+    res.json(tag);
+  });
+  app.delete("/api/admin/sms/tags/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSmsContactTag(p(req.params.id));
+    res.json({ ok: true });
+  });
+  app.get("/api/admin/sms/contacts/:phone/tags", requireAdmin, async (req, res) => {
+    res.json(await storage.getContactTagsForPhone(p(req.params.phone)));
+  });
+  app.post("/api/admin/sms/contacts/:phone/tags", requireAdmin, async (req, res) => {
+    const { tagId } = req.body;
+    if (!tagId) return res.status(400).json({ message: "tagId required" });
+    const a = await storage.assignTagToPhone(p(req.params.phone), tagId);
+    res.json(a);
+  });
+  app.delete("/api/admin/sms/contacts/:phone/tags/:tagId", requireAdmin, async (req, res) => {
+    await storage.unassignTagFromPhone(p(req.params.phone), p(req.params.tagId));
+    res.json({ ok: true });
+  });
+
+  // SMS — Step Variants (A/B Testing)
+  app.get("/api/admin/sms/steps/:id/variants", requireAdmin, async (req, res) => {
+    res.json(await storage.getStepVariants(p(req.params.id)));
+  });
+  app.post("/api/admin/sms/steps/:id/variants", requireAdmin, async (req, res) => {
+    const { message, isControl } = req.body;
+    if (!message) return res.status(400).json({ message: "message required" });
+    const v = await storage.createStepVariant({ stepId: p(req.params.id), message, isControl });
+    res.json(v);
+  });
+  app.delete("/api/admin/sms/variants/:id", requireAdmin, async (req, res) => {
+    await storage.deleteStepVariant(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // SMS — step reorder
+  app.post("/api/admin/sms/sequences/:id/reorder", requireAdmin, async (req, res) => {
+    const { stepIds } = req.body;
+    if (!stepIds) return res.status(400).json({ message: "stepIds required" });
+    await storage.reorderSmsSequenceSteps(p(req.params.id), stepIds);
+    res.json({ ok: true });
+  });
+
+  // SMS — daily volume
+  app.get("/api/admin/sms/volume", requireAdmin, async (req, res) => {
+    const days = parseInt((req.query as any).days || "30");
+    res.json(await storage.getDailySmsVolume(days));
+  });
+
+  // SMS — schedule broadcast
+  app.post("/api/admin/sms/schedule-broadcast", requireAdmin, async (req, res) => {
+    const { name, message, segment, scheduledFor, recurring } = req.body;
+    if (!name || !message || !scheduledFor) return res.status(400).json({ message: "name, message, and scheduledFor required" });
+    const b = await storage.createSmsBroadcast({ name, message, segment: segment || "all", scheduledFor: new Date(scheduledFor), recurring: recurring || null });
+    res.json(b);
   });
 
   // ── Modular route registrations ──────────────────────────────────────────────

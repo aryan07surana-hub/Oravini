@@ -24,6 +24,7 @@ import {
   Repeat2, Bell, Send, Code2, Lock, Unlock, Upload, Image,
   Layers, MousePointer, Timer, RefreshCw, ChevronRight, Hash,
   SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles, UploadCloud, Smartphone,
+  Tag, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -3352,6 +3353,10 @@ function SmsMarketingTab() {
   const usersWithPhone = _users ?? [];
   const { data: _enrollments } = useQuery<any[]>({ queryKey: ["/api/admin/sms/enrollments"] });
   const enrollments = _enrollments ?? [];
+  const { data: _templates } = useQuery<any[]>({ queryKey: ["/api/admin/sms/templates"] });
+  const templates = _templates ?? [];
+  const { data: _tags } = useQuery<any[]>({ queryKey: ["/api/admin/sms/tags"] });
+  const tags = _tags ?? [];
 
   // Local state
   const [editingSeqId, setEditingSeqId] = useState<string | null>(null);
@@ -3361,6 +3366,13 @@ function SmsMarketingTab() {
   const [showBroadcastForm, setShowBroadcastForm] = useState(false);
   const [testForm, setTestForm] = useState({ phone: "", message: "" });
   const [carrierFilter, setCarrierFilter] = useState("");
+  const [templateForm, setTemplateForm] = useState({ name: "", message: "", category: "general" });
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [templateFilter, setTemplateFilter] = useState("all");
+  const [tagForm, setTagForm] = useState({ name: "", color: "#d4b461" });
+  const [showTagForm, setShowTagForm] = useState(false);
+  const [variantForm, setVariantForm] = useState({ message: "", isControl: false });
+  const [showVariantForm, setShowVariantForm] = useState<string | null>(null);
 
   // Mutations
   const createSeqMut = useMutation({
@@ -3411,6 +3423,52 @@ function SmsMarketingTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); toast({ title: "Default sequences seeded" }); },
   });
 
+  // Templates
+  const createTemplateMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/templates", d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/templates"] }); toast({ title: "Template saved" }); setTemplateForm({ name: "", message: "", category: "general" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const deleteTemplateMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/sms/templates/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/templates"] }); toast({ title: "Template deleted" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  // Tags
+  const createTagMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/tags", d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/tags"] }); toast({ title: "Tag created" }); setTagForm({ name: "", color: "#d4b461" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const deleteTagMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/sms/tags/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/tags"] }); toast({ title: "Tag deleted" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const assignTagMut = useMutation({
+    mutationFn: ({ phone, tagId }: { phone: string; tagId: string }) => apiRequest("POST", `/api/admin/sms/contacts/${encodeURIComponent(phone)}/tags`, { tagId }),
+    onSuccess: () => { toast({ title: "Tag assigned" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const unassignTagMut = useMutation({
+    mutationFn: ({ phone, tagId }: { phone: string; tagId: string }) => apiRequest("DELETE", `/api/admin/sms/contacts/${encodeURIComponent(phone)}/tags/${tagId}`),
+    onSuccess: () => { toast({ title: "Tag removed" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  // A/B Variants
+  const createVariantMut = useMutation({
+    mutationFn: (d: { stepId: string; message: string; isControl?: boolean }) => apiRequest("POST", `/api/admin/sms/steps/${d.stepId}/variants`, { message: d.message, isControl: d.isControl }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); toast({ title: "Variant created" }); setShowVariantForm(null); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const deleteVariantMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/sms/variants/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); toast({ title: "Variant deleted" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+
   const editingSeq = editingSeqId ? sequences.find((s: any) => s.id === editingSeqId) : null;
   const { data: _editingSteps } = useQuery<any[]>({
     queryKey: ["/api/admin/sms/sequences", editingSeqId, "steps"],
@@ -3445,11 +3503,12 @@ function SmsMarketingTab() {
       <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
           { label: "Total Sent", value: stats.stats.totalSent, icon: Send, color: "#60a5fa" },
           { label: "Sent Today", value: stats.stats.sentToday, icon: Phone, color: "#34d399" },
           { label: "Active Enrollments", value: stats.stats.activeEnrollments, icon: Smartphone, color: "#f59e0b" },
+          { label: "Delivered Rate", value: `${stats.stats.deliveredRate || 100}%`, sub: `${stats.stats.optOutRate || 0}% opt-out`, icon: CheckCircle2, color: GOLD },
         ].map(s => (
           <div key={s.label} className="rounded-2xl p-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
             <div className="flex items-center gap-3">
@@ -3459,6 +3518,7 @@ function SmsMarketingTab() {
               <div>
                 <p className="text-2xl font-black text-white">{s.value}</p>
                 <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: `${GOLD}50` }}>{s.label}</p>
+                {s.sub && <p className="text-[9px]" style={{ color: `${GOLD}40` }}>{s.sub}</p>}
               </div>
             </div>
           </div>
@@ -3565,24 +3625,62 @@ function SmsMarketingTab() {
                     {editingSteps.length > 0 && (
                       <div className="space-y-2 mb-4">
                         <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: `${GOLD}40` }}>Steps</p>
-                        {editingSteps.map((step: any, i: number) => (
-                          <div key={step.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0" style={{ background: `${GOLD}15`, color: GOLD }}>
-                              {i + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[9px] font-bold" style={{ color: `${GOLD}60` }}>
-                                  {step.delayMinutes > 0 ? `+${step.delayMinutes >= 1440 ? `${Math.round(step.delayMinutes / 1440)}d` : step.delayMinutes >= 60 ? `${Math.round(step.delayMinutes / 60)}h` : `${step.delayMinutes}m`}` : "Immediate"}
-                                </span>
+                        {editingSteps.map((step: any, i: number) => {
+                          return (
+                          <div key={step.id}>
+                            <div className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0" style={{ background: `${GOLD}15`, color: GOLD }}>
+                                {i + 1}
                               </div>
-                              <p className="text-xs text-zinc-300 leading-relaxed">{step.message}</p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[9px] font-bold" style={{ color: `${GOLD}60` }}>
+                                    {step.delayMinutes > 0 ? `+${step.delayMinutes >= 1440 ? `${Math.round(step.delayMinutes / 1440)}d` : step.delayMinutes >= 60 ? `${Math.round(step.delayMinutes / 60)}h` : `${step.delayMinutes}m`}` : "Immediate"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-zinc-300 leading-relaxed">{step.message}</p>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button onClick={() => setShowVariantForm(showVariantForm === step.id ? null : step.id)} className="p-1 rounded hover:bg-white/5 text-[9px] flex items-center gap-1" style={{ color: `${GOLD}50` }}>
+                                  <Layers className="w-3 h-3" /> <span>AB</span>
+                                </button>
+                                <button onClick={() => deleteStepMut.mutate(step.id)} className="p-1 rounded hover:bg-red-500/10" style={{ color: "#ef444480" }}>
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
-                            <button onClick={() => deleteStepMut.mutate(step.id)} className="p-1 rounded hover:bg-red-500/10 flex-shrink-0" style={{ color: "#ef444480" }}>
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            {/* A/B Testing Variants */}
+                            {showVariantForm === step.id && (
+                              <div className="ml-9 mt-2 mb-3 space-y-2">
+                                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: `${GOLD}40` }}>A/B Variants</p>
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1">
+                                    <textarea
+                                      placeholder="Variant message..."
+                                      value={variantForm.message}
+                                      onChange={e => setVariantForm(f => ({ ...f, message: e.target.value }))}
+                                      className="w-full text-[10px] bg-transparent border rounded-lg px-2 py-1.5 text-white placeholder:text-zinc-600 resize-none"
+                                      style={{ border: "1px solid rgba(255,255,255,0.08)", minHeight: "40px" }}
+                                      maxLength={320}
+                                    />
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      if (!variantForm.message) { toast({ title: "Message required", variant: "destructive" }); return; }
+                                      createVariantMut.mutate({ stepId: step.id, message: variantForm.message });
+                                    }}
+                                    className="px-2 py-1.5 rounded-lg text-[9px] font-bold"
+                                    style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                                <p className="text-[9px] text-zinc-500 italic">Variants are A/B tested — the best performer will be promoted automatically.</p>
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -3719,6 +3817,164 @@ function SmsMarketingTab() {
                 <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: b.sentAt ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.05)", color: b.sentAt ? "#34d399" : "#666" }}>
                   {b.sentAt ? "Sent" : "Draft"}
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Contact Tags ── */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+            <Tag className="w-4 h-4" style={{ color: GOLD }} />
+            Contact Tags
+          </h4>
+          <div className="flex items-center gap-2">
+            {showTagForm ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  placeholder="Tag name"
+                  value={tagForm.name}
+                  onChange={e => setTagForm(f => ({ ...f, name: e.target.value }))}
+                  className="h-7 w-28 text-[10px] bg-transparent border rounded px-2 text-white placeholder:text-zinc-600"
+                  style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                />
+                <input
+                  type="color"
+                  value={tagForm.color}
+                  onChange={e => setTagForm(f => ({ ...f, color: e.target.value }))}
+                  className="w-7 h-7 rounded cursor-pointer border-0 p-0.5"
+                />
+                <button
+                  onClick={() => { if (!tagForm.name) { toast({ title: "Tag name required", variant: "destructive" }); return; } createTagMut.mutate(tagForm); }}
+                  className="px-2 py-1 rounded text-[9px] font-bold"
+                  style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+                >
+                  Save
+                </button>
+                <button onClick={() => { setShowTagForm(false); setTagForm({ name: "", color: "#d4b461" }); }} className="text-[9px] text-zinc-500 px-1">Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowTagForm(true)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold" style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}>
+                <Plus className="w-3 h-3" /> New Tag
+              </button>
+            )}
+          </div>
+        </div>
+        {tags.length === 0 ? (
+          <div className="px-5 py-6 text-center">
+            <Tag className="w-6 h-6 mx-auto mb-1" style={{ color: `${GOLD}30` }} />
+            <p className="text-xs text-zinc-500">No tags yet. Tags help you segment contacts for targeted broadcasts.</p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 px-5 py-4">
+            {tags.map((tag: any) => (
+              <div key={tag.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold" style={{ background: `${tag.color}18`, border: `1px solid ${tag.color}30`, color: tag.color }}>
+                {tag.name}
+                <button onClick={() => deleteTagMut.mutate(tag.id)} className="hover:opacity-60" style={{ color: tag.color }}>
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── SMS Templates ── */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+            <FileText className="w-4 h-4" style={{ color: GOLD }} />
+            SMS Templates
+          </h4>
+          <div className="flex items-center gap-2">
+            <select
+              value={templateFilter}
+              onChange={e => setTemplateFilter(e.target.value)}
+              className="h-7 rounded text-[9px] bg-zinc-900 text-white border-zinc-700 px-2"
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <option value="all">All</option>
+              {[...new Set(templates.map((t: any) => t.category))].map((c: any) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowTemplateForm(!showTemplateForm)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold"
+              style={{ background: showTemplateForm ? "transparent" : `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: showTemplateForm ? GOLD : "#000", border: showTemplateForm ? `1px solid ${GOLD}25` : "none" }}
+            >
+              {showTemplateForm ? "Cancel" : <><Plus className="w-3 h-3" /> New Template</>}
+            </button>
+          </div>
+        </div>
+
+        {showTemplateForm && (
+          <div className="px-5 py-4 space-y-3" style={{ borderBottom: `1px solid ${GOLD}08` }}>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Template name"
+                value={templateForm.name}
+                onChange={e => setTemplateForm(f => ({ ...f, name: e.target.value }))}
+                className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600 flex-1"
+              />
+              <select
+                value={templateForm.category}
+                onChange={e => setTemplateForm(f => ({ ...f, category: e.target.value }))}
+                className="h-8 rounded text-[10px] bg-zinc-900 text-white border-zinc-700 px-2"
+                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <option value="general">General</option>
+                <option value="promo">Promo</option>
+                <option value="reminder">Reminder</option>
+                <option value="followup">Follow-up</option>
+                <option value="alert">Alert</option>
+              </select>
+            </div>
+            <textarea
+              placeholder="SMS message template..."
+              value={templateForm.message}
+              onChange={e => setTemplateForm(f => ({ ...f, message: e.target.value }))}
+              className="w-full text-xs bg-transparent border rounded-lg px-3 py-2 text-white placeholder:text-zinc-600 resize-none"
+              style={{ border: "1px solid rgba(255,255,255,0.1)", minHeight: "60px" }}
+              maxLength={320}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[9px]" style={{ color: `${GOLD}40` }}>{templateForm.message.length}/320</span>
+              <button
+                onClick={() => { if (!templateForm.name || !templateForm.message) { toast({ title: "Name and message required", variant: "destructive" }); return; } createTemplateMut.mutate(templateForm); }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold"
+                style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+              >
+                Save Template
+              </button>
+            </div>
+          </div>
+        )}
+
+        {templates.length === 0 ? (
+          <div className="px-5 py-6 text-center">
+            <FileText className="w-6 h-6 mx-auto mb-1" style={{ color: `${GOLD}30` }} />
+            <p className="text-xs text-zinc-500">No templates yet. Save reusable message templates for quick use.</p>
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: `${GOLD}08` }}>
+            {templates.filter((t: any) => templateFilter === "all" || t.category === templateFilter).map((t: any) => (
+              <div key={t.id} className="px-5 py-3 flex items-start justify-between gap-3 hover:bg-white/[0.02]">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-white">{t.name}</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: `${GOLD}12`, color: GOLD }}>{t.category}</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed">{t.message}</p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <CopyBtn text={t.message} size="icon" />
+                  <button onClick={() => deleteTemplateMut.mutate(t.id)} className="p-1 rounded hover:bg-red-500/10" style={{ color: "#ef444480" }}>
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

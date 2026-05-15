@@ -79,6 +79,10 @@ export default function WatchWebinar() {
   const trackingRef = useRef<{ sessionId: string | null; interval: ReturnType<typeof setInterval> | null }>({ sessionId: null, interval: null });
   const startTimeRef = useRef<number>(0);
 
+  const [qualityLevels, setQualityLevels] = useState<{ index: number; name: string; height: number; bitrate: number }[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<number>(-1);
+  const [currentResolution, setCurrentResolution] = useState("");
+
   // ── Analytics Tracking ─────────────────────────────────────────────────
   const trackJoin = useCallback(async () => {
     if (!webinar?.id) return;
@@ -388,15 +392,44 @@ export default function WatchWebinar() {
   useEffect(() => {
     const url = webinar?.broadcastUrl;
     if (phase !== "live" || !url || !videoRef.current) return;
-    if (!url.includes(".m3u8")) return; // Non-HLS URLs handled via embed/direct video
+    if (!url.includes(".m3u8")) return;
     const video = videoRef.current;
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 30,
+        maxBufferLength: 30,
+      });
       hlsRef.current = hls;
+
+      hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+        const levels = hls.levels.map((l, i) => ({
+          index: i,
+          name: l.name || (l.height ? `${l.height}p` : `Level ${i}`),
+          height: l.height || 0,
+          bitrate: l.bitrate || 0,
+        }));
+        setQualityLevels(levels);
+        video.play().catch(() => {});
+        setStreamReady(true);
+        setConnState("connected");
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
+        setCurrentQuality(data.level);
+        if (data.level >= 0 && hls.levels[data.level]) {
+          const l = hls.levels[data.level];
+          setCurrentResolution(l.height ? `${l.height}p` : "");
+        }
+      });
+
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) setConnState("poor");
+      });
+
       hls.loadSource(url);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); setStreamReady(true); setConnState("connected"); });
-      hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) setConnState("poor"); });
       return () => { hls.destroy(); hlsRef.current = null; };
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = url;
@@ -769,6 +802,28 @@ export default function WatchWebinar() {
             </span>
           )}
           <ConnIcon className={`w-4 h-4 ${connState === "connecting" ? "animate-spin" : ""}`} style={{ color: connColor }} />
+          {currentResolution && connState === "connected" && (
+            <span className="text-[10px] text-zinc-500 font-mono">{currentResolution}</span>
+          )}
+          {qualityLevels.length > 1 && (
+            <select
+              value={currentQuality}
+              onChange={(e) => {
+                const l = parseInt(e.target.value);
+                setCurrentQuality(l);
+                if (hlsRef.current) hlsRef.current.currentLevel = l;
+              }}
+              className="text-[10px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-300 cursor-pointer focus:outline-none"
+              style={{ fontSize: "10px" }}
+            >
+              <option value={-1}>Auto</option>
+              {qualityLevels.map((l) => (
+                <option key={l.index} value={l.index}>
+                  {l.name} ({(l.bitrate / 1000000).toFixed(1)} Mbps)
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
