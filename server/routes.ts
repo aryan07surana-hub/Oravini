@@ -2294,6 +2294,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/income-goal", requireAuth, async (req, res) => {
     const user = req.user as any;
+    if (!user?.id) return res.status(401).json({ message: "Unauthorized" });
     const data = { ...req.body, clientId: user.role === "admin" ? req.body.clientId : user.id };
     const parsed = insertIncomeGoalSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -2324,7 +2325,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-
+    const keyPreview = apiKey.slice(0, 8) + "...";
     const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
     let lastError = "";
     for (const model of models) {
@@ -2339,6 +2340,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             max_tokens: maxTokens,
           }),
         });
+        if (!r.ok) {
+          const errBody = await r.text();
+          lastError = `HTTP ${r.status}: ${errBody}`;
+          console.warn(`Groq ${model} status ${r.status} (key ${keyPreview})`);
+          continue;
+        }
         const data: any = await r.json();
         if (data?.error) { lastError = data.error.message; console.warn(`Groq ${model} error: ${lastError}`); continue; }
         const text = data?.choices?.[0]?.message?.content;
@@ -2352,6 +2359,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+    const keyPreview = apiKey.slice(0, 8) + "...";
     const models = ["llama-3.1-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
     let lastError = "";
     for (const model of models) {
@@ -2367,6 +2375,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             response_format: { type: "json_object" },
           }),
         });
+        if (!r.ok) {
+          const errBody = await r.text();
+          lastError = `HTTP ${r.status}: ${errBody}`;
+          console.warn(`GroqJSON ${model} status ${r.status} (key ${keyPreview})`);
+          continue;
+        }
         const data: any = await r.json();
         if (data?.error) { lastError = data.error.message; console.warn(`GroqJSON ${model} error: ${lastError}`); continue; }
         const text = data?.choices?.[0]?.message?.content;
@@ -7318,22 +7332,22 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   // GET /api/admin/analytics — aggregated dashboard analytics
   app.get("/api/admin/analytics", requireAdmin, async (_req: Request, res: Response) => {
     try {
-      const [userRows, planRows, monthRows, leadRows, feedbackRows, deletionRows, referralRows, creditRows] = await Promise.all([
+      const [
+        userRows, planRows, monthRows, leadRows, feedbackRows, deletionRows,
+        referralRows, creditRows, surveyPlatformRows, surveyFieldRows,
+        leadSourceRows, contentRows, webinarRows, videoRows,
+        aiToolRows, emailStatsRows, communityRows, bookingRows
+      ] = await Promise.all([
         pool.query(`SELECT COUNT(*)::int AS total FROM users WHERE role = 'client'`),
         pool.query(`SELECT plan, COUNT(*)::int AS count FROM users WHERE role = 'client' GROUP BY plan ORDER BY plan`),
         pool.query(`
-          SELECT
-            to_char(created_at, 'YYYY-MM') AS month,
-            COUNT(*)::int AS signups
-          FROM users
-          WHERE role = 'client' AND created_at >= NOW() - INTERVAL '12 months'
+          SELECT to_char(created_at, 'YYYY-MM') AS month, COUNT(*)::int AS signups
+          FROM users WHERE role = 'client' AND created_at >= NOW() - INTERVAL '12 months'
           GROUP BY month ORDER BY month
         `),
         pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads`),
         pool.query(`
-          SELECT
-            COUNT(*)::int AS total,
-            ROUND(AVG(overall_rating)::numeric, 1) AS avg_rating,
+          SELECT COUNT(*)::int AS total, ROUND(AVG(overall_rating)::numeric, 1) AS avg_rating,
             COUNT(CASE WHEN nps_score >= 9 THEN 1 END) AS promoters,
             COUNT(CASE WHEN nps_score <= 6 THEN 1 END) AS detractors,
             COUNT(nps_score) AS nps_count
@@ -7341,16 +7355,26 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         `),
         pool.query(`SELECT COUNT(*)::int AS total FROM deletion_surveys`),
         pool.query(`
-          SELECT
-            COALESCE(SUM(clicks)::int, 0) AS total_clicks,
+          SELECT COALESCE(SUM(clicks)::int, 0) AS total_clicks,
             COALESCE(SUM(signups)::int, 0) AS total_signups,
             COALESCE(SUM(conversions)::int, 0) AS total_conversions
           FROM referral_codes
         `),
+        pool.query(`SELECT COALESCE(SUM(monthly_credits + bonus_credits)::int, 0) AS total_credits FROM credit_balances`),
+        pool.query(`SELECT platform, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY platform ORDER BY count DESC`),
+        pool.query(`SELECT field, COUNT(*)::int AS count FROM onboarding_surveys GROUP BY field ORDER BY count DESC LIMIT 10`),
+        pool.query(`SELECT source, COUNT(*)::int AS count FROM landing_leads GROUP BY source ORDER BY count DESC`),
         pool.query(`
-          SELECT COALESCE(SUM(monthly_credits + bonus_credits)::int, 0) AS total_credits
-          FROM credit_balances
+          SELECT COUNT(*)::int AS total_posts, COALESCE(SUM(views)::int, 0) AS total_views,
+            COALESCE(SUM(likes)::int, 0) AS total_likes, COALESCE(SUM(comments)::int, 0) AS total_comments
+          FROM content_posts
         `),
+        pool.query(`SELECT COUNT(*)::int AS total FROM webinars`),
+        pool.query(`SELECT COUNT(*)::int AS total FROM video_events`),
+        pool.query(`SELECT tool, COUNT(*)::int AS sessions, COUNT(DISTINCT user_id)::int AS users FROM ai_session_history GROUP BY tool ORDER BY sessions DESC LIMIT 10`),
+        pool.query(`SELECT COUNT(*)::int AS total_sent, COUNT(*) FILTER (WHERE opened_at IS NOT NULL)::int AS total_opened FROM email_logs`),
+        pool.query(`SELECT COUNT(*)::int AS total_posts FROM community_posts`),
+        pool.query(`SELECT COUNT(*)::int AS total FROM scheduled_bookings`),
       ]);
 
       const totalUsers = userRows.rows[0].total;
@@ -7365,6 +7389,16 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const churnCount = deletionRows.rows[0].total;
       const ref = referralRows.rows[0];
       const totalCredits = creditRows.rows[0].total_credits;
+      const surveyPlatforms = surveyPlatformRows.rows;
+      const surveyFields = surveyFieldRows.rows;
+      const leadSources = leadSourceRows.rows;
+      const contentAgg = contentRows.rows[0];
+      const totalWebinars = webinarRows.rows[0].total;
+      const totalVideos = videoRows.rows[0].total;
+      const aiTools = aiToolRows.rows;
+      const emailStats = emailStatsRows.rows[0];
+      const totalCommunityPosts = communityRows.rows[0].total_posts;
+      const totalBookings = bookingRows.rows[0].total;
 
       const planPrices: Record<string, number> = { starter: 29, growth: 59, pro: 79, elite: 149 };
       let mrr = 0;
@@ -7375,19 +7409,16 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       }
 
       return res.json({
-        totalUsers,
-        planBreakdown,
-        monthlySignups,
-        totalLeads,
-        totalFeedback,
-        avgRating,
-        nps,
-        churnCount,
-        totalClicks: ref.total_clicks,
-        totalSignups: ref.total_signups,
-        totalConversions: ref.total_conversions,
-        totalCredits,
-        mrr,
+        totalUsers, planBreakdown, monthlySignups,
+        totalLeads, totalFeedback, avgRating, nps, churnCount,
+        totalClicks: ref.total_clicks, totalSignups: ref.total_signups, totalConversions: ref.total_conversions,
+        totalCredits, mrr,
+        surveyPlatforms, surveyFields, leadSources,
+        contentPosts: contentAgg.total_posts, contentViews: contentAgg.total_views,
+        contentLikes: contentAgg.total_likes, contentComments: contentAgg.total_comments,
+        totalWebinars, totalVideos, aiTools,
+        emailSent: emailStats.total_sent, emailOpened: emailStats.total_opened,
+        totalCommunityPosts, totalBookings,
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
