@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import {
-  Users, FileText, MessageSquare, TrendingUp, Calendar,
+  Users, MessageSquare, TrendingUp, Calendar,
   ArrowRight, ChevronRight, Phone, Globe, Quote, FolderKanban, Star
 } from "lucide-react";
 import { format } from "date-fns";
@@ -80,10 +80,6 @@ export default function AdminDashboard() {
     queryKey: ["/api/clients"],
   });
 
-  const { data: docs } = useQuery<any[]>({
-    queryKey: ["/api/documents"],
-  });
-
   const { data: conversations } = useQuery<any[]>({
     queryKey: ["/api/conversations"],
   });
@@ -98,7 +94,6 @@ export default function AdminDashboard() {
 
   const eliteClients = (clients || []).filter((c: any) => c.tier === "elite");
   const activeClients = eliteClients.length;
-  const totalDocs = (docs || []).length;
 
   const dailyQuote = getDailyQuote();
 
@@ -138,9 +133,8 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <StatCard label="Elite Members" value={activeClients} sub="Tier 5 active" icon={Users} color="bg-primary/10 text-primary" />
-          <StatCard label="Documents" value={totalDocs} sub="Shared across clients" icon={FileText} color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" />
           <StatCard label="Conversations" value={(conversations || []).length} sub="Active chats" icon={MessageSquare} color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" />
           <StatCard label="Upcoming Calls" value={(clients || []).filter((c: any) => c.nextCallDate && new Date(c.nextCallDate) > new Date()).length} sub="This week" icon={Phone} color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" />
         </div>

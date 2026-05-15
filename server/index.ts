@@ -243,6 +243,32 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] users.has_video_marketing_addon skipped:", e.message);
   }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS community_posts (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL,
+        channel TEXT NOT NULL,
+        content TEXT NOT NULL,
+        parent_id INTEGER REFERENCES community_posts(id) ON DELETE CASCADE,
+        is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS community_likes (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+        user_id VARCHAR NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(post_id, user_id)
+      )
+    `);
+    console.log("[migration] community tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] community tables skipped:", e.message);
+  }
 }
 
 (async () => {

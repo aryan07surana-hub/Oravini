@@ -603,6 +603,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Award referrer 50 credits now that this user has upgraded to a paid plan
       storage.processReferralConversion(userId).catch(() => { });
     }
+
+    // ── Initialize Tier 5 project tracker on elite plan confirmation ──
+    if (update.plan === "elite") {
+      try {
+        const user = await storage.getUser(userId);
+        if (user) {
+          const existing = await storage.getAppSetting(projectTrackerKey(userId));
+          if (!existing) {
+            const tracker = syncProjectTracker(
+              createDefaultProjectTracker(userId, user.name, user.program || undefined),
+              user.name,
+              user.program || undefined,
+            );
+            const withWelcome = appendProjectUpdate(
+              tracker,
+              "Welcome to Tier 5",
+              "Your project tracker is live. Complete the onboarding form to kick off the 12-phase buildout.",
+              "milestone",
+            );
+            await saveProjectTrackerForClient(userId, withWelcome);
+          }
+        }
+      } catch (err) {
+        console.error("[confirm-plan] failed to initialize project tracker:", err);
+      }
+    }
+
     const updated = await storage.getUser(userId);
     const { password: _, ...safe } = updated!;
     res.json(safe);
@@ -1622,6 +1649,70 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       summary: getProjectTrackerSummary(saved),
       completion: getProjectCompletion(saved),
       currentPhase: getCurrentPhase(saved),
+    });
+  });
+
+  // ── Submit onboarding form (client-facing) ──
+  app.post("/api/project-tracker/:clientId/onboarding", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    const clientId = p(req.params.clientId);
+    if (user.role === "client" && user.id !== clientId) return res.status(403).json({ message: "Forbidden" });
+
+    const client = await storage.getUser(clientId);
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const { businessModel, currentRevenue, targetRevenue, mainPainPoints, currentSystems, teamSize, timeCommitment, successMetrics, riskFactors } = req.body || {};
+
+    const existing = await getProjectTrackerForClient(clientId, client.name, client.program || undefined);
+
+    // Update onboarding data
+    const onboardingData = {
+      businessModel: typeof businessModel === "string" ? businessModel : existing.onboardingData?.businessModel || "",
+      currentRevenue: typeof currentRevenue === "string" ? currentRevenue : existing.onboardingData?.currentRevenue || "",
+      targetRevenue: typeof targetRevenue === "string" ? targetRevenue : existing.onboardingData?.targetRevenue || "",
+      mainPainPoints: Array.isArray(mainPainPoints) ? mainPainPoints.filter((s) => typeof s === "string").slice(0, 10) : existing.onboardingData?.mainPainPoints || [],
+      currentSystems: Array.isArray(currentSystems) ? currentSystems.filter((s) => typeof s === "string").slice(0, 10) : existing.onboardingData?.currentSystems || [],
+      teamSize: typeof teamSize === "number" && teamSize >= 0 ? teamSize : existing.onboardingData?.teamSize || 1,
+      timeCommitment: typeof timeCommitment === "string" ? timeCommitment : existing.onboardingData?.timeCommitment || "",
+      successMetrics: Array.isArray(successMetrics) ? successMetrics.filter((s) => typeof s === "string").slice(0, 10) : existing.onboardingData?.successMetrics || [],
+      riskFactors: Array.isArray(riskFactors) ? riskFactors.filter((s) => typeof s === "string").slice(0, 10) : existing.onboardingData?.riskFactors || [],
+    };
+
+    // Auto-complete the "Complete onboarding form" action if it exists
+    const phases = existing.phases.map((phase) => ({
+      ...phase,
+      steps: phase.steps.map((step) => ({
+        ...step,
+        actions: step.actions.map((action) => {
+          if (action.id === "a-1-4" && onboardingData.businessModel) {
+            return { ...action, status: "completed" as ActionStatus };
+          }
+          return action;
+        }),
+      })),
+    }));
+
+    const updated = syncProjectTracker(
+      { ...existing, onboardingData, phases },
+      client.name,
+      client.program || undefined,
+    );
+
+    const withUpdate = appendProjectUpdate(
+      updated,
+      "Onboarding form submitted",
+      "Client completed the onboarding form. Strategic foundation is locked.",
+      "client",
+    );
+
+    await saveProjectTrackerForClient(clientId, withUpdate);
+    sendToUser(clientId, { type: "project_tracker_update" });
+
+    res.json({
+      tracker: withUpdate,
+      summary: getProjectTrackerSummary(withUpdate),
+      completion: getProjectCompletion(withUpdate),
+      currentPhase: getCurrentPhase(withUpdate),
     });
   });
 
@@ -10860,8 +10951,8 @@ Rules:
     return `${getAppBase()}/api/auth/google-calendar/callback`;
   }
 
-  function getCalendarOAuth2Client() {
-    const { google } = require("googleapis");
+  async function getCalendarOAuth2Client() {
+    const { google } = await import("googleapis");
     return new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
@@ -10878,11 +10969,11 @@ Rules:
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get("/api/auth/google-calendar", requireAdmin, (req: Request, res: Response) => {
+  app.get("/api/auth/google-calendar", requireAdmin, async (req: Request, res: Response) => {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       return res.status(500).json({ message: "Google credentials not configured" });
     }
-    const oauth2Client = getCalendarOAuth2Client();
+    const oauth2Client = await getCalendarOAuth2Client();
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: ["https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/userinfo.email"],
@@ -10902,7 +10993,7 @@ Rules:
       }
       if (!code || !userId) return res.redirect(`${base}/admin/scheduling?cal_error=missing_code`);
 
-      const oauth2Client = getCalendarOAuth2Client();
+      const oauth2Client = await getCalendarOAuth2Client();
       const { tokens } = await oauth2Client.getToken(code as string);
       oauth2Client.setCredentials(tokens);
 
@@ -10949,7 +11040,7 @@ Rules:
       if (!calToken) return null;
 
       const { google } = await import("googleapis");
-      const oauth2Client = getCalendarOAuth2Client();
+      const oauth2Client = await getCalendarOAuth2Client();
       oauth2Client.setCredentials({
         access_token: calToken.accessToken,
         refresh_token: calToken.refreshToken,

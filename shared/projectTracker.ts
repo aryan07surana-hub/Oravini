@@ -858,6 +858,9 @@ export function createDefaultProjectTracker(clientId: string, clientName: string
   };
 }
 
+// Schema version for the 12-phase journey. Bump when phase structure changes.
+export const PROJECT_TRACKER_SCHEMA_VERSION = "v2-12phases";
+
 export function normalizeProjectTracker(tracker: ProjectTracker): ProjectTracker {
   const baseline = createDefaultProjectTracker(
     tracker.clientId || "unknown-client",
@@ -865,16 +868,66 @@ export function normalizeProjectTracker(tracker: ProjectTracker): ProjectTracker
     tracker.programName,
   );
 
+  // ── Migrate old trackers (pre-12-phase) to new structure ──
+  // Detect: tracker has fewer than 12 phases OR phase IDs don't match the new schema.
+  const needsPhaseMigration =
+    !tracker.phases ||
+    tracker.phases.length < 12 ||
+    !tracker.phases.some((p) => p.id === "phase-12");
+
+  let phases = tracker.phases;
+  let deliverables = tracker.deliverables;
+
+  if (needsPhaseMigration) {
+    // Build a lookup of completed/in-progress actions from the OLD tracker (by title match).
+    const oldActionStateByTitle = new Map<string, { status: ActionStatus; notes?: string }>();
+    (tracker.phases || []).forEach((phase) =>
+      phase.steps?.forEach((step) =>
+        step.actions?.forEach((action) => {
+          if (action.status === "completed" || action.status === "in_progress" || action.status === "blocked") {
+            oldActionStateByTitle.set(action.title.toLowerCase().trim(), {
+              status: action.status,
+              notes: action.notes,
+            });
+          }
+        }),
+      ),
+    );
+
+    // Apply old states to matching new actions in the baseline.
+    phases = baseline.phases.map((phase) => ({
+      ...phase,
+      steps: phase.steps.map((step) => ({
+        ...step,
+        actions: step.actions.map((action) => {
+          const oldState = oldActionStateByTitle.get(action.title.toLowerCase().trim());
+          return oldState ? { ...action, status: oldState.status, notes: oldState.notes ?? action.notes } : action;
+        }),
+      })),
+    }));
+
+    // Use baseline deliverables if old tracker had fewer than expected.
+    deliverables = (tracker.deliverables?.length ?? 0) >= 5 ? tracker.deliverables : baseline.deliverables;
+  }
+
+  // Ensure required nested objects exist (for trackers created before these fields were added).
+  const onboardingData = tracker.onboardingData || baseline.onboardingData;
+  const successMetrics = tracker.successMetrics || baseline.successMetrics;
+
   return {
     ...baseline,
     ...tracker,
+    phases: phases || baseline.phases,
+    deliverables: deliverables || baseline.deliverables,
+    onboardingData,
+    successMetrics,
     teamMembers: tracker.teamMembers?.length ? tracker.teamMembers : baseline.teamMembers,
     sopTemplates: tracker.sopTemplates?.length ? tracker.sopTemplates : baseline.sopTemplates,
     funnelStages: tracker.funnelStages?.length ? tracker.funnelStages : baseline.funnelStages,
     automationRules: tracker.automationRules?.length ? tracker.automationRules : baseline.automationRules,
     crmPipeline: tracker.crmPipeline?.length ? tracker.crmPipeline : baseline.crmPipeline,
     contentPipeline: tracker.contentPipeline?.length ? tracker.contentPipeline : baseline.contentPipeline,
-    communicationThreads: tracker.communicationThreads?.length ? tracker.communicationThreads : baseline.communicationThreads,
+    communicationThreads: tracker.communicationThreads || [],
     executionColumns: tracker.executionColumns?.length ? tracker.executionColumns : baseline.executionColumns,
   };
 }

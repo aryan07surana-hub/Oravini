@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -26,9 +26,13 @@ import ClientLayout from "@/components/layout/ClientLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -79,11 +83,139 @@ type ProjectTrackerResponse = {
   currentPhase: { title: string; description: string; objective: string } | null;
 };
 
+type OnboardingFormState = {
+  businessModel: string;
+  currentRevenue: string;
+  targetRevenue: string;
+  mainPainPoints: string;
+  currentSystems: string;
+  teamSize: string;
+  timeCommitment: string;
+  successMetrics: string;
+  riskFactors: string;
+};
+
+function OnboardingFormFields({ form, setForm }: { form: OnboardingFormState; setForm: (f: OnboardingFormState) => void }) {
+  const update = (field: keyof OnboardingFormState, value: string) => setForm({ ...form, [field]: value });
+  return (
+    <div className="space-y-4">
+      {/* Section 1: Business */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-3">1. Your Business</p>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-zinc-300">Business model</Label>
+            <Textarea
+              value={form.businessModel}
+              onChange={(e) => update("businessModel", e.target.value)}
+              placeholder="What do you sell? Who buys it? How is it delivered?"
+              rows={3}
+              className="mt-1.5"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-zinc-300">Current monthly revenue</Label>
+              <Input value={form.currentRevenue} onChange={(e) => update("currentRevenue", e.target.value)} placeholder="e.g. $15,000/mo" className="mt-1.5" />
+            </div>
+            <div>
+              <Label className="text-xs text-zinc-300">Target monthly revenue (90 days)</Label>
+              <Input value={form.targetRevenue} onChange={(e) => update("targetRevenue", e.target.value)} placeholder="e.g. $50,000/mo" className="mt-1.5" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 2: Pain points & systems */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-3">2. What's Holding You Back</p>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-zinc-300">Main pain points (one per line)</Label>
+            <Textarea
+              value={form.mainPainPoints}
+              onChange={(e) => update("mainPainPoints", e.target.value)}
+              placeholder={"Inconsistent leads\nNo content system\nLow close rate"}
+              rows={3}
+              className="mt-1.5"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-300">Current systems & tools (one per line)</Label>
+            <Textarea
+              value={form.currentSystems}
+              onChange={(e) => update("currentSystems", e.target.value)}
+              placeholder={"Calendly\nConvertKit\nNotion"}
+              rows={3}
+              className="mt-1.5"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 3: Team & commitment */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-3">3. Capacity</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs text-zinc-300">Team size (incl. you)</Label>
+            <Input type="number" min="1" value={form.teamSize} onChange={(e) => update("teamSize", e.target.value)} className="mt-1.5" />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-300">Hours/week you can commit</Label>
+            <Input value={form.timeCommitment} onChange={(e) => update("timeCommitment", e.target.value)} placeholder="e.g. 10 hrs/week" className="mt-1.5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 4: Success */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-3">4. Success & Risks</p>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs text-zinc-300">How will you measure success? (one per line)</Label>
+            <Textarea
+              value={form.successMetrics}
+              onChange={(e) => update("successMetrics", e.target.value)}
+              placeholder={"Hit $50k/month\n50 booked calls/month\n25% close rate"}
+              rows={3}
+              className="mt-1.5"
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-zinc-300">Risk factors / concerns (one per line)</Label>
+            <Textarea
+              value={form.riskFactors}
+              onChange={(e) => update("riskFactors", e.target.value)}
+              placeholder={"Limited time\nNo current funnel\nFirst-time hiring"}
+              rows={3}
+              className="mt-1.5"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientProgress() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isElite = (user as any)?.plan === "elite";
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [onboardingForm, setOnboardingForm] = useState({
+    businessModel: "",
+    currentRevenue: "",
+    targetRevenue: "",
+    mainPainPoints: "",
+    currentSystems: "",
+    teamSize: "1",
+    timeCommitment: "",
+    successMetrics: "",
+    riskFactors: "",
+  });
 
   const { data, isLoading } = useQuery<ProjectTrackerResponse>({
     queryKey: [`/api/project-tracker/${user?.id}`],
@@ -104,6 +236,59 @@ export default function ClientProgress() {
       toast({ title: "Could not update action", description: error.message, variant: "destructive" });
     },
   });
+
+  const submitOnboarding = useMutation({
+    mutationFn: (payload: any) => apiRequest("POST", `/api/project-tracker/${user?.id}/onboarding`, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: [`/api/project-tracker/${user?.id}`] });
+      toast({ title: "Onboarding submitted", description: "Your foundation is locked. The team will kick off the next steps." });
+      setOnboardingOpen(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Could not submit", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Hydrate form with existing data when tracker loads
+  useEffect(() => {
+    if (data?.tracker?.onboardingData) {
+      const o = data.tracker.onboardingData;
+      setOnboardingForm({
+        businessModel: o.businessModel || "",
+        currentRevenue: o.currentRevenue || "",
+        targetRevenue: o.targetRevenue || "",
+        mainPainPoints: (o.mainPainPoints || []).join("\n"),
+        currentSystems: (o.currentSystems || []).join("\n"),
+        teamSize: String(o.teamSize ?? 1),
+        timeCommitment: o.timeCommitment || "",
+        successMetrics: (o.successMetrics || []).join("\n"),
+        riskFactors: (o.riskFactors || []).join("\n"),
+      });
+    }
+  }, [data?.tracker?.onboardingData]);
+
+  // Auto-open onboarding modal if not yet completed
+  useEffect(() => {
+    if (data?.tracker && !data.tracker.onboardingData?.businessModel && !onboardingDismissed) {
+      setOnboardingOpen(true);
+    }
+  }, [data?.tracker, onboardingDismissed]);
+
+  const handleOnboardingSubmit = () => {
+    submitOnboarding.mutate({
+      businessModel: onboardingForm.businessModel.trim(),
+      currentRevenue: onboardingForm.currentRevenue.trim(),
+      targetRevenue: onboardingForm.targetRevenue.trim(),
+      mainPainPoints: onboardingForm.mainPainPoints.split("\n").map((s) => s.trim()).filter(Boolean),
+      currentSystems: onboardingForm.currentSystems.split("\n").map((s) => s.trim()).filter(Boolean),
+      teamSize: Math.max(1, parseInt(onboardingForm.teamSize, 10) || 1),
+      timeCommitment: onboardingForm.timeCommitment.trim(),
+      successMetrics: onboardingForm.successMetrics.split("\n").map((s) => s.trim()).filter(Boolean),
+      riskFactors: onboardingForm.riskFactors.split("\n").map((s) => s.trim()).filter(Boolean),
+    });
+  };
+
+  const onboardingComplete = !!data?.tracker?.onboardingData?.businessModel;
 
   const clientActions = useMemo(() => {
     if (!data?.tracker) return [];
@@ -126,7 +311,7 @@ export default function ClientProgress() {
   };
 
   // Auto-expand active phase
-  useMemo(() => {
+  useEffect(() => {
     if (data?.tracker) {
       const activePhase = data.tracker.phases.find((p) => p.status === "in_progress");
       if (activePhase) setExpandedPhases(new Set([activePhase.id]));
@@ -243,14 +428,35 @@ export default function ClientProgress() {
               </div>
             </div>
 
+            {/* ═══════════════ ONBOARDING BANNER (when incomplete) ═══════════════ */}
+            {!onboardingComplete && (
+              <div className="rounded-[20px] border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-[#d4b461]/10 p-5 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Complete your onboarding to kick off the buildout</p>
+                    <p className="text-xs text-zinc-400 mt-1">Tell us about your business so we can lock the strategic foundation and start phase 1.</p>
+                  </div>
+                </div>
+                <Button onClick={() => setOnboardingOpen(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-xl">
+                  Start Onboarding <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            )}
+
             {/* ═══════════════ MAIN CONTENT: TABBED SECTIONS ═══════════════ */}
             <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList className="!grid !grid-cols-2 md:!grid-cols-5 bg-zinc-900/80 border border-zinc-800 h-auto w-full gap-1 p-1 rounded-2xl">
+              <TabsList className="!grid !grid-cols-3 md:!grid-cols-6 bg-zinc-900/80 border border-zinc-800 h-auto w-full gap-1 p-1 rounded-2xl">
                 <TabsTrigger value="overview" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">Overview</TabsTrigger>
                 <TabsTrigger value="phases" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">Mission Map</TabsTrigger>
                 <TabsTrigger value="pipeline" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">Pipeline</TabsTrigger>
                 <TabsTrigger value="deliverables" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">Deliverables</TabsTrigger>
                 <TabsTrigger value="updates" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">Updates</TabsTrigger>
+                <TabsTrigger value="onboarding" className="rounded-xl data-[state=active]:bg-[#d4b461]/15 data-[state=active]:text-[#f3deb0]">
+                  Onboarding {!onboardingComplete && <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />}
+                </TabsTrigger>
               </TabsList>
 
               {/* ─── TAB: OVERVIEW ─── */}
@@ -655,7 +861,55 @@ export default function ClientProgress() {
                   </div>
                 </div>
               </TabsContent>
+              {/* ─── TAB: ONBOARDING ─── */}
+              <TabsContent value="onboarding" className="space-y-4">
+                <div className="rounded-[24px] border border-zinc-800 bg-[#0c0c0f] p-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap mb-5">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#d4b461]">Strategic Foundation</p>
+                      <h3 className="text-xl font-semibold text-white mt-2">Onboarding Inputs</h3>
+                      <p className="text-sm text-zinc-400 mt-1">The answers here drive every phase of the buildout. Update anytime — the team will see changes live.</p>
+                    </div>
+                    {onboardingComplete ? (
+                      <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Complete
+                      </Badge>
+                    ) : (
+                      <Badge className="border border-amber-500/30 bg-amber-500/10 text-amber-400">Pending</Badge>
+                    )}
+                  </div>
+                  <OnboardingFormFields form={onboardingForm} setForm={setOnboardingForm} />
+                  <div className="flex justify-end mt-5">
+                    <Button onClick={handleOnboardingSubmit} disabled={submitOnboarding.isPending || !onboardingForm.businessModel.trim()} className="rounded-xl">
+                      {submitOnboarding.isPending ? "Saving…" : onboardingComplete ? "Update Onboarding" : "Submit Onboarding"}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
             </Tabs>
+
+            {/* ═══════════════ ONBOARDING MODAL ═══════════════ */}
+            <Dialog open={onboardingOpen} onOpenChange={(open) => { setOnboardingOpen(open); if (!open) setOnboardingDismissed(true); }}>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#0c0c0f] border-zinc-800">
+                <DialogHeader>
+                  <DialogTitle className="text-xl text-white">Welcome to Tier 5 — let's lock your foundation</DialogTitle>
+                  <DialogDescription className="text-zinc-400">
+                    Tell us about your business so we can build the right system. Takes ~5 minutes. You can update anything later.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <OnboardingFormFields form={onboardingForm} setForm={setOnboardingForm} />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setOnboardingOpen(false); setOnboardingDismissed(true); }} className="border-zinc-700">
+                    Do this later
+                  </Button>
+                  <Button onClick={handleOnboardingSubmit} disabled={submitOnboarding.isPending || !onboardingForm.businessModel.trim()}>
+                    {submitOnboarding.isPending ? "Saving…" : "Submit & Start Buildout"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </div>

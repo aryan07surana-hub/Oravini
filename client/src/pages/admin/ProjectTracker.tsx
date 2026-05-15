@@ -23,6 +23,7 @@ import {
   Sparkles,
   Swords,
   Target,
+  Trash2,
   Users,
   Zap,
 } from "lucide-react";
@@ -282,8 +283,9 @@ export default function AdminProjectTracker() {
 
                 {/* ─── TABBED SECTIONS ─── */}
                 <Tabs defaultValue="command" className="space-y-4">
-                  <TabsList className="!grid !grid-cols-2 md:!grid-cols-6 bg-black/30 border border-card-border h-auto w-full gap-1 p-1 rounded-2xl">
+                  <TabsList className="!grid !grid-cols-2 md:!grid-cols-7 bg-black/30 border border-card-border h-auto w-full gap-1 p-1 rounded-2xl">
                     <TabsTrigger value="command" className="rounded-xl text-xs">Command</TabsTrigger>
+                    <TabsTrigger value="onboarding" className="rounded-xl text-xs">Onboarding</TabsTrigger>
                     <TabsTrigger value="phases" className="rounded-xl text-xs">Phases</TabsTrigger>
                     <TabsTrigger value="operations" className="rounded-xl text-xs">Operations</TabsTrigger>
                     <TabsTrigger value="pipeline" className="rounded-xl text-xs">Pipeline</TabsTrigger>
@@ -369,6 +371,83 @@ export default function AdminProjectTracker() {
                     </div>
                   </TabsContent>
 
+                  {/* ═══ TAB: ONBOARDING (admin view of client submission) ═══ */}
+                  <TabsContent value="onboarding" className="space-y-4">
+                    <div className="rounded-[20px] border border-card-border bg-card p-5">
+                      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#d4b461]">Client Onboarding</p>
+                          <p className="text-sm font-semibold text-foreground mt-1">Strategic Foundation</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">Read-only view of what the client submitted. Update strategy notes based on this.</p>
+                        </div>
+                        {draft.onboardingData?.businessModel ? (
+                          <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                            <CheckCircle2 className="w-3 h-3 mr-1" /> Submitted
+                          </Badge>
+                        ) : (
+                          <Badge className="border border-amber-500/30 bg-amber-500/10 text-amber-400">Awaiting Submission</Badge>
+                        )}
+                      </div>
+
+                      {draft.onboardingData?.businessModel ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Business Model</p>
+                            <p className="text-xs text-foreground whitespace-pre-line">{draft.onboardingData.businessModel}</p>
+                          </div>
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4 grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-1">Current Revenue</p>
+                              <p className="text-sm font-semibold text-foreground">{draft.onboardingData.currentRevenue || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-1">Target Revenue</p>
+                              <p className="text-sm font-semibold text-foreground">{draft.onboardingData.targetRevenue || "—"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-1">Team Size</p>
+                              <p className="text-sm font-semibold text-foreground">{draft.onboardingData.teamSize || 1}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-1">Time Commitment</p>
+                              <p className="text-sm font-semibold text-foreground">{draft.onboardingData.timeCommitment || "—"}</p>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Pain Points</p>
+                            <ul className="text-xs text-foreground space-y-1">
+                              {(draft.onboardingData.mainPainPoints || []).length === 0 ? <li className="text-muted-foreground">—</li> : draft.onboardingData.mainPainPoints.map((p, i) => <li key={i}>• {p}</li>)}
+                            </ul>
+                          </div>
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Current Systems</p>
+                            <ul className="text-xs text-foreground space-y-1">
+                              {(draft.onboardingData.currentSystems || []).length === 0 ? <li className="text-muted-foreground">—</li> : draft.onboardingData.currentSystems.map((s, i) => <li key={i}>• {s}</li>)}
+                            </ul>
+                          </div>
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Success Metrics</p>
+                            <ul className="text-xs text-foreground space-y-1">
+                              {(draft.onboardingData.successMetrics || []).length === 0 ? <li className="text-muted-foreground">—</li> : draft.onboardingData.successMetrics.map((s, i) => <li key={i}>• {s}</li>)}
+                            </ul>
+                          </div>
+                          <div className="rounded-xl border border-card-border bg-black/20 p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d4b461] mb-2">Risk Factors</p>
+                            <ul className="text-xs text-foreground space-y-1">
+                              {(draft.onboardingData.riskFactors || []).length === 0 ? <li className="text-muted-foreground">—</li> : draft.onboardingData.riskFactors.map((r, i) => <li key={i}>• {r}</li>)}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-8 text-center">
+                          <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+                          <p className="text-sm text-foreground">Client hasn't submitted onboarding yet</p>
+                          <p className="text-xs text-muted-foreground mt-1">They'll see a banner prompting them on their tracker page.</p>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+
                   {/* ═══ TAB: PHASES ═══ */}
                   <TabsContent value="phases" className="space-y-3">
                     {draft.phases.map((phase, phaseIndex) => {
@@ -429,7 +508,19 @@ export default function AdminProjectTracker() {
                                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                                     {step.actions.map((action, actionIndex) => (
                                       <div key={action.id} className={`rounded-lg border p-3 space-y-2 ${priorityColor[action.priority]}`}>
-                                        <Input value={action.title} className="text-xs" onChange={(e) => updateDraft((c) => { const phases = [...c.phases]; const steps = [...phase.steps]; const actions = [...step.actions]; actions[actionIndex] = { ...action, title: e.target.value }; steps[stepIndex] = { ...step, actions }; phases[phaseIndex] = { ...phase, steps }; return { ...c, phases }; })} />
+                                        <div className="flex items-start gap-1.5">
+                                          <Input value={action.title} className="text-xs flex-1" onChange={(e) => updateDraft((c) => { const phases = [...c.phases]; const steps = [...phase.steps]; const actions = [...step.actions]; actions[actionIndex] = { ...action, title: e.target.value }; steps[stepIndex] = { ...step, actions }; phases[phaseIndex] = { ...phase, steps }; return { ...c, phases }; })} />
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 w-7 p-0 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+                                            onClick={() => updateDraft((c) => { const phases = [...c.phases]; const steps = [...phase.steps]; const actions = step.actions.filter((_, i) => i !== actionIndex); steps[stepIndex] = { ...step, actions }; phases[phaseIndex] = { ...phase, steps }; return { ...c, phases }; })}
+                                            title="Delete action"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-1.5">
                                           <Select value={action.status} onValueChange={(v: any) => updateDraft((c) => { const phases = [...c.phases]; const steps = [...phase.steps]; const actions = [...step.actions]; actions[actionIndex] = { ...action, status: v }; steps[stepIndex] = { ...step, actions }; phases[phaseIndex] = { ...phase, steps }; return { ...c, phases }; })}>
                                             <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
@@ -458,6 +549,34 @@ export default function AdminProjectTracker() {
                                       </div>
                                     ))}
                                   </div>
+
+                                  {/* Add action button */}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-8 text-[10px] border-dashed border-card-border text-muted-foreground hover:text-foreground hover:border-[#d4b461]/40"
+                                    onClick={() => updateDraft((c) => {
+                                      const phases = [...c.phases];
+                                      const steps = [...phase.steps];
+                                      const newAction = {
+                                        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                                        title: "New action",
+                                        description: "",
+                                        owner: "team" as ActionOwner,
+                                        status: "pending" as ActionStatus,
+                                        priority: "medium" as ActionPriority,
+                                        dueDate: null,
+                                        clientVisible: true,
+                                        requiresApproval: false,
+                                      };
+                                      steps[stepIndex] = { ...step, actions: [...step.actions, newAction] };
+                                      phases[phaseIndex] = { ...phase, steps };
+                                      return { ...c, phases };
+                                    })}
+                                  >
+                                    <Plus className="w-3 h-3 mr-1" /> Add custom action
+                                  </Button>
                                 </div>
                               ))}
                             </div>

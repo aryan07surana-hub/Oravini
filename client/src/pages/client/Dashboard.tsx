@@ -926,7 +926,7 @@ const CREATOR_TIPS = [
 ───────────────────────────────────────────── */
 const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string }> = {
   "Growing my followers":              { action: "Run a competitor scan to find content already winning in your niche, then model what works.",          href: "/competitor-study",       tool: "Competitor Intel" },
-  "Low engagement on posts":           { action: "Score your next post through the Virality Tester before publishing — find the weak spots first.",       href: "/virality-tester",        tool: "Virality Tester" },
+  "Low engagement on posts":           { action: "Design scroll-stopping carousels and test different formats to boost interaction.",                      href: "/carousel-studio",        tool: "Carousel Studio" },
   "Coming up with content ideas":      { action: "Generate a full week of niche-specific ideas with hooks and formats in 60 seconds.",                     href: "/ai-ideas",               tool: "AI Content Ideas" },
   "Monetising my audience":            { action: "Build your Ideal Customer Profile — identify exactly who you're selling to and what they need most.",    href: "/icp-builder",            tool: "ICP Builder" },
   "Staying consistent":                { action: "Set up your content board and schedule the next 30 days in one batch session.",                          href: "/board-builder",          tool: "Board Builder" },
@@ -935,10 +935,10 @@ const STRUGGLE_MAP: Record<string, { action: string; href: string; tool: string 
   "Managing time efficiently":         { action: "Block one creation day per week and plan the full month with your content calendar.",                    href: "/content-calendar",       tool: "Content Calendar" },
   "Standing out in a crowded niche":   { action: "Map your audience psychology to find the emotional angles your competitors consistently miss.",          href: "/audience-psychology",    tool: "Audience Psychology" },
   "Converting followers to customers": { action: "Create a lead magnet that captures emails and starts your sales funnel — first offer under $97.",        href: "/lead-magnet-generator",  tool: "Lead Magnet Generator" },
-  "Dealing with algorithm changes":    { action: "Track your IG follower count and engagement rate daily — spot trend drops before they compound.",        href: "/ig-growth-tracker",      tool: "IG Growth Tracker" },
+  "Dealing with algorithm changes":    { action: "Track your IG follower count and engagement rate daily — spot trend drops before they compound.",        href: "/tracking/content/instagram",      tool: "IG Growth Tracker" },
   "Building a personal brand identity":{ action: "Generate your complete brand kit — colours, fonts, voice, and positioning in one session.",             href: "/brand-kit-builder",      tool: "Brand Kit Builder" },
   "Knowing what content to create":    { action: "Generate a 30-day content plan with hooks, formats, and a posting cadence built for your niche.",       href: "/content-calendar",       tool: "Content Calendar" },
-  "Getting views / reach":             { action: "Score your next script with the Virality Tester — fix the hook before posting, not after.",              href: "/virality-tester",        tool: "Virality Tester" },
+  "Getting views / reach":             { action: "Analyse your top-performing content with Content Intelligence and double down on what works.",           href: "/content-intelligence",   tool: "Content Intelligence" },
   "Building confidence on camera":     { action: "Generate camera-friendly scripts with natural delivery cues — practice with the words, not just ideas.", href: "/ai-ideas",               tool: "AI Content Ideas" },
   "Editing and production quality":    { action: "Use the AI Video Editor to trim, caption, and enhance your clips — no editing experience needed.",       href: "/video-editor",           tool: "AI Video Editor" },
 };
