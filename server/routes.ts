@@ -4012,7 +4012,7 @@ Return ONLY a JSON object (no markdown, no text outside JSON):
 
   app.get("/api/dm/sequences/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const seq = await storage.getDmSequence(p(req.params.id));
+      const seq = await storage.getDmSequenceById(p(req.params.id));
       if (!seq) return res.status(404).json({ message: "Sequence not found" });
       return res.json(seq);
     } catch (err: any) { return res.status(500).json({ message: err.message }); }

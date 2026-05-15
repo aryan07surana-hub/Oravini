@@ -838,39 +838,6 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
 
   const isConnected = account?.connected;
 
-  // Show error state if critical queries fail
-  if (triggersError || sequencesError || leadsError) {
-    return (
-      <Layout>
-        <div className="p-6 max-w-7xl mx-auto">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-              <Bot className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">DM Automation</h1>
-              <p className="text-xs text-muted-foreground">Leads, auto-replies & sequences</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="max-w-md w-full p-6 space-y-4 text-center border border-red-500/20 bg-red-500/5 rounded-xl">
-              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
-                <AlertCircle className="w-8 h-8 text-red-400" />
-              </div>
-              <h2 className="text-lg font-bold text-foreground">Failed to Load DM Automation</h2>
-              <p className="text-sm text-muted-foreground">
-                {(triggersError as any)?.message || (sequencesError as any)?.message || (leadsError as any)?.message || "An error occurred while loading your data"}
-              </p>
-              <Button onClick={() => window.location.reload()} className="w-full">
-                Reload Page
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">

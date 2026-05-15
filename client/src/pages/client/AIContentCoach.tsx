@@ -438,11 +438,11 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-zinc-800/50 rounded-lg p-2 text-center">
-                <p className="text-xs font-bold text-zinc-200">{msg.competitorData.profile.avgViews.toLocaleString()}</p>
+                <p className="text-xs font-bold text-zinc-200">{(msg.competitorData.profile.avgViews ?? 0).toLocaleString()}</p>
                 <p className="text-[10px] text-zinc-500">avg views</p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-2 text-center">
-                <p className="text-xs font-bold text-zinc-200">{msg.competitorData.profile.avgLikes.toLocaleString()}</p>
+                <p className="text-xs font-bold text-zinc-200">{(msg.competitorData.profile.avgLikes ?? 0).toLocaleString()}</p>
                 <p className="text-[10px] text-zinc-500">avg likes</p>
               </div>
             </div>

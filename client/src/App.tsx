@@ -1,5 +1,6 @@
 import { Component, type ReactNode, type ErrorInfo } from "react";
 import { Switch, Route, Redirect } from "wouter";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
@@ -148,7 +149,7 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
   if (adminOnly && (user as any).role !== "admin") return <Redirect to="/dashboard" />;
   if ((user as any).role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if ((user as any).role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
-  return <Component {...props} />;
+  return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
 }
 
 function HomeRedirect() {

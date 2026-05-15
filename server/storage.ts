@@ -270,6 +270,10 @@ export interface IStorage {
   updateDmSequence(id: string, data: Partial<InsertDmSequence>): Promise<DmSequence>;
   deleteDmSequence(id: string): Promise<void>;
   getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]>;
+  getDmSequenceById(id: string): Promise<DmSequence | null>;
+  createDmSequenceStep(data: InsertDmSequenceStep): Promise<DmSequenceStep>;
+  updateDmSequenceStep(id: string, data: Partial<InsertDmSequenceStep>): Promise<DmSequenceStep>;
+  deleteDmSequenceStep(id: string): Promise<void>;
   upsertDmSequenceSteps(sequenceId: string, steps: Omit<InsertDmSequenceStep, "sequenceId">[]): Promise<DmSequenceStep[]>;
   createDmSequenceStep(data: InsertDmSequenceStep): Promise<DmSequenceStep>;
   updateDmSequenceStep(id: string, data: Partial<InsertDmSequenceStep>): Promise<DmSequenceStep>;
@@ -1938,6 +1942,10 @@ class DatabaseStorage implements IStorage {
 
   async getDmSequenceSteps(sequenceId: string): Promise<DmSequenceStep[]> {
     return db.select().from(dmSequenceSteps).where(eq(dmSequenceSteps.sequenceId, sequenceId)).orderBy(dmSequenceSteps.stepOrder);
+  }
+  async getDmSequenceById(id: string): Promise<DmSequence | null> {
+    const [row] = await db.select().from(dmSequences).where(eq(dmSequences.id, id));
+    return row ?? null;
   }
   async createDmSequenceStep(data: InsertDmSequenceStep): Promise<DmSequenceStep> {
     const [row] = await db.insert(dmSequenceSteps).values(data).returning();
