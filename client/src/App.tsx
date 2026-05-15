@@ -158,6 +158,7 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
     </div>
   );
   if (!user) return <Redirect to="/login" />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/portal/elite-members" />;
   if (adminOnly && (user as any).role !== "admin") return <Redirect to="/dashboard" />;
   if ((user as any).role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if ((user as any).role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
