@@ -13,7 +13,7 @@ import {
   ArrowLeft, PlusCircle, Brain, Target, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 
@@ -339,8 +339,10 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     } catch (err: any) {
       setGenerating(false);
       setApiDone(false);
-      if (err.message?.includes("402") || err.insufficientCredits) {
+      if (err instanceof ApiError && err.status === 402) {
         toast({ title: "Not enough credits", description: "Upgrade your plan to generate more carousels.", variant: "destructive" });
+      } else if (err instanceof ApiError && err.status === 401) {
+        toast({ title: "Session expired", description: "Please log in again", variant: "destructive" });
       } else {
         toast({ title: "Generation failed", description: err.message, variant: "destructive" });
       }
@@ -367,7 +369,8 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       setActiveIdx(slides.length);
       toast({ title: `${newSlides.length} more slides added!`, description: `2 credits used · ${data.balance} remaining` });
     } catch (err: any) {
-      toast({ title: "Failed to add slides", description: err.message, variant: "destructive" });
+      const msg = err instanceof ApiError && err.status === 401 ? "Session expired. Please log in again." : err.message;
+      toast({ title: "Failed to add slides", description: msg, variant: "destructive" });
     } finally { setGeneratingMore(false); }
   }
 
@@ -388,7 +391,8 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       setRefineInput("");
       toast({ title: "Carousel refined!", description: "2 credits used." });
     } catch (err: any) {
-      toast({ title: "Refinement failed", description: err.message, variant: "destructive" });
+      const msg = err instanceof ApiError && err.status === 401 ? "Session expired. Please log in again." : err.message;
+      toast({ title: "Refinement failed", description: msg, variant: "destructive" });
     } finally { setRefining(false); }
   }
 
@@ -401,7 +405,8 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
       updateSlide(idx, { headline: data.headline, body: data.body });
       toast({ title: `Slide ${idx + 1} regenerated` });
     } catch (err: any) {
-      toast({ title: "Regeneration failed", description: err.message, variant: "destructive" });
+      const msg = err instanceof ApiError && err.status === 401 ? "Session expired. Please log in again." : err.message;
+      toast({ title: "Regeneration failed", description: msg, variant: "destructive" });
     } finally { setRegenIdx(null); }
   }
 

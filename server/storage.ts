@@ -90,9 +90,11 @@ import {
   type ContentTemplate, type InsertContentTemplate,
   type PlatformTrainingData, type InsertPlatformTrainingData,
   type FunnelStageTraining, type InsertFunnelStageTraining,
-  webinarPolls, webinarPollVotes, webinarSeries,
+  webinarPolls, webinarPollVotes, webinarSeries, webinarViewerSessions, webinarAnalytics,
   type WebinarPoll, type InsertWebinarPoll,
   type WebinarSeries, type InsertWebinarSeries,
+  type WebinarViewerSession, type InsertWebinarViewerSession,
+  type WebinarAnalytics, type InsertWebinarAnalytics,
   videoCollections, videoCollectionItems, videoChapters, videoCtas, videoViewerSessions,
   type VideoCollection, type InsertVideoCollection, type VideoCollectionItem,
   type VideoChapter, type InsertVideoChapter,
@@ -484,6 +486,19 @@ export interface IStorage {
   createWebinarSeries(data: InsertWebinarSeries): Promise<WebinarSeries>;
   updateWebinarSeries(id: string, data: Partial<InsertWebinarSeries>): Promise<WebinarSeries | undefined>;
   deleteWebinarSeries(id: string): Promise<void>;
+  // Webinar Viewer Sessions
+  createWebinarViewerSession(data: InsertWebinarViewerSession): Promise<WebinarViewerSession>;
+  getWebinarViewerSessions(webinarId: string): Promise<WebinarViewerSession[]>;
+  updateWebinarViewerSession(id: string, data: Partial<WebinarViewerSession>): Promise<WebinarViewerSession | undefined>;
+  getActiveViewerCount(webinarId: string): Promise<number>;
+  // Webinar Analytics
+  getWebinarAnalytics(webinarId: string): Promise<WebinarAnalytics | undefined>;
+  upsertWebinarAnalytics(webinarId: string, data: Partial<InsertWebinarAnalytics>): Promise<WebinarAnalytics>;
+  // Webinar Poll Votes
+  createWebinarPollVote(data: { pollId: string; webinarId: string; viewerId: string; viewerName: string; optionIndex: number }): Promise<any>;
+  getWebinarPollVotes(pollId: string): Promise<any[]>;
+  // Webinar Series - generate instances
+  generateSeriesInstances(seriesId: string, count?: number): Promise<any[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -2293,9 +2308,15 @@ class DatabaseStorage implements IStorage {
   }
 
   async incrementDailyStat(videoId: string, date: string, field: string): Promise<void> {
+    const allowedFields = ["views", "uniqueViewers", "plays", "completions", "totalWatchSeconds", "avgCompletionPct", "ctaClicks", "leadCaptures", "avgEngagementPct", "bounceCount"];
+    if (!allowedFields.includes(field)) {
+      throw new Error(`Invalid field: ${field}`);
+    }
     const existing = await db.select().from(videoAnalyticsDailyStats).where(and(eq(videoAnalyticsDailyStats.videoId, videoId), eq(videoAnalyticsDailyStats.date, date)));
     if (existing.length > 0) {
-      await db.execute(sqlExpr`UPDATE video_analytics_daily_stats SET ${sqlExpr.raw(field)} = ${sqlExpr.raw(field)} + 1 WHERE video_id = ${videoId} AND date = ${date}`);
+      const updateData: any = {};
+      updateData[field] = sqlExpr`${sqlExpr.raw(`"${field}"`)} + 1`;
+      await db.update(videoAnalyticsDailyStats).set(updateData).where(and(eq(videoAnalyticsDailyStats.videoId, videoId), eq(videoAnalyticsDailyStats.date, date)));
     } else {
       const insert: any = { videoId, date, views: 0, uniqueViewers: 0, plays: 0, completions: 0, totalWatchSeconds: 0, avgCompletionPct: 0, ctaClicks: 0, leadCaptures: 0, avgEngagementPct: 0, bounceCount: 0 };
       insert[field] = 1;
@@ -2663,6 +2684,83 @@ class DatabaseStorage implements IStorage {
   }
   async deleteWebinarSeries(id: string): Promise<void> {
     await db.delete(webinarSeries).where(eq(webinarSeries.id, id));
+  }
+
+  // ── Webinar Viewer Sessions ─────────────────────────────────────────────
+  async createWebinarViewerSession(data: InsertWebinarViewerSession): Promise<WebinarViewerSession> {
+    const [row] = await db.insert(webinarViewerSessions).values(data).returning();
+    return row;
+  }
+  async getWebinarViewerSessions(webinarId: string): Promise<WebinarViewerSession[]> {
+    return db.select().from(webinarViewerSessions).where(eq(webinarViewerSessions.webinarId, webinarId)).orderBy(desc(webinarViewerSessions.joinedAt));
+  }
+  async updateWebinarViewerSession(id: string, data: Partial<WebinarViewerSession>): Promise<WebinarViewerSession | undefined> {
+    const [row] = await db.update(webinarViewerSessions).set(data).where(eq(webinarViewerSessions.id, id)).returning();
+    return row;
+  }
+  async getActiveViewerCount(webinarId: string): Promise<number> {
+    const cutoff = new Date(Date.now() - 60000);
+    const rows = await db.select().from(webinarViewerSessions).where(
+      and(
+        eq(webinarViewerSessions.webinarId, webinarId),
+        eq(webinarViewerSessions.isActive, true),
+        gte(webinarViewerSessions.lastHeartbeatAt, cutoff)
+      )
+    );
+    return rows.length;
+  }
+
+  // ── Webinar Analytics ───────────────────────────────────────────────────
+  async getWebinarAnalytics(webinarId: string): Promise<WebinarAnalytics | undefined> {
+    const [row] = await db.select().from(webinarAnalytics).where(eq(webinarAnalytics.webinarId, webinarId));
+    return row;
+  }
+  async upsertWebinarAnalytics(webinarId: string, data: Partial<InsertWebinarAnalytics>): Promise<WebinarAnalytics> {
+    const [row] = await db
+      .insert(webinarAnalytics)
+      .values({ webinarId, ...data })
+      .onConflictDoUpdate({ target: webinarAnalytics.webinarId, set: { ...data, updatedAt: new Date() } })
+      .returning();
+    return row;
+  }
+
+  // ── Webinar Poll Votes ──────────────────────────────────────────────────
+  async createWebinarPollVote(data: { pollId: string; webinarId: string; viewerId: string; viewerName: string; optionIndex: number }): Promise<any> {
+    const [row] = await db.insert(webinarPollVotes).values(data).returning();
+    return row;
+  }
+  async getWebinarPollVotes(pollId: string): Promise<any[]> {
+    return db.select().from(webinarPollVotes).where(eq(webinarPollVotes.pollId, pollId));
+  }
+
+  // ── Webinar Series - Generate Instances ─────────────────────────────────
+  async generateSeriesInstances(seriesId: string, count: number = 5): Promise<any[]> {
+    const series = await this.getWebinarSeriesById(seriesId);
+    if (!series) return [];
+    const instances: any[] = [];
+    const now = new Date();
+    for (let i = 0; i < count; i++) {
+      const scheduledAt = new Date(now);
+      const daysToAdd = i * (series.schedule === "daily" ? 1 : series.schedule === "weekly" ? 7 : series.schedule === "biweekly" ? 14 : 30);
+      scheduledAt.setDate(scheduledAt.getDate() + daysToAdd);
+      scheduledAt.setHours(series.timeHour, series.timeMinute, 0, 0);
+      const meetingCode = `${series.title.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}-${i}`;
+      const [webinar] = await db.insert(webinars).values({
+        userId: series.userId,
+        title: series.title,
+        description: series.description,
+        scheduledAt,
+        durationMinutes: series.durationMinutes,
+        maxAttendees: series.maxAttendees,
+        meetingCode,
+        presenterName: series.presenterName,
+        webinarType: series.webinarType,
+        seriesId: series.id,
+        status: "upcoming",
+      }).returning();
+      instances.push(webinar);
+    }
+    return instances;
   }
 }
 

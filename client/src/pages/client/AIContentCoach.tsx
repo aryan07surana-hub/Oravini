@@ -613,8 +613,10 @@ export default function AIContentCoach() {
     } catch(e:any) {
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
+      } else if (e instanceof ApiError && e.status === 401) {
+        toast({ title:"Session expired",description:"Please log in again",variant:"destructive" });
       } else {
-        toast({ title:"Coach is down",description:e.message,variant:"destructive" });
+        toast({ title:"Coach is down",description:e.message||"Try again in a moment",variant:"destructive" });
       }
       setMood("idle");
     }

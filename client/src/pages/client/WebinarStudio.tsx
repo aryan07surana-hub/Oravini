@@ -251,8 +251,10 @@ export default function WebinarStudio() {
       if (wsRef.current?.readyState === WebSocket.OPEN)
         wsRef.current.send(JSON.stringify({ type: "wr_host_end", webinarId }));
       wsRef.current?.close();
-      peerConnsRef.current.forEach(pc => pc.close());
-      peerConnsRef.current.clear();
+      if (!livekit.isLiveKitAvailable || !livekit.room) {
+        peerConnsRef.current.forEach(pc => pc.close());
+        peerConnsRef.current.clear();
+      }
       addSys("Webinar has ended. Viewers have been notified.");
     },
   });
@@ -325,11 +327,12 @@ export default function WebinarStudio() {
       addSys("Screen sharing started.");
       const screenVideoTrack = stream.getVideoTracks()[0];
       if (screenVideoTrack) {
-        // Legacy P2P fallback
-        peerConnsRef.current.forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(screenVideoTrack).catch(() => {});
-        });
+        if (!livekit.isLiveKitAvailable || !livekit.room) {
+          peerConnsRef.current.forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+            if (sender) sender.replaceTrack(screenVideoTrack).catch(() => {});
+          });
+        }
         screenVideoTrack.addEventListener("ended", stopScreen);
       }
       // Publish screen to LiveKit if connected
@@ -355,10 +358,12 @@ export default function WebinarStudio() {
     if (camStream.current) {
       const camVideoTrack = camStream.current.getVideoTracks()[0];
       if (camVideoTrack) {
-        peerConnsRef.current.forEach(pc => {
-          const sender = pc.getSenders().find(s => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(camVideoTrack).catch(() => {});
-        });
+        if (!livekit.isLiveKitAvailable || !livekit.room) {
+          peerConnsRef.current.forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+            if (sender) sender.replaceTrack(camVideoTrack).catch(() => {});
+          });
+        }
       }
     }
   }, [livekit.status]);
@@ -452,8 +457,10 @@ export default function WebinarStudio() {
     if (recordTimer.current) clearInterval(recordTimer.current);
     if (mediaRecorder.current?.state !== "inactive") mediaRecorder.current?.stop();
     wsRef.current?.close();
-    peerConnsRef.current.forEach(pc => pc.close());
-    peerConnsRef.current.clear();
+    if (!livekit.isLiveKitAvailable || !livekit.room) {
+      peerConnsRef.current.forEach(pc => pc.close());
+      peerConnsRef.current.clear();
+    }
   }, []);
 
   const sendChat = () => {

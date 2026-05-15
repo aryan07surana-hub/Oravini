@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
 import { Plus, FileText, BarChart2, ExternalLink, Trash2, Copy, Eye, CheckCircle2, Clock, Zap, ClipboardList, Brain } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -104,7 +104,10 @@ export default function FormsHub() {
       setCreating(false);
       navigate(`/tools/forms/${form.id}`);
     },
-    onError: () => toast({ title: "Failed to create form", variant: "destructive" }),
+    onError: (e: any) => {
+      const msg = e instanceof ApiError && e.status === 401 ? "Session expired. Please log in again." : e.message;
+      toast({ title: "Failed to create form", description: msg, variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({

@@ -42,20 +42,23 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
 
   const activeClientId = isAdmin ? (selectedClientId === "all" ? "" : selectedClientId) : (user?.id || "");
 
-  const { data: leads = [] } = useQuery<any[]>({
+  const { data: _leads } = useQuery<any[]>({
     queryKey: ["/api/dm/leads", activeClientId],
-    queryFn: () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
   });
+  const leads = _leads ?? [];
 
-  const { data: triggers = [] } = useQuery<any[]>({
+  const { data: _triggers } = useQuery<any[]>({
     queryKey: ["/api/dm/triggers", activeClientId],
-    queryFn: () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
   });
+  const triggers = _triggers ?? [];
 
-  const { data: sequences = [] } = useQuery<any[]>({
+  const { data: _sequences } = useQuery<any[]>({
     queryKey: ["/api/dm/sequences", activeClientId],
-    queryFn: () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
   });
+  const sequences = _sequences ?? [];
 
   const stats = {
     totalLeads: leads.length,

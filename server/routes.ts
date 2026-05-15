@@ -213,9 +213,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     let currentRole: "host" | "viewer" | null = null;
     let currentViewerId: string | null = null;
 
+    // Rate limiting per connection
+    const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+    const checkRateLimit = (key: string, maxPerSec: number = 10): boolean => {
+      const now = Date.now();
+      const entry = rateLimitMap.get(key);
+      if (!entry || now > entry.resetAt) {
+        rateLimitMap.set(key, { count: 1, resetAt: now + 1000 });
+        return true;
+      }
+      if (entry.count >= maxPerSec) return false;
+      entry.count++;
+      return true;
+    };
+
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
+        // Rate limiting
+        const msgType = msg.type || "unknown";
+        if (!checkRateLimit(msgType)) {
+          ws.send(JSON.stringify({ type: "wr_error", message: "Rate limited. Slow down." }));
+          return;
+        }
         const { type, webinarId } = msg;
         if (!type || !webinarId) return;
 
@@ -7336,7 +7356,10 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         userRows, planRows, monthRows, leadRows, feedbackRows, deletionRows,
         referralRows, creditRows, surveyPlatformRows, surveyFieldRows,
         leadSourceRows, contentRows, webinarRows, videoRows,
-        aiToolRows, emailStatsRows, communityRows, bookingRows
+        aiToolRows, emailStatsRows, communityRows, bookingRows,
+        contentPlatformRows, contentFunnelRows, dmLeadRows, dmTriggerRows,
+        videoAnalyticsRows, igProfileRows, igSnapshotRows,
+        readingMatRows, readingStreakRows,
       ] = await Promise.all([
         pool.query(`SELECT COUNT(*)::int AS total FROM users WHERE role = 'client'`),
         pool.query(`SELECT plan, COUNT(*)::int AS count FROM users WHERE role = 'client' GROUP BY plan ORDER BY plan`),
@@ -7375,6 +7398,20 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         pool.query(`SELECT COUNT(*)::int AS total_sent, COUNT(*) FILTER (WHERE opened_at IS NOT NULL)::int AS total_opened FROM email_logs`),
         pool.query(`SELECT COUNT(*)::int AS total_posts FROM community_posts`),
         pool.query(`SELECT COUNT(*)::int AS total FROM scheduled_bookings`),
+        // Content performance by platform & funnel stage
+        pool.query(`SELECT platform, COUNT(*)::int AS posts, COALESCE(AVG(views)::int, 0) AS avg_views, COALESCE(AVG(likes)::int, 0) AS avg_likes FROM content_posts GROUP BY platform ORDER BY posts DESC`),
+        pool.query(`SELECT funnel_stage, COUNT(*)::int AS posts, COALESCE(AVG(views)::int, 0) AS avg_views, COALESCE(AVG(likes)::int, 0) AS avg_likes FROM content_posts GROUP BY funnel_stage ORDER BY posts DESC`),
+        // DM Automation
+        pool.query(`SELECT status, COUNT(*)::int AS count FROM dm_leads GROUP BY status ORDER BY count DESC`),
+        pool.query(`SELECT COALESCE(SUM(trigger_count)::int, 0) AS total_triggers, COUNT(*)::int AS active_triggers FROM dm_triggers WHERE is_active = true`),
+        // Video analytics
+        pool.query(`SELECT COALESCE(SUM(views)::int, 0) AS total_views, COALESCE(AVG(avg_completion_pct)::int, 0) AS avg_completion, COALESCE(SUM(cta_clicks)::int, 0) AS total_cta_clicks FROM video_analytics_daily_stats`),
+        // Instagram tracking
+        pool.query(`SELECT COUNT(*)::int AS total_profiles FROM ig_tracked_profiles`),
+        pool.query(`SELECT COALESCE(AVG(followers_count)::int, 0) AS avg_followers, COALESCE(MAX(followers_count)::int, 0) AS max_followers FROM ig_follower_snapshots WHERE scanned_at >= NOW() - INTERVAL '30 days'`),
+        // Reading / Education
+        pool.query(`SELECT COUNT(*)::int AS total_materials, COUNT(*) FILTER (WHERE status = 'completed')::int AS completed, COUNT(*) FILTER (WHERE status = 'reading')::int AS in_progress FROM reading_materials`),
+        pool.query(`SELECT COALESCE(MAX(knowledge_score)::int, 0) AS max_score, COALESCE(AVG(knowledge_score)::int, 0) AS avg_score, COALESCE(SUM(total_days_read)::int, 0) AS total_days_read, COALESCE(SUM(books_completed)::int, 0) AS books_completed FROM reading_streaks`),
       ]);
 
       const totalUsers = userRows.rows[0].total;
@@ -7399,6 +7436,15 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const emailStats = emailStatsRows.rows[0];
       const totalCommunityPosts = communityRows.rows[0].total_posts;
       const totalBookings = bookingRows.rows[0].total;
+      const contentByPlatform = contentPlatformRows.rows;
+      const contentByFunnel = contentFunnelRows.rows;
+      const dmLeadsByStatus = dmLeadRows.rows;
+      const dmTriggerAgg = dmTriggerRows.rows[0];
+      const videoAnalytics = videoAnalyticsRows.rows[0];
+      const igProfilesCount = igProfileRows.rows[0].total_profiles;
+      const igSnapshot = igSnapshotRows.rows[0];
+      const readingMaterials = readingMatRows.rows[0];
+      const readingStreaks = readingStreakRows.rows[0];
 
       const planPrices: Record<string, number> = { starter: 29, growth: 59, pro: 79, elite: 149 };
       let mrr = 0;
@@ -7419,6 +7465,12 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
         totalWebinars, totalVideos, aiTools,
         emailSent: emailStats.total_sent, emailOpened: emailStats.total_opened,
         totalCommunityPosts, totalBookings,
+        contentByPlatform, contentByFunnel,
+        dmLeadsByStatus, dmTotalTriggers: dmTriggerAgg.total_triggers, dmActiveTriggers: dmTriggerAgg.active_triggers,
+        videoViews: videoAnalytics.total_views, videoAvgCompletion: videoAnalytics.avg_completion, videoCtaClicks: videoAnalytics.total_cta_clicks,
+        igProfilesCount, igAvgFollowers: igSnapshot.avg_followers, igMaxFollowers: igSnapshot.max_followers,
+        readingTotalMaterials: readingMaterials.total_materials, readingCompleted: readingMaterials.completed, readingInProgress: readingMaterials.in_progress,
+        readingMaxScore: readingStreaks.max_score, readingAvgScore: readingStreaks.avg_score, readingTotalDays: readingStreaks.total_days_read, readingBooksCompleted: readingStreaks.books_completed,
       });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -11737,16 +11789,35 @@ Rules:
 
   app.post("/api/webinars/:id/start", requireAuth, async (req, res) => {
     try {
-      const webinar = await storage.updateWebinar(p(req.params.id), { status: "live" });
+      const webinar = await storage.updateWebinar(p(req.params.id), {
+        status: "live",
+        startedAt: new Date()
+      });
+      // Check if email reminders were enabled and send started notifications
+      if (webinar?.emailReminderEnabled) {
+        // Fire-and-forget: send live notification to registered attendees
+        const registrations = await storage.getWebinarRegistrations(p(req.params.id));
+        console.log(`[webinar] Sending live notification to ${registrations.length} registrants for webinar ${webinar.title}`);
+        // In production: dispatch email via sendgrid/resend etc.
+        // For now, log the intent
+      }
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.post("/api/webinars/:id/end", requireAuth, async (req, res) => {
     try {
-      const webinar = await storage.updateWebinar(p(req.params.id), { status: "completed" });
-      // Clean up LiveKit room
-      try { await deleteWebinarRoom(req.params.id as string); } catch {}
+      const webinar = await storage.updateWebinar(p(req.params.id), {
+        status: "completed",
+        endedAt: new Date()
+      });
+      // Clean up LiveKit room with logging
+      try {
+        await deleteWebinarRoom(req.params.id as string);
+        console.log(`[webinar] LiveKit room cleaned up for webinar ${req.params.id}`);
+      } catch (lkErr: any) {
+        console.error(`[webinar] Failed to clean up LiveKit room: ${lkErr.message}`);
+      }
       res.json(webinar);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -11817,6 +11888,177 @@ Rules:
         webinarId: p(req.params.id), name, email, phone: phone || null,
       });
       res.status(201).json(reg);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Webinar Viewer Tracking ────────────────────────────────────────────
+  // Track when a viewer joins the webinar
+  app.post("/api/webinars/:id/track/join", async (req: Request, res: Response) => {
+    try {
+      const { viewerId, viewerName, ipAddress, userAgent, referrer } = req.body;
+      if (!viewerId) return res.status(400).json({ message: "viewerId required" });
+
+      const session = await storage.createWebinarViewerSession({
+        webinarId: p(req.params.id),
+        viewerId,
+        viewerName: viewerName || "Anonymous",
+        ipAddress: ipAddress || null,
+        userAgent: userAgent || null,
+        referrer: referrer || null,
+        country: null,
+        watchedSeconds: 0,
+        isActive: true,
+      });
+
+      // Upsert analytics record
+      const existing = await storage.getWebinarAnalytics(p(req.params.id));
+      if (existing) {
+        await storage.upsertWebinarAnalytics(p(req.params.id), {
+          totalViewers: (existing.totalViewers || 0) + 1,
+        });
+      }
+
+      res.status(201).json({ sessionId: session.id });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Track heartbeat (every 30s from viewer)
+  app.post("/api/webinars/:id/track/heartbeat", async (req: Request, res: Response) => {
+    try {
+      const { sessionId, watchedSeconds } = req.body;
+      if (!sessionId) return res.status(400).json({ message: "sessionId required" });
+
+      const session = await storage.updateWebinarViewerSession(sessionId, {
+        lastHeartbeatAt: new Date(),
+        watchedSeconds: watchedSeconds || 0,
+        isActive: true,
+      });
+
+      // Update peak concurrent
+      const activeCount = await storage.getActiveViewerCount(p(req.params.id));
+      const analytics = await storage.getWebinarAnalytics(p(req.params.id));
+      if (analytics) {
+        const newPeak = Math.max(analytics.peakConcurrent || 0, activeCount);
+        await storage.upsertWebinarAnalytics(p(req.params.id), { peakConcurrent: newPeak });
+      }
+
+      res.json({ ok: true, activeViewers: activeCount });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Track when a viewer leaves
+  app.post("/api/webinars/:id/track/leave", async (req: Request, res: Response) => {
+    try {
+      const { sessionId, watchedSeconds } = req.body;
+      if (!sessionId) return res.status(400).json({ message: "sessionId required" });
+
+      await storage.updateWebinarViewerSession(sessionId, {
+        leftAt: new Date(),
+        watchedSeconds: watchedSeconds || 0,
+        isActive: false,
+      });
+
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Track a custom engagement event (chat, reaction, question, poll_vote, cta_click)
+  app.post("/api/webinars/:id/track/event", async (req: Request, res: Response) => {
+    try {
+      const { eventType } = req.body;
+      if (!eventType) return res.status(400).json({ message: "eventType required" });
+
+      // Update analytics counters
+      const analytics = await storage.getWebinarAnalytics(p(req.params.id));
+      const update: any = {};
+      switch (eventType) {
+        case "chat": update.totalChatMessages = (analytics?.totalChatMessages || 0) + 1; break;
+        case "reaction": update.totalReactions = (analytics?.totalReactions || 0) + 1; break;
+        case "question": update.totalQuestions = (analytics?.totalQuestions || 0) + 1; break;
+        case "poll_vote": update.totalPollVotes = (analytics?.totalPollVotes || 0) + 1; break;
+        case "cta_click": update.totalCtaClicks = (analytics?.totalCtaClicks || 0) + 1; break;
+      }
+      if (Object.keys(update).length > 0) {
+        await storage.upsertWebinarAnalytics(p(req.params.id), update);
+      }
+
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get webinar analytics summary
+  app.get("/api/webinars/:id/analytics", async (req: Request, res: Response) => {
+    try {
+      const webinarId = p(req.params.id);
+      const webinar = await storage.getWebinar(webinarId);
+      if (!webinar) return res.status(404).json({ message: "Webinar not found" });
+
+      const registrations = await storage.getWebinarRegistrations(webinarId);
+      const sessions = await storage.getWebinarViewerSessions(webinarId);
+      const analytics = await storage.getWebinarAnalytics(webinarId);
+      const events = await storage.getWebinarEvents(webinarId);
+
+      const attended = registrations.filter((r: any) => r.attended).length;
+      const uniqueViewers = sessions.length;
+      const totalWatchSeconds = sessions.reduce((sum: number, s: any) => sum + (s.watchedSeconds || 0), 0);
+      const avgWatchTime = uniqueViewers > 0 ? Math.round(totalWatchSeconds / uniqueViewers) : 0;
+      const duration = webinar.startedAt && webinar.endedAt
+        ? Math.round((new Date(webinar.endedAt).getTime() - new Date(webinar.startedAt).getTime()) / 1000)
+        : (webinar.durationMinutes || 0) * 60;
+
+      // Build timeline from events
+      const timeline: any[] = [];
+      if (events.length > 0) {
+        const grouped = new Map<string, { viewers: Set<string>; chats: number; reactions: number; questions: number; ctaClicks: number }>();
+        events.forEach((e: any) => {
+          const key = e.viewerId || "unknown";
+          if (!grouped.has(key)) grouped.set(key, { viewers: new Set(), chats: 0, reactions: 0, questions: 0, ctaClicks: 0 });
+          const g = grouped.get(key)!;
+          g.viewers.add(key);
+          if (e.eventType === "chat") g.chats++;
+          else if (e.eventType === "reaction") g.reactions++;
+          else if (e.eventType === "question") g.questions++;
+          else if (e.eventType === "cta_click") g.ctaClicks++;
+        });
+        let minute = 0;
+        for (const [, g] of grouped) {
+          timeline.push({
+            minute: minute++,
+            viewers: g.viewers.size,
+            chats: g.chats,
+            reactions: g.reactions,
+            ctaClicks: g.ctaClicks,
+          });
+        }
+      }
+
+      res.json({
+        webinar,
+        registrations: registrations.length,
+        attended,
+        uniqueViewers,
+        peakViewers: analytics?.peakConcurrent || webinar.peakViewers || 0,
+        avgWatchTime,
+        totalWatchSeconds,
+        chatMessages: analytics?.totalChatMessages || 0,
+        qaQuestions: analytics?.totalQuestions || 0,
+        totalReactions: analytics?.totalReactions || 0,
+        pollVotes: analytics?.totalPollVotes || 0,
+        ctaClicks: analytics?.totalCtaClicks || 0,
+        engagementRate: analytics?.engagementRate || 0,
+        showRate: registrations.length > 0 ? Math.round((attended / registrations.length) * 100) : 0,
+        completionRate: analytics?.completionRate || 0,
+        duration,
+        timeline,
+        attendeeList: sessions.map((s: any) => ({
+          id: s.viewerId,
+          name: s.viewerName,
+          joinedAt: s.joinedAt,
+          lastHeartbeat: s.lastHeartbeatAt,
+          watchedSeconds: s.watchedSeconds || 0,
+          active: s.isActive,
+        })),
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

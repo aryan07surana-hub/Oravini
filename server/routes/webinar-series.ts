@@ -37,4 +37,13 @@ export function registerWebinarSeriesRoutes(app: Express, requireAuth: any) {
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
+
+  // Generate webinar instances from a series
+  app.post("/api/webinar-series/:id/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const count = req.body.count || 4;
+      const instances = await storage.generateSeriesInstances(p(req.params.id), count);
+      res.status(201).json(instances);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
 }

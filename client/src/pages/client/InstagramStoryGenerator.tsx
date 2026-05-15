@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ApiError } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
@@ -640,7 +640,13 @@ export default function InstagramStoryGenerator() {
         output: data,
       });
     } catch (err: any) {
-      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 401) {
+        toast({ title: "Session expired", description: "Please log in again", variant: "destructive" });
+      } else if (err instanceof ApiError && err.status === 402) {
+        toast({ title: "Not enough credits", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+      }
       setGenerating(false);
     }
   };

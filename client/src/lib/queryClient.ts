@@ -64,6 +64,13 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+export const safeQueryFn: QueryFunction<any> = async ({ queryKey }) => {
+  const url = Array.isArray(queryKey) ? queryKey[0] as string : queryKey as unknown as string;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) return [];
+  return await res.json();
+};
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

@@ -1461,6 +1461,8 @@ export default function AIIdeas() {
     } catch (err: any) {
       if (err instanceof ApiError && err.status === 402) {
         setCreditError(err.message);
+      } else if (err instanceof ApiError && err.status === 401) {
+        toast({ title: "Session expired", description: "Please log in again", variant: "destructive" });
       } else {
         toast({ title: "Generation failed", description: err.message || "Failed to generate ideas", variant: "destructive" });
       }

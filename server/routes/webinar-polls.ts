@@ -42,4 +42,30 @@ export function registerWebinarPollRoutes(app: Express, requireAuth: any) {
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
+
+  // Record a poll vote (persists to DB)
+  app.post("/api/webinars/:id/polls/:pollId/vote", async (req: Request, res: Response) => {
+    try {
+      const { viewerId, viewerName, optionIndex } = req.body;
+      if (viewerId === undefined || optionIndex === undefined) {
+        return res.status(400).json({ message: "viewerId and optionIndex required" });
+      }
+      const vote = await storage.createWebinarPollVote({
+        pollId: p(req.params.pollId),
+        webinarId: p(req.params.id),
+        viewerId,
+        viewerName: viewerName || "Anonymous",
+        optionIndex,
+      });
+      res.status(201).json(vote);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get poll votes
+  app.get("/api/webinars/:id/polls/:pollId/votes", async (req: Request, res: Response) => {
+    try {
+      const votes = await storage.getWebinarPollVotes(p(req.params.pollId));
+      res.json(votes);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
 }

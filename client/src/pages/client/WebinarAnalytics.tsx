@@ -198,18 +198,31 @@ export default function WebinarAnalytics() {
     </div>
   );
 
-  const {
-    webinar, registrations, attended, peakViewers,
-    chatMessages, qaQuestions, totalReactions, raisedHands,
-    attendeeList, chatTranscript, qaLog, recordings,
-    timeline, ctaStats,
-  } = analytics;
+  const a = analytics || {};
+  const webinar = a.webinar || null;
+  const registrations = a.registrations ?? 0;
+  const attended = a.attended ?? 0;
+  const uniqueViewers = a.uniqueViewers ?? 0;
+  const peakViewers = a.peakViewers ?? 0;
+  const avgWatchTime = a.avgWatchTime ?? 0;
+  const totalWatchSeconds = a.totalWatchSeconds ?? 0;
+  const chatMessages = a.chatMessages ?? 0;
+  const qaQuestions = a.qaQuestions ?? 0;
+  const totalReactions = a.totalReactions ?? 0;
+  const pollVotes = a.pollVotes ?? 0;
+  const ctaClicks = a.ctaClicks ?? 0;
+  const engagementRate = a.engagementRate ?? 0;
+  const showRate = a.showRate ?? 0;
+  const completionRate = a.completionRate ?? 0;
+  const duration = a.duration ?? 0;
+  const timeline = a.timeline ?? [];
+  const attendeeList = a.attendeeList ?? [];
+  const recordings = a.recordings ?? [];
+  const chatTranscript = a.chatTranscript ?? [];
+  const qaLog = a.qaLog ?? [];
 
-  const duration = webinar.endedAt && webinar.startedAt
-    ? Math.round((new Date(webinar.endedAt).getTime() - new Date(webinar.startedAt).getTime()) / 1000)
-    : null;
   const attendanceRate = registrations > 0 ? Math.round((attended / registrations) * 100) : 0;
-  const isLive = webinar.status === "live";
+  const isLive = webinar?.status === "live";
 
   return (
     <div className="min-h-screen relative" style={{ background: "#040406", color: "#fff" }}>
@@ -277,7 +290,7 @@ export default function WebinarAnalytics() {
               icon={TrendingUp}
               color="#34d399"
             />
-            <StatCard label="Peak Viewers" value={peakViewers || attended || 0} icon={Users} color={GOLD} />
+            <StatCard label="Peak Viewers" value={peakViewers} icon={Users} color={GOLD} />
             <StatCard
               label="Duration"
               value={duration ? fmtDuration(duration) : isLive ? "Live now" : "—"}
@@ -295,24 +308,17 @@ export default function WebinarAnalytics() {
             <StatCard label="Chat Messages" value={chatMessages} icon={MessageSquare} color="#60a5fa" />
             <StatCard label="Q&A Questions" value={qaQuestions} icon={HelpCircle} color="#fbbf24" />
             <StatCard label="Reactions" value={totalReactions} icon={ThumbsUp} color="#f472b6" />
-            <StatCard label="Raised Hands" value={raisedHands} icon={Hand} color="#fb923c" />
+            <StatCard label="Poll Votes" value={pollVotes} icon={BarChart2} color="#fb923c" />
           </div>
         </div>
 
         {/* ── CTA CONVERSION STATS ── */}
-        {ctaStats && (ctaStats.launches > 0 || ctaStats.clicks > 0) && (
+        {ctaClicks > 0 && (
           <div>
             <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4"
-              style={{ color: `${GOLD}50` }}>Offer CTA Performance</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard label="CTA Launches" value={ctaStats.launches} icon={Zap} color={GOLD} />
-              <StatCard label="Buyer Clicks" value={ctaStats.clicks} icon={MousePointerClick} color="#34d399" />
-              <StatCard
-                label="Click-Through Rate"
-                value={ctaStats.convRate > 0 ? `${ctaStats.convRate}%` : "—"}
-                icon={Target}
-                color="#a78bfa"
-              />
+              style={{ color: `${GOLD}50` }}>CTA Clicks</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatCard label="CTA Clicks" value={ctaClicks} icon={MousePointerClick} color="#34d399" />
             </div>
           </div>
         )}
@@ -388,10 +394,10 @@ export default function WebinarAnalytics() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                    {["Name", "Joined", "Chat Msgs", "Q&A"].map(h => (
+                    {["Name", "Joined", "Watch Time", "Status"].map(h => (
                       <th key={h}
                         className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider"
-                        style={{ textAlign: h === "Chat Msgs" || h === "Q&A" ? "center" : "left" }}>
+                        style={{ textAlign: h === "Watch Time" || h === "Status" ? "center" : "left" }}>
                         {h}
                       </th>
                     ))}
@@ -411,13 +417,17 @@ export default function WebinarAnalytics() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {a.joinTime ? format(new Date(a.joinTime), "h:mm a") : "—"}
+                        {a.joinedAt ? format(new Date(a.joinedAt), "MMM d, h:mm a") : "—"}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="text-zinc-300 font-semibold">{a.chatCount || 0}</span>
+                        <span className="text-zinc-300 font-semibold">{fmtDuration(a.watchedSeconds || 0)}</span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="text-zinc-300 font-semibold">{a.qaCount || 0}</span>
+                        {a.active ? (
+                          <Badge className="bg-green-500/10 text-green-400">Active</Badge>
+                        ) : (
+                          <Badge variant="outline">Left</Badge>
+                        )}
                       </td>
                     </tr>
                   ))}

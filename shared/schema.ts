@@ -1644,6 +1644,48 @@ export const webinarPollVotes = pgTable("webinar_poll_votes", {
 });
 export type WebinarPollVote = typeof webinarPollVotes.$inferSelect;
 
+// ── Webinar Viewer Sessions (live viewer tracking) ─────────────────────────
+export const webinarViewerSessions = pgTable("webinar_viewer_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }),
+  viewerId: text("viewer_id").notNull(),
+  viewerName: text("viewer_name").notNull().default("Anonymous"),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  lastHeartbeatAt: timestamp("last_heartbeat_at").defaultNow(),
+  leftAt: timestamp("left_at"),
+  watchedSeconds: integer("watched_seconds").notNull().default(0),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  country: text("country"),
+  referrer: text("referrer"),
+  isActive: boolean("is_active").notNull().default(true),
+});
+export const insertWebinarViewerSessionSchema = createInsertSchema(webinarViewerSessions).omit({ id: true, joinedAt: true, lastHeartbeatAt: true, leftAt: true });
+export type InsertWebinarViewerSession = z.infer<typeof insertWebinarViewerSessionSchema>;
+export type WebinarViewerSession = typeof webinarViewerSessions.$inferSelect;
+
+// ── Webinar Analytics (aggregated per-webinar stats) ────────────────────────
+export const webinarAnalytics = pgTable("webinar_analytics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webinarId: varchar("webinar_id").notNull().references(() => webinars.id, { onDelete: "cascade" }).unique(),
+  totalViewers: integer("total_viewers").notNull().default(0),
+  peakConcurrent: integer("peak_concurrent").notNull().default(0),
+  avgWatchSeconds: real("avg_watch_seconds").notNull().default(0),
+  totalChatMessages: integer("total_chat_messages").notNull().default(0),
+  totalReactions: integer("total_reactions").notNull().default(0),
+  totalQuestions: integer("total_questions").notNull().default(0),
+  totalPollVotes: integer("total_poll_votes").notNull().default(0),
+  totalCtaClicks: integer("total_cta_clicks").notNull().default(0),
+  engagementRate: real("engagement_rate").notNull().default(0),
+  showRate: real("show_rate").notNull().default(0),
+  completionRate: real("completion_rate").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertWebinarAnalyticsSchema = createInsertSchema(webinarAnalytics).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertWebinarAnalytics = z.infer<typeof insertWebinarAnalyticsSchema>;
+export type WebinarAnalytics = typeof webinarAnalytics.$inferSelect;
+
 // ── DM Advanced Features ───────────────────────────────────────────────────
 
 export const commentAutoReplies = pgTable("comment_auto_replies", {

@@ -238,10 +238,11 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
   const [content, setContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: replies = [], isLoading } = useQuery<any[]>({
+  const { data: _replies, isLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", clientId],
-    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.ok ? r.json() : []),
   });
+  const replies = _replies ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/dm/quick-replies", data),
@@ -444,11 +445,12 @@ function SendDMDialog({ open, onClose, lead, clientId }: { open: boolean; onClos
   const [message, setMessage] = useState("");
   const [selectedReply, setSelectedReply] = useState("");
 
-  const { data: replies = [] } = useQuery<any[]>({
+  const { data: _replies } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", clientId],
-    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.ok ? r.json() : []),
     enabled: open,
   });
+  const replies = _replies ?? [];
 
   const sendMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/instagram/send-dm", data),
@@ -566,10 +568,11 @@ export default function DMTracker({ useAdmin = false }: { useAdmin?: boolean }) 
 
   const activeClientId = isAdmin ? (selectedClientId === "all" ? "" : selectedClientId) : (user?.id || "");
 
-  const { data: leads = [], isLoading } = useQuery<any[]>({
+  const { data: _leads, isLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/leads", activeClientId],
-    queryFn: () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
   });
+  const leads = _leads ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/leads/${id}`),

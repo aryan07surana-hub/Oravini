@@ -463,10 +463,11 @@ function ClientPostsPanel({ clientId, platform }: { clientId: string; platform: 
   const [editPost, setEditPost] = useState<any>(null);
   const isYt = platform === "youtube";
 
-  const { data: allPosts = [], isLoading } = useQuery<any[]>({
+  const { data: _allPosts, isLoading } = useQuery<any[]>({
     queryKey: [`/api/content/${clientId}`],
     enabled: !!clientId,
   });
+  const allPosts = _allPosts ?? [];
 
   const posts = allPosts.filter(p => p.platform === platform);
 

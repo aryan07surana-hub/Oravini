@@ -76,6 +76,71 @@ export default function WatchWebinar() {
   const chatEndRef    = useRef<HTMLDivElement>(null);
   const pollRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const trackingRef = useRef<{ sessionId: string | null; interval: ReturnType<typeof setInterval> | null }>({ sessionId: null, interval: null });
+  const startTimeRef = useRef<number>(0);
+
+  // ── Analytics Tracking ─────────────────────────────────────────────────
+  const trackJoin = useCallback(async () => {
+    if (!webinar?.id) return;
+    try {
+      const res = await fetch(`/api/webinars/${webinar.id}/track/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          viewerId: vidRef.current,
+          viewerName: regForm.name || "Anonymous",
+          userAgent: navigator.userAgent,
+          referrer: document.referrer || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.sessionId) {
+        trackingRef.current.sessionId = data.sessionId;
+        startTimeRef.current = Date.now();
+      }
+    } catch {}
+  }, [webinar?.id, regForm.name]);
+
+  const trackHeartbeat = useCallback(async () => {
+    if (!trackingRef.current.sessionId || !webinar?.id) return;
+    const watchedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    try {
+      await fetch(`/api/webinars/${webinar.id}/track/heartbeat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: trackingRef.current.sessionId,
+          watchedSeconds,
+        }),
+      });
+    } catch {}
+  }, [webinar?.id]);
+
+  const trackLeave = useCallback(async () => {
+    if (!trackingRef.current.sessionId || !webinar?.id) return;
+    const watchedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    try {
+      await fetch(`/api/webinars/${webinar.id}/track/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: trackingRef.current.sessionId,
+          watchedSeconds,
+        }),
+      });
+    } catch {}
+  }, [webinar?.id]);
+
+  const trackEvent = useCallback(async (eventType: string) => {
+    if (!webinar?.id) return;
+    try {
+      await fetch(`/api/webinars/${webinar.id}/track/event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventType }),
+      });
+    } catch {}
+  }, [webinar?.id]);
 
   // ── Inject float animation ─────────────────────────────────────────────
   useEffect(() => {
@@ -212,6 +277,8 @@ export default function WatchWebinar() {
             if (liveKitAvailable) {
               connectLiveKitViewer();
             }
+            trackJoin();
+            trackingRef.current.interval = setInterval(() => trackHeartbeat(), 30000);
             break;
 
           case "wr_offer": {
@@ -274,6 +341,12 @@ export default function WatchWebinar() {
               liveKitRoomRef.current.disconnect();
               liveKitRoomRef.current = null;
             }
+            trackLeave();
+            if (trackingRef.current.interval) {
+              clearInterval(trackingRef.current.interval);
+              trackingRef.current.interval = null;
+            }
+            trackingRef.current.sessionId = null;
             break;
 
           case "wr_cta_show":
@@ -363,6 +436,20 @@ export default function WatchWebinar() {
 
   useEffect(() => () => { wsRef.current?.close(); pcRef.current?.close(); if (pollRef.current) clearInterval(pollRef.current); if (countdownRef.current) clearInterval(countdownRef.current); }, []);
 
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (trackingRef.current.sessionId && webinar?.id) {
+        const watchedSeconds = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        navigator.sendBeacon(
+          `/api/webinars/${webinar.id}/track/leave`,
+          JSON.stringify({ sessionId: trackingRef.current.sessionId, watchedSeconds })
+        );
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [webinar?.id]);
+
   // ── Actions ────────────────────────────────────────────────────────────
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,6 +477,7 @@ export default function WatchWebinar() {
     setChatMsg("");
     if (wsRef.current?.readyState === WebSocket.OPEN)
       wsRef.current.send(JSON.stringify({ type: "wr_chat", webinarId: webinar.id, ...msg }));
+    trackEvent("chat");
   };
 
   const submitQuestion = () => {
@@ -399,12 +487,14 @@ export default function WatchWebinar() {
     setQaInput("");
     if (wsRef.current?.readyState === WebSocket.OPEN)
       wsRef.current.send(JSON.stringify({ type: "wr_qa", webinarId: webinar.id, id: q.id, name: regForm.name || "Anonymous", text: q.text, ts: q.ts }));
+    trackEvent("question");
   };
 
   const sendReaction = (emoji: string) => {
     addFloat(emoji);
     if (wsRef.current?.readyState === WebSocket.OPEN && webinar?.id)
       wsRef.current.send(JSON.stringify({ type: "wr_reaction", webinarId: webinar.id, emoji, name: regForm.name || "Anonymous" }));
+    trackEvent("reaction");
   };
 
   const toggleHand = () => {

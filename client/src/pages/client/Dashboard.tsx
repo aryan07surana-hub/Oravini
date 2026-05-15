@@ -3,7 +3,7 @@ import OnboardingModal from "@/components/OnboardingModal";
 import { useAuth } from "@/hooks/use-auth";
 import { useSurvey } from "@/hooks/use-survey";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -428,7 +428,10 @@ function GoalDialog({ userId, autoOpen }: { userId: string; autoOpen: boolean })
       toast({ title: "Goal set! Let's make it happen 🎯" });
       setOpen(false);
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      const msg = e instanceof ApiError && e.status === 401 ? "Session expired. Please log in again." : e.message;
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
   });
 
   return (
@@ -482,7 +485,10 @@ function IncomeGoalCard({ userId }: { userId: string }) {
       toast({ title: "Goal updated!" });
       setEditOpen(false);
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      const msg = e instanceof ApiError && e.status === 401 ? "Session expired. Please log in again." : e.message;
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
   });
 
   if (isLoading) return (
