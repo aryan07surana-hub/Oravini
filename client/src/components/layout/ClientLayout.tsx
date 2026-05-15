@@ -194,7 +194,6 @@ function SoonBadge() {
 }
 
 const comingSoonItems = [
-  { label: "IG Bot", icon: Bot },
   { label: "Jarvis AI", icon: Bot },
   { label: "Notetaker", icon: NotebookPen },
 ];

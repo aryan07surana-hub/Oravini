@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  LayoutDashboard, Users, FileText, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, BookOpen, Video, Zap, Database, ClipboardList, Users2, CalendarDays, Mail, TrendingDown, Gift, Star, MessageCircle
+  LayoutDashboard, Users, MessageSquare, Settings,
+  LogOut, ChevronRight, Menu, X, Zap, Database, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,18 +25,11 @@ const mainNavItems = [
   { href: "/admin/feedback", label: "Feedback", icon: Star },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/churn", label: "Churn Analysis", icon: TrendingDown },
-  { href: "/admin/sessions", label: "Sessions Hub", icon: Video },
-  { href: "/admin/scheduling", label: "Scheduling", icon: CalendarDays },
   { href: "/admin/credits", label: "Credits", icon: Zap },
   { href: "/admin/community", label: "Community", icon: Users2 },
-  { href: "/admin/documents", label: "Documents", icon: FileText },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
-  { href: "/admin/course-modules", label: "Course Modules", icon: BookOpen },
+  { href: "/admin/tool-heatmap", label: "Heatmap", icon: Flame },
   { href: "/admin/settings", label: "Settings", icon: Settings },
-];
-
-const dmHubItems = [
-  { href: "/admin/dm-tracker", label: "DM Tracker", icon: MessageCircle },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -93,31 +86,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </span>
                   )}
                   {!active && href !== "/admin/chat" && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* ── DMHub Section ── */}
-          <div className="mt-4 pt-4 space-y-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="px-3 text-[9px] font-bold uppercase tracking-[0.14em] mb-2" style={{ color: "rgba(255,255,255,0.18)" }}>DMHub</p>
-            {dmHubItems.map(({ href, label, icon: Icon }) => {
-              const active = location === href;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  data-testid={`admin-nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{label}</span>
-                  {!active && <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />}
                 </Link>
               );
             })}

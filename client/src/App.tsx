@@ -101,27 +101,20 @@ import WatchVideo from "@/pages/public/WatchVideo";
 import EmbedPlayer from "@/pages/public/EmbedPlayer";
 import PublicLandingPage from "@/pages/public/PublicLandingPage";
 import ClipFinder from "@/pages/client/ClipFinder";
-import IgCommentBot from "@/pages/client/IgCommentBot";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
 import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
 import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
-import ViralityTester from "@/pages/client/ViralityTester";
-import EverydayRead from "@/pages/client/EverydayRead";
 import ContentIntelligence from "@/pages/ContentIntelligence";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
 import AdminChat from "@/pages/admin/Chat";
-import AdminDocuments from "@/pages/admin/Documents";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminTracking from "@/pages/admin/Tracking";
-import AdminCalendar from "@/pages/admin/AdminCalendar";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
-import AdminCourseModules from "@/pages/admin/CourseModules";
-import AdminSessions from "@/pages/admin/AdminSessions";
 import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
 import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
@@ -131,7 +124,6 @@ import AdminResponses from "@/pages/admin/AdminResponses";
 import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminScheduling from "@/pages/admin/AdminScheduling";
 import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
-import AdminEverydayRead from "@/pages/admin/AdminEverydayRead";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
@@ -229,11 +221,8 @@ function Router() {
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
       <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>
-      <Route path="/ig-bot">{() => <Guard component={IgCommentBot} />}</Route>
       <Route path="/ig-tracker">{() => { window.location.replace("/tracking/content/instagram"); return null; }}</Route>
       <Route path="/ig-growth-tracker">{() => <Guard component={IgGrowthTracker} />}</Route>
-      <Route path="/virality-tester">{() => <Guard component={ViralityTester} />}</Route>
-      <Route path="/everyday-read">{() => <Guard component={EverydayRead} />}</Route>
       <Route path="/sessions">{() => <Guard component={Sessions} />}</Route>
       <Route path="/twitter-scheduler">{() => <Guard component={TwitterScheduler} />}</Route>
       <Route path="/linkedin-scheduler">{() => <Guard component={LinkedInScheduler} />}</Route>
@@ -261,18 +250,11 @@ function Router() {
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
       <Route path="/admin/clients">{() => <Guard component={AdminClients} adminOnly />}</Route>
       <Route path="/admin/chat">{() => <Guard component={AdminChat} adminOnly />}</Route>
-      <Route path="/admin/documents">{() => <Guard component={AdminDocuments} adminOnly />}</Route>
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/dm-automation">{() => <Guard component={DMAutomation} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/dm-tracker">{() => <Guard component={DMTracker} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/dm-hub">{() => <Guard component={DMHub} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/calendar">{() => <Guard component={AdminCalendar} adminOnly />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
-      <Route path="/admin/course-modules">{() => <Guard component={AdminCourseModules} adminOnly />}</Route>
       <Route path="/admin/video-editor">{() => <Guard component={AIVideoEditor} adminOnly useAdmin={true} />}</Route>
-      <Route path="/admin/sessions">{() => <Guard component={AdminSessions} adminOnly />}</Route>
       <Route path="/admin/scheduling">{() => <Guard component={AdminScheduling} adminOnly />}</Route>
       <Route path="/admin/credits">{() => <Guard component={AdminCredits} adminOnly />}</Route>
       <Route path="/admin/crm">{() => <Guard component={AdminCRM} adminOnly />}</Route>
@@ -281,8 +263,6 @@ function Router() {
       <Route path="/admin/referrals">{() => <Guard component={AdminReferrals} adminOnly />}</Route>
       <Route path="/admin/responses">{() => <Guard component={AdminResponses} adminOnly />}</Route>
       <Route path="/admin/community">{() => <Guard component={AdminCommunity} adminOnly />}</Route>
-      <Route path="/admin/video-marketing">{() => <Guard component={AdminVideoMarketing} adminOnly />}</Route>
-      <Route path="/admin/everyday-read">{() => <Guard component={AdminEverydayRead} adminOnly />}</Route>
       <Route path="/admin/daily-tracker">{() => <Guard component={AdminDailyTracker} adminOnly />}</Route>
       <Route path="/admin/tool-heatmap">{() => <Guard component={AdminToolHeatmap} adminOnly />}</Route>
       <Route path="/admin/project-tracker">{() => <Guard component={ProjectTracker} adminOnly />}</Route>
