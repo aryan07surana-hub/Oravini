@@ -396,10 +396,11 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [activeTab, setActiveTab] = useState("timeline");
   const [showScriptHistory, setShowScriptHistory] = useState(false);
   const qcVideo = useQueryClient();
-  const { data: videoHistory = [] } = useQuery<any[]>({
+  const { data: _videoHistory } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=video-script"],
     enabled: !useAdmin,
   });
+  const videoHistory = _videoHistory ?? [];
   const [appliedEdits, setAppliedEdits] = useState<Set<number>>(new Set());
 
   // B-Roll Library
@@ -410,10 +411,11 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
   const [savingBrolls, setSavingBrolls] = useState<Set<number>>(new Set());
   const [savedBrolls, setSavedBrolls] = useState<Set<number>>(new Set());
   const qcBroll = useQueryClient();
-  const { data: brollClips = [] } = useQuery<any[]>({
+  const { data: _brollClips } = useQuery<any[]>({
     queryKey: ["/api/broll"],
     enabled: !useAdmin,
   });
+  const brollClips = _brollClips ?? [];
   const addBrollMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/broll", data),
     onSuccess: () => { qcBroll.invalidateQueries({ queryKey: ["/api/broll"] }); setBrollForm({ title: "", description: "", category: "General", videoUrl: "", notes: "" }); setShowBrollForm(false); toast({ title: "B-roll saved to library!" }); },

@@ -506,9 +506,10 @@ export default function AIContentCoach() {
   const [creditError, setCreditError] = useState<string | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
 
-  const { data: coachHistory = [] } = useQuery<any[]>({
+  const { data: _coachHistory } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=coach"],
   });
+  const coachHistory = _coachHistory ?? [];
 
   const saveSession = () => {
     const userMessages = messages.filter(m => m.role === "user");

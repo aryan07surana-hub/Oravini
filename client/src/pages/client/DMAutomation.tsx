@@ -245,10 +245,11 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
   const [content, setContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: replies = [], isLoading } = useQuery<any[]>({
+  const { data: _replies, isLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", clientId],
-    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => { if (!r.ok) return []; return r.json(); }),
   });
+  const replies = _replies ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/dm/quick-replies", data),
@@ -407,11 +408,12 @@ function SendDMDialog({ open, onClose, lead, clientId }: { open: boolean; onClos
   const [message, setMessage]               = useState("");
   const [selectedReply, setSelectedReply]   = useState("");
 
-  const { data: replies = [] } = useQuery<any[]>({
+  const { data: _replies } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", clientId],
-    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/quick-replies${clientId ? `?clientId=${clientId}` : ""}`).then(r => { if (!r.ok) return []; return r.json(); }),
     enabled: open,
   });
+  const replies = _replies ?? [];
 
   const sendMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/instagram/send-dm", data),
@@ -511,14 +513,16 @@ function TriggerCard({ trigger, onEdit, onDelete, onToggle }: any) {
 }
 
 function SequenceCard({ sequence, onEdit, onDelete, onToggle }: any) {
-  const { data: steps = [] } = useQuery<any[]>({
+  const { data: _steps } = useQuery<any[]>({
     queryKey: [`/api/dm/sequences/${sequence.id}/steps`],
-    queryFn: () => fetch(`/api/dm/sequences/${sequence.id}/steps`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/sequences/${sequence.id}/steps`).then(r => { if (!r.ok) return []; return r.json(); }),
   });
-  const { data: enrollments = [] } = useQuery<any[]>({
+  const steps = _steps ?? [];
+  const { data: _enrollments } = useQuery<any[]>({
     queryKey: [`/api/dm/sequences/${sequence.id}/enrollments`],
-    queryFn: () => fetch(`/api/dm/sequences/${sequence.id}/enrollments`).then(r => r.json()),
+    queryFn: () => fetch(`/api/dm/sequences/${sequence.id}/enrollments`).then(r => { if (!r.ok) return []; return r.json(); }),
   });
+  const enrollments = _enrollments ?? [];
   const activeEnrollments    = enrollments.filter((e: any) => !e.completed).length;
   const completedEnrollments = enrollments.filter((e: any) => e.completed).length;
 
@@ -736,52 +740,57 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
     : (user?.id || "");
 
   // Automation queries with error handling
-  const { data: triggers  = [], isLoading: triggersLoading, error: triggersError  } = useQuery<any[]>({
+  const { data: _triggers, isLoading: triggersLoading, error: triggersError } = useQuery<any[]>({
     queryKey: ["/api/dm/triggers", activeClientId],
     queryFn:  () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => {
-      if (!r.ok) throw new Error('Failed to load triggers');
+      if (!r.ok) return [];
       return r.json();
     }),
     retry: 2,
     staleTime: 30000,
   });
-  const { data: sequences = [], isLoading: sequencesLoading, error: sequencesError } = useQuery<any[]>({
+  const triggers = _triggers ?? [];
+  const { data: _sequences, isLoading: sequencesLoading, error: sequencesError } = useQuery<any[]>({
     queryKey: ["/api/dm/sequences", activeClientId],
     queryFn:  () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => {
-      if (!r.ok) throw new Error('Failed to load sequences');
+      if (!r.ok) return [];
       return r.json();
     }),
     retry: 2,
     staleTime: 30000,
   });
+  const sequences = _sequences ?? [];
 
   // Leads queries with error handling
-  const { data: clients = [], error: clientsError } = useQuery<any[]>({
+  const { data: _clients } = useQuery<any[]>({
     queryKey: ["/api/clients"],
     enabled: isAdmin,
     retry: 2,
     staleTime: 60000,
   });
-  const { data: leads = [], isLoading: leadsLoading, error: leadsError } = useQuery<any[]>({
+  const clients = _clients ?? [];
+  const { data: _leads, isLoading: leadsLoading, error: leadsError } = useQuery<any[]>({
     queryKey: ["/api/dm/leads", activeClientId],
     queryFn:  () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => {
-      if (!r.ok) throw new Error('Failed to load leads');
+      if (!r.ok) return [];
       return r.json();
     }),
     retry: 2,
     staleTime: 30000,
   });
+  const leads = _leads ?? [];
 
   // Quick replies for Send DM tab with error handling
-  const { data: sendReplies = [], error: repliesError } = useQuery<any[]>({
+  const { data: _sendReplies } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", activeClientId],
     queryFn:  () => fetch(`/api/dm/quick-replies${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => {
-      if (!r.ok) throw new Error('Failed to load quick replies');
+      if (!r.ok) return [];
       return r.json();
     }),
     retry: 2,
     staleTime: 30000,
   });
+  const sendReplies = _sendReplies ?? [];
   const { data: account, error: accountError } = useQuery<any>({
     queryKey: ["/api/meta/account"],
     staleTime: 30000,

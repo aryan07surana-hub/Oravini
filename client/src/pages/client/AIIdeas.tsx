@@ -620,18 +620,22 @@ function PlatformSchedulePanel({ platform }: { platform: "twitter" | "linkedin" 
   });
 
   // ── Queue queries ─────────────────────────────────────────────────────────────
-  const { data: twitterQueue = [] } = useQuery<any[]>({
+  const { data: _twitterQueue } = useQuery<any[]>({
     queryKey: ["/api/twitter/scheduled"], enabled: platform === "twitter",
   });
-  const { data: linkedinQueue = [] } = useQuery<any[]>({
+  const twitterQueue = _twitterQueue ?? [];
+  const { data: _linkedinQueue } = useQuery<any[]>({
     queryKey: ["/api/linkedin/scheduled"], enabled: platform === "linkedin",
   });
-  const { data: youtubeQueue = [] } = useQuery<any[]>({
+  const linkedinQueue = _linkedinQueue ?? [];
+  const { data: _youtubeQueue } = useQuery<any[]>({
     queryKey: ["/api/youtube/scheduled"], enabled: platform === "youtube",
   });
-  const { data: instagramQueue = [] } = useQuery<any[]>({
+  const youtubeQueue = _youtubeQueue ?? [];
+  const { data: _instagramQueue } = useQuery<any[]>({
     queryKey: ["/api/instagram/scheduled"], enabled: platform === "instagram",
   });
+  const instagramQueue = _instagramQueue ?? [];
 
   // ── Twitter mutations ─────────────────────────────────────────────────────────
   const twitterConnect = useMutation({
@@ -1305,9 +1309,10 @@ export default function AIIdeas() {
     }
   }, []);
 
-  const { data: ideaHistory = [], isLoading: historyLoading } = useQuery<any[]>({
+  const { data: _ideaHistory, isLoading: historyLoading } = useQuery<any[]>({
     queryKey: ["/api/ai/history?tool=ideas"],
   });
+  const ideaHistory = _ideaHistory ?? [];
 
   useEffect(() => {
     setLikedIdeas(loadLiked(platform));

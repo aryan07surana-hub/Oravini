@@ -179,13 +179,15 @@ function WebinarsTab() {
   const [form, setForm] = useState(defaultWebinarForm());
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const { data: webinars = [], isLoading } = useQuery<any[]>({
+  const { data: _webinars, isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinars"],
   });
+  const webinars = _webinars ?? [];
 
-  const { data: hostedVideos = [] } = useQuery<any[]>({
+  const { data: _hostedVideos } = useQuery<any[]>({
     queryKey: ["/api/video-events"],
   });
+  const hostedVideos = _hostedVideos ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/webinars", data),
@@ -635,9 +637,10 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
     isPublic: false,
   });
 
-  const { data: videos = [], isLoading } = useQuery<any[]>({
+  const { data: _videos, isLoading } = useQuery<any[]>({
     queryKey: ["/api/video-events"],
   });
+  const videos = _videos ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/video-events", data),
@@ -883,13 +886,15 @@ function LandingPagesTab() {
     bodyContent: "",
   });
 
-  const { data: pages = [], isLoading } = useQuery<any[]>({
+  const { data: _pages, isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinar-landing-pages"],
   });
+  const pages = _pages ?? [];
 
-  const { data: webinars = [] } = useQuery<any[]>({
+  const { data: _webinars } = useQuery<any[]>({
     queryKey: ["/api/webinars"],
   });
+  const webinars = _webinars ?? [];
 
   const createMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
@@ -1150,9 +1155,10 @@ function CRMTab() {
   const [selected, setSelected] = useState<any | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", stage: "lead", segment: "general", notes: "" });
 
-  const { data: contacts = [], isLoading } = useQuery<any[]>({
+  const { data: _contacts, isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinar-contacts"],
   });
+  const contacts = _contacts ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/webinar-contacts", data),
@@ -1536,13 +1542,15 @@ function RecordingsTab() {
     isPublic: false,
   });
 
-  const { data: recordings = [], isLoading } = useQuery<any[]>({
+  const { data: _recordings, isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinar-recordings"],
   });
+  const recordings = _recordings ?? [];
 
-  const { data: webinars = [] } = useQuery<any[]>({
+  const { data: _webinars } = useQuery<any[]>({
     queryKey: ["/api/webinars"],
   });
+  const webinars = _webinars ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/webinar-recordings", data),
@@ -1793,11 +1801,16 @@ function genJoinLeaveData(registrations: number, seed: number): { joins: number[
 }
 
 function AnalyticsTab() {
-  const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
-  const { data: contacts = [] } = useQuery<any[]>({ queryKey: ["/api/webinar-contacts"] });
-  const { data: recordings = [] } = useQuery<any[]>({ queryKey: ["/api/webinar-recordings"] });
-  const { data: pages = [] } = useQuery<any[]>({ queryKey: ["/api/webinar-landing-pages"] });
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: _webinars } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const webinars = _webinars ?? [];
+  const { data: _contacts } = useQuery<any[]>({ queryKey: ["/api/webinar-contacts"] });
+  const contacts = _contacts ?? [];
+  const { data: _recordings } = useQuery<any[]>({ queryKey: ["/api/webinar-recordings"] });
+  const recordings = _recordings ?? [];
+  const { data: _pages } = useQuery<any[]>({ queryKey: ["/api/webinar-landing-pages"] });
+  const pages = _pages ?? [];
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
   const [selectedId, setSelectedId] = useState<string>("all");
 
   const allWebinars = webinars as any[];
@@ -2164,10 +2177,11 @@ function AnalyticsTab() {
 // ── VIDEO HOSTING ANALYTICS TAB ───────────────────────────────────────────────
 
 function EngagementHeatmap({ videoId, duration }: { videoId: string; duration: number }) {
-  const { data: heatmap = [] } = useQuery<any[]>({
+  const { data: _heatmap } = useQuery<any[]>({
     queryKey: [`/api/video-analytics/${videoId}/heatmap`],
     enabled: !!videoId,
   });
+  const heatmap = _heatmap ?? [];
 
   if (!heatmap.length || !duration) return (
     <div className="h-16 rounded-xl flex items-center justify-center" style={{ background: "rgba(8,8,12,0.9)", border: `1px solid ${GOLD}08` }}>
@@ -2209,10 +2223,11 @@ function EngagementHeatmap({ videoId, duration }: { videoId: string; duration: n
 }
 
 function ViewerTimeline({ videoId }: { videoId: string }) {
-  const { data: viewers = [] } = useQuery<any[]>({
+  const { data: _viewers } = useQuery<any[]>({
     queryKey: [`/api/video-analytics/${videoId}/viewers`],
     enabled: !!videoId,
   });
+  const viewers = _viewers ?? [];
 
   if (!viewers.length) return (
     <div className="py-6 text-center">
@@ -2253,10 +2268,11 @@ function ViewerTimeline({ videoId }: { videoId: string }) {
 }
 
 function DailyChart({ videoId }: { videoId: string }) {
-  const { data: daily = [] } = useQuery<any[]>({
+  const { data: _daily } = useQuery<any[]>({
     queryKey: [`/api/video-analytics/${videoId}/daily`],
     enabled: !!videoId,
   });
+  const daily = _daily ?? [];
 
   if (!daily.length) return (
     <div className="h-24 rounded-xl flex items-center justify-center" style={{ background: "rgba(8,8,12,0.9)", border: `1px solid ${GOLD}08` }}>
@@ -2285,7 +2301,8 @@ function DailyChart({ videoId }: { videoId: string }) {
 }
 
 function VideoAnalyticsTab() {
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
   const { data: overview } = useQuery<any>({ queryKey: ["/api/video-analytics-overview"] });
   const [selectedId, setSelectedId] = useState<string>("");
 
@@ -2294,10 +2311,11 @@ function VideoAnalyticsTab() {
   const totalViews = allVideos.reduce((s, v) => s + (v.views || 0), 0);
   const topVideo = [...allVideos].sort((a, b) => (b.views || 0) - (a.views || 0))[0];
 
-  const { data: sessions = [] } = useQuery<any[]>({
+  const { data: _sessions } = useQuery<any[]>({
     queryKey: [`/api/video-events/${selectedId}/viewers`],
     enabled: !!selectedId,
   });
+  const sessions = _sessions ?? [];
 
   const selectedVideo = allVideos.find(v => v.id === selectedId) || null;
   const sessionList = sessions as any[];
@@ -2549,9 +2567,11 @@ function VideoAnalyticsTab() {
 // ── SETTINGS TAB ─────────────────────────────────────────────────────────────
 
 function SettingsTab() {
-  const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const { data: _webinars } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const webinars = _webinars ?? [];
   const { data: lkSettings, refetch: refetchLk } = useQuery<any>({ queryKey: ["/api/video-marketing-settings"] });
-  const { data: domains = [], refetch: refetchDomains } = useQuery<any[]>({ queryKey: ["/api/webinar-domains"] });
+  const { data: _domains, refetch: refetchDomains } = useQuery<any[]>({ queryKey: ["/api/webinar-domains"] });
+  const domains = _domains ?? [];
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -2965,7 +2985,8 @@ function SeriesTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", schedule: "weekly", dayOfWeek: 1, timeHour: 19, timeMinute: 0, durationMinutes: 60, presenterName: "", webinarType: "live" });
 
-  const { data: series = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/webinar-series"] });
+  const { data: _series, isLoading } = useQuery<any[]>({ queryKey: ["/api/webinar-series"] });
+  const series = _series ?? [];
 
   const createMut = useMutation({
     mutationFn: (d: any) => apiRequest("POST", "/api/webinar-series", d),
@@ -3102,7 +3123,8 @@ function SeriesTab() {
 
 // ── EMAIL SEQUENCES TAB ───────────────────────────────────────────────────────
 function EmailSequencesTab() {
-  const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const { data: _webinars } = useQuery<any[]>({ queryKey: ["/api/webinars"] });
+  const webinars = _webinars ?? [];
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -3203,20 +3225,23 @@ function VSLStudioTab() {
   const [showChapterForm, setShowChapterForm] = useState(false);
   const [activeTab, setActiveTab] = useState<"ctas"|"chapters"|"urgency">("ctas");
 
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
   const vslVideos = (videos as any[]).filter(v => v.videoType === "vsl");
   const selected = vslVideos.find((v: any) => v.id === selectedId) || null;
 
-  const { data: ctas = [] } = useQuery<any[]>({
+  const { data: _ctas } = useQuery<any[]>({
     queryKey: ["/api/video-events", selectedId, "ctas"],
-    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/ctas`, { credentials: "include" }).then(r => r.json()) : [],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/ctas`, { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json(); }) : [],
     enabled: !!selectedId,
   });
-  const { data: chapters = [] } = useQuery<any[]>({
+  const ctas = _ctas ?? [];
+  const { data: _chapters } = useQuery<any[]>({
     queryKey: ["/api/video-events", selectedId, "chapters"],
-    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/chapters`, { credentials: "include" }).then(r => r.json()) : [],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/chapters`, { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json(); }) : [],
     enabled: !!selectedId,
   });
+  const chapters = _chapters ?? [];
 
   const createCtaMut = useMutation({
     mutationFn: (data: any) => fetch(`/api/video-events/${selectedId}/ctas`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
@@ -3455,13 +3480,16 @@ function VideoCollectionsTab() {
   const [addingVideo, setAddingVideo] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", isPublic: false });
 
-  const { data: collections = [] } = useQuery<any[]>({ queryKey: ["/api/video-collections"] });
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
-  const { data: items = [] } = useQuery<any[]>({
+  const { data: _collections } = useQuery<any[]>({ queryKey: ["/api/video-collections"] });
+  const collections = _collections ?? [];
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
+  const { data: _items } = useQuery<any[]>({
     queryKey: ["/api/video-collections", selectedId, "items"],
-    queryFn: () => selectedId ? fetch(`/api/video-collections/${selectedId}/items`, { credentials: "include" }).then(r => r.json()) : [],
+    queryFn: () => selectedId ? fetch(`/api/video-collections/${selectedId}/items`, { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json(); }) : [],
     enabled: !!selectedId,
   });
+  const items = _items ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => fetch("/api/video-collections", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then(r => r.json()),
@@ -3609,12 +3637,14 @@ function VideoCollectionsTab() {
 
 function VideoViewerCRMTab() {
   const [selectedId, setSelectedId] = useState<string>("");
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
-  const { data: sessions = [] } = useQuery<any[]>({
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
+  const { data: _sessions } = useQuery<any[]>({
     queryKey: ["/api/video-events", selectedId, "viewers"],
-    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/viewers`, { credentials: "include" }).then(r => r.json()) : [],
+    queryFn: () => selectedId ? fetch(`/api/video-events/${selectedId}/viewers`, { credentials: "include" }).then(r => { if (!r.ok) return []; return r.json(); }) : [],
     enabled: !!selectedId,
   });
+  const sessions = _sessions ?? [];
 
   const selected = (videos as any[]).find((v: any) => v.id === selectedId);
   const allSessions = sessions as any[];
@@ -3812,7 +3842,8 @@ function PlayerSettingsTab() {
   const [localSettings, setLocalSettings] = useState<any>({});
   const [activeSection, setActiveSection] = useState<"branding"|"watermark"|"controls"|"protection"|"playback"|"captions">("branding");
 
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
   const selected = (videos as any[]).find((v: any) => v.id === selectedId);
 
   const updateMut = useMutation({
