@@ -104,12 +104,17 @@ import {
   type NicheIntelligence, type InsertNicheIntelligence,
   type NicheTrend, type InsertNicheTrend,
   smsSequences, smsSequenceSteps, smsEnrollments, smsLogs, smsBroadcasts, smsCarrierGateways, smsUnsubscribes,
+  smsTemplates, smsContactTags, smsContactTagAssignments, smsStepVariants,
   type SmsSequence, type InsertSmsSequence,
   type SmsSequenceStep, type InsertSmsSequenceStep,
   type SmsEnrollment,
   type SmsLog,
   type SmsBroadcast, type InsertSmsBroadcast,
   type SmsCarrierGateway,
+  type SmsTemplate, type InsertSmsTemplate,
+  type SmsContactTag,
+  type SmsContactTagAssignment,
+  type SmsStepVariant,
 } from "@shared/schema";
 
 export const pool = new Pool({
@@ -533,19 +538,42 @@ export interface IStorage {
   createSmsSequenceStep(data: InsertSmsSequenceStep): Promise<SmsSequenceStep>;
   updateSmsSequenceStep(id: string, data: Partial<InsertSmsSequenceStep>): Promise<SmsSequenceStep | undefined>;
   deleteSmsSequenceStep(id: string): Promise<void>;
+  reorderSmsSequenceSteps(sequenceId: string, stepIds: string[]): Promise<void>;
   enrollPhoneInSmsSequence(phone: string, sequenceId: string): Promise<SmsEnrollment | null>;
   getPendingSmsEnrollments(): Promise<(SmsEnrollment & { phone: string })[]>;
   advanceSmsEnrollment(id: string, nextStep: number, nextSendAt: Date | null, completed?: boolean): Promise<void>;
   logSms(data: { toPhone: string; message: string; sequenceStepId?: string; broadcastId?: string }): Promise<SmsLog>;
-  getSmsStats(): Promise<{ totalSent: number; sentToday: number; activeEnrollments: number }>;
+  getSmsStats(): Promise<{ totalSent: number; sentToday: number; activeEnrollments: number; deliveredRate: number; optOutRate: number }>;
   getSmsLogs(limit?: number): Promise<SmsLog[]>;
+  getDailySmsVolume(days?: number): Promise<{ date: string; count: number }[]>;
   createSmsBroadcast(data: InsertSmsBroadcast): Promise<SmsBroadcast>;
   getSmsBroadcasts(): Promise<SmsBroadcast[]>;
   updateSmsBroadcast(id: string, data: Partial<SmsBroadcast>): Promise<void>;
+  getScheduledBroadcasts(): Promise<SmsBroadcast[]>;
   getSmsCarrierGateway(phone: string): Promise<SmsCarrierGateway | undefined>;
   setSmsCarrierGateway(phone: string, carrierName: string, gatewayDomain: string): Promise<SmsCarrierGateway>;
   isSmsUnsubscribed(phone: string): Promise<boolean>;
   addSmsUnsubscribe(phone: string): Promise<void>;
+
+  // Templates
+  getSmsTemplates(category?: string): Promise<SmsTemplate[]>;
+  createSmsTemplate(data: InsertSmsTemplate): Promise<SmsTemplate>;
+  deleteSmsTemplate(id: string): Promise<void>;
+
+  // Contact Tags
+  getSmsContactTags(): Promise<SmsContactTag[]>;
+  createSmsContactTag(name: string, color: string): Promise<SmsContactTag>;
+  deleteSmsContactTag(id: string): Promise<void>;
+  getContactTagsForPhone(phone: string): Promise<SmsContactTag[]>;
+  assignTagToPhone(phone: string, tagId: string): Promise<SmsContactTagAssignment>;
+  unassignTagFromPhone(phone: string, tagId: string): Promise<void>;
+
+  // A/B Variants
+  getStepVariants(stepId: string): Promise<SmsStepVariant[]>;
+  createStepVariant(data: { stepId: string; message: string; isControl?: boolean }): Promise<SmsStepVariant>;
+  deleteStepVariant(id: string): Promise<void>;
+  incrementVariantClick(id: string): Promise<void>;
+
   getUsersWithPhone(): Promise<{ id: string; name: string | null; phone: string | null; carrierName: string | null; gatewayDomain: string | null }[]>;
 }
 

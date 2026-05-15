@@ -1986,6 +1986,44 @@ export const smsUnsubscribes = pgTable("sms_unsubscribes", {
   unsubscribedAt: timestamp("unsubscribed_at").defaultNow(),
 });
 
+export const smsTemplates = pgTable("sms_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  category: text("category").notNull().default("general"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSmsTemplateSchema = createInsertSchema(smsTemplates).omit({ id: true, createdAt: true });
+export type InsertSmsTemplate = z.infer<typeof insertSmsTemplateSchema>;
+export type SmsTemplate = typeof smsTemplates.$inferSelect;
+
+export const smsContactTags = pgTable("sms_contact_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("#d4b461"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SmsContactTag = typeof smsContactTags.$inferSelect;
+
+export const smsContactTagAssignments = pgTable("sms_contact_tag_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull(),
+  tagId: varchar("tag_id").notNull().references(() => smsContactTags.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SmsContactTagAssignment = typeof smsContactTagAssignments.$inferSelect;
+
+export const smsStepVariants = pgTable("sms_step_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stepId: varchar("step_id").notNull().references(() => smsSequenceSteps.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  isControl: boolean("is_control").notNull().default(false),
+  opens: integer("opens").notNull().default(0),
+  clicks: integer("clicks").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SmsStepVariant = typeof smsStepVariants.$inferSelect;
+
 // ── Niche Trend Signals ──────────────────────────────────────────────────
 // Niche Trend Signals — real-time trending patterns per niche
 export const nicheTrends = pgTable("niche_trends", {
