@@ -94,7 +94,8 @@ export default function FormsHub() {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
 
-  const { data: formsList = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/forms"] });
+  const { data: _formsList, isLoading } = useQuery<any[]>({ queryKey: ["/api/forms"] });
+  const formsList = _formsList ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/forms", data),
