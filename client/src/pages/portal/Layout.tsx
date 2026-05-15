@@ -30,16 +30,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-screen bg-background flex">
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} lg:static lg:z-auto`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 md:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"} md:static md:z-auto`}>
         <div className="px-6 py-5 border-b border-sidebar-border flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.25em] uppercase" style={{ color: GOLD }}>ORAVINI</p>
             <p className="text-[10px] text-muted-foreground mt-0.5 tracking-wider uppercase">Consulting Portal</p>
           </div>
-          <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
+          <button onClick={() => setMobileOpen(false)} className="md:hidden text-muted-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -89,11 +89,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-background">
-          <button onClick={() => setMobileOpen(true)} className="text-muted-foreground">
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-background sticky top-0 z-40">
+          <button onClick={() => setMobileOpen(true)} className="text-foreground p-1 rounded-lg hover:bg-accent">
             <Menu className="w-5 h-5" />
           </button>
           <p className="text-sm font-semibold tracking-widest uppercase" style={{ color: GOLD }}>ORAVINI</p>
+          <span className="text-[10px] text-muted-foreground ml-1">Consulting Portal</span>
         </header>
         <main className="flex-1 overflow-auto p-6">
           {children}
