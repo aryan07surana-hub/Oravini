@@ -17,6 +17,7 @@ import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSum
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
+import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -245,7 +246,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (raw instanceof Buffer) {
           const relayKey = (ws as any)._relayStreamKey as string | undefined;
           if (relayKey) {
-            const { relayChunk } = require("./broadcast-relay");
             relayChunk(relayKey, raw);
           }
           return;
@@ -383,7 +383,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // ── RTMP RELAY (Browser Streaming) ─────────────────────────────
           case "relay_start": {
-            const { startRelay } = require("./broadcast-relay");
             const streamKey = `webinar-${msg.meetingCode}`;
             (ws as any)._relayStreamKey = streamKey;
             const relay = startRelay(ws, streamKey);
@@ -396,7 +395,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             break;
           }
           case "relay_stop": {
-            const { stopRelay } = require("./broadcast-relay");
             const key = (ws as any)._relayStreamKey as string | undefined;
             if (key) {
               stopRelay(key);
@@ -11858,7 +11856,7 @@ Rules:
     try {
       const webinar = await storage.getWebinar(p(req.params.id));
       if (webinar) {
-        const { stopRelay } = require("./broadcast-relay");
+        const { stopRelay } = await import("./broadcast-relay");
         stopRelay(`webinar-${webinar.meetingCode}`);
       }
       const updated = await storage.updateWebinar(p(req.params.id), {
@@ -11866,7 +11864,7 @@ Rules:
         endedAt: new Date(),
       });
       try {
-        const { deleteWebinarRoom } = require("./livekit");
+        const { deleteWebinarRoom } = await import("./livekit");
         await deleteWebinarRoom(req.params.id as string);
       } catch (lkErr: any) {
         console.error(`[webinar] LiveKit cleanup: ${lkErr.message}`);
@@ -12452,7 +12450,20 @@ Rules:
   });
 
   // Upload a video file for hosting (returns a URL)
-  app.post("/api/upload/video", requireAuth, videoUpload.single("file"), async (req: any, res: Response) => {
+  app.post("/api/upload/video", requireAuth, (req, res, next) => {
+    videoUpload.single("file")(req, res, (err: any) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(413).json({ message: "File too large. Maximum size is 200MB." });
+        }
+        if (err.message?.includes("Only video/audio files")) {
+          return res.status(400).json({ message: err.message });
+        }
+        return res.status(400).json({ message: err.message || "Upload failed" });
+      }
+      next();
+    });
+  }, async (req: any, res: Response) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       const videoUrl = `/uploads/${req.file.filename}`;

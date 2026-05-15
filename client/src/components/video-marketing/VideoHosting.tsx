@@ -243,26 +243,51 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
   });
 
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  const handleFileDrop = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    if (!file.type.startsWith("video/")) return toast({ title: "Please drop a video file", variant: "destructive" });
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      toast({ title: "Please select a video file", variant: "destructive" });
+      return;
+    }
     setUploadingFile(true);
+    setUploadProgress(0);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const resp = await fetch("/api/upload/video", { method: "POST", body: fd });
-      if (!resp.ok) throw new Error("Upload failed");
-      const { url } = await resp.json();
+      const url = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        });
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { const d = JSON.parse(xhr.responseText); resolve(d.url); }
+            catch { reject(new Error("Invalid server response")); }
+          } else {
+            let msg = `Upload failed (${xhr.status})`;
+            try { const d = JSON.parse(xhr.responseText); if (d.message) msg = d.message; } catch {}
+            reject(new Error(msg));
+          }
+        });
+        xhr.addEventListener("error", () => reject(new Error("Network error – check your connection")));
+        xhr.open("POST", "/api/upload/video");
+        xhr.send(fd);
+      });
       setForm(f => ({ ...f, videoUrl: url, title: f.title || file.name.replace(/\.[^.]+$/, "") }));
       toast({ title: `${file.name} uploaded`, description: "Fill in the title and click Add Video" });
-    } catch {
-      toast({ title: "Upload failed", description: "Try again or use a URL instead", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     } finally {
       setUploadingFile(false);
+      setUploadProgress(0);
     }
   }, [toast]);
+
+  const handleFileDrop = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    handleFileUpload(files[0]);
+  }, [handleFileUpload]);
 
   const handleCreate = () => {
     if (!form.title || !form.videoUrl) return toast({ title: "Title and URL required", variant: "destructive" });
@@ -413,9 +438,14 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
                       <Upload className="w-6 h-6 transition-all" style={{ color: dragOver ? GOLD : `${GOLD}60` }} />
                     </div>
                     <p className="text-sm font-semibold text-white mb-1">
-                      {uploadingFile ? "Uploading…" : dragOver ? "Drop to upload" : "Drag & drop or click to upload"}
+                      {uploadingFile ? `Uploading ${uploadProgress}%…` : dragOver ? "Drop to upload" : "Drag & drop or click to upload"}
                     </p>
-                    <p className="text-xs text-zinc-500">MP4, MOV, AVI, WebM · up to 2GB</p>
+                    <p className="text-xs text-zinc-500">MP4, MOV, WebM, AVI · up to 200MB</p>
+                    {uploadingFile && uploadProgress > 0 && (
+                      <div className="mt-3 w-full bg-zinc-800 rounded-full h-2 overflow-hidden max-w-xs mx-auto">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${uploadProgress}%`, background: GOLD }} />
+                      </div>
+                    )}
                     {form.videoUrl?.startsWith("/uploads/") && (
                       <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: "#22c55e14", color: "#22c55e", border: "1px solid #22c55e30" }}>
                         <div className="w-1.5 h-1.5 rounded-full bg-green-400" /> File uploaded

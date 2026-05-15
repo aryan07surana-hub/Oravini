@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -23,7 +23,7 @@ import {
   Server, Key, Shield, EyeOff, Loader2, CheckCircle2, X, Info, Wifi,
   Repeat2, Bell, Send, Code2, Lock, Unlock, Upload, Image,
   Layers, MousePointer, Timer, RefreshCw, ChevronRight, Hash,
-  SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles,
+  SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles, UploadCloud,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -627,6 +627,11 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
+  const [uploadMethod, setUploadMethod] = useState("url");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -661,6 +666,49 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
     },
   });
 
+  const handleFileUpload = useCallback(async (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      toast({ title: "Please select a video file", variant: "destructive" });
+      return;
+    }
+    setUploadingFile(true);
+    setUploadProgress(0);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const xhr = new XMLHttpRequest();
+      const url = await new Promise<string>((resolve, reject) => {
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        });
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { const d = JSON.parse(xhr.responseText); resolve(d.url); }
+            catch { reject(new Error("Invalid response")); }
+          } else {
+            try { const d = JSON.parse(xhr.responseText); reject(new Error(d.message || "Upload failed")); }
+            catch { reject(new Error(`Upload failed (${xhr.status})`)); }
+          }
+        });
+        xhr.addEventListener("error", () => reject(new Error("Network error")));
+        xhr.open("POST", "/api/upload/video");
+        xhr.send(fd);
+      });
+      setForm(f => ({ ...f, videoUrl: url, title: f.title || file.name.replace(/\.[^.]+$/, "") }));
+      toast({ title: `${file.name} uploaded`, description: "Fill in the details and click Add Video" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingFile(false);
+      setUploadProgress(0);
+    }
+  }, [toast]);
+
+  const handleFileDrop = useCallback((files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    handleFileUpload(files[0]);
+  }, [handleFileUpload]);
+
   const categories = ["General", "Training", "Masterclass", "Product Demo", "Tutorial", "Webinar Replay"];
   const displayed = typeFilter ? (videos as any[]).filter((v: any) => v.videoType === typeFilter) : (videos as any[]);
   const totalViews = displayed.reduce((s: number, v: any) => s + (v.views || 0), 0);
@@ -692,7 +740,7 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
         <EmptyState
           icon={Video}
           title={typeFilter === "vsl" ? "No VSLs yet" : "No videos yet"}
-          desc={typeFilter === "vsl" ? "Add a VSL via Video Hosting to see it here." : "Add your video links to host them in your video library."}
+          desc={typeFilter === "vsl" ? "Add a VSL to get started." : "Add your video links to host them in your video library."}
           action={
             <Button size="sm" style={{ background: GOLD, color: "#000" }} onClick={() => setShowCreate(true)}>
               <Plus className="w-4 h-4 mr-1.5" /> Add Video
@@ -762,7 +810,7 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
           <DialogHeader>
-            <DialogTitle className="text-white font-bold">Add Video</DialogTitle>
+            <DialogTitle className="text-white font-bold">Add {typeFilter === "vsl" ? "VSL" : "Video"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -774,15 +822,66 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
                 className="bg-zinc-800 border-zinc-700 text-white"
               />
             </div>
+
             <div>
-              <label className="text-xs text-zinc-400 mb-1.5 block">Video URL *</label>
-              <Input
-                placeholder="https://..."
-                value={form.videoUrl}
-                onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
-                className="bg-zinc-800 border-zinc-700 text-white"
-              />
+              <label className="text-xs text-zinc-400 mb-1.5 block">Source</label>
+              <Tabs value={uploadMethod} onValueChange={setUploadMethod}>
+                <TabsList className="bg-zinc-800 border border-zinc-700 w-full">
+                  <TabsTrigger value="url" className="flex-1 text-xs">URL</TabsTrigger>
+                  <TabsTrigger value="upload" className="flex-1 text-xs">Upload File</TabsTrigger>
+                </TabsList>
+                <TabsContent value="url" className="mt-3">
+                  <Input
+                    placeholder="https://youtube.com/watch?v=... or direct video URL"
+                    value={form.videoUrl}
+                    onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
+                    className="bg-zinc-800 border-zinc-700 text-white"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1.5">Supports YouTube, Vimeo, Wistia, Loom, and direct video URLs</p>
+                </TabsContent>
+                <TabsContent value="upload" className="mt-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={e => handleFileDrop(e.target.files)}
+                  />
+                  <div
+                    className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all"
+                    style={{
+                      borderColor: dragOver ? GOLD : uploadingFile ? GOLD : "rgba(255,255,255,0.12)",
+                      background: dragOver ? `${GOLD}08` : uploadingFile ? `${GOLD}08` : "rgba(255,255,255,0.02)",
+                      opacity: uploadingFile ? 0.7 : 1,
+                      pointerEvents: uploadingFile ? "none" : "auto",
+                    }}
+                    onClick={() => !uploadingFile && fileInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFileDrop(e.dataTransfer.files); }}
+                  >
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 transition-all" style={{ background: dragOver ? `${GOLD}20` : `${GOLD}10`, border: `1px solid ${dragOver ? GOLD : `${GOLD}25`}` }}>
+                      <UploadCloud className="w-6 h-6 transition-all" style={{ color: dragOver ? GOLD : `${GOLD}60` }} />
+                    </div>
+                    <p className="text-sm font-semibold text-white mb-1">
+                      {uploadingFile ? `Uploading ${uploadProgress}%…` : dragOver ? "Drop to upload" : "Drag & drop or click to upload"}
+                    </p>
+                    <p className="text-xs text-zinc-500">MP4, MOV, WebM, AVI · up to 200MB</p>
+                    {uploadingFile && uploadProgress > 0 && (
+                      <div className="mt-3 w-full bg-zinc-800 rounded-full h-2 overflow-hidden max-w-xs mx-auto">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${uploadProgress}%`, background: GOLD }} />
+                      </div>
+                    )}
+                    {form.videoUrl?.startsWith("/uploads/") && (
+                      <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: "#22c55e14", color: "#22c55e", border: "1px solid #22c55e30" }}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400" /> File uploaded
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
+
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 block">Description</label>
               <Textarea
@@ -843,6 +942,7 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
             <Button
               onClick={() => {
                 if (!form.title || !form.videoUrl) {
+                  toast({ title: "Title and video URL required", variant: "destructive" });
                   return;
                 }
                 createMut.mutate({
@@ -850,6 +950,7 @@ function VideosTab({ typeFilter }: { typeFilter?: string } = {}) {
                   description: form.description || null,
                   videoUrl: form.videoUrl,
                   thumbnailUrl: form.thumbnailUrl || null,
+                  videoType: typeFilter || "standard",
                   duration: form.duration ? Number(form.duration) : null,
                   category: form.category,
                   isPublic: form.isPublic,
