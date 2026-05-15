@@ -273,8 +273,8 @@ export default function WatchWebinar() {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
           case "wr_viewer_ready":
-            // If LiveKit is available, connect via LiveKit for media
-            if (liveKitAvailable) {
+            // If LiveKit is available and there's no HLS broadcastUrl, connect via LiveKit for media
+            if (liveKitAvailable && !webinar?.broadcastUrl) {
               connectLiveKitViewer();
             }
             trackJoin();
@@ -282,8 +282,8 @@ export default function WatchWebinar() {
             break;
 
           case "wr_offer": {
-            // Legacy P2P fallback — only used if LiveKit is NOT configured
-            if (liveKitAvailable) break; // Skip P2P if LiveKit handles media
+            // Legacy P2P fallback — only used if LiveKit is NOT configured and no HLS broadcastUrl
+            if (liveKitAvailable || webinar?.broadcastUrl) break; // Skip P2P if LiveKit or HLS handles media
             const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
             pcRef.current = pc;
 
@@ -382,7 +382,7 @@ export default function WatchWebinar() {
         liveKitRoomRef.current = null;
       }
     };
-  }, [webinar?.id, regForm.name, addFloat, liveKitAvailable, connectLiveKitViewer]);
+  }, [webinar?.id, webinar?.broadcastUrl, regForm.name, addFloat, liveKitAvailable, connectLiveKitViewer]);
 
   // ── HLS broadcast URL player ──────────────────────────────────────────
   useEffect(() => {

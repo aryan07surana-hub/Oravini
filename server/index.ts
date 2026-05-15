@@ -14,6 +14,7 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
+import { startRtmpServer } from "./rtmp";
 import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
 import { initAuditLog, initSessionManager, initSuspiciousLoginDetection, initWsAuth, registerCspReportingEndpoint, writeAuditLog, AuditActions, checkLoginDevice, sendSuspiciousLoginAlert } from "./security/index";
 
@@ -280,6 +281,15 @@ async function runMigrations() {
   await initSuspiciousLoginDetection(pool);
   initWsAuth(pool);
   registerCspReportingEndpoint(app);
+
+  // Start RTMP server for self-hosted HLS streaming
+  if (process.env.DISABLE_RTMP !== "true") {
+    try {
+      startRtmpServer();
+    } catch (err) {
+      console.error("[rtmp] Failed to start:", err);
+    }
+  }
 
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);

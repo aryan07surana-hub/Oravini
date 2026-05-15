@@ -119,6 +119,13 @@ export default function WebinarStudio() {
   const recordTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
   const hostConnected   = useRef(false);
 
+  // ── RTMP Broadcast State ─────────────────────────────────────────────
+  const [broadcastMode, setBroadcastMode] = useState<"livekit" | "rtmp" | "none">("none");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const relayWsRef = useRef<WebSocket | null>(null);
+  const [streamKey, setStreamKey] = useState("");
+  const [showStreamKey, setShowStreamKey] = useState(false);
+
   // ── LiveKit Integration ────────────────────────────────────────────────
   const livekit = useLiveKitHost({
     webinarId: webinarId || "",
@@ -204,37 +211,112 @@ export default function WebinarStudio() {
     };
   }, [webinarId, addFloatReact]);
 
+  // ── RTMP Relay via MediaRecorder ────────────────────────────────────
+  const startRtmpRelay = useCallback(async () => {
+    if (!webinarId || !webinar?.meetingCode) return;
+    const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+    const relayWs = new WebSocket(wsUrl);
+    relayWsRef.current = relayWs;
+
+    relayWs.onopen = () => {
+      relayWs.send(JSON.stringify({ type: "relay_start", meetingCode: webinar.meetingCode }));
+    };
+
+    relayWs.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "relay_started") {
+          setStreamKey(msg.streamKey);
+          setShowStreamKey(true);
+          addSys("✅ RTMP relay connected — broadcasting via browser...");
+          if (camStream.current) {
+            try {
+              const mimeTypes = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm;codecs=h264,opus", "video/webm;codecs=avc1,opus", "video/webm"];
+              let selectedType = mimeTypes[0];
+              for (const mt of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(mt)) { selectedType = mt; break; }
+              }
+              const mr = new MediaRecorder(camStream.current, {
+                mimeType: selectedType,
+                videoBitsPerSecond: quality === "4k" ? 12000000 : quality === "1080p" ? 5000000 : 2500000,
+              });
+              mediaRecorderRef.current = mr;
+              mr.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0 && relayWs.readyState === WebSocket.OPEN) {
+                  relayWs.send(event.data);
+                }
+              };
+              mr.start(1000);
+              addSys(`📹 Broadcasting at ${quality} (${selectedType})`);
+            } catch (err: any) {
+              addSys(`⚠️ MediaRecorder error: ${err.message}`);
+            }
+          }
+        } else if (msg.type === "relay_error") {
+          addSys(`⚠️ Relay error: ${msg.message}`);
+        } else if (msg.type === "relay_stopped") {
+          addSys("Relay stopped.");
+        }
+      } catch {}
+    };
+
+    relayWs.onerror = () => addSys("⚠️ Relay WebSocket error");
+    relayWs.onclose = () => {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+    };
+  }, [webinarId, webinar?.meetingCode, quality, addSys]);
+
+  const stopRtmpRelay = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    if (relayWsRef.current?.readyState === WebSocket.OPEN) {
+      relayWsRef.current.send(JSON.stringify({ type: "relay_stop" }));
+      relayWsRef.current.close();
+    }
+    relayWsRef.current = null;
+    setShowStreamKey(false);
+  }, []);
+
   const startMut = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/webinars/${webinarId}/start`),
+    mutationFn: () => apiRequest("POST", `/api/webinars/${webinarId}/start`, {
+      useRelay: !livekit.isLiveKitAvailable,
+    }),
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: [`/api/webinars/${webinarId}`] });
       toast({ title: "🔴 You are now LIVE!" });
       timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-      addSys("Webinar started — connecting to LiveKit...");
+      addSys("Webinar started — connecting...");
       hostConnected.current = true;
 
-      // Connect to LiveKit for media streaming
       if (livekit.isLiveKitAvailable) {
+        setBroadcastMode("livekit");
         const connected = await livekit.connect();
         if (connected) {
           addSys("✅ LiveKit connected — unlimited viewers, 4K streaming active.");
-          // Publish camera if already started
           if (cameraReady) {
             try {
               await livekit.publishCamera(selCam || undefined, quality);
-              addSys("Camera published to LiveKit — viewers can see you now.");
+              addSys("Camera published to LiveKit.");
             } catch (err: any) {
               addSys(`⚠️ Failed to publish camera: ${err.message}`);
             }
           }
         } else {
-          addSys(`⚠️ LiveKit connection failed: ${livekit.error}. Falling back to WebSocket signaling.`);
+          addSys(`⚠️ LiveKit failed: ${livekit.error}. Falling back to RTMP relay.`);
+          setBroadcastMode("rtmp");
+          setTimeout(() => startRtmpRelay(), 500);
         }
       } else {
-        addSys("⚠️ LiveKit not configured — using legacy WebRTC (max ~50 viewers). Configure LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET for unlimited streaming.");
+        setBroadcastMode("rtmp");
+        addSys("Using built-in RTMP relay — no external services needed. Unlimited and free.");
+        setTimeout(() => startRtmpRelay(), 500);
       }
 
-      // Connect WebSocket for chat/reactions/CTA
       connectHost();
     },
   });
@@ -247,6 +329,10 @@ export default function WebinarStudio() {
       if (mediaRecorder.current?.state !== "inactive") { mediaRecorder.current?.stop(); setRecording(false); if (recordTimer.current) { clearInterval(recordTimer.current); recordTimer.current = null; } }
       // Disconnect LiveKit
       livekit.disconnect();
+      // Stop RTMP relay if active
+      if (broadcastMode === "rtmp") {
+        stopRtmpRelay();
+      }
       // Close WebSocket
       if (wsRef.current?.readyState === WebSocket.OPEN)
         wsRef.current.send(JSON.stringify({ type: "wr_host_end", webinarId }));
