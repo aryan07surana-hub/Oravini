@@ -128,6 +128,7 @@ import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
 import AdminFeedback from "@/pages/admin/AdminFeedback";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 
 import PortalEliteMembers from "@/pages/portal/EliteMembers";
 import PortalSessionsHub from "@/pages/portal/SessionsHub";
@@ -301,6 +302,7 @@ function Router() {
       <Route path="/admin/tool-heatmap">{() => <Guard component={AdminToolHeatmap} adminOnly />}</Route>
       <Route path="/admin/project-tracker">{() => <Guard component={ProjectTracker} adminOnly />}</Route>
       <Route path="/admin/feedback">{() => <Guard component={AdminFeedback} adminOnly />}</Route>
+      <Route path="/admin/analytics">{() => <Guard component={AdminAnalytics} adminOnly />}</Route>
       <Route path="/admin">{() => <Guard component={AdminDashboard} adminOnly />}</Route>
 
       <Route component={NotFound} />

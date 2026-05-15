@@ -7315,6 +7315,85 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
     }
   });
 
+  // GET /api/admin/analytics — aggregated dashboard analytics
+  app.get("/api/admin/analytics", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const [userRows, planRows, monthRows, leadRows, feedbackRows, deletionRows, referralRows, creditRows] = await Promise.all([
+        pool.query(`SELECT COUNT(*)::int AS total FROM users WHERE role = 'client'`),
+        pool.query(`SELECT plan, COUNT(*)::int AS count FROM users WHERE role = 'client' GROUP BY plan ORDER BY plan`),
+        pool.query(`
+          SELECT
+            to_char(created_at, 'YYYY-MM') AS month,
+            COUNT(*)::int AS signups
+          FROM users
+          WHERE role = 'client' AND created_at >= NOW() - INTERVAL '12 months'
+          GROUP BY month ORDER BY month
+        `),
+        pool.query(`SELECT COUNT(*)::int AS total FROM landing_leads`),
+        pool.query(`
+          SELECT
+            COUNT(*)::int AS total,
+            ROUND(AVG(overall_rating)::numeric, 1) AS avg_rating,
+            COUNT(CASE WHEN nps_score >= 9 THEN 1 END) AS promoters,
+            COUNT(CASE WHEN nps_score <= 6 THEN 1 END) AS detractors,
+            COUNT(nps_score) AS nps_count
+          FROM user_feedback
+        `),
+        pool.query(`SELECT COUNT(*)::int AS total FROM deletion_surveys`),
+        pool.query(`
+          SELECT
+            COALESCE(SUM(clicks)::int, 0) AS total_clicks,
+            COALESCE(SUM(signups)::int, 0) AS total_signups,
+            COALESCE(SUM(conversions)::int, 0) AS total_conversions
+          FROM referral_codes
+        `),
+        pool.query(`
+          SELECT COALESCE(SUM(monthly_credits + bonus_credits)::int, 0) AS total_credits
+          FROM credit_balances
+        `),
+      ]);
+
+      const totalUsers = userRows.rows[0].total;
+      const planBreakdown = planRows.rows;
+      const monthlySignups = monthRows.rows;
+      const totalLeads = leadRows.rows[0].total;
+      const fb = feedbackRows.rows[0];
+      const totalFeedback = fb.total;
+      const avgRating = fb.avg_rating;
+      const npsCount = fb.nps_count;
+      const nps = npsCount > 0 ? Math.round(((fb.promoters - fb.detractors) / npsCount) * 100) : null;
+      const churnCount = deletionRows.rows[0].total;
+      const ref = referralRows.rows[0];
+      const totalCredits = creditRows.rows[0].total_credits;
+
+      const planPrices: Record<string, number> = { starter: 29, growth: 59, pro: 79, elite: 149 };
+      let mrr = 0;
+      for (const row of planBreakdown) {
+        if (planPrices[row.plan]) {
+          mrr += row.count * planPrices[row.plan];
+        }
+      }
+
+      return res.json({
+        totalUsers,
+        planBreakdown,
+        monthlySignups,
+        totalLeads,
+        totalFeedback,
+        avgRating,
+        nps,
+        churnCount,
+        totalClicks: ref.total_clicks,
+        totalSignups: ref.total_signups,
+        totalConversions: ref.total_conversions,
+        totalCredits,
+        mrr,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   // Sessions Hub ────────────────────────────────────────────────────────────
   const TIER_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2 };
 
