@@ -14,7 +14,7 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@distube/ytdl-core": "^4.16.12",
     "@google/generative-ai": "^0.24.1",
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.2.2",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.4",
     "@radix-ui/react-alert-dialog": "^1.1.7",
