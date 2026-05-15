@@ -272,6 +272,9 @@ export async function processPerformanceFeedback(
       source: "user_content",
     });
   }
+
+  // Recompute niche intelligence for this niche (fires & forgets)
+  storage.computeNicheIntelligence().catch(() => {});
 }
 
 function extractCTA(caption: string): string {
@@ -389,8 +392,34 @@ export async function buildTrainingPrompt(userId: string, platform: string, nich
   // Get brand voice
   const brandVoice = await storage.getBrandVoiceProfile(userId);
   
-  let prompt = `You are Oravini's Content Intelligence Engine, trained on 10,000+ viral posts.\n\n`;
-  
+  let prompt = `You are Oravini's Content Intelligence Engine, trained on 10,000+ viral posts and cross-user niche performance data.\n\n`;
+
+  // Add CROSS-USER niche intelligence (the network effect)
+  const nicheData = niche ? await storage.getSingleNicheIntelligence(niche, platform) : null;
+  if (nicheData && nicheData.totalPosts > 0) {
+    prompt += `📊 NICHE BENCHMARKS (${niche.toUpperCase()} on ${platform.toUpperCase()} — aggregated across ${nicheData.totalUsers} creators):\n`;
+    prompt += `Average engagement rate: ${nicheData.avgEngagementRate.toFixed(2)}%\n`;
+    prompt += `Average viral score: ${nicheData.avgViralScore.toFixed(1)}/10\n`;
+    prompt += `Average views per post: ${nicheData.avgViews.toLocaleString()}\n`;
+    if (nicheData.topHookType) prompt += `Top performing hook type: ${nicheData.topHookType}\n`;
+    if (nicheData.topContentType) prompt += `Top performing content type: ${nicheData.topContentType}\n`;
+    if (nicheData.trend30d) {
+      const trend = nicheData.trend30d > 0 ? "↑ rising" : nicheData.trend30d < 0 ? "↓ declining" : "→ stable";
+      prompt += `Engagement trend (30d): ${trend} (${nicheData.trend30d > 0 ? "+" : ""}${nicheData.trend30d.toFixed(2)}%)\n`;
+    }
+    prompt += `\n`;
+
+    // Fetch trending signals
+    const trends = await storage.getNicheTrends(niche, platform);
+    if (trends.length > 0) {
+      prompt += `🔥 TRENDING SIGNALS IN ${niche.toUpperCase()}:\n`;
+      trends.slice(0, 5).forEach(t => {
+        prompt += `- ${t.trendType}: ${t.trendValue} (${t.momentum}, Δ${t.engagementDelta > 0 ? "+" : ""}${t.engagementDelta.toFixed(1)}% engagement)\n`;
+      });
+      prompt += `\n`;
+    }
+  }
+
   // Add hook library
   if (topHooks.length > 0) {
     prompt += `PROVEN HOOK PATTERNS (sorted by viral score):\n`;
@@ -455,7 +484,8 @@ export async function buildTrainingPrompt(userId: string, platform: string, nich
   prompt += `2. Every post MUST follow the platform-specific structure\n`;
   prompt += `3. Every piece of content MUST sound like the brand voice\n`;
   prompt += `4. Use ONLY patterns that have proven to work\n`;
-  prompt += `5. NO generic hooks like "5 tips" or "How to grow" — those are DEAD\n\n`;
+  prompt += `5. NO generic hooks like "5 tips" or "How to grow" — those are DEAD\n`;
+  prompt += `6. Prioritize hook types and structures marked as trending in the niche\n\n`;
   
   return prompt;
 }

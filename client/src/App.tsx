@@ -71,6 +71,7 @@ import Credits from "@/pages/client/Credits";
 import PlanSettings from "@/pages/client/PlanSettings";
 import LeadMagnetGenerator from "@/pages/client/LeadMagnetGenerator";
 import InstagramStoryGenerator from "@/pages/client/InstagramStoryGenerator";
+import NicheIntelligence from "@/pages/client/NicheIntelligence";
 import BrandKitBuilder from "@/pages/client/BrandKitBuilder";
 import ICPBuilder from "@/pages/client/ICPBuilder";
 import SOPGenerator from "@/pages/client/SOPGenerator";
@@ -219,6 +220,7 @@ function Router() {
       <Route path="/ai-design">{() => <Guard component={AIDesign} />}</Route>
       <Route path="/lead-magnet">{() => <Guard component={LeadMagnetGenerator} />}</Route>
       <Route path="/story-generator">{() => <Guard component={InstagramStoryGenerator} />}</Route>
+      <Route path="/niche-intelligence">{() => <Guard component={NicheIntelligence} />}</Route>
       <Route path="/brand-kit-builder">{() => <Guard component={BrandKitBuilder} />}</Route>
       <Route path="/icp-builder">{() => <Guard component={ICPBuilder} />}</Route>
       <Route path="/audience-psychology-map">{() => <Guard component={AudiencePsychologyMap} />}</Route>

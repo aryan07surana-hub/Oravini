@@ -438,6 +438,89 @@ export async function processEmailSequences() {
   }
 }
 
+export async function processSmsSequences() {
+  try {
+    const pending = await storage.getPendingSmsEnrollments();
+    if (pending.length === 0) return;
+    log(`SMS sequences: processing ${pending.length} pending enrollment(s)`, "cron");
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      log("SMS sequences: skipped — EMAIL_USER/PASS not configured", "cron");
+      return;
+    }
+
+    for (const enrollment of pending) {
+      try {
+        const steps = await storage.getSmsSequenceSteps(enrollment.sequenceId);
+        if (!steps.length || enrollment.currentStep >= steps.length) {
+          await storage.advanceSmsEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+
+        const stepToSend = steps[enrollment.currentStep];
+        if (!stepToSend) {
+          await storage.advanceSmsEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+
+        // Check sequence is still active
+        const seq = await storage.getSmsSequence(enrollment.sequenceId);
+        if (!seq?.active) continue;
+
+        // Check if unsubscribed
+        if (await storage.isSmsUnsubscribed(enrollment.phone)) {
+          await storage.advanceSmsEnrollment(enrollment.id, enrollment.currentStep, null, true);
+          continue;
+        }
+
+        // Get carrier gateway
+        const gw = await storage.getSmsCarrierGateway(enrollment.phone);
+        if (!gw || !gw.gatewayDomain) {
+          log(`SMS sequence ${enrollment.id}: no carrier gateway for ${enrollment.phone}, skipping`, "cron");
+          continue;
+        }
+
+        // Templatize message with {{phone}}
+        const message = stepToSend.message;
+
+        // Send via email-to-SMS gateway
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.default.createTransport({
+          service: "gmail",
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        });
+        const toEmail = `${enrollment.phone.replace(/[^+\d]/g, "")}@${gw.gatewayDomain}`;
+        await transporter.sendMail({
+          from: `"Oravini" <support@oravini.com>`,
+          to: toEmail,
+          subject: "",
+          text: message,
+        });
+
+        // Log it
+        await storage.logSms({
+          toPhone: enrollment.phone,
+          message: message.slice(0, 200),
+          sequenceStepId: stepToSend.id,
+        });
+
+        // Advance
+        const nextStep = enrollment.currentStep + 1;
+        const isLast = nextStep >= steps.length;
+        const nextStepObj = steps[nextStep];
+        const nextSendAt = isLast
+          ? null
+          : new Date(Date.now() + (nextStepObj?.delayMinutes || 1) * 60 * 1000);
+        await storage.advanceSmsEnrollment(enrollment.id, nextStep, nextSendAt, isLast);
+        log(`SMS sent to ${enrollment.phone} (step ${enrollment.currentStep + 1}/${steps.length})`, "cron");
+      } catch (e: any) {
+        log(`SMS sequence send error for ${enrollment.phone}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`processSmsSequences error: ${e.message}`, "cron");
+  }
+}
+
 export async function processScheduledInstagramPosts() {
   try {
     const due = await storage.getPendingDueInstagramPosts();
@@ -460,5 +543,6 @@ export function startCronJobs() {
   cron.schedule("*/5 * * * *", processScheduledInstagramPosts);
   cron.schedule("*/15 * * * *", sendBookingReminders);
   cron.schedule("0 * * * *", processEmailSequences);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube + Instagram schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour", "cron");
+  cron.schedule("*/2 * * * *", processSmsSequences);
+  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube + Instagram schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour; SMS sequences every 2 minutes", "cron");
 }

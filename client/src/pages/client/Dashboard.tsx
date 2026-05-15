@@ -914,6 +914,129 @@ function CityClockCard({ city, timezone, flag, color }: { city: string; timezone
 }
 
 /* ─────────────────────────────────────────────
+   NICHE INTELLIGENCE WIDGET
+───────────────────────────────────────────── */
+function NicheIntelligenceWidget() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/niche-intelligence/my"],
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const intelligence = data?.intelligence;
+  const trends = data?.trends || [];
+
+  if (!intelligence && !isLoading) return null;
+
+  const healthScore = intelligence.healthScore ?? 0;
+  const healthLabel = intelligence.healthLabel ?? "No Data";
+  const healthColor = healthScore >= 80 ? "#34d399" : healthScore >= 60 ? GOLD : healthScore >= 40 ? "#fb923c" : "#f87171";
+  const niche = intelligence.niche || "your niche";
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 overflow-hidden" style={{ background: "rgba(255,255,255,0.015)" }}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.12)", border: "1px solid rgba(212,180,97,0.2)" }}>
+            <Activity className="w-3.5 h-3.5" style={{ color: GOLD }} />
+          </div>
+          <p className="text-sm font-bold text-foreground">Niche Intelligence</p>
+          {intelligence && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500">
+              {intelligence.totalUsers} creators · {intelligence.totalPosts} posts
+            </span>
+          )}
+        </div>
+        <Link href="/niche-intelligence" className="text-xs text-primary flex items-center gap-1 hover:gap-2 transition-all">
+          Deep dive <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <div className="p-5 space-y-3">
+          <div className="h-4 bg-zinc-800 rounded animate-pulse w-3/4" />
+          <div className="h-4 bg-zinc-800 rounded animate-pulse w-1/2" />
+          <div className="h-4 bg-zinc-800 rounded animate-pulse w-2/3" />
+        </div>
+      ) : (
+        <div className="p-5">
+          {/* Health score + benchmark row */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold" style={{ background: `${healthColor}15`, border: `1px solid ${healthColor}30`, color: healthColor }}>
+              <Activity className="w-3 h-3" />
+              {healthScore}/100 · {healthLabel}
+            </div>
+          </div>
+          {/* Main benchmark stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            {[
+              { label: "Avg Engagement", value: `${intelligence.avgEngagementRate.toFixed(1)}%`, sub: `${niche} avg`, color: "#34d399" },
+              { label: "Avg Viral Score", value: intelligence.avgViralScore.toFixed(1), sub: "/10", color: "#a78bfa" },
+              { label: "Avg Views", value: intelligence.avgViews >= 1000 ? `${(intelligence.avgViews / 1000).toFixed(1)}K` : intelligence.avgViews, sub: "per post", color: "#60a5fa" },
+              { label: "Trend (30d)", value: intelligence.trend30d > 0 ? `+${intelligence.trend30d.toFixed(1)}%` : intelligence.trend30d < 0 ? `${intelligence.trend30d.toFixed(1)}%` : "Stable", sub: intelligence.trend30d > 0 ? "Rising" : intelligence.trend30d < 0 ? "Declining" : "Flat", color: intelligence.trend30d > 0 ? "#34d399" : intelligence.trend30d < 0 ? "#f87171" : GOLD },
+            ].map(({ label, value, sub, color }) => (
+              <div key={label} className="flex flex-col items-center justify-center py-3 px-2 rounded-xl" style={{ background: `${color}08`, border: `1px solid ${color}18` }}>
+                <p className="text-xl font-bold text-foreground" style={{ color }}>{value}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
+                <p className="text-[9px] text-zinc-600 mt-0.5">{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top performing patterns */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {intelligence.topHookType && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.15)" }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(212,180,97,0.12)" }}>
+                  <Zap className="w-4 h-4" style={{ color: GOLD }} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Top Hook Type</p>
+                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{intelligence.topHookType}</p>
+                </div>
+              </div>
+            )}
+            {intelligence.topContentType && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.15)" }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(167,139,250,0.12)" }}>
+                  <Layers className="w-4 h-4" style={{ color: "#a78bfa" }} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Top Content Type</p>
+                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{intelligence.topContentType}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Trending signals */}
+          {trends.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 flex items-center gap-1.5">
+                <Flame className="w-3 h-3" style={{ color: "#fb923c" }} />
+                Trending Signals
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {trends.slice(0, 4).map((t: any, i: number) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full" style={{
+                    background: t.momentum === "spiking" ? "rgba(251,146,60,0.15)" : t.momentum === "up" ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${t.momentum === "spiking" ? "rgba(251,146,60,0.3)" : t.momentum === "up" ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.08)"}`,
+                    color: t.momentum === "spiking" ? "#fb923c" : t.momentum === "up" ? "#34d399" : "rgba(255,255,255,0.5)",
+                  }}>
+                    {t.momentum === "spiking" ? "🔥" : t.momentum === "up" ? "↑" : "→"}
+                    {t.trendValue}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
    CREATOR TIPS
 ───────────────────────────────────────────── */
 const CREATOR_TIPS = [
@@ -2233,6 +2356,9 @@ export default function ClientDashboard() {
               </div>
             </div>
           )}
+
+          {/* ── NICHE INTELLIGENCE ── */}
+          <NicheIntelligenceWidget />
 
           {/* ── COMMUNITY PULSE ── */}
           <CommunityPulse />

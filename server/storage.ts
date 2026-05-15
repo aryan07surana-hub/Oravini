@@ -100,6 +100,16 @@ import {
   type VideoChapter, type InsertVideoChapter,
   type VideoCta, type InsertVideoCta,
   type VideoViewerSession, type InsertVideoViewerSession,
+  nicheIntelligence, nicheTrends,
+  type NicheIntelligence, type InsertNicheIntelligence,
+  type NicheTrend, type InsertNicheTrend,
+  smsSequences, smsSequenceSteps, smsEnrollments, smsLogs, smsBroadcasts, smsCarrierGateways, smsUnsubscribes,
+  type SmsSequence, type InsertSmsSequence,
+  type SmsSequenceStep, type InsertSmsSequenceStep,
+  type SmsEnrollment,
+  type SmsLog,
+  type SmsBroadcast, type InsertSmsBroadcast,
+  type SmsCarrierGateway,
 } from "@shared/schema";
 
 export const pool = new Pool({
@@ -499,6 +509,44 @@ export interface IStorage {
   getWebinarPollVotes(pollId: string): Promise<any[]>;
   // Webinar Series - generate instances
   generateSeriesInstances(seriesId: string, count?: number): Promise<any[]>;
+
+  // ── NICHE INTELLIGENCE ──────────────────────────────────────────
+  getNicheIntelligence(filters?: { niche?: string; platform?: string }): Promise<NicheIntelligence[]>;
+  getSingleNicheIntelligence(niche: string, platform?: string): Promise<NicheIntelligence | undefined>;
+  getNicheTrends(niche: string, platform?: string): Promise<NicheTrend[]>;
+  upsertNicheIntelligence(data: InsertNicheIntelligence): Promise<NicheIntelligence>;
+  upsertNicheTrend(data: InsertNicheTrend): Promise<NicheTrend>;
+  computeNicheIntelligence(): Promise<void>;
+  getNicheHealthScore(niche: string, platform?: string): Promise<{ healthScore: number; healthLabel: string; factors: Record<string, number> }>;
+  getNicheUserRank(userId: string, niche: string, platform?: string): Promise<{ percentile: number; userAvgEngagement: number; nicheAvgEngagement: number; userAvgViralScore: number; nicheAvgViralScore: number; totalUsers: number; rank: number }>;
+  getNicheStrategy(niche: string, platform?: string): Promise<any[]>;
+  getNicheHooksLibrary(niche: string, platform?: string, limit?: number): Promise<any[]>;
+  getNicheContentGaps(userId: string, niche: string, platform?: string): Promise<any[]>;
+
+  // ── SMS MARKETING ───────────────────────────────────────────────
+  getSmsSequences(): Promise<SmsSequence[]>;
+  getSmsSequence(id: string): Promise<SmsSequence | undefined>;
+  createSmsSequence(data: InsertSmsSequence): Promise<SmsSequence>;
+  updateSmsSequence(id: string, data: Partial<InsertSmsSequence>): Promise<SmsSequence | undefined>;
+  deleteSmsSequence(id: string): Promise<void>;
+  getSmsSequenceSteps(sequenceId: string): Promise<SmsSequenceStep[]>;
+  createSmsSequenceStep(data: InsertSmsSequenceStep): Promise<SmsSequenceStep>;
+  updateSmsSequenceStep(id: string, data: Partial<InsertSmsSequenceStep>): Promise<SmsSequenceStep | undefined>;
+  deleteSmsSequenceStep(id: string): Promise<void>;
+  enrollPhoneInSmsSequence(phone: string, sequenceId: string): Promise<SmsEnrollment | null>;
+  getPendingSmsEnrollments(): Promise<(SmsEnrollment & { phone: string })[]>;
+  advanceSmsEnrollment(id: string, nextStep: number, nextSendAt: Date | null, completed?: boolean): Promise<void>;
+  logSms(data: { toPhone: string; message: string; sequenceStepId?: string; broadcastId?: string }): Promise<SmsLog>;
+  getSmsStats(): Promise<{ totalSent: number; sentToday: number; activeEnrollments: number }>;
+  getSmsLogs(limit?: number): Promise<SmsLog[]>;
+  createSmsBroadcast(data: InsertSmsBroadcast): Promise<SmsBroadcast>;
+  getSmsBroadcasts(): Promise<SmsBroadcast[]>;
+  updateSmsBroadcast(id: string, data: Partial<SmsBroadcast>): Promise<void>;
+  getSmsCarrierGateway(phone: string): Promise<SmsCarrierGateway | undefined>;
+  setSmsCarrierGateway(phone: string, carrierName: string, gatewayDomain: string): Promise<SmsCarrierGateway>;
+  isSmsUnsubscribed(phone: string): Promise<boolean>;
+  addSmsUnsubscribe(phone: string): Promise<void>;
+  getUsersWithPhone(): Promise<{ id: string; name: string | null; phone: string | null; carrierName: string | null; gatewayDomain: string | null }[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -2761,6 +2809,472 @@ class DatabaseStorage implements IStorage {
       instances.push(webinar);
     }
     return instances;
+  }
+
+  // ── NICHE INTELLIGENCE ─────────────────────────────────────────────────
+  async getNicheIntelligence(filters?: { niche?: string; platform?: string }): Promise<NicheIntelligence[]> {
+    let query = db.select().from(nicheIntelligence).orderBy(desc(nicheIntelligence.totalPosts));
+    if (filters?.niche) query = query.where(eq(nicheIntelligence.niche, filters.niche)) as any;
+    if (filters?.platform) query = query.where(eq(nicheIntelligence.platform, filters.platform as any)) as any;
+    return query;
+  }
+
+  async getSingleNicheIntelligence(niche: string, platform?: string): Promise<NicheIntelligence | undefined> {
+    if (platform) {
+      const [row] = await db.select().from(nicheIntelligence).where(
+        and(eq(nicheIntelligence.niche, niche), eq(nicheIntelligence.platform, platform as any))
+      );
+      return row;
+    }
+    const [row] = await db.select().from(nicheIntelligence).where(eq(nicheIntelligence.niche, niche));
+    return row;
+  }
+
+  async getNicheTrends(niche: string, platform?: string): Promise<NicheTrend[]> {
+    let query = db.select().from(nicheTrends).where(eq(nicheTrends.niche, niche)).orderBy(desc(nicheTrends.detectedAt)) as any;
+    if (platform) query = query.where(eq(nicheTrends.platform, platform as any));
+    return query;
+  }
+
+  async upsertNicheIntelligence(data: InsertNicheIntelligence): Promise<NicheIntelligence> {
+    const existing = await this.getSingleNicheIntelligence(data.niche, data.platform ?? undefined);
+    if (existing) {
+      const [row] = await db.update(nicheIntelligence).set({ ...data, updatedAt: new Date() }).where(eq(nicheIntelligence.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(nicheIntelligence).values(data).returning();
+    return row;
+  }
+
+  async upsertNicheTrend(data: InsertNicheTrend): Promise<NicheTrend> {
+    const [existing] = await db.select().from(nicheTrends).where(
+      and(
+        eq(nicheTrends.niche, data.niche),
+        eq(nicheTrends.platform, data.platform as any),
+        eq(nicheTrends.trendType, data.trendType as any),
+        eq(nicheTrends.trendValue, data.trendValue)
+      )
+    );
+    if (existing) {
+      const [row] = await db.update(nicheTrends).set({ ...data as any, updatedAt: new Date() }).where(eq(nicheTrends.id, existing.id)).returning();
+      return row;
+    }
+    const [row] = await db.insert(nicheTrends).values(data).returning();
+    return row;
+  }
+
+  async computeNicheIntelligence(): Promise<void> {
+    // Aggregate from winning_patterns by niche
+    const aggregates = await db.execute(sqlExpr`
+      SELECT
+        wp.niche,
+        wp.platform,
+        COUNT(*)::int AS total_winning_patterns,
+        COUNT(DISTINCT wp.user_id)::int AS total_users,
+        ROUND(AVG(wp.views)::numeric, 0)::int AS avg_views,
+        ROUND(AVG(wp.likes)::numeric, 0)::int AS avg_likes,
+        ROUND(AVG(wp.comments)::numeric, 0)::int AS avg_comments,
+        ROUND(AVG(wp.saves)::numeric, 0)::int AS avg_saves,
+        ROUND(AVG(wp.shares)::numeric, 0)::int AS avg_shares,
+        ROUND(AVG(wp.engagement_rate)::numeric, 2)::real AS avg_engagement_rate,
+        ROUND(AVG(wp.viral_score)::numeric, 2)::real AS avg_viral_score,
+        ROUND(AVG(CASE WHEN wp.created_at >= NOW() - INTERVAL '30 days' THEN wp.engagement_rate ELSE NULL END)::numeric, 2)::real AS trend_30d
+      FROM winning_patterns wp
+      WHERE wp.niche IS NOT NULL AND wp.niche != ''
+      GROUP BY wp.niche, wp.platform
+    `);
+
+    const rows = aggregates.rows as any[];
+    for (const row of rows) {
+      // Compute health score (0-100)
+      const engRate = row.avg_engagement_rate ?? 0;
+      const trend = row.trend_30d ?? 0;
+      const users = row.total_users ?? 0;
+      const posts = row.total_winning_patterns ?? 0;
+
+      const baseScore = Math.min(engRate * 10, 40);
+      const trendAdj = Math.max(-10, Math.min(trend * 2, 20));
+      const communityScore = Math.min(users * 5, 20);
+      const activityScore = Math.min((users > 0 ? posts / users : 0) * 2, 20);
+      const healthScore = Math.max(0, Math.min(Math.round(baseScore + trendAdj + communityScore + activityScore), 100));
+      const healthLabel = healthScore >= 80 ? "Excellent" : healthScore >= 60 ? "Good" : healthScore >= 40 ? "Fair" : "Poor";
+
+      await this.upsertNicheIntelligence({
+        niche: row.niche,
+        platform: row.platform,
+        avgViews: row.avg_views ?? 0,
+        avgLikes: row.avg_likes ?? 0,
+        avgComments: row.avg_comments ?? 0,
+        avgSaves: row.avg_saves ?? 0,
+        avgShares: row.avg_shares ?? 0,
+        avgEngagementRate: engRate,
+        avgViralScore: row.avg_viral_score ?? 0,
+        totalPosts: posts,
+        totalUsers: users,
+        totalWinningPatterns: posts,
+        trend30d: trend,
+        healthScore,
+        healthLabel,
+        lastCalculatedAt: new Date(),
+      });
+    }
+
+    // Compute top hook types per niche
+    const topHooks = await db.execute(sqlExpr`
+      SELECT DISTINCT ON (wp.niche, wp.platform)
+        wp.niche,
+        wp.platform,
+        wp.hook_type AS top_hook_type,
+        COUNT(*) OVER (PARTITION BY wp.niche, wp.platform, wp.hook_type) AS hook_count
+      FROM winning_patterns wp
+      WHERE wp.niche IS NOT NULL AND wp.niche != ''
+      ORDER BY wp.niche, wp.platform, hook_count DESC
+    `);
+
+    for (const row of (topHooks.rows as any[])) {
+      const existing = await this.getSingleNicheIntelligence(row.niche, row.platform);
+      if (existing) {
+        await db.update(nicheIntelligence).set({ topHookType: row.top_hook_type, updatedAt: new Date() }).where(eq(nicheIntelligence.id, existing.id));
+      }
+    }
+
+    // Compute top content types per niche
+    const topContentTypes = await db.execute(sqlExpr`
+      SELECT DISTINCT ON (wp.niche, wp.platform)
+        wp.niche,
+        wp.platform,
+        wp.content_type AS top_content_type,
+        COUNT(*) OVER (PARTITION BY wp.niche, wp.platform, wp.content_type) AS ct_count
+      FROM winning_patterns wp
+      WHERE wp.niche IS NOT NULL AND wp.niche != ''
+      ORDER BY wp.niche, wp.platform, ct_count DESC
+    `);
+
+    for (const row of (topContentTypes.rows as any[])) {
+      const existing = await this.getSingleNicheIntelligence(row.niche, row.platform);
+      if (existing) {
+        await db.update(nicheIntelligence).set({ topContentType: row.top_content_type, updatedAt: new Date() }).where(eq(nicheIntelligence.id, existing.id));
+      }
+    }
+  }
+
+  async getNicheHealthScore(niche: string, platform?: string): Promise<{ healthScore: number; healthLabel: string; factors: Record<string, number> }> {
+    const data = await this.getSingleNicheIntelligence(niche, platform);
+    if (!data || data.healthScore == null) {
+      return { healthScore: 0, healthLabel: "No Data", factors: { baseScore: 0, trendAdj: 0, communityScore: 0, activityScore: 0 } };
+    }
+    const engRate = data.avgEngagementRate ?? 0;
+    const trend = data.trend30d ?? 0;
+    const users = data.totalUsers ?? 0;
+    const posts = data.totalPosts ?? 0;
+    return {
+      healthScore: data.healthScore,
+      healthLabel: data.healthLabel ?? "Unknown",
+      factors: {
+        baseScore: Math.min(engRate * 10, 40),
+        trendAdj: Math.max(-10, Math.min(trend * 2, 20)),
+        communityScore: Math.min(users * 5, 20),
+        activityScore: Math.min((users > 0 ? posts / users : 0) * 2, 20),
+      },
+    };
+  }
+
+  async getNicheUserRank(userId: string, niche: string, platform?: string): Promise<{ percentile: number; userAvgEngagement: number; nicheAvgEngagement: number; userAvgViralScore: number; nicheAvgViralScore: number; totalUsers: number; rank: number }> {
+    // Get user's winning patterns in this niche
+    const userPatterns = await db.select().from(winningPatterns).where(
+      and(eq(winningPatterns.userId, userId), eq(winningPatterns.niche, niche))
+    );
+    const totalUserPatterns = userPatterns.length;
+    const userAvgEngagement = totalUserPatterns > 0
+      ? userPatterns.reduce((s: number, p: any) => s + (p.engagementRate || 0), 0) / totalUserPatterns
+      : 0;
+    const userAvgViralScore = totalUserPatterns > 0
+      ? userPatterns.reduce((s: number, p: any) => s + (p.viralScore || 0), 0) / totalUserPatterns
+      : 0;
+
+    // Get niche average
+    const ni = await this.getSingleNicheIntelligence(niche, platform);
+    const nicheAvgEngagement = ni?.avgEngagementRate ?? 0;
+    const nicheAvgViralScore = ni?.avgViralScore ?? 0;
+    const totalUsers = ni?.totalUsers ?? 1;
+
+    // Get all users' avg engagement in this niche to compute percentile
+    const allNichePatterns = await db.select({
+      userId: winningPatterns.userId,
+      engagementRate: winningPatterns.engagementRate,
+    }).from(winningPatterns).where(eq(winningPatterns.niche, niche));
+
+    const userEngagementMap = new Map<string, number[]>();
+    for (const p of allNichePatterns) {
+      const arr = userEngagementMap.get(p.userId) || [];
+      arr.push(p.engagementRate);
+      userEngagementMap.set(p.userId, arr);
+    }
+
+    const userAvgs: { userId: string; avg: number }[] = [];
+    for (const [uid, rates] of userEngagementMap) {
+      userAvgs.push({ userId: uid, avg: rates.reduce((s, r) => s + r, 0) / rates.length });
+    }
+    userAvgs.sort((a, b) => b.avg - a.avg);
+
+    const userRank = userAvgs.findIndex(u => u.userId === userId) + 1;
+    const percentile = totalUsers > 0 ? Math.round(((totalUsers - userRank) / totalUsers) * 100) : 0;
+
+    return {
+      percentile: Math.max(0, percentile),
+      userAvgEngagement: parseFloat(userAvgEngagement.toFixed(2)),
+      nicheAvgEngagement: parseFloat(nicheAvgEngagement.toFixed(2)),
+      userAvgViralScore: parseFloat(userAvgViralScore.toFixed(2)),
+      nicheAvgViralScore: parseFloat(nicheAvgViralScore.toFixed(2)),
+      totalUsers,
+      rank: userRank > 0 ? userRank : totalUsers,
+    };
+  }
+
+  async getNicheStrategy(niche: string, platform?: string): Promise<any[]> {
+    const ni = await this.getSingleNicheIntelligence(niche, platform);
+    if (!ni) return [];
+
+    const strategies: any[] = [];
+
+    // Hook strategy
+    if (ni.topHookType) {
+      strategies.push({
+        type: "hook",
+        title: `Lead with "${ni.topHookType}" hooks`,
+        description: `${ni.topHookType} hooks are driving top engagement in ${niche}. Start your content with a ${ni.topHookType}-based opening to maximise hook retention.`,
+        impact: "high",
+        icon: "zap",
+      });
+    }
+
+    // Content type strategy
+    if (ni.topContentType) {
+      strategies.push({
+        type: "content_format",
+        title: `Prioritise ${ni.topContentType} content`,
+        description: `${ni.topContentType} is outperforming other formats in ${niche}. Shift your content mix to include more ${ni.topContentType} posts.`,
+        impact: "high",
+        icon: "layers",
+      });
+    }
+
+    // Trend strategy
+    if (ni.trend30d > 0) {
+      strategies.push({
+        type: "timing",
+        title: "Increase posting frequency",
+        description: `Niche engagement is rising ${ni.trend30d.toFixed(1)}% — now is the time to increase your posting cadence and capture the growing audience.`,
+        impact: "medium",
+        icon: "trending-up",
+      });
+    } else if (ni.trend30d < 0) {
+      strategies.push({
+        type: "innovation",
+        title: "Experiment with new formats",
+        description: `Engagement is declining ${Math.abs(ni.trend30d).toFixed(1)}% in ${niche}. Try new hook types, formats, and content structures to stand out.`,
+        impact: "high",
+        icon: "flame",
+      });
+    }
+
+    // Saturation strategy
+    const users = ni.totalUsers || 0;
+    const posts = ni.totalPosts || 0;
+    const postsPerUser = users > 0 ? posts / users : 0;
+    if (postsPerUser > 20) {
+      strategies.push({
+        type: "differentiation",
+        title: "Find your unique angle",
+        description: `This niche has high content density (${postsPerUser.toFixed(1)} posts/creator). Differentiate with unique perspectives and underserved subtopics.`,
+        impact: "medium",
+        icon: "target",
+      });
+    } else if (postsPerUser < 5 && users > 5) {
+      strategies.push({
+        type: "volume",
+        title: "Outpace the competition with volume",
+        description: `Low content density (${postsPerUser.toFixed(1)} posts/creator) means opportunity. Post more frequently to capture market share.`,
+        impact: "medium",
+        icon: "zap",
+      });
+    }
+
+    // Viral strategy
+    if (ni.avgViralScore < 3) {
+      strategies.push({
+        type: "viral",
+        title: "Improve your viral mechanics",
+        description: `The niche average viral score is ${ni.avgViralScore.toFixed(1)}/10. Add comment bait, shareable moments, and save-worthy value to boost virality.`,
+        impact: "high",
+        icon: "flame",
+      });
+    }
+
+    return strategies;
+  }
+
+  async getNicheHooksLibrary(niche: string, platform?: string, limit: number = 20): Promise<any[]> {
+    let query = db.select().from(hookLibrary).where(eq(hookLibrary.niche, niche)).orderBy(desc(hookLibrary.viralScore), desc(hookLibrary.usageCount)).limit(limit) as any;
+    if (platform) query = query.where(eq(hookLibrary.platform, platform as any));
+    return query;
+  }
+
+  async getNicheContentGaps(userId: string, niche: string, platform?: string): Promise<any[]> {
+    // Get top patterns across the niche
+    const nichePatternsQuery = db.select({
+      hookType: winningPatterns.hookType,
+      contentType: winningPatterns.contentType,
+      structure: winningPatterns.structure,
+      engagementRate: winningPatterns.engagementRate,
+    }).from(winningPatterns).where(eq(winningPatterns.niche, niche)).orderBy(desc(winningPatterns.engagementRate));
+
+    const nichePatterns = await nichePatternsQuery;
+
+    // Get user's patterns
+    const userPatterns = await db.select({
+      hookType: winningPatterns.hookType,
+      contentType: winningPatterns.contentType,
+      structure: winningPatterns.structure,
+    }).from(winningPatterns).where(
+      and(eq(winningPatterns.userId, userId), eq(winningPatterns.niche, niche))
+    );
+
+    const userHookTypes = new Set(userPatterns.map(p => p.hookType));
+    const userContentTypes = new Set(userPatterns.map(p => p.contentType));
+    const userStructures = new Set(userPatterns.map(p => p.structure));
+
+    // Find gaps: top niche patterns the user hasn't tried
+    const seen = new Set<string>();
+    const gaps: any[] = [];
+
+    for (const p of nichePatterns) {
+      const key = `${p.hookType}-${p.contentType}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const missing: string[] = [];
+      if (p.hookType && !userHookTypes.has(p.hookType)) missing.push(`hook type "${p.hookType}"`);
+      if (p.contentType && !userContentTypes.has(p.contentType)) missing.push(`content format "${p.contentType}"`);
+
+      if (missing.length > 0) {
+        gaps.push({
+          hookType: p.hookType,
+          contentType: p.contentType,
+          structure: p.structure,
+          missing,
+          potentialImpact: p.engagementRate > (nichePatterns.reduce((s, x) => s + x.engagementRate, 0) / Math.max(nichePatterns.length, 1)) ? "high" : "medium",
+          avgEngagementRate: parseFloat(p.engagementRate.toFixed(2)),
+        });
+      }
+    }
+
+    return gaps.slice(0, 10);
+  }
+
+  // ── SMS Marketing ────────────────────────────────────────────────────────
+  async getSmsSequences() {
+    return db.select().from(smsSequences).orderBy(desc(smsSequences.createdAt));
+  }
+  async getSmsSequence(id: string) {
+    const [row] = await db.select().from(smsSequences).where(eq(smsSequences.id, id));
+    return row;
+  }
+  async createSmsSequence(data: InsertSmsSequence) {
+    const [row] = await db.insert(smsSequences).values(data).returning();
+    return row;
+  }
+  async updateSmsSequence(id: string, data: Partial<InsertSmsSequence>) {
+    const [row] = await db.update(smsSequences).set(data).where(eq(smsSequences.id, id)).returning();
+    return row;
+  }
+  async deleteSmsSequence(id: string) {
+    await db.delete(smsSequences).where(eq(smsSequences.id, id));
+  }
+  async getSmsSequenceSteps(sequenceId: string) {
+    return db.select().from(smsSequenceSteps).where(eq(smsSequenceSteps.sequenceId, sequenceId)).orderBy(smsSequenceSteps.sortOrder);
+  }
+  async createSmsSequenceStep(data: InsertSmsSequenceStep) {
+    const [row] = await db.insert(smsSequenceSteps).values(data).returning();
+    return row;
+  }
+  async updateSmsSequenceStep(id: string, data: Partial<InsertSmsSequenceStep>) {
+    const [row] = await db.update(smsSequenceSteps).set(data).where(eq(smsSequenceSteps.id, id)).returning();
+    return row;
+  }
+  async deleteSmsSequenceStep(id: string) {
+    await db.delete(smsSequenceSteps).where(eq(smsSequenceSteps.id, id));
+  }
+  async enrollPhoneInSmsSequence(phone: string, sequenceId: string) {
+    const existing = await db.select().from(smsEnrollments).where(
+      and(eq(smsEnrollments.phone, phone), eq(smsEnrollments.sequenceId, sequenceId))
+    );
+    if (existing.length > 0) return null;
+    const [row] = await db.insert(smsEnrollments).values({
+      phone, sequenceId, currentStep: 0, completed: false, unsubscribed: false, nextSendAt: new Date(),
+    }).returning();
+    return row;
+  }
+  async getPendingSmsEnrollments() {
+    const now = new Date();
+    return db.select().from(smsEnrollments).where(
+      and(
+        eq(smsEnrollments.completed, false),
+        eq(smsEnrollments.unsubscribed, false),
+        lte(smsEnrollments.nextSendAt, now),
+      )
+    );
+  }
+  async advanceSmsEnrollment(id: string, nextStep: number, nextSendAt: Date | null, completed = false) {
+    await db.update(smsEnrollments).set({ currentStep: nextStep, nextSendAt: nextSendAt ?? undefined, completed }).where(eq(smsEnrollments.id, id));
+  }
+  async logSms(data: { toPhone: string; message: string; sequenceStepId?: string; broadcastId?: string }) {
+    const [row] = await db.insert(smsLogs).values({ ...data, sentAt: new Date() }).returning();
+    return row;
+  }
+  async getSmsStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const allLogs = await db.select().from(smsLogs);
+    const totalSent = allLogs.length;
+    const sentToday = allLogs.filter(l => l.sentAt && l.sentAt >= today).length;
+    const activeEnrollments = await db.select().from(smsEnrollments).where(and(eq(smsEnrollments.completed, false), eq(smsEnrollments.unsubscribed, false)));
+    return { totalSent, sentToday, activeEnrollments: activeEnrollments.length };
+  }
+  async getSmsLogs(limit = 50) {
+    return db.select().from(smsLogs).orderBy(desc(smsLogs.sentAt)).limit(limit);
+  }
+  async createSmsBroadcast(data: InsertSmsBroadcast) {
+    const [row] = await db.insert(smsBroadcasts).values(data).returning();
+    return row;
+  }
+  async getSmsBroadcasts() {
+    return db.select().from(smsBroadcasts).orderBy(desc(smsBroadcasts.createdAt));
+  }
+  async updateSmsBroadcast(id: string, data: Partial<SmsBroadcast>) {
+    await db.update(smsBroadcasts).set(data).where(eq(smsBroadcasts.id, id));
+  }
+  async getSmsCarrierGateway(phone: string) {
+    const [row] = await db.select().from(smsCarrierGateways).where(eq(smsCarrierGateways.phone, phone));
+    return row;
+  }
+  async setSmsCarrierGateway(phone: string, carrierName: string, gatewayDomain: string) {
+    const [row] = await db.insert(smsCarrierGateways).values({ phone, carrierName, gatewayDomain }).onConflictDoUpdate({ target: smsCarrierGateways.phone, set: { carrierName, gatewayDomain, updatedAt: new Date() } }).returning();
+    return row;
+  }
+  async isSmsUnsubscribed(phone: string) {
+    const [row] = await db.select().from(smsUnsubscribes).where(eq(smsUnsubscribes.phone, phone));
+    return !!row;
+  }
+  async addSmsUnsubscribe(phone: string) {
+    await db.insert(smsUnsubscribes).values({ phone }).onConflictDoNothing();
+  }
+  async getUsersWithPhone() {
+    const rows = await db.select({
+      id: users.id, name: users.name, phone: users.phone, carrierName: smsCarrierGateways.carrierName, gatewayDomain: smsCarrierGateways.gatewayDomain,
+    }).from(users).leftJoin(smsCarrierGateways, eq(users.phone, smsCarrierGateways.phone))
+      .where(and(sqlExpr`${users.phone} IS NOT NULL`, sqlExpr`${users.phone} != ''`));
+    return rows as any[];
   }
 }
 

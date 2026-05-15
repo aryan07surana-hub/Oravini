@@ -199,34 +199,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }
 
   wss.on("connection", async (ws, req) => {
+    console.log(`[ws] New connection: ${req.url}`);
     const url = new URL(req.url!, `http://localhost`);
     let userId = url.searchParams.get("userId");
 
-    // ─── WebSocket Authentication: validate session cookie ────────────────
-    try {
-      const { authenticateWsConnection } = await import("./security/index");
-      const authenticatedUserId = await authenticateWsConnection(req);
-      if (authenticatedUserId) {
-        userId = authenticatedUserId; // Trust session over query param
-      } else if (!userId) {
-        // No session and no userId param — reject connection
-        ws.close(4001, "Unauthorized");
-        return;
-      }
-      // If userId param is provided but doesn't match session, prefer session
-      // This maintains backward compat while adding security
-    } catch (authErr) {
-      // If auth check fails, fall back to userId param (backward compat)
-      console.warn("[ws-auth] Auth check failed, using userId param:", authErr);
-    }
-
-    if (userId) clients.set(userId, ws);
-
+    // ═══ IMPORTANT ═══
+    // Register ws.on("message") BEFORE any await calls to avoid a race
+    // condition where the first message from the client arrives while the
+    // function is yielded at an await and no listener is attached yet.
+    // ─────────────────
     let currentRoom: string | null = null;
     let currentRole: "host" | "viewer" | null = null;
     let currentViewerId: string | null = null;
 
-    // Rate limiting per connection
     const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
     const checkRateLimit = (key: string, maxPerSec: number = 10): boolean => {
       const now = Date.now();
@@ -240,10 +225,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return true;
     };
 
+    // Register message handler BEFORE auth await to avoid race condition.
+    // Message events are queued synchronously and will be delivered after.
     ws.on("message", (raw) => {
       try {
-        // Handle binary data (MediaRecorder chunks for browser relay)
-        if (raw instanceof Buffer) {
+        // Convert Buffer to string for text messages (ws delivers text as Buffer by default)
+        const text = typeof raw === "string" ? raw : raw instanceof Buffer ? raw.toString() : "";
+        if (!text) return;
+
+        // If this is a binary relay chunk (not JSON), forward it
+        // Binary chunks are NOT JSON - they start with non-{ character
+        if (raw instanceof Buffer && text[0] !== "{") {
           const relayKey = (ws as any)._relayStreamKey as string | undefined;
           if (relayKey) {
             relayChunk(relayKey, raw);
@@ -251,7 +243,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           return;
         }
 
-        const msg = JSON.parse(raw.toString());
+        const msg = JSON.parse(text);
         // Rate limiting
         const msgType = msg.type || "unknown";
         if (!checkRateLimit(msgType)) {
@@ -383,19 +375,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // ── RTMP RELAY (Browser Streaming) ─────────────────────────────
           case "relay_start": {
+            console.log(`[relay] relay_start received: meetingCode=${msg.meetingCode}, webinarId=${webinarId}`);
             const streamKey = `webinar-${msg.meetingCode}`;
             (ws as any)._relayStreamKey = streamKey;
-            const relay = startRelay(ws, streamKey);
-            if (relay) {
-              ws.send(JSON.stringify({ type: "relay_started", streamKey }));
-              console.log(`[relay] Started browser relay for ${streamKey}`);
-            } else {
-              ws.send(JSON.stringify({ type: "relay_error", message: "Relay already active for this stream" }));
+            try {
+              const relay = startRelay(ws, streamKey);
+              if (relay) {
+                ws.send(JSON.stringify({ type: "relay_started", streamKey }));
+                console.log(`[relay] Started browser relay for ${streamKey}`);
+              } else {
+                console.log(`[relay] Relay already active for ${streamKey}, sending error`);
+                ws.send(JSON.stringify({ type: "relay_error", message: "Relay already active for this stream" }));
+              }
+            } catch (err) {
+              console.error(`[relay] Error starting relay: ${err}`);
+              ws.send(JSON.stringify({ type: "relay_error", message: `Failed to start relay: ${err}` }));
             }
             break;
           }
           case "relay_stop": {
             const key = (ws as any)._relayStreamKey as string | undefined;
+            console.log(`[relay] relay_stop received: key=${key}`);
             if (key) {
               stopRelay(key);
               (ws as any)._relayStreamKey = null;
@@ -410,8 +410,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             break;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.error(`[ws] Error processing message: ${err}`);
+      }
     });
+
+    // ─── WebSocket Authentication (after message handler registration) ──
+    try {
+      const { authenticateWsConnection } = await import("./security/index");
+      const authenticatedUserId = await authenticateWsConnection(req);
+      if (authenticatedUserId) {
+        userId = authenticatedUserId;
+      } else if (!userId) {
+        ws.close(4001, "Unauthorized");
+        return;
+      }
+    } catch (authErr) {
+      console.warn("[ws-auth] Auth check failed, using userId param:", authErr);
+    }
+
+    if (userId) clients.set(userId, ws);
 
     ws.on("close", () => {
       if (userId) clients.delete(userId);
@@ -4891,6 +4909,144 @@ Make contentAngles have exactly 20 items. Make everything extremely specific to 
     try {
       await storage.deleteNicheAnalysis(p(req.params.id));
       return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── NICHE INTELLIGENCE FEED ────────────────────────────────────────────────
+  app.get("/api/niche-intelligence", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const niche = req.query.niche as string | undefined;
+      const platform = req.query.platform as string | undefined;
+      const data = await storage.getNicheIntelligence({ niche, platform });
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/my", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const onboarding = await storage.getOnboardingSurvey(user.id);
+      const niche = onboarding?.field;
+      if (!niche) return res.json(null);
+      const data = await storage.getSingleNicheIntelligence(niche);
+      const trends = await storage.getNicheTrends(niche);
+      return res.json({ intelligence: data, trends });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/trends", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const data = await storage.getNicheTrends(niche, platform);
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/my-performance", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+      // Load user's content posts to compute their own stats
+      const posts = await storage.getContentPostsByClient(userId);
+      const totalPosts = posts.length;
+      const totalViews = posts.reduce((s: number, p: any) => s + (p.views || 0), 0);
+      const totalLikes = posts.reduce((s: number, p: any) => s + (p.likes || 0), 0);
+      const totalComments = posts.reduce((s: number, p: any) => s + (p.comments || 0), 0);
+      const totalSaves = posts.reduce((s: number, p: any) => s + (p.saves || 0), 0);
+
+      const avgEngagementRate = totalViews > 0
+        ? ((totalLikes + totalComments + totalSaves) / totalViews) * 100
+        : 0;
+
+      const avgViralScore = totalPosts > 0
+        ? posts.reduce((s: number, p: any) => s + (p.views || 0) > 0 ? s + ((p.likes || 0) + (p.comments || 0) * 2 + (p.saves || 0) * 3) / (p.views || 1) * 100 : s, 0) / totalPosts
+        : 0;
+
+      return res.json({ avgEngagementRate: parseFloat(avgEngagementRate.toFixed(2)), avgViralScore: parseFloat(avgViralScore.toFixed(1)), totalPosts, totalViews });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/niche-intelligence/recalculate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      if (user.role !== "admin") return res.status(403).json({ message: "Admins only" });
+      await storage.computeNicheIntelligence();
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/score", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const result = await storage.getNicheHealthScore(niche, platform);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/rank", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const result = await storage.getNicheUserRank(user.id, niche, platform);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/strategy", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const strategies = await storage.getNicheStrategy(niche, platform);
+      return res.json(strategies);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/hooks", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const hooks = await storage.getNicheHooksLibrary(niche, platform, limit);
+      return res.json(hooks);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/niche-intelligence/gaps", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const niche = req.query.niche as string;
+      const platform = req.query.platform as string | undefined;
+      if (!niche) return res.status(400).json({ message: "niche query param required" });
+      const gaps = await storage.getNicheContentGaps(user.id, niche, platform);
+      return res.json(gaps);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -11863,6 +12019,14 @@ Rules:
         status: "completed",
         endedAt: new Date(),
       });
+      if (webinar) {
+        try {
+          const { stopHlsTranscode } = await import("./hls-transcoder");
+          stopHlsTranscode(`webinar-${webinar.meetingCode}`);
+      } catch (err) {
+        console.error(`[ws] Error processing message: ${err}`);
+      }
+      }
       try {
         const { deleteWebinarRoom } = await import("./livekit");
         await deleteWebinarRoom(req.params.id as string);
@@ -13020,6 +13184,284 @@ Return ONLY valid JSON in this exact format:
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
+  });
+
+  // ── SMS Marketing ───────────────────────────────────────────────────────────
+
+  const CARRIER_GATEWAYS: Record<string, string> = {
+    // US / Canada
+    "verizon": "vtext.com",
+    "tmobile": "tmomail.net",
+    "att": "txt.att.net",
+    "sprint": "sprintpcs.com",
+    "googlefi": "msg.fi.google.com",
+    "uscellular": "email.uscc.net",
+    "cricket": "sms.cricketwireless.net",
+    "boost": "smsmyboostmobile.com",
+    "republic": "text.republicwireless.com",
+    "xfinity": "vtext.com",
+    "consumercellular": "mailmymobile.net",
+    "mint": "tmomail.net",
+    "tracfone": "mmst5.tracfone.com",
+    "metropcs": "mymetropcs.com",
+    "spectrum": "vtext.com",
+    "optimum": "vtext.com",
+    // India
+    "airtel": "airtelmail.com",
+    "jio": "jio.com",
+    "vi": "vodafone.net",
+    "bsnl": "bsnl.in",
+    // UK
+    "vodafone": "vodafone.net",
+    "o2": "o2.co.uk",
+    "ee": "ee.co.uk",
+    "three": "three.co.uk",
+    // Australia
+    "telstra": "telstra.com",
+    "optus": "optus.com.au",
+    "vodafoneau": "vodafone.com.au",
+    // Default fallback
+    "other": "txt.att.net",
+  };
+
+  async function sendSmsViaEmail(toPhone: string, message: string): Promise<void> {
+    const gw = await storage.getSmsCarrierGateway(toPhone);
+    if (!gw || !gw.gatewayDomain) throw new Error(`No carrier gateway for ${toPhone}`);
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.default.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+    const toEmail = `${toPhone.replace(/[^+\d]/g, "")}@${gw.gatewayDomain}`;
+    await transporter.sendMail({
+      from: `"Oravini" <support@oravini.com>`,
+      to: toEmail,
+      subject: "",
+      text: message,
+    });
+  }
+
+  // Carrier gateway — list known carriers
+  app.get("/api/admin/sms/carriers", requireAdmin, async (_req, res) => {
+    res.json(Object.entries(CARRIER_GATEWAYS).map(([id, gateway]) => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), gateway })));
+  });
+
+  // Carrier gateway — lookup phone prefix
+  app.post("/api/admin/sms/detect-carrier", requireAdmin, async (req, res) => {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "phone required" });
+    const existing = await storage.getSmsCarrierGateway(phone);
+    if (existing) return res.json(existing);
+    res.json({ phone, carrierName: "unknown", gatewayDomain: null });
+  });
+
+  // Carrier gateway — set for phone
+  app.post("/api/admin/sms/set-carrier", requireAdmin, async (req, res) => {
+    const { phone, carrierName, gatewayDomain } = req.body;
+    if (!phone || !gatewayDomain) return res.status(400).json({ message: "phone and gatewayDomain required" });
+    const gw = await storage.setSmsCarrierGateway(phone, carrierName, gatewayDomain);
+    res.json(gw);
+  });
+
+  // SMS Sequences — list
+  app.get("/api/admin/sms/sequences", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getSmsSequences();
+    const result = await Promise.all(seqs.map(async s => {
+      const steps = await storage.getSmsSequenceSteps(s.id);
+      return { ...s, stepCount: steps.length };
+    }));
+    res.json(result);
+  });
+
+  // SMS Sequences — create
+  app.post("/api/admin/sms/sequences", requireAdmin, async (req, res) => {
+    const { name, description, trigger } = req.body;
+    if (!name) return res.status(400).json({ message: "name required" });
+    const seq = await storage.createSmsSequence({ name, description, trigger: trigger || "manual", active: true });
+    res.json(seq);
+  });
+
+  // SMS Sequences — update
+  app.patch("/api/admin/sms/sequences/:id", requireAdmin, async (req, res) => {
+    const seq = await storage.updateSmsSequence(p(req.params.id), req.body);
+    res.json(seq);
+  });
+
+  // SMS Sequences — delete
+  app.delete("/api/admin/sms/sequences/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSmsSequence(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // SMS Sequence Steps — list
+  app.get("/api/admin/sms/sequences/:id/steps", requireAdmin, async (req, res) => {
+    const steps = await storage.getSmsSequenceSteps(p(req.params.id));
+    res.json(steps);
+  });
+
+  // SMS Sequence Steps — create
+  app.post("/api/admin/sms/sequences/:id/steps", requireAdmin, async (req, res) => {
+    const { message, delayMinutes, sortOrder } = req.body;
+    if (!message) return res.status(400).json({ message: "message required" });
+    const step = await storage.createSmsSequenceStep({ sequenceId: p(req.params.id), message, delayMinutes: delayMinutes ?? 0, sortOrder: sortOrder ?? 0 });
+    res.json(step);
+  });
+
+  // SMS Sequence Steps — update
+  app.patch("/api/admin/sms/steps/:id", requireAdmin, async (req, res) => {
+    const step = await storage.updateSmsSequenceStep(p(req.params.id), req.body);
+    res.json(step);
+  });
+
+  // SMS Sequence Steps — delete
+  app.delete("/api/admin/sms/steps/:id", requireAdmin, async (req, res) => {
+    await storage.deleteSmsSequenceStep(p(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // SMS — stats + logs
+  app.get("/api/admin/sms/stats", requireAdmin, async (_req, res) => {
+    const stats = await storage.getSmsStats();
+    const logs = await storage.getSmsLogs(50);
+    const enrichedLogs = await Promise.all(logs.map(async l => {
+      let userName = null;
+      if (l.toPhone) {
+        const user = await storage.getUserByPhone(l.toPhone);
+        if (user) userName = user.name;
+      }
+      return { ...l, userName };
+    }));
+    res.json({ stats, logs: enrichedLogs });
+  });
+
+  // SMS — enroll in sequence
+  app.post("/api/admin/sms/enroll", requireAdmin, async (req, res) => {
+    const { phone, sequenceId } = req.body;
+    if (!phone || !sequenceId) return res.status(400).json({ message: "phone and sequenceId required" });
+    const isUnsubscribed = await storage.isSmsUnsubscribed(phone);
+    if (isUnsubscribed) return res.status(400).json({ message: "Phone is unsubscribed" });
+    const enrolled = await storage.enrollPhoneInSmsSequence(phone, sequenceId);
+    if (!enrolled) return res.json({ message: "Already enrolled", enrollment: enrolled });
+    res.json({ enrollment: enrolled });
+  });
+
+  // SMS — enroll users with phone numbers (all or segment)
+  app.post("/api/admin/sms/enroll-all", requireAdmin, async (req, res) => {
+    const { sequenceId, segment } = req.body;
+    if (!sequenceId) return res.status(400).json({ message: "sequenceId required" });
+    const usersWithPhone = await storage.getUsersWithPhone();
+    const targets = usersWithPhone.filter((u: any) => {
+      if (segment === "all" || !segment) return true;
+      return false;
+    });
+    let enrolled = 0;
+    for (const u of targets) {
+      const e = await storage.enrollPhoneInSmsSequence(u.phone, sequenceId);
+      if (e) enrolled++;
+    }
+    res.json({ ok: true, enrolled, total: targets.length });
+  });
+
+  // SMS — enrollments breakdown per sequence
+  app.get("/api/admin/sms/enrollments", requireAdmin, async (_req, res) => {
+    const seqs = await storage.getSmsSequences();
+    const enrollmentsRes = await pool.query("SELECT * FROM sms_enrollments");
+    const enrollments = enrollmentsRes.rows;
+    const result = seqs.map(s => ({
+      sequenceId: s.id,
+      sequenceName: s.name,
+      trigger: s.trigger,
+      active: s.active,
+      totalEnrolled: enrollments.filter((e: any) => e.sequence_id === s.id).length,
+      pending: enrollments.filter((e: any) => e.sequence_id === s.id && !e.completed && !e.unsubscribed).length,
+      completed: enrollments.filter((e: any) => e.sequence_id === s.id && e.completed).length,
+      unsubscribed: enrollments.filter((e: any) => e.sequence_id === s.id && e.unsubscribed).length,
+    }));
+    res.json(result);
+  });
+
+  // SMS — users with phone numbers (for enrollment UI)
+  app.get("/api/admin/sms/users", requireAdmin, async (_req, res) => {
+    const usersWithPhone = await storage.getUsersWithPhone();
+    res.json(usersWithPhone);
+  });
+
+  // SMS Broadcasts — list
+  app.get("/api/admin/sms/broadcasts", requireAdmin, async (_req, res) => {
+    res.json(await storage.getSmsBroadcasts());
+  });
+
+  // SMS Broadcasts — send
+  app.post("/api/admin/sms/broadcast", requireAdmin, async (req, res) => {
+    const { name, message, segment } = req.body;
+    if (!name || !message) return res.status(400).json({ message: "name and message required" });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
+    const broadcast = await storage.createSmsBroadcast({ name, message, segment: segment || "all" });
+    const usersWithPhone = await storage.getUsersWithPhone();
+    let sent = 0;
+    for (const u of usersWithPhone) {
+      try {
+        const gw = await storage.getSmsCarrierGateway(u.phone);
+        if (!gw || !gw.gatewayDomain) continue;
+        await sendSmsViaEmail(u.phone, message);
+        await storage.logSms({ toPhone: u.phone, message: message.slice(0, 100), broadcastId: broadcast.id });
+        sent++;
+      } catch { /* skip failed */ }
+    }
+    await storage.updateSmsBroadcast(broadcast.id, { sentAt: new Date(), recipientsCount: sent });
+    res.json({ ok: true, sent, broadcastId: broadcast.id });
+  });
+
+  // SMS — send a single test SMS
+  app.post("/api/admin/sms/test", requireAdmin, async (req, res) => {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ message: "phone and message required" });
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(503).json({ message: "Email service not configured" });
+    try {
+      await sendSmsViaEmail(phone, message);
+      res.json({ ok: true, message: "SMS sent" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // SMS — run sequences manually
+  app.post("/api/admin/sms/run-sequences", requireAdmin, async (_req, res) => {
+    try {
+      const { processSmsSequences } = await import("./cron");
+      await processSmsSequences();
+      res.json({ ok: true, message: "SMS sequence processing complete" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // SMS — unsubscribe handler
+  app.get("/api/sms/unsubscribe", async (req, res) => {
+    const { phone } = req.query;
+    if (phone) await storage.addSmsUnsubscribe(phone as string);
+    res.type("html").send(`<html><body style="background:#111;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh"><div style="text-align:center"><h2 style="color:#d4b461">Unsubscribed</h2><p style="color:#999">You won't receive any more SMS from Oravini.</p></div></body></html>`);
+  });
+
+  // SMS — seed default sequences
+  app.post("/api/admin/sms/seed-sequences", requireAdmin, async (_req, res) => {
+    const existing = await storage.getSmsSequences();
+    if (existing.length > 0) return res.json({ message: "Sequences already seeded", count: existing.length });
+
+    const welcomeSeq = await storage.createSmsSequence({ name: "Welcome SMS Sequence", description: "Auto-enrolled when phone is verified. Nurtures new users via SMS.", trigger: "join", active: true });
+    await storage.createSmsSequenceStep({ sequenceId: welcomeSeq.id, message: "Hey {{name}}! Welcome to Oravini 🚀 Log in and complete your profile to unlock all tools: https://oravini.com/dashboard", delayMinutes: 0, sortOrder: 1 });
+    await storage.createSmsSequenceStep({ sequenceId: welcomeSeq.id, message: "Quick tip {{name}}: Use the Content Ideas tool to generate 10 post ideas in 30 seconds. Most creators spend hours on this — you just saved your first hour 💪", delayMinutes: 2880, sortOrder: 2 });
+    await storage.createSmsSequenceStep({ sequenceId: welcomeSeq.id, message: "Biggest mistake creators make: not tracking their content. Start logging every post — you'll spot patterns in 30 days that change everything. 📊", delayMinutes: 7200, sortOrder: 3 });
+    await storage.createSmsSequenceStep({ sequenceId: welcomeSeq.id, message: "You've been in Oravini for a week! 🎉 Upgrade to Starter for 150 AI credits/mo, full Content Coach, & more. Level up: https://oravini.com/select-plan", delayMinutes: 14400, sortOrder: 4 });
+
+    const reminderSeq = await storage.createSmsSequence({ name: "Booking Reminder SMS", description: "SMS reminders for upcoming bookings and webinars.", trigger: "booking_reminder", active: true });
+    await storage.createSmsSequenceStep({ sequenceId: reminderSeq.id, message: "⏰ Reminder: Your meeting at Oravini is in 24 hours! See you there: https://oravini.com/dashboard", delayMinutes: 1440, sortOrder: 1 });
+    await storage.createSmsSequenceStep({ sequenceId: reminderSeq.id, message: "🔴 Your Oravini session starts in 1 hour! Click to join: https://oravini.com/dashboard", delayMinutes: 60, sortOrder: 2 });
+
+    const promoSeq = await storage.createSmsSequence({ name: "Promotional SMS", description: "Promotional messages for engaged users.", trigger: "promo", active: true });
+    await storage.createSmsSequenceStep({ sequenceId: promoSeq.id, message: "Exclusive offer just for you {{name}} 🎁 Upgrade to Starter plan and get 50% off your first month! Use code STARTER50 at checkout: https://oravini.com/select-plan", delayMinutes: 0, sortOrder: 1 });
+
+    res.json({ seeded: true, sequences: 3 });
   });
 
   // ── Modular route registrations ──────────────────────────────────────────────

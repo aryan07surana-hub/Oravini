@@ -1867,3 +1867,140 @@ export const dmScheduledBroadcasts = pgTable("dm_scheduled_broadcasts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type DmScheduledBroadcast = typeof dmScheduledBroadcasts.$inferSelect;
+
+// ── NICHE INTELLIGENCE FEED ───────────────────────────────────────────
+// Aggregated performance data by niche — the network effect moat
+export const nicheIntelligence = pgTable("niche_intelligence", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  niche: text("niche").notNull(),
+  platform: platformEnum("platform"),
+  hookType: hookTypeEnum("hook_type"),
+  contentType: contentTypeEnum("content_type"),
+  funnelStage: funnelStageEnum("funnel_stage"),
+
+  // Aggregate metrics
+  avgViews: integer("avg_views").notNull().default(0),
+  avgLikes: integer("avg_likes").notNull().default(0),
+  avgComments: integer("avg_comments").notNull().default(0),
+  avgSaves: integer("avg_saves").notNull().default(0),
+  avgShares: integer("avg_shares").notNull().default(0),
+  avgEngagementRate: real("avg_engagement_rate").notNull().default(0),
+  avgViralScore: real("avg_viral_score").notNull().default(0),
+
+  // Top performing
+  topHookType: text("top_hook_type"),
+  topContentType: text("top_content_type"),
+  topStructure: text("top_structure"),
+
+  // Volume
+  totalPosts: integer("total_posts").notNull().default(0),
+  totalUsers: integer("total_users").notNull().default(0),
+  totalWinningPatterns: integer("total_winning_patterns").notNull().default(0),
+
+  // Trend
+  trend30d: real("trend_30d").notNull().default(0),
+
+  // Health score (0-100 composite)
+  healthScore: real("health_score"),
+  healthLabel: text("health_label"),
+
+  lastCalculatedAt: timestamp("last_calculated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type NicheIntelligence = typeof nicheIntelligence.$inferSelect;
+export type InsertNicheIntelligence = typeof nicheIntelligence.$inferInsert;
+
+// ── SMS Marketing ─────────────────────────────────────────────────────────
+export const smsSequences = pgTable("sms_sequences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  trigger: text("trigger").notNull().default("manual"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSmsSequenceSchema = createInsertSchema(smsSequences).omit({ id: true, createdAt: true });
+export type InsertSmsSequence = z.infer<typeof insertSmsSequenceSchema>;
+export type SmsSequence = typeof smsSequences.$inferSelect;
+
+export const smsSequenceSteps = pgTable("sms_sequence_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => smsSequences.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  delayMinutes: integer("delay_minutes").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSmsSequenceStepSchema = createInsertSchema(smsSequenceSteps).omit({ id: true, createdAt: true });
+export type InsertSmsSequenceStep = z.infer<typeof insertSmsSequenceStepSchema>;
+export type SmsSequenceStep = typeof smsSequenceSteps.$inferSelect;
+
+export const smsEnrollments = pgTable("sms_enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull(),
+  sequenceId: varchar("sequence_id").notNull().references(() => smsSequences.id, { onDelete: "cascade" }),
+  currentStep: integer("current_step").notNull().default(0),
+  completed: boolean("completed").notNull().default(false),
+  unsubscribed: boolean("unsubscribed").notNull().default(false),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+  nextSendAt: timestamp("next_send_at"),
+});
+export type SmsEnrollment = typeof smsEnrollments.$inferSelect;
+
+export const smsLogs = pgTable("sms_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  toPhone: text("to_phone").notNull(),
+  message: text("message").notNull(),
+  sequenceStepId: varchar("sequence_step_id"),
+  broadcastId: varchar("broadcast_id"),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+export type SmsLog = typeof smsLogs.$inferSelect;
+
+export const smsBroadcasts = pgTable("sms_broadcasts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  segment: text("segment").notNull().default("all"),
+  recipientsCount: integer("recipients_count"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSmsBroadcastSchema = createInsertSchema(smsBroadcasts).omit({ id: true, createdAt: true, sentAt: true, recipientsCount: true });
+export type InsertSmsBroadcast = z.infer<typeof insertSmsBroadcastSchema>;
+export type SmsBroadcast = typeof smsBroadcasts.$inferSelect;
+
+export const smsCarrierGateways = pgTable("sms_carrier_gateways", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull().unique(),
+  carrierName: text("carrier_name").notNull().default("unknown"),
+  gatewayDomain: text("gateway_domain").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type SmsCarrierGateway = typeof smsCarrierGateways.$inferSelect;
+
+export const smsUnsubscribes = pgTable("sms_unsubscribes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: text("phone").notNull().unique(),
+  unsubscribedAt: timestamp("unsubscribed_at").defaultNow(),
+});
+
+// ── Niche Trend Signals ──────────────────────────────────────────────────
+// Niche Trend Signals — real-time trending patterns per niche
+export const nicheTrends = pgTable("niche_trends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  niche: text("niche").notNull(),
+  platform: platformEnum("platform"),
+  trendType: text("trend_type").notNull(),
+  trendValue: text("trend_value").notNull(),
+  momentum: text("momentum").notNull().default("stable"),
+  engagementDelta: real("engagement_delta").notNull().default(0),
+  sampleCount: integer("sample_count").notNull().default(0),
+  samplePostIds: jsonb("sample_post_ids").default(sql`'[]'::jsonb`),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type NicheTrend = typeof nicheTrends.$inferSelect;
+export type InsertNicheTrend = typeof nicheTrends.$inferInsert;

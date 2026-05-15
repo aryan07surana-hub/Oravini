@@ -23,7 +23,7 @@ import {
   Server, Key, Shield, EyeOff, Loader2, CheckCircle2, X, Info, Wifi,
   Repeat2, Bell, Send, Code2, Lock, Unlock, Upload, Image,
   Layers, MousePointer, Timer, RefreshCw, ChevronRight, Hash,
-  SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles, UploadCloud,
+  SlidersHorizontal, Gauge, MonitorSmartphone, Sparkles, UploadCloud, Smartphone,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -3314,6 +3314,610 @@ function EmailSequencesTab() {
   );
 }
 
+// ── SMS MARKETING TAB ─────────────────────────────────────────────────────────
+
+const SMS_CARRIERS = [
+  { id: "verizon", label: "Verizon", gateway: "vtext.com" },
+  { id: "tmobile", label: "T-Mobile", gateway: "tmomail.net" },
+  { id: "att", label: "AT&T", gateway: "txt.att.net" },
+  { id: "sprint", label: "Sprint", gateway: "sprintpcs.com" },
+  { id: "googlefi", label: "Google Fi", gateway: "msg.fi.google.com" },
+  { id: "uscellular", label: "US Cellular", gateway: "email.uscc.net" },
+  { id: "cricket", label: "Cricket", gateway: "sms.cricketwireless.net" },
+  { id: "boost", label: "Boost Mobile", gateway: "smsmyboostmobile.com" },
+  { id: "mint", label: "Mint Mobile", gateway: "tmomail.net" },
+  { id: "airtel", label: "Airtel (India)", gateway: "airtelmail.com" },
+  { id: "jio", label: "Jio (India)", gateway: "jio.com" },
+  { id: "vi", label: "VI (India)", gateway: "vodafone.net" },
+  { id: "bsnl", label: "BSNL (India)", gateway: "bsnl.in" },
+  { id: "vodafone", label: "Vodafone (UK)", gateway: "vodafone.net" },
+  { id: "o2", label: "O2 (UK)", gateway: "o2.co.uk" },
+  { id: "telstra", label: "Telstra (AU)", gateway: "telstra.com" },
+  { id: "optus", label: "Optus (AU)", gateway: "optus.com.au" },
+  { id: "other", label: "Other / Custom", gateway: "txt.att.net" },
+];
+
+function SmsMarketingTab() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  // Queries
+  const { data: _sequences } = useQuery<any[]>({ queryKey: ["/api/admin/sms/sequences"] });
+  const sequences = _sequences ?? [];
+  const { data: _stats } = useQuery<any>({ queryKey: ["/api/admin/sms/stats"] });
+  const stats = _stats ?? { stats: { totalSent: 0, sentToday: 0, activeEnrollments: 0 }, logs: [] };
+  const { data: _broadcasts } = useQuery<any[]>({ queryKey: ["/api/admin/sms/broadcasts"] });
+  const broadcasts = _broadcasts ?? [];
+  const { data: _users } = useQuery<any[]>({ queryKey: ["/api/admin/sms/users"] });
+  const usersWithPhone = _users ?? [];
+  const { data: _enrollments } = useQuery<any[]>({ queryKey: ["/api/admin/sms/enrollments"] });
+  const enrollments = _enrollments ?? [];
+
+  // Local state
+  const [editingSeqId, setEditingSeqId] = useState<string | null>(null);
+  const [seqForm, setSeqForm] = useState({ name: "", description: "", trigger: "manual" });
+  const [newStepForm, setNewStepForm] = useState({ message: "", delayMinutes: 0 });
+  const [broadcastForm, setBroadcastForm] = useState({ name: "", message: "", segment: "all" });
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  const [testForm, setTestForm] = useState({ phone: "", message: "" });
+  const [carrierFilter, setCarrierFilter] = useState("");
+
+  // Mutations
+  const createSeqMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/sequences", d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); toast({ title: "Sequence created" }); setSeqForm({ name: "", description: "", trigger: "manual" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const deleteSeqMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/sms/sequences/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); if (editingSeqId) setEditingSeqId(null); toast({ title: "Sequence deleted" }); },
+  });
+  const toggleSeqMut = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => apiRequest("PATCH", `/api/admin/sms/sequences/${id}`, { active }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }),
+  });
+  const createStepMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", `/api/admin/sms/sequences/${editingSeqId}/steps`, d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); setNewStepForm({ message: "", delayMinutes: 0 }); toast({ title: "Step added" }); },
+  });
+  const deleteStepMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/sms/steps/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }),
+  });
+  const sendTestMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/test", d),
+    onSuccess: () => { toast({ title: "Test SMS sent! Check your phone." }); setTestForm({ phone: "", message: "" }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const sendBroadcastMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/broadcast", d),
+    onSuccess: (r: any) => { toast({ title: `Broadcast sent to ${r.sent} recipients` }); setShowBroadcastForm(false); setBroadcastForm({ name: "", message: "", segment: "all" }); qc.invalidateQueries({ queryKey: ["/api/admin/sms/broadcasts"] }); },
+    onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+  const setCarrierMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/set-carrier", d),
+    onSuccess: () => { toast({ title: "Carrier saved" }); qc.invalidateQueries({ queryKey: ["/api/admin/sms/users"] }); },
+  });
+  const enrollAllMut = useMutation({
+    mutationFn: (d: any) => apiRequest("POST", "/api/admin/sms/enroll-all", d),
+    onSuccess: (r: any) => { toast({ title: `Enrolled ${r.enrolled} users` }); qc.invalidateQueries({ queryKey: ["/api/admin/sms/enrollments"] }); },
+  });
+  const runSeqMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/sms/run-sequences"),
+    onSuccess: () => { toast({ title: "SMS sequences processed" }); qc.invalidateQueries({ queryKey: ["/api/admin/sms/stats"] }); },
+  });
+  const seedMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/sms/seed-sequences"),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/admin/sms/sequences"] }); toast({ title: "Default sequences seeded" }); },
+  });
+
+  const editingSeq = editingSeqId ? sequences.find((s: any) => s.id === editingSeqId) : null;
+  const { data: _editingSteps } = useQuery<any[]>({
+    queryKey: ["/api/admin/sms/sequences", editingSeqId, "steps"],
+    queryFn: () => editingSeqId ? fetch(`/api/admin/sms/sequences/${editingSeqId}/steps`, { credentials: "include" }).then(r => r.ok ? r.json() : []) : [],
+    enabled: !!editingSeqId,
+  });
+  const editingSteps = _editingSteps ?? [];
+
+  const filteredUsers = carrierFilter
+    ? usersWithPhone.filter((u: any) => u.carrierName === carrierFilter)
+    : usersWithPhone;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.25em] mb-0.5" style={{ color: `${GOLD}50` }}>— SMS —</p>
+          <h3 className="text-2xl font-black" style={{ background: `linear-gradient(135deg, #fff 0%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>SMS Marketing</h3>
+          <p className="text-sm text-zinc-500 mt-1">Automated SMS sequences, broadcasts & phone number management. Delivered via email-to-SMS gateway (free).</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => runSeqMut.mutate()} className="px-3 py-1.5 text-[10px] font-bold rounded-lg" style={{ background: `${GOLD}12`, color: GOLD, border: `1px solid ${GOLD}25` }}>
+            Run Sequences Now
+          </button>
+          <button onClick={() => seedMut.mutate()} className="px-3 py-1.5 text-[10px] font-bold rounded-lg" style={{ background: `${GOLD}12`, color: GOLD, border: `1px solid ${GOLD}25` }}>
+            Seed Default Seqs
+          </button>
+        </div>
+      </div>
+
+      <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Total Sent", value: stats.stats.totalSent, icon: Send, color: "#60a5fa" },
+          { label: "Sent Today", value: stats.stats.sentToday, icon: Phone, color: "#34d399" },
+          { label: "Active Enrollments", value: stats.stats.activeEnrollments, icon: Smartphone, color: "#f59e0b" },
+        ].map(s => (
+          <div key={s.label} className="rounded-2xl p-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14`, border: `1px solid ${s.color}22` }}>
+                <s.icon className="w-5 h-5" style={{ color: s.color }} />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-white">{s.value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: `${GOLD}50` }}>{s.label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sequences Section */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <div>
+            <h4 className="font-bold text-white text-sm flex items-center gap-2">
+              <Smartphone className="w-4 h-4" style={{ color: GOLD }} />
+              SMS Sequences
+            </h4>
+            <p className="text-[10px] text-zinc-500 mt-0.5">{sequences.length} sequences · triggers: {[...new Set(sequences.map((s: any) => s.trigger))].join(", ")}</p>
+          </div>
+          <button
+            onClick={() => {
+              if (seqForm.name) {
+                createSeqMut.mutate(seqForm);
+              } else {
+                toast({ title: "Enter a sequence name first", variant: "destructive" });
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+            style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+          >
+            <Plus className="w-3.5 h-3.5" /> New Sequence
+          </button>
+        </div>
+
+        {/* Quick create */}
+        <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${GOLD}08` }}>
+          <Input
+            placeholder="Sequence name..."
+            value={seqForm.name}
+            onChange={e => setSeqForm(f => ({ ...f, name: e.target.value }))}
+            className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600"
+          />
+          <Input
+            placeholder="Description"
+            value={seqForm.description}
+            onChange={e => setSeqForm(f => ({ ...f, description: e.target.value }))}
+            className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600 flex-1"
+          />
+          <select
+            value={seqForm.trigger}
+            onChange={e => setSeqForm(f => ({ ...f, trigger: e.target.value }))}
+            className="h-8 rounded-lg text-xs bg-zinc-900 text-white border-zinc-700 px-2"
+            style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <option value="manual">Manual</option>
+            <option value="join">On Join</option>
+            <option value="booking_reminder">Booking Reminder</option>
+            <option value="promo">Promotional</option>
+          </select>
+        </div>
+
+        {/* Sequence list */}
+        {sequences.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <Smartphone className="w-8 h-8 mx-auto mb-2" style={{ color: `${GOLD}30` }} />
+            <p className="text-sm text-zinc-500">No SMS sequences yet. Create one above or seed defaults.</p>
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: `${GOLD}08` }}>
+            {sequences.map((seq: any) => (
+              <div key={seq.id}>
+                <div className="px-5 py-3 flex items-center justify-between hover:bg-white/[0.02]">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-white">{seq.name}</p>
+                      {seq.stepCount > 0 && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: `${GOLD}12`, color: GOLD }}>
+                          {seq.stepCount} step{seq.stepCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {!seq.active && <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Paused</span>}
+                    </div>
+                    {seq.description && <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{seq.description}</p>}
+                    <p className="text-[9px] font-mono mt-0.5" style={{ color: `${GOLD}40` }}>trigger: {seq.trigger}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                    <button
+                      onClick={() => toggleSeqMut.mutate({ id: seq.id, active: !seq.active })}
+                      className="px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider"
+                      style={{ background: seq.active ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.05)", color: seq.active ? "#34d399" : "#666" }}
+                    >
+                      {seq.active ? "Active" : "Paused"}
+                    </button>
+                    <button onClick={() => setEditingSeqId(editingSeqId === seq.id ? null : seq.id)} className="p-1.5 rounded-lg hover:bg-white/5" style={{ color: `${GOLD}60` }}>
+                      <Settings2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => deleteSeqMut.mutate(seq.id)} className="p-1.5 rounded-lg hover:bg-red-500/10" style={{ color: "#ef4444" }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded editor */}
+                {editingSeqId === seq.id && (
+                  <div className="px-5 pb-4 pl-12" style={{ background: "rgba(0,0,0,0.2)" }}>
+                    {/* Existing steps */}
+                    {editingSteps.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: `${GOLD}40` }}>Steps</p>
+                        {editingSteps.map((step: any, i: number) => (
+                          <div key={step.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0" style={{ background: `${GOLD}15`, color: GOLD }}>
+                              {i + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[9px] font-bold" style={{ color: `${GOLD}60` }}>
+                                  {step.delayMinutes > 0 ? `+${step.delayMinutes >= 1440 ? `${Math.round(step.delayMinutes / 1440)}d` : step.delayMinutes >= 60 ? `${Math.round(step.delayMinutes / 60)}h` : `${step.delayMinutes}m`}` : "Immediate"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-zinc-300 leading-relaxed">{step.message}</p>
+                            </div>
+                            <button onClick={() => deleteStepMut.mutate(step.id)} className="p-1 rounded hover:bg-red-500/10 flex-shrink-0" style={{ color: "#ef444480" }}>
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add step form */}
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <textarea
+                          placeholder="SMS message content..."
+                          value={newStepForm.message}
+                          onChange={e => setNewStepForm(f => ({ ...f, message: e.target.value }))}
+                          className="w-full text-xs bg-transparent border rounded-lg px-3 py-2 text-white placeholder:text-zinc-600 resize-none"
+                          style={{ border: "1px solid rgba(255,255,255,0.1)", minHeight: "60px" }}
+                          maxLength={320}
+                        />
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[9px]" style={{ color: `${GOLD}40` }}>{newStepForm.message.length}/320 chars</span>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={newStepForm.delayMinutes}
+                              onChange={e => setNewStepForm(f => ({ ...f, delayMinutes: parseInt(e.target.value) }))}
+                              className="h-7 rounded text-[9px] bg-zinc-900 text-white border-zinc-700 px-1"
+                              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                            >
+                              <option value={0}>Immediate</option>
+                              <option value={5}>5 min</option>
+                              <option value={30}>30 min</option>
+                              <option value={60}>1 hour</option>
+                              <option value={180}>3 hours</option>
+                              <option value={360}>6 hours</option>
+                              <option value={720}>12 hours</option>
+                              <option value={1440}>24 hours</option>
+                              <option value={2880}>2 days</option>
+                              <option value={4320}>3 days</option>
+                              <option value={10080}>7 days</option>
+                              <option value={14400}>10 days</option>
+                              <option value={20160}>14 days</option>
+                            </select>
+                            <button
+                              onClick={() => {
+                                if (!newStepForm.message) { toast({ title: "Message required", variant: "destructive" }); return; }
+                                createStepMut.mutate(newStepForm);
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-[9px] font-bold"
+                              style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+                            >
+                              Add Step
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Enroll users in this sequence */}
+                    {usersWithPhone.filter((u: any) => u.gatewayDomain).length > 0 && (
+                      <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => enrollAllMut.mutate({ sequenceId: seq.id, segment: "all" })}
+                            className="px-3 py-1.5 rounded-lg text-[9px] font-bold"
+                            style={{ background: `${GOLD}12`, color: GOLD, border: `1px solid ${GOLD}25` }}
+                          >
+                            Enroll All Users With Phone
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Broadcast Section */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+            <Send className="w-4 h-4" style={{ color: GOLD }} />
+            SMS Broadcasts
+          </h4>
+          <button
+            onClick={() => setShowBroadcastForm(!showBroadcastForm)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+            style={{ background: !showBroadcastForm ? `linear-gradient(135deg, ${GOLD}, #b8962e)` : "transparent", color: !showBroadcastForm ? "#000" : GOLD, border: showBroadcastForm ? `1px solid ${GOLD}25` : "none" }}
+          >
+            {showBroadcastForm ? "Cancel" : "New Broadcast"}
+          </button>
+        </div>
+
+        {showBroadcastForm && (
+          <div className="px-5 py-4 space-y-3" style={{ borderBottom: `1px solid ${GOLD}08` }}>
+            <Input
+              placeholder="Broadcast name"
+              value={broadcastForm.name}
+              onChange={e => setBroadcastForm(f => ({ ...f, name: e.target.value }))}
+              className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600"
+            />
+            <textarea
+              placeholder="SMS message (max 320 chars)"
+              value={broadcastForm.message}
+              onChange={e => setBroadcastForm(f => ({ ...f, message: e.target.value }))}
+              className="w-full text-xs bg-transparent border rounded-lg px-3 py-2 text-white placeholder:text-zinc-600 resize-none"
+              style={{ border: "1px solid rgba(255,255,255,0.1)", minHeight: "80px" }}
+              maxLength={320}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[9px]" style={{ color: `${GOLD}40` }}>{broadcastForm.message.length}/320 · {usersWithPhone.filter((u: any) => u.gatewayDomain).length} recipients ready</span>
+              <button
+                onClick={() => {
+                  if (!broadcastForm.name || !broadcastForm.message) { toast({ title: "Name and message required", variant: "destructive" }); return; }
+                  sendBroadcastMut.mutate(broadcastForm);
+                }}
+                disabled={sendBroadcastMut.isPending}
+                className="px-4 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5"
+                style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+              >
+                {sendBroadcastMut.isPending ? "Sending..." : "Send Broadcast"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {broadcasts.length > 0 && (
+          <div className="divide-y" style={{ borderColor: `${GOLD}08` }}>
+            {broadcasts.map((b: any) => (
+              <div key={b.id} className="px-5 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-white">{b.name}</p>
+                  <p className="text-[9px] text-zinc-500 mt-0.5">
+                    {b.sentAt ? format(new Date(b.sentAt), "MMM d, h:mm a") : "Not sent"} · {b.recipientsCount ?? 0} recipients
+                  </p>
+                </div>
+                <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: b.sentAt ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.05)", color: b.sentAt ? "#34d399" : "#666" }}>
+                  {b.sentAt ? "Sent" : "Draft"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Carrier Setup */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+            <Phone className="w-4 h-4" style={{ color: GOLD }} />
+            Phone Carrier Setup
+          </h4>
+          <div className="flex items-center gap-2">
+            <select
+              value={carrierFilter}
+              onChange={e => setCarrierFilter(e.target.value)}
+              className="h-7 rounded text-[9px] bg-zinc-900 text-white border-zinc-700 px-2"
+              style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <option value="">All carriers</option>
+              {SMS_CARRIERS.map(c => (
+                <option key={c.id} value={c.label}>{c.label}</option>
+              ))}
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+        </div>
+        <div className="divide-y" style={{ borderColor: `${GOLD}08` }}>
+          {filteredUsers.length === 0 ? (
+            <div className="px-5 py-6 text-center">
+              <Phone className="w-6 h-6 mx-auto mb-1" style={{ color: `${GOLD}30` }} />
+              <p className="text-xs text-zinc-500">No users with phone numbers found. Users must verify their phone first.</p>
+            </div>
+          ) : filteredUsers.map((u: any) => (
+            <div key={u.id} className="px-5 py-3 flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white">{u.name || "Unnamed"}</p>
+                <p className="text-[9px] font-mono" style={{ color: `${GOLD}50` }}>{u.phone}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                {u.gatewayDomain ? (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: "rgba(52,211,153,0.12)", color: "#34d399" }}>
+                    {u.carrierName || "Custom"} ✓
+                  </span>
+                ) : (
+                  <select
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const carrier = SMS_CARRIERS.find(c => c.id === e.target.value);
+                      if (carrier) {
+                        setCarrierMut.mutate({ phone: u.phone, carrierName: carrier.label, gatewayDomain: carrier.gateway });
+                      }
+                    }}
+                    defaultValue=""
+                    className="h-7 rounded text-[9px] bg-zinc-900 text-white border-zinc-700 px-1"
+                    style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                  >
+                    <option value="">Set carrier...</option>
+                    {SMS_CARRIERS.map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Test SMS */}
+      <div className="rounded-2xl p-5" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <h4 className="font-bold text-white text-sm mb-3 flex items-center gap-2">
+          <Send className="w-4 h-4" style={{ color: GOLD }} />
+          Test SMS
+        </h4>
+        <div className="flex items-start gap-2">
+          <Input
+            placeholder="Phone (e.g. +1234567890)"
+            value={testForm.phone}
+            onChange={e => setTestForm(f => ({ ...f, phone: e.target.value }))}
+            className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600 w-48"
+          />
+          <Input
+            placeholder="Message"
+            value={testForm.message}
+            onChange={e => setTestForm(f => ({ ...f, message: e.target.value }))}
+            className="h-8 text-xs bg-transparent border-zinc-700 text-white placeholder:text-zinc-600 flex-1"
+          />
+          <button
+            onClick={() => {
+              if (!testForm.phone || !testForm.message) { toast({ title: "Phone and message required", variant: "destructive" }); return; }
+              sendTestMut.mutate(testForm);
+            }}
+            className="px-4 py-1.5 rounded-lg text-[10px] font-bold"
+            style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}
+          >
+            Send Test
+          </button>
+        </div>
+      </div>
+
+      {/* Recent SMS Logs */}
+      <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+        <div className="px-5 py-4" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" style={{ color: GOLD }} />
+            Recent SMS Activity
+          </h4>
+        </div>
+        {stats.logs.length === 0 ? (
+          <div className="px-5 py-6 text-center">
+            <p className="text-xs text-zinc-500">No SMS sent yet. Send a sequence or broadcast to see logs here.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${GOLD}08`, color: `${GOLD}40` }}>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Time</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">To</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Message</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Type</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: `${GOLD}06` }}>
+                {stats.logs.slice(0, 20).map((l: any) => (
+                  <tr key={l.id} className="hover:bg-white/[0.02]">
+                    <td className="px-5 py-2.5 text-zinc-400 text-[10px]">{l.sentAt ? format(new Date(l.sentAt), "MMM d, h:mm a") : "-"}</td>
+                    <td className="px-5 py-2.5">
+                      <span className="text-white">{l.toPhone}</span>
+                      {l.userName && <span className="text-zinc-500 ml-1">({l.userName})</span>}
+                    </td>
+                    <td className="px-5 py-2.5 text-zinc-300 max-w-[300px] truncate">{l.message}</td>
+                    <td className="px-5 py-2.5">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: l.sequenceStepId ? `${GOLD}12` : "rgba(96,165,250,0.12)", color: l.sequenceStepId ? GOLD : "#60a5fa" }}>
+                        {l.sequenceStepId ? "Sequence" : "Broadcast"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Enrollments breakdown */}
+      {enrollments.length > 0 && (
+        <div className="rounded-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}14` }}>
+          <div className="px-5 py-4" style={{ borderBottom: `1px solid ${GOLD}12` }}>
+            <h4 className="font-bold text-white text-sm">Enrollment Breakdown</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${GOLD}08`, color: `${GOLD}40` }}>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Sequence</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Total</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Pending</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Completed</th>
+                  <th className="px-5 py-2 font-bold uppercase tracking-wider text-[9px]">Unsubscribed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: `${GOLD}06` }}>
+                {enrollments.map((e: any) => (
+                  <tr key={e.sequenceId} className="hover:bg-white/[0.02]">
+                    <td className="px-5 py-2.5 text-white">{e.sequenceName}</td>
+                    <td className="px-5 py-2.5">{e.totalEnrolled}</td>
+                    <td className="px-5 py-2.5" style={{ color: "#f59e0b" }}>{e.pending}</td>
+                    <td className="px-5 py-2.5" style={{ color: "#34d399" }}>{e.completed}</td>
+                    <td className="px-5 py-2.5" style={{ color: "#ef4444" }}>{e.unsubscribed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Setup info */}
+      <div className="rounded-2xl p-5" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}20` }}>
+        <div className="flex items-start gap-3">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: GOLD }} />
+          <div>
+            <p className="text-sm font-bold text-white mb-1">How SMS Delivery Works</p>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              SMS is sent via <strong className="text-white">email-to-SMS gateways</strong> — each carrier provides a free gateway email
+              (e.g. <code className="bg-zinc-800 px-1 rounded" style={{ fontSize: "10px" }}>number@vtext.com</code> for Verizon).
+              Set <code className="bg-zinc-800 px-1 rounded" style={{ fontSize: "10px" }}>EMAIL_USER</code> and <code className="bg-zinc-800 px-1 rounded" style={{ fontSize: "10px" }}>EMAIL_PASS</code> env vars to enable.
+              Each user needs their <strong className="text-white">carrier set</strong> in the Carrier Setup section above. Free to use — you're just sending emails!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── VSL STUDIO TAB ───────────────────────────────────────────────────────────
 
 function VSLStudioTab() {
@@ -4248,6 +4852,7 @@ const WEBINAR_NAV: NavItem[] = [
   { id: "crm",              label: "CRM",             icon: Users },
   { id: "recordings",       label: "Recordings",      icon: Mic },
   { id: "email-sequences",  label: "Email Sequences", icon: Mail },
+  { id: "sms-marketing",    label: "SMS Marketing",   icon: Smartphone },
   { id: "analytics",        label: "Analytics",       icon: BarChart3 },
   { id: "settings",         label: "API & Settings",  icon: Settings2 },
 ];
@@ -4385,6 +4990,7 @@ export default function PlatformView() {
           {activeId === "crm"               && <CRMTab />}
           {activeId === "recordings"        && <RecordingsTab />}
           {activeId === "email-sequences"   && <EmailSequencesTab />}
+          {activeId === "sms-marketing"     && <SmsMarketingTab />}
           {activeId === "analytics"         && <AnalyticsTab />}
           {activeId === "settings"          && <SettingsTab />}
           {/* Video hosting section */}

@@ -1,7 +1,10 @@
 import { spawn, type ChildProcess } from "child_process";
 import { WebSocket } from "ws";
+import fs from "fs";
+import path from "path";
 
 const FFMPEG_PATH = process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg";
+const HLS_DIR = path.resolve("hls");
 
 interface RelaySession {
   streamKey: string;
@@ -12,6 +15,10 @@ interface RelaySession {
 }
 
 const activeRelays = new Map<string, RelaySession>();
+
+if (!fs.existsSync(HLS_DIR)) fs.mkdirSync(HLS_DIR, { recursive: true });
+const liveHlsDir = path.join(HLS_DIR, "live");
+if (!fs.existsSync(liveHlsDir)) fs.mkdirSync(liveHlsDir, { recursive: true });
 
 export function getActiveRelays(): Map<string, RelaySession> {
   return activeRelays;
@@ -28,6 +35,10 @@ export function startRelay(ws: WebSocket, streamKey: string): RelaySession | nul
   }
 
   const rtmpUrl = `rtmp://localhost:${process.env.RTMP_PORT || "1935"}/live/${streamKey}`;
+  const hlsPath = path.join(HLS_DIR, "live", `${streamKey}.m3u8`);
+
+  const hlsFlags = "hls_time=2:hls_list_size=30:hls_flags=delete_segments+append_list";
+  const teeOutput = `[f=flv:onfail=ignore]${rtmpUrl}|[f=hls:onfail=ignore:${hlsFlags}]${hlsPath}`;
 
   const ffmpeg = spawn(FFMPEG_PATH, [
     "-i", "pipe:0",
@@ -39,9 +50,9 @@ export function startRelay(ws: WebSocket, streamKey: string): RelaySession | nul
     "-b:a", "64k",
     "-ar", "44100",
     "-ac", "1",
-    "-f", "flv",
-    "-flvflags", "no_duration_filesize",
-    rtmpUrl,
+    "-f", "tee",
+    "-map", "0:v", "-map", "0:a",
+    teeOutput,
   ], {
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -106,6 +117,21 @@ export function stopRelay(streamKey: string): void {
   console.log(`[relay] Stopped: ${streamKey} (${session.chunkCount} chunks, ${elapsed}s)`);
 
   cleanupRelay(streamKey);
+  cleanupHlsFiles(streamKey);
+}
+
+function cleanupHlsFiles(streamKey: string): void {
+  const liveDir = path.join(HLS_DIR, "live");
+  if (!fs.existsSync(liveDir)) return;
+  const prefix = path.join(liveDir, streamKey);
+  try {
+    const files = fs.readdirSync(liveDir);
+    for (const file of files) {
+      if (file.startsWith(streamKey) && (file.endsWith(".ts") || file.endsWith(".m3u8"))) {
+        fs.rmSync(path.join(liveDir, file), { force: true });
+      }
+    }
+  } catch {}
 }
 
 function cleanupRelay(streamKey: string): void {

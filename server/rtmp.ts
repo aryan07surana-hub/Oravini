@@ -60,28 +60,30 @@ export function startRtmpServer(): NodeMediaServer {
   console.log(`[rtmp] HLS HTTP server on port ${HTTP_PORT}`);
   console.log(`[rtmp] HLS output: ${HLS_DIR}`);
 
-  nms.on("preConnect", (id: any, args: any) => {
-    console.log(`[rtmp] Conn: ${id} → ${args?.app || "?"}`);
+  nms.on("prePublish", async (session: any) => {
+    const streamPath: string = session?.streamPath || "";
+    const parts = streamPath.split("/");
+    const streamKey = parts[parts.length - 1];
+    if (streamKey) {
+      console.log(`[rtmp] Publishing: ${streamKey}`);
+      const { startHlsTranscode } = await import("./hls-transcoder");
+      startHlsTranscode(streamKey);
+    } else {
+      console.log(`[rtmp] Publishing: ${streamPath}`);
+    }
   });
 
-  nms.on("postConnect", (id: any, args: any) => {
-    console.log(`[rtmp] Connected: ${id}`);
-  });
-
-  nms.on("doneConnect", (id: any, args: any) => {
-    console.log(`[rtmp] Disconnected: ${id}`);
-  });
-
-  nms.on("prePublish", (id: any, streamPath: any, args: any) => {
-    console.log(`[rtmp] Publishing: ${streamPath}`);
-  });
-
-  nms.on("postPublish", (id: any, streamPath: any, args: any) => {
-    console.log(`[rtmp] Live: ${streamPath}`);
-  });
-
-  nms.on("donePublish", (id: any, streamPath: any, args: any) => {
-    console.log(`[rtmp] Stream ended: ${streamPath}`);
+  nms.on("donePublish", async (session: any) => {
+    const streamPath: string = session?.streamPath || "";
+    const parts = streamPath.split("/");
+    const streamKey = parts[parts.length - 1];
+    if (streamKey) {
+      console.log(`[rtmp] Stream ended: ${streamKey}`);
+      const { stopHlsTranscode } = await import("./hls-transcoder");
+      stopHlsTranscode(streamKey);
+    } else {
+      console.log(`[rtmp] Stream ended: ${streamPath}`);
+    }
   });
 
   return nms;
