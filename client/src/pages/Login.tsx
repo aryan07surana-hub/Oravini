@@ -99,6 +99,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!isLoading && user) {
+      if (user.email === "oravini@gmail.com") return navigate("/portal");
       if (user.role === "admin") return navigate("/admin");
       if (redirectTo === "audit") return navigate("/audit");
       if (redirectTo && redirectTo.startsWith("/")) return navigate(redirectTo);
@@ -118,6 +119,7 @@ export default function Login() {
 
   const redirectAfterAuth = (u: any) => {
     queryClient.setQueryData(["/api/auth/me"], u);
+    if (u.email === "oravini@gmail.com") return navigate("/portal");
     if (u.role === "admin") return navigate("/admin");
     if (redirectTo === "audit") return navigate("/audit");
     if (redirectTo && redirectTo.startsWith("/")) return navigate(redirectTo);

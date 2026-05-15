@@ -11361,6 +11361,39 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  app.get("/api/admin/reading-materials/:id/highlights", requireAdmin, async (req, res) => {
+    try {
+      const admin = req.user as any;
+      const highlights = await storage.getReadingHighlights(admin.id, p(req.params.id));
+      res.json(highlights);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/reading-materials/:id/highlights", requireAdmin, async (req, res) => {
+    try {
+      const admin = req.user as any;
+      const { excerpt, note, tag, page, favorite } = req.body;
+      if (!excerpt) return res.status(400).json({ message: "Excerpt is required" });
+      const highlight = await storage.createReadingHighlight({
+        materialId: p(req.params.id),
+        userId: admin.id,
+        excerpt,
+        note: note || null,
+        tag: tag || null,
+        page: page || null,
+        favorite: favorite || false,
+      });
+      res.json(highlight);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/reading-highlights/:id", requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteReadingHighlight(p(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.get("/api/admin/daily-readings", requireAdmin, async (_req, res) => {
     try {
       const result = await pool.query(

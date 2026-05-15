@@ -129,6 +129,27 @@ import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
 import AdminFeedback from "@/pages/admin/AdminFeedback";
 
+import PortalEliteMembers from "@/pages/portal/EliteMembers";
+import PortalSessionsHub from "@/pages/portal/SessionsHub";
+import PortalSchedulingHub from "@/pages/portal/SchedulingHub";
+import PortalCalendar from "@/pages/portal/Calendar";
+import PortalCourseModules from "@/pages/portal/CourseModules";
+import PortalDailyRead from "@/pages/portal/DailyRead";
+import PortalProjectTracker from "@/pages/portal/ProjectTracker";
+import PortalSettings from "@/pages/portal/Settings";
+
+function PortalGuard({ component: Component, ...props }: any) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    </div>
+  );
+  if (!user) return <Redirect to="/login" />;
+  if (user.email !== "oravini@gmail.com") return <Redirect to="/login" />;
+  return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
+}
+
 function Guard({ component: Component, adminOnly = false, ...props }: any) {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
@@ -151,6 +172,7 @@ function HomeRedirect() {
     </div>
   );
   if (!user) return <OraviniLanding />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/portal/elite-members" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -245,6 +267,17 @@ function Router() {
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
       <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
+
+      {/* Oravini Portal — protected, oravini@gmail.com only */}
+      <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>
+      <Route path="/portal/sessions">{() => <PortalGuard component={PortalSessionsHub} />}</Route>
+      <Route path="/portal/scheduling">{() => <PortalGuard component={PortalSchedulingHub} />}</Route>
+      <Route path="/portal/calendar">{() => <PortalGuard component={PortalCalendar} />}</Route>
+      <Route path="/portal/courses">{() => <PortalGuard component={PortalCourseModules} />}</Route>
+      <Route path="/portal/daily-read">{() => <PortalGuard component={PortalDailyRead} />}</Route>
+      <Route path="/portal/projects">{() => <PortalGuard component={PortalProjectTracker} />}</Route>
+      <Route path="/portal/settings">{() => <PortalGuard component={PortalSettings} />}</Route>
+      <Route path="/portal">{() => <Redirect to="/portal/elite-members" />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
