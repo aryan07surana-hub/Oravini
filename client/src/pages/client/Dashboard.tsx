@@ -927,6 +927,7 @@ function NicheIntelligenceWidget() {
   const trends = data?.trends || [];
 
   if (!intelligence && !isLoading) return null;
+  if (!intelligence) return null;
 
   const healthScore = intelligence.healthScore ?? 0;
   const healthLabel = intelligence.healthLabel ?? "No Data";
