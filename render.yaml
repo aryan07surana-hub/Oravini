@@ -11,8 +11,13 @@ services:
   - type: web
     name: oravini
     runtime: node
+    plan: starter  # persistent disk requires at least starter plan
     buildCommand: npm install --include=dev --legacy-peer-deps && node script/build.mjs
     startCommand: NODE_ENV=production node dist/index.cjs
+    disk:
+      name: oravini-uploads
+      mountPath: /opt/render/project/src/uploads
+      sizeGB: 10
     envVars:
       - key: NODE_ENV
         value: production

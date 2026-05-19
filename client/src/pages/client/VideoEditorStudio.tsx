@@ -12,7 +12,10 @@ import {
   Loader2, CheckCircle2, XCircle, Clock, Trash2,
   Wand2, AlertCircle, Mic, Sparkles, Clapperboard,
   ArrowRight, FileText, Star, Zap, CheckSquare, Square, X, ExternalLink,
+  Volume2, Crop, Type, Layers, Instagram, Youtube, MonitorSmartphone,
+  Music, Bell, ImageDown, Sliders, Terminal,
 } from "lucide-react";
+import OverlayPreview from "@/components/video-editor/OverlayPreview";
 
 type VideoEdit = {
   id: number; userId: string; title: string; originalFilename: string;
@@ -25,14 +28,26 @@ type VideoEdit = {
 
 type Settings = {
   removeSilences: boolean; silenceThreshold: string;
+  removeFillers: boolean;
   addCaptions: boolean; captionStyle: string;
   colorGrade: string; speed: string;
+  reframe: string; platform: string;
+  audioNormalize: boolean; audioRestore: boolean;
+  lowerThird: string; watermarkText: string; hookOpener: string;
+  addSubscribeCta: boolean; ctaText: string;
+  musicUrl: string; musicVolume: string;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   removeSilences: true, silenceThreshold: "0.5",
+  removeFillers: false,
   addCaptions: true, captionStyle: "bold",
   colorGrade: "none", speed: "1",
+  reframe: "none", platform: "original",
+  audioNormalize: false, audioRestore: false,
+  lowerThird: "", watermarkText: "", hookOpener: "",
+  addSubscribeCta: false, ctaText: "",
+  musicUrl: "", musicVolume: "0.15",
 };
 
 const MODES = [
@@ -100,6 +115,8 @@ function EditControls({ settings, onChange }: { settings: Settings; onChange: (s
   const set = (k: keyof Settings, v: any) => onChange({ ...settings, [k]: v });
   return (
     <div className="space-y-5">
+
+      {/* ── Silence Removal ── */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -117,6 +134,7 @@ function EditControls({ settings, onChange }: { settings: Settings; onChange: (s
         )}
       </div>
 
+      {/* ── Captions ── */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -128,21 +146,47 @@ function EditControls({ settings, onChange }: { settings: Settings; onChange: (s
         {settings.addCaptions && (
           <div className="pl-1 space-y-1">
             <p className="text-[10px] text-muted-foreground">Style</p>
-            <Pills value={settings.captionStyle} onChange={v => set("captionStyle", v)}
-              options={[{ label: "Bold", value: "bold" }, { label: "Netflix", value: "netflix" }, { label: "Minimal", value: "minimal" }, { label: "Karaoke ✨", value: "karaoke" }]} />
+            <div className="grid grid-cols-3 gap-1">
+              {([
+                { label: "Bold",     value: "bold",     color: "text-white" },
+                { label: "TikTok",   value: "tiktok",   color: "text-pink-400" },
+                { label: "Reels",    value: "reels",    color: "text-purple-400" },
+                { label: "Netflix",  value: "netflix",  color: "text-red-400" },
+                { label: "Karaoke",  value: "karaoke",  color: "text-yellow-400" },
+                { label: "Cinematic",value: "cinematic",color: "text-amber-400" },
+                { label: "Clean",    value: "clean",    color: "text-sky-400" },
+                { label: "Dark",     value: "dark",     color: "text-zinc-400" },
+                { label: "Minimal",  value: "minimal",  color: "text-zinc-400" },
+              ] as { label: string; value: string; color: string }[]).map(o => (
+                <button key={o.value} onClick={() => set("captionStyle", o.value)}
+                  className={`text-[10px] font-semibold px-2 py-1.5 rounded-lg border transition-all ${settings.captionStyle === o.value ? `bg-primary/20 text-primary border-primary/40` : `${o.color} border-zinc-700/50 hover:border-zinc-500 bg-zinc-900/40`}`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
+      {/* ── Color Grade ── */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Palette className="w-3.5 h-3.5 text-purple-400" />
           <span className="text-xs font-bold text-foreground">Color Grade</span>
         </div>
         <Pills value={settings.colorGrade} onChange={v => set("colorGrade", v)}
-          options={[{ label: "None", value: "none" }, { label: "Cinematic", value: "cinematic" }, { label: "Warm", value: "warm" }, { label: "Cool", value: "cool" }, { label: "Bright", value: "bright" }]} />
+          options={[
+            { label: "None", value: "none" },
+            { label: "Cinematic", value: "cinematic" },
+            { label: "Warm", value: "warm" },
+            { label: "Cool", value: "cool" },
+            { label: "Bright", value: "bright" },
+            { label: "Vibrant", value: "vibrant" },
+            { label: "Dark", value: "dark" },
+          ]} />
       </div>
 
+      {/* ── Speed ── */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Gauge className="w-3.5 h-3.5 text-green-400" />
@@ -151,6 +195,184 @@ function EditControls({ settings, onChange }: { settings: Settings; onChange: (s
         <Pills value={settings.speed} onChange={v => set("speed", v)}
           options={[{ label: "0.75×", value: "0.75" }, { label: "1×", value: "1" }, { label: "1.25×", value: "1.25" }, { label: "1.5×", value: "1.5" }]} />
       </div>
+
+      {/* ── Filler Removal ── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Scissors className="w-3.5 h-3.5 text-pink-400" />
+          <div>
+            <span className="text-xs font-bold text-foreground">Remove Fillers</span>
+            <p className="text-[10px] text-muted-foreground">Cut um / uh / like / you know</p>
+          </div>
+        </div>
+        <Toggle on={settings.removeFillers} onToggle={() => set("removeFillers", !settings.removeFillers)} />
+      </div>
+
+      {/* ── Audio ── */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Volume2 className="w-3.5 h-3.5 text-teal-400" />
+          <span className="text-xs font-bold text-foreground">Audio</span>
+        </div>
+        <div className="space-y-2 pl-1">
+          <label className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">Normalize (–14 LUFS)</span>
+            <Toggle on={settings.audioNormalize} onToggle={() => set("audioNormalize", !settings.audioNormalize)} />
+          </label>
+          <label className="flex items-center justify-between">
+            <span className="text-[11px] text-muted-foreground">Restore / denoise</span>
+            <Toggle on={settings.audioRestore} onToggle={() => set("audioRestore", !settings.audioRestore)} />
+          </label>
+        </div>
+      </div>
+
+      {/* ── Reframe ── */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Crop className="w-3.5 h-3.5 text-orange-400" />
+          <span className="text-xs font-bold text-foreground">Reframe</span>
+        </div>
+        <Pills value={settings.reframe} onChange={v => set("reframe", v)}
+          options={[{ label: "Original", value: "none" }, { label: "9:16 Portrait", value: "9:16" }, { label: "1:1 Square", value: "1:1" }]} />
+      </div>
+
+    </div>
+  );
+}
+
+// ── Motion Graphics Panel ──────────────────────────────────────────────────────
+
+function MotionGraphicsPanel({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {
+  const set = (k: keyof Settings, v: any) => onChange({ ...settings, [k]: v });
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-yellow-400" />
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hook Opener</p>
+        </div>
+        <Input
+          value={settings.hookOpener}
+          onChange={e => set("hookOpener", e.target.value)}
+          placeholder='e.g. "Nobody tells you this..."'
+          className="h-8 text-xs bg-zinc-900/50 border-zinc-700/60"
+        />
+        <p className="text-[9px] text-muted-foreground">Shown top-center for first 3 seconds</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Type className="w-3.5 h-3.5 text-blue-400" />
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Lower Third</p>
+        </div>
+        <Input
+          value={settings.lowerThird}
+          onChange={e => set("lowerThird", e.target.value)}
+          placeholder='e.g. "Aryan Surana | Growth Coach"'
+          className="h-8 text-xs bg-zinc-900/50 border-zinc-700/60"
+        />
+        <p className="text-[9px] text-muted-foreground">Name / title bar at 75% height</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Layers className="w-3.5 h-3.5 text-zinc-400" />
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Watermark</p>
+        </div>
+        <Input
+          value={settings.watermarkText}
+          onChange={e => set("watermarkText", e.target.value)}
+          placeholder="e.g. @yourusername"
+          className="h-8 text-xs bg-zinc-900/50 border-zinc-700/60"
+        />
+        <p className="text-[9px] text-muted-foreground">Persistent top-right corner overlay</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="w-3.5 h-3.5 text-red-400" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Subscribe CTA</p>
+          </div>
+          <Toggle on={settings.addSubscribeCta} onToggle={() => set("addSubscribeCta", !settings.addSubscribeCta)} />
+        </div>
+        {settings.addSubscribeCta && (
+          <>
+            <Input
+              value={settings.ctaText}
+              onChange={e => set("ctaText", e.target.value)}
+              placeholder='e.g. "Follow for more!"'
+              className="h-8 text-xs bg-zinc-900/50 border-zinc-700/60"
+            />
+            <p className="text-[9px] text-muted-foreground">Red button overlay at bottom of frame</p>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Music className="w-3.5 h-3.5 text-green-400" />
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Background Music</p>
+        </div>
+        <Input
+          value={settings.musicUrl}
+          onChange={e => set("musicUrl", e.target.value)}
+          placeholder="Direct URL to MP3/M4A file"
+          className="h-8 text-xs bg-zinc-900/50 border-zinc-700/60"
+        />
+        {settings.musicUrl && (
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground">Vol</span>
+            <Pills value={settings.musicVolume} onChange={v => set("musicVolume", v)}
+              options={[
+                { label: "Subtle 10%", value: "0.10" },
+                { label: "15%", value: "0.15" },
+                { label: "25%", value: "0.25" },
+                { label: "40%", value: "0.40" },
+              ]} />
+          </div>
+        )}
+      </div>
+
+      {/* Remotion live preview */}
+      <OverlayPreview
+        hookOpener={settings.hookOpener}
+        lowerThird={settings.lowerThird}
+        watermarkText={settings.watermarkText}
+        ctaText={settings.ctaText}
+        addSubscribeCta={settings.addSubscribeCta}
+        reframe={settings.reframe}
+        platform={settings.platform}
+      />
+    </div>
+  );
+}
+
+// ── Platform Export Panel ─────────────────────────────────────────────────────
+
+const PLATFORM_OPTIONS = [
+  { id: "original",       label: "Original",    sub: "Keep source dimensions",  icon: Film },
+  { id: "instagram",      label: "Instagram",   sub: "1080×1920 · 9:16",        icon: Instagram },
+  { id: "tiktok",         label: "TikTok",      sub: "1080×1920 · 9:16",        icon: MonitorSmartphone },
+  { id: "youtube-shorts", label: "YT Shorts",   sub: "1080×1920 · 9:16",        icon: Youtube },
+  { id: "square",         label: "Square",      sub: "1080×1080 · 1:1",         icon: MonitorSmartphone },
+];
+
+function PlatformPanel({ settings, onChange }: { settings: Settings; onChange: (s: Settings) => void }) {
+  const set = (k: keyof Settings, v: any) => onChange({ ...settings, [k]: v });
+  return (
+    <div className="space-y-2">
+      {PLATFORM_OPTIONS.map(p => (
+        <button key={p.id} onClick={() => set("platform", p.id)}
+          className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${settings.platform === p.id ? "bg-primary/10 border-primary/30" : "bg-zinc-900/30 border-zinc-700/40 hover:border-zinc-600"}`}>
+          <p.icon className={`w-4 h-4 flex-shrink-0 ${settings.platform === p.id ? "text-primary" : "text-muted-foreground"}`} />
+          <div className="min-w-0">
+            <p className={`text-xs font-bold ${settings.platform === p.id ? "text-primary" : "text-foreground"}`}>{p.label}</p>
+            <p className="text-[9px] text-muted-foreground">{p.sub}</p>
+          </div>
+          {settings.platform === p.id && <CheckCircle2 className="w-3.5 h-3.5 text-primary ml-auto flex-shrink-0" />}
+        </button>
+      ))}
     </div>
   );
 }
@@ -182,6 +404,14 @@ export default function VideoEditorStudio() {
   const [planResult, setPlanResult] = useState<any>(null);
   const [isPlanLoading, setIsPlanLoading] = useState(false);
   const [scriptExpanded, setScriptExpanded] = useState(false);
+
+  // ── Thumbnail state ───────────────────────────────────────────────────────────
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [isThumbLoading, setIsThumbLoading] = useState(false);
+
+  // ── CLI command state ─────────────────────────────────────────────────────────
+  const [cmdInput, setCmdInput] = useState("");
+  const [cmdLog, setCmdLog] = useState<{ text: string; ok: boolean }[]>([]);
 
   // ── Editor plan (from AI Video Editor via localStorage) ───────────────────────
   const [editorPlan, setEditorPlan] = useState<any>(null);
@@ -259,7 +489,7 @@ export default function VideoEditorStudio() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/video-studio"] });
       qc.invalidateQueries({ queryKey: ["/api/video-studio", activeJobId] });
-      toast({ title: "Render started!", description: "Shotstack is processing your video. This takes 1–3 minutes." });
+      toast({ title: "Render started!", description: "ffmpeg is processing your video. Usually 15–45 seconds." });
     },
     onError: (e: any) => toast({ title: "Render failed", description: e.message, variant: "destructive" }),
   });
@@ -336,8 +566,117 @@ export default function VideoEditorStudio() {
   const totalDuration = videoDuration || currentJob?.duration || 1;
   const totalSilence = silences.reduce((s, x) => s + x.duration, 0);
 
+  const handleExtractThumbnail = async (atSeconds?: number) => {
+    if (!activeJobId) return;
+    setIsThumbLoading(true);
+    try {
+      const res = await apiRequest("POST", `/api/video-studio/${activeJobId}/thumbnail`, { atSeconds: atSeconds ?? currentTime });
+      setThumbUrl((res as any).thumbUrl);
+      toast({ title: "Thumbnail extracted!", description: "Click to download." });
+    } catch (e: any) {
+      toast({ title: "Thumbnail failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsThumbLoading(false);
+    }
+  };
+
   const seekTo = (t: number) => {
     if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
+  };
+
+  // ── Natural-language CLI command parser ───────────────────────────────────────
+  const handleCmd = () => {
+    const raw = cmdInput.trim();
+    if (!raw) return;
+    const cmd = raw.toLowerCase();
+    let result: string | null = null;
+
+    const captionStyles = ["tiktok", "karaoke", "reels", "bold", "netflix", "minimal", "clean", "cinematic", "dark"];
+    const colorGrades   = ["cinematic", "warm", "cool", "bright", "vibrant", "dark"];
+    const platforms     = ["instagram", "tiktok", "youtube", "twitter", "linkedin", "original"];
+
+    if (/^reset$|^clear all$/.test(cmd)) {
+      setSettings(DEFAULT_SETTINGS);
+      result = "All settings reset to defaults";
+    } else if (/(?:cut|remove)\s+silences?/.test(cmd) || cmd === "cut") {
+      setSettings(s => ({ ...s, removeSilences: true }));
+      result = "Silence removal → ON";
+    } else if (/silence(?:s)?\s+off|no\s+silence(?:s)?/.test(cmd)) {
+      setSettings(s => ({ ...s, removeSilences: false }));
+      result = "Silence removal → OFF";
+    } else if (/remove\s+fillers?|filler(?:s)?\s+on/.test(cmd)) {
+      setSettings(s => ({ ...s, removeFillers: true }));
+      result = "Filler removal → ON";
+    } else if (/filler(?:s)?\s+off|no\s+fillers?/.test(cmd)) {
+      setSettings(s => ({ ...s, removeFillers: false }));
+      result = "Filler removal → OFF";
+    } else if (/no\s+captions?|captions?\s+off/.test(cmd)) {
+      setSettings(s => ({ ...s, addCaptions: false }));
+      result = "Captions → OFF";
+    } else {
+      const styleHit = captionStyles.find(style => cmd.includes(style) && (cmd.includes("caption") || cmd.includes("sub")));
+      if (styleHit || (/add\s+captions?|captions?\s+on/.test(cmd))) {
+        setSettings(s => ({ ...s, addCaptions: true, ...(styleHit ? { captionStyle: styleHit } : {}) }));
+        result = `Captions → ON${styleHit ? `, style: ${styleHit}` : ""}`;
+      }
+    }
+
+    if (!result) {
+      const gradeHit = colorGrades.find(g => cmd.includes(g) && (cmd.includes("grade") || cmd.includes("color")));
+      if (gradeHit) {
+        setSettings(s => ({ ...s, colorGrade: gradeHit }));
+        result = `Color grade → ${gradeHit}`;
+      } else if (/no\s+(?:color\s+)?grade|grade\s+off|grade\s+none/.test(cmd)) {
+        setSettings(s => ({ ...s, colorGrade: "none" }));
+        result = "Color grade → none";
+      }
+    }
+
+    if (!result) {
+      const m9 = cmd.match(/reframe\s+(?:to\s+)?9\s*[:/]\s*16|portrait/);
+      const m1 = cmd.match(/reframe\s+(?:to\s+)?1\s*[:/]\s*1|square/);
+      const mOrig = cmd.match(/reframe\s+(?:to\s+)?(?:16\s*[:/]\s*9|original|landscape|none)/);
+      if (m9) { setSettings(s => ({ ...s, reframe: "portrait" })); result = "Reframe → 9:16 (portrait)"; }
+      else if (m1) { setSettings(s => ({ ...s, reframe: "square" })); result = "Reframe → 1:1 (square)"; }
+      else if (mOrig) { setSettings(s => ({ ...s, reframe: "none" })); result = "Reframe → original"; }
+    }
+
+    if (!result) {
+      const platHit = platforms.find(p => cmd.includes(p));
+      if (platHit && (cmd.includes("export") || cmd.includes("platform") || cmd.includes("for"))) {
+        setSettings(s => ({ ...s, platform: platHit }));
+        result = `Platform → ${platHit}`;
+      }
+    }
+
+    if (!result) {
+      const hookM = raw.match(/(?:add\s+)?hook(?:\s+opener)?\s+"?([^"]+)"?/i);
+      if (hookM) { setSettings(s => ({ ...s, hookOpener: hookM[1].trim() })); result = `Hook opener → "${hookM[1].trim()}"`; }
+      const ltM = raw.match(/(?:add\s+)?lower\s+third\s+"?([^"]+)"?/i);
+      if (ltM) { setSettings(s => ({ ...s, lowerThird: ltM[1].trim() })); result = `Lower third → "${ltM[1].trim()}"`; }
+      const wmM = raw.match(/(?:add\s+)?watermark\s+"?([^"]+)"?/i);
+      if (wmM) { setSettings(s => ({ ...s, watermarkText: wmM[1].trim() })); result = `Watermark → "${wmM[1].trim()}"`; }
+      const ctaM = raw.match(/(?:subscribe|cta)\s+"?([^"]+)"?/i);
+      if (ctaM) { setSettings(s => ({ ...s, addSubscribeCta: true, ctaText: ctaM[1].trim() })); result = `Subscribe CTA → "${ctaM[1].trim()}"`; }
+      const musicM = raw.match(/(?:add\s+)?music\s+(https?:\/\/\S+)/i);
+      if (musicM) { setSettings(s => ({ ...s, musicUrl: musicM[1] })); result = `Background music → ${musicM[1]}`; }
+    }
+
+    if (!result) {
+      if (/normalize\s+audio|audio\s+normalize/.test(cmd)) { setSettings(s => ({ ...s, audioNormalize: true })); result = "Audio normalize → ON"; }
+      else if (/restore\s+audio|audio\s+restore|denoise|noise\s+remove/.test(cmd)) { setSettings(s => ({ ...s, audioRestore: true })); result = "Audio restore → ON"; }
+      else {
+        const speedM = cmd.match(/([\d.]+)\s*x|speed\s+(?:up\s+)?([\d.]+)/);
+        if (speedM) { const v = speedM[1] || speedM[2]; setSettings(s => ({ ...s, speed: v })); result = `Speed → ${v}x`; }
+      }
+    }
+
+    const entry = result
+      ? { text: `> ${raw}  →  ${result}`, ok: true }
+      : { text: `> ${raw}  →  Unknown command. Try: "tiktok captions", "color grade cinematic", "reframe 9:16", "cut silences"`, ok: false };
+
+    setCmdLog(prev => [entry, ...prev].slice(0, 10));
+    setCmdInput("");
   };
 
   // ── Derived video URL ─────────────────────────────────────────────────────────
@@ -777,6 +1116,41 @@ export default function VideoEditorStudio() {
                     </div>
                   )}
 
+                  {/* ── Command CLI ── */}
+                  <div className="p-5 border-b border-zinc-800/40">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Terminal className="w-4 h-4 text-green-400" />
+                      <p className="text-sm font-bold text-foreground">Command Mode</p>
+                      <span className="text-[9px] text-muted-foreground border border-zinc-700/50 rounded px-1.5 py-0.5 font-mono">CLI</span>
+                    </div>
+                    <div className="bg-zinc-950 border border-zinc-800/70 rounded-xl overflow-hidden">
+                      {cmdLog.length > 0 && (
+                        <div className="px-3 py-2 max-h-32 overflow-y-auto space-y-1 border-b border-zinc-800/50">
+                          {cmdLog.map((e, i) => (
+                            <p key={i} className={`text-[10px] font-mono leading-snug ${e.ok ? "text-green-400/80" : "text-red-400/80"}`}>{e.text}</p>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 px-3 py-2">
+                        <span className="text-green-400 font-mono text-xs flex-shrink-0">›</span>
+                        <input
+                          value={cmdInput}
+                          onChange={e => setCmdInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") handleCmd(); }}
+                          placeholder="tiktok captions · cut silences · color grade cinematic…"
+                          className="flex-1 bg-transparent text-xs font-mono text-foreground placeholder:text-zinc-600 outline-none"
+                        />
+                        <button onClick={handleCmd}
+                          className="text-[10px] font-mono text-green-400/60 hover:text-green-400 transition-colors flex-shrink-0">
+                          run
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground/50 mt-1.5 leading-snug">
+                      Try: "tiktok captions" · "reframe 9:16" · "export for instagram" · "restore audio" · "reset"
+                    </p>
+                  </div>
+
                   {/* Edit settings */}
                   <div className="p-5 border-b border-zinc-800/40">
                     <div className="flex items-center gap-2 mb-4">
@@ -789,6 +1163,24 @@ export default function VideoEditorStudio() {
                     <EditControls settings={settings} onChange={setSettings} />
                   </div>
 
+                  {/* Motion Graphics */}
+                  <div className="p-5 border-b border-zinc-800/40">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Layers className="w-4 h-4 text-amber-400" />
+                      <p className="text-sm font-bold text-foreground">Motion Graphics</p>
+                    </div>
+                    <MotionGraphicsPanel settings={settings} onChange={setSettings} />
+                  </div>
+
+                  {/* Platform Export */}
+                  <div className="p-5 border-b border-zinc-800/40">
+                    <div className="flex items-center gap-2 mb-4">
+                      <MonitorSmartphone className="w-4 h-4 text-sky-400" />
+                      <p className="text-sm font-bold text-foreground">Export Platform</p>
+                    </div>
+                    <PlatformPanel settings={settings} onChange={setSettings} />
+                  </div>
+
                   {/* Render button */}
                   <div className="p-5 border-b border-zinc-800/40">
                     <Button
@@ -798,10 +1190,40 @@ export default function VideoEditorStudio() {
                       data-testid="btn-render"
                     >
                       {renderMutation.isPending
-                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending to Shotstack…</>
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting render…</>
                         : <><Play className="w-4 h-4" /> Render My Video</>}
                     </Button>
-                    <p className="text-[10px] text-muted-foreground/50 text-center mt-2">Powered by Shotstack · Usually 1–3 min</p>
+                    <p className="text-[10px] text-muted-foreground/50 text-center mt-2">Server-side ffmpeg · Usually 15–45 sec</p>
+                  </div>
+
+                  {/* ── Thumbnail Extractor ── */}
+                  <div className="p-5 border-b border-zinc-800/40">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ImageDown className="w-4 h-4 text-violet-400" />
+                      <p className="text-sm font-bold text-foreground">Extract Thumbnail</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleExtractThumbnail(currentTime)}
+                        disabled={isThumbLoading}
+                        className="flex-1 text-xs border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
+                        {isThumbLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><ImageDown className="w-3.5 h-3.5 mr-1" /> At playhead</>}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleExtractThumbnail(0)}
+                        disabled={isThumbLoading}
+                        className="flex-1 text-xs border-zinc-700/50 text-muted-foreground hover:text-foreground">
+                        Frame 0
+                      </Button>
+                    </div>
+                    {thumbUrl && (
+                      <div className="mt-3 space-y-2">
+                        <img src={thumbUrl} alt="thumbnail" className="w-full rounded-xl border border-zinc-700/50 object-cover" />
+                        <a href={thumbUrl} target="_blank" rel="noreferrer" download>
+                          <Button size="sm" className="w-full bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 text-xs gap-1.5">
+                            <Download className="w-3.5 h-3.5" /> Download Thumbnail
+                          </Button>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* ── AI Edit Suggestions (from Video Editor timeline) ── */}
@@ -918,13 +1340,10 @@ export default function VideoEditorStudio() {
                     <Film className="w-7 h-7 text-amber-400 animate-pulse" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-foreground">Shotstack is rendering…</p>
-                    <p className="text-xs text-muted-foreground mt-1">Usually takes 1–3 minutes. We'll update automatically.</p>
+                    <p className="text-sm font-bold text-foreground">Rendering your video…</p>
+                    <p className="text-xs text-muted-foreground mt-1">ffmpeg is processing on the server. Usually 15–45 sec.</p>
                   </div>
                   <Loader2 className="w-5 h-5 text-amber-400 animate-spin mx-auto" />
-                  <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 border text-[10px]">
-                    Render ID: {currentJob.shotstackRenderId?.slice(0, 12)}…
-                  </Badge>
                 </div>
               </div>
             )}
