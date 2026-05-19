@@ -1,7 +1,7 @@
 // Client-facing Project Tracker — Tier 5 (Elite) only
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import ClientPartnershipTracker from "../../../tier5-tracker/stepByStepProjectTracker";
+import ClientPartnershipTracker from "@/components/ClientPartnershipTracker";
 import { Layers, Lock, ArrowRight } from "lucide-react";
 
 const GOLD = "#d4b461";
