@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import PlatformView from "@/components/video-marketing/PlatformView";
 import TierGate, { hasVideoMarketingAccess } from "@/components/video-marketing/TierGate";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const GOLD = "#d4b461";
 
@@ -29,5 +30,5 @@ export default function VideoMarketing() {
         return <TierGate currentPlan={user.plan} userName={user.name} hasVideoMarketing={(user as any).hasVideoMarketing} />;
     }
 
-    return <PlatformView />;
+    return <ErrorBoundary><PlatformView /></ErrorBoundary>;
 }

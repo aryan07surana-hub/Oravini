@@ -217,7 +217,8 @@ export default function VideoHosting({ onNavigate }: { onNavigate?: (tab: string
     progressBarEnabled: false, progressBarStyle: "steady", customProgressSegments: "", duration: "", category: "General"
   });
 
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const { data: _videos } = useQuery<any[]>({ queryKey: ["/api/video-events"] });
+  const videos = _videos ?? [];
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/video-events", data),

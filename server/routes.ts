@@ -12344,6 +12344,37 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Webinar Series ───────────────────────────────────────────────────────
+  app.get("/api/webinar-series", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const series = await storage.getWebinarSeries(user.id);
+      res.json(series);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinar-series", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const series = await storage.createWebinarSeries({ ...req.body, userId: user.id });
+      res.json(series);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/webinar-series/:id", requireAuth, async (req, res) => {
+    try {
+      const series = await storage.updateWebinarSeries(req.params.id, req.body);
+      res.json(series);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/webinar-series/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteWebinarSeries(req.params.id);
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // Video Events
   app.get("/api/video-events", requireAuth, async (req, res) => {
     const user = req.user as any;
@@ -12630,6 +12661,59 @@ Rules:
     try {
       await storage.deleteVideoEvent(p(req.params.id));
       res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Collections ─────────────────────────────────────────────────────
+  app.get("/api/video-collections", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const collections = await storage.getVideoCollections(user.id);
+      res.json(collections);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-collections", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const collection = await storage.createVideoCollection({ ...req.body, userId: user.id });
+      res.json(collection);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/video-collections/:id", requireAuth, async (req, res) => {
+    try {
+      const collection = await storage.updateVideoCollection(Number(req.params.id), req.body);
+      res.json(collection);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-collections/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteVideoCollection(Number(req.params.id));
+      res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/video-collections/:id/items", requireAuth, async (req, res) => {
+    try {
+      const items = await storage.getVideoCollectionItems(Number(req.params.id));
+      res.json(items);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/video-collections/:id/items", requireAuth, async (req, res) => {
+    try {
+      const { videoEventId, sortOrder } = req.body;
+      const item = await storage.addVideoToCollection(Number(req.params.id), videoEventId, sortOrder ?? 0);
+      res.json(item);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/video-collection-items/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.removeVideoFromCollection(Number(req.params.id));
+      res.json({ message: "Removed" });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

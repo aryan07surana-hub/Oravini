@@ -4515,7 +4515,7 @@ function VideoCollectionsTab() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white truncate">{col.title}</p>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">{col.isPublic ? "🌐 Public" : "🔒 Private"} · {format(new Date(col.createdAt), "MMM d")}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{col.isPublic ? "🌐 Public" : "🔒 Private"} · {col.createdAt ? format(new Date(col.createdAt), "MMM d") : "—"}</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
