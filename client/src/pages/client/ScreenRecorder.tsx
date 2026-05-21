@@ -1328,6 +1328,18 @@ export default function ScreenRecorder() {
   });
 
   // ── Recording Logic ───────────────────────────────────────────────────────
+  // Track global mouse position for cursor highlight composition
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => { cursorPosRef.current = { x: e.clientX, y: e.clientY }; };
+    const onClick = (e: MouseEvent) => {
+      cursorClicksRef.current.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+      cursorClicksRef.current = cursorClicksRef.current.filter((c) => Date.now() - c.t < 800);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("click", onClick);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("click", onClick); };
+  }, []);
+
   const actuallyStartRecording = useCallback(async () => {
     try {
       let screenStream: MediaStream | null = null;
@@ -1341,7 +1353,13 @@ export default function ScreenRecorder() {
 
       if (recordingMode === "screen_cam" || recordingMode === "cam_only") {
         try {
-          camStream = await navigator.mediaDevices.getUserMedia({ video: { width: recordingMode === "cam_only" ? 1280 : 320, height: recordingMode === "cam_only" ? 720 : 320, frameRate: 30 } });
+          camStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: recordingMode === "cam_only" ? 1280 : 640,
+              height: recordingMode === "cam_only" ? 720 : 480,
+              frameRate: 30,
+            },
+          });
           camStreamRef.current = camStream;
           if (liveCamRef.current) liveCamRef.current.srcObject = camStream;
         } catch { /* */ }
@@ -1354,13 +1372,188 @@ export default function ScreenRecorder() {
         } catch { /* */ }
       }
 
-      const tracks: MediaStreamTrack[] = [];
+      // ── COMPOSITION CANVAS PIPELINE ──
+      // Build hidden video elements for screen + cam, paint them to a canvas
+      // along with cursor highlight, click ripples, and annotations,
+      // then capture the canvas stream for recording.
+
+      // Determine output dimensions
+      let outputWidth = 1920, outputHeight = 1080;
       if (recordingMode === "cam_only" && camStream) {
-        tracks.push(...camStream.getVideoTracks());
+        const settings = camStream.getVideoTracks()[0].getSettings();
+        outputWidth = settings.width || 1280;
+        outputHeight = settings.height || 720;
       } else if (screenStream) {
-        tracks.push(...screenStream.getVideoTracks());
+        const settings = screenStream.getVideoTracks()[0].getSettings();
+        outputWidth = settings.width || 1920;
+        outputHeight = settings.height || 1080;
       }
 
+      // Create source video elements
+      const screenVid = document.createElement("video");
+      screenVid.muted = true;
+      screenVid.playsInline = true;
+      if (screenStream) {
+        screenVid.srcObject = screenStream;
+        await screenVid.play().catch(() => { });
+      }
+      screenVideoElRef.current = screenVid;
+
+      const camVid = document.createElement("video");
+      camVid.muted = true;
+      camVid.playsInline = true;
+      if (camStream) {
+        camVid.srcObject = camStream;
+        await camVid.play().catch(() => { });
+      }
+      camVideoElRef.current = camVid;
+
+      // Composition canvas
+      const compCanvas = document.createElement("canvas");
+      compCanvas.width = outputWidth;
+      compCanvas.height = outputHeight;
+      compositionCanvasRef.current = compCanvas;
+      const compCtx = compCanvas.getContext("2d", { alpha: false });
+      if (!compCtx) throw new Error("Canvas 2D context unavailable");
+
+      // Compute scale factors for translating screen coords to canvas coords
+      const getScreenScale = () => {
+        // Annotations and cursor are in window pixels — but the screen capture
+        // is the actual screen pixel dimensions. Map them by ratio.
+        const isUsingScreen = recordingMode !== "cam_only";
+        if (!isUsingScreen) return { sx: 0, sy: 0 };
+        const sx = outputWidth / window.innerWidth;
+        const sy = outputHeight / window.innerHeight;
+        return { sx, sy };
+      };
+
+      // Render loop
+      const renderFrame = () => {
+        if (!compCtx) return;
+        // Clear with black
+        compCtx.fillStyle = "#000";
+        compCtx.fillRect(0, 0, outputWidth, outputHeight);
+
+        // 1. Paint base video (screen or cam)
+        if (recordingModeRef.current === "cam_only") {
+          if (camVid.readyState >= 2) {
+            compCtx.drawImage(camVid, 0, 0, outputWidth, outputHeight);
+          }
+        } else {
+          if (screenVid.readyState >= 2) {
+            compCtx.drawImage(screenVid, 0, 0, outputWidth, outputHeight);
+          }
+        }
+
+        // 2. Paint annotations (only over screen, scaled from window coords)
+        if (recordingModeRef.current !== "cam_only") {
+          const { sx, sy } = getScreenScale();
+          const all = drawingNowRef.current ? [...annotationsRef.current, drawingNowRef.current] : annotationsRef.current;
+          all.forEach((a) => {
+            compCtx.strokeStyle = a.color;
+            compCtx.fillStyle = a.color;
+            compCtx.lineWidth = 4;
+            compCtx.lineCap = "round";
+            compCtx.lineJoin = "round";
+            const sX = a.startX * sx;
+            const sY = a.startY * sy;
+            const eX = a.endX * sx;
+            const eY = a.endY * sy;
+            if (a.type === "rectangle") {
+              compCtx.strokeRect(sX, sY, eX - sX, eY - sY);
+            } else if (a.type === "circle") {
+              const r = Math.sqrt((eX - sX) ** 2 + (eY - sY) ** 2);
+              compCtx.beginPath();
+              compCtx.arc(sX, sY, r, 0, Math.PI * 2);
+              compCtx.stroke();
+            } else if (a.type === "arrow") {
+              const headLen = 18;
+              const angle = Math.atan2(eY - sY, eX - sX);
+              compCtx.beginPath();
+              compCtx.moveTo(sX, sY);
+              compCtx.lineTo(eX, eY);
+              compCtx.stroke();
+              compCtx.beginPath();
+              compCtx.moveTo(eX, eY);
+              compCtx.lineTo(eX - headLen * Math.cos(angle - Math.PI / 6), eY - headLen * Math.sin(angle - Math.PI / 6));
+              compCtx.lineTo(eX - headLen * Math.cos(angle + Math.PI / 6), eY - headLen * Math.sin(angle + Math.PI / 6));
+              compCtx.closePath();
+              compCtx.fill();
+            } else if (a.type === "freehand" && a.points) {
+              compCtx.beginPath();
+              a.points.forEach((p, i) => {
+                const px = p.x * sx;
+                const py = p.y * sy;
+                if (i === 0) compCtx.moveTo(px, py);
+                else compCtx.lineTo(px, py);
+              });
+              compCtx.stroke();
+            } else if (a.type === "highlight") {
+              compCtx.fillStyle = a.color + "55";
+              compCtx.fillRect(Math.min(sX, eX), Math.min(sY, eY), Math.abs(eX - sX), Math.abs(eY - sY));
+            }
+          });
+
+          // 3. Cursor highlight + click ripples
+          if (cursorHighlightRef.current && cursorPosRef.current) {
+            const cx = cursorPosRef.current.x * sx;
+            const cy = cursorPosRef.current.y * sy;
+            const grad = compCtx.createRadialGradient(cx, cy, 0, cx, cy, 50);
+            grad.addColorStop(0, "rgba(212,180,97,0.5)");
+            grad.addColorStop(1, "rgba(212,180,97,0)");
+            compCtx.fillStyle = grad;
+            compCtx.fillRect(cx - 50, cy - 50, 100, 100);
+            // Click ripples
+            cursorClicksRef.current.forEach((click) => {
+              const age = Date.now() - click.t;
+              if (age > 800) return;
+              const progress = age / 800;
+              const radius = 20 + progress * 50;
+              compCtx.strokeStyle = `rgba(212,180,97,${1 - progress})`;
+              compCtx.lineWidth = 3;
+              compCtx.beginPath();
+              compCtx.arc(click.x * sx, click.y * sy, radius, 0, Math.PI * 2);
+              compCtx.stroke();
+            });
+          }
+        }
+
+        // 4. Camera bubble (only for screen_cam mode)
+        if (recordingModeRef.current === "screen_cam" && camEnabledRef.current && camVid.readyState >= 2) {
+          const bubbleSize = Math.floor(outputHeight * 0.22);
+          const margin = 30;
+          const bx = outputWidth - bubbleSize - margin;
+          const by = outputHeight - bubbleSize - margin;
+          compCtx.save();
+          // Circular clip
+          compCtx.beginPath();
+          compCtx.arc(bx + bubbleSize / 2, by + bubbleSize / 2, bubbleSize / 2, 0, Math.PI * 2);
+          compCtx.closePath();
+          compCtx.clip();
+          // Cover-fit camera into circle
+          const camAspect = (camVid.videoWidth || 4) / (camVid.videoHeight || 3);
+          let drawW = bubbleSize, drawH = bubbleSize;
+          if (camAspect > 1) drawW = bubbleSize * camAspect;
+          else drawH = bubbleSize / camAspect;
+          compCtx.drawImage(camVid, bx + (bubbleSize - drawW) / 2, by + (bubbleSize - drawH) / 2, drawW, drawH);
+          compCtx.restore();
+          // Gold ring
+          compCtx.strokeStyle = "#d4b461";
+          compCtx.lineWidth = 4;
+          compCtx.beginPath();
+          compCtx.arc(bx + bubbleSize / 2, by + bubbleSize / 2, bubbleSize / 2, 0, Math.PI * 2);
+          compCtx.stroke();
+        }
+
+        animFrameRef.current = requestAnimationFrame(renderFrame);
+      };
+      renderFrame();
+
+      // Capture canvas as video stream
+      const canvasStream = (compCanvas as any).captureStream(30) as MediaStream;
+      const videoTracks = canvasStream.getVideoTracks();
+
+      // Build audio mix
       const audioContext = new AudioContext();
       const destination = audioContext.createMediaStreamDestination();
       let hasAudio = false;
@@ -1377,11 +1570,13 @@ export default function ScreenRecorder() {
         source.connect(destination);
         hasAudio = true;
       }
+
+      const tracks: MediaStreamTrack[] = [...videoTracks];
       if (hasAudio) tracks.push(...destination.stream.getAudioTracks());
 
       const combinedStream = new MediaStream(tracks);
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
-      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 3000000 });
+      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 4000000 });
 
       chunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
