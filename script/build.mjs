@@ -44,19 +44,19 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
+  const serverOpts = {
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: "dist/index.cjs",
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
+    define: { "process.env.NODE_ENV": '"production"' },
     minify: true,
     external: externals,
     logLevel: "info",
-  });
+  };
+
+  await esbuild({ ...serverOpts, entryPoints: ["server/index.ts"],       outfile: "dist/index.cjs" });
+  console.log("building worker...");
+  await esbuild({ ...serverOpts, entryPoints: ["server/render-worker.ts"], outfile: "dist/worker.cjs" });
 }
 
 buildAll().catch((err) => {

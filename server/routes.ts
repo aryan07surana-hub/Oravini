@@ -10489,7 +10489,8 @@ Rules:
   });
 
   // ── Video Studio (ffmpeg pipeline) ─────────────────────────────────────────
-  const { renderWithFfmpeg, extractThumbnail } = await import("./video-ffmpeg");
+  const { extractThumbnail } = await import("./video-ffmpeg");
+  const { renderQueue } = await import("./render-queue");
 
   // Rendered outputs dir — served as static files under /uploads/rendered/
   const renderedDir = path.join(uploadsDir, "rendered");
@@ -10586,27 +10587,43 @@ Rules:
     }
     const settings = req.body.settings || {};
     await storage.updateVideoEdit(editId, userId, { status: "rendering", settings });
-    res.json({ ok: true });
 
-    // Run ffmpeg in background — update DB when done
-    (async () => {
-      const outputPath = path.join(renderedDir, `edit-${editId}.mp4`);
-      try {
-        await renderWithFfmpeg(
-          edit.filePath,
+    // Enqueue render job — worker process picks it up (no blocking the server)
+    const outputPath = path.join(renderedDir, `edit-${editId}.mp4`);
+    const baseUrl = getRequestAwareBase(req);
+    try {
+      await renderQueue.add(
+        `render-${editId}`,
+        {
+          editId,
+          userId,
+          filePath:   edit.filePath,
           outputPath,
-          edit.transcript,
           settings,
-          edit.duration || 60
-        );
-        const outputUrl = `${getRequestAwareBase(req)}/uploads/rendered/edit-${editId}.mp4`;
-        await storage.updateVideoEdit(editId, userId, { status: "done", outputUrl });
-        console.log("[video-studio] ffmpeg render done:", editId);
-      } catch (e: any) {
-        console.error("[video-studio] ffmpeg render failed:", editId, e.message);
-        await storage.updateVideoEdit(editId, userId, { status: "failed" });
-      }
-    })();
+          duration:   edit.duration || 60,
+          transcript: edit.transcript,
+          baseUrl,
+        },
+        { jobId: `render-${editId}` }
+      );
+      console.log(`[video-studio] render job enqueued for editId=${editId}`);
+    } catch (e: any) {
+      // If Redis is down, fall back to inline render (dev/single-server mode)
+      console.warn("[video-studio] queue unavailable, falling back to inline render:", e.message);
+      const { renderWithFfmpeg } = await import("./video-ffmpeg");
+      (async () => {
+        try {
+          await renderWithFfmpeg(edit.filePath, outputPath, edit.transcript, settings, edit.duration || 60);
+          const outputUrl = `${baseUrl}/uploads/rendered/edit-${editId}.mp4`;
+          await storage.updateVideoEdit(editId, userId, { status: "done", outputUrl });
+        } catch (fe: any) {
+          console.error("[video-studio] inline render failed:", fe.message);
+          await storage.updateVideoEdit(editId, userId, { status: "failed" });
+        }
+      })();
+    }
+
+    res.json({ ok: true });
   });
 
   app.get("/api/video-studio/:id/status", requireAuth, async (req: Request, res: Response) => {

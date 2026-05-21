@@ -7,11 +7,18 @@ services:
     databaseName: oravini
     databaseUser: oravini
 
-  # Web Service
+  # Redis — BullMQ job queue
+  - type: redis
+    name: oravini-redis
+    plan: free        # upgrade to starter ($7/mo) for persistence + more RAM
+    region: oregon
+    maxmemoryPolicy: noeviction
+
+  # Web Service (API + frontend)
   - type: web
     name: oravini
     runtime: node
-    plan: starter  # persistent disk requires at least starter plan
+    plan: starter     # persistent disk requires at least starter plan
     buildCommand: npm install --include=dev --legacy-peer-deps && node script/build.mjs
     startCommand: NODE_ENV=production node dist/index.cjs
     disk:
@@ -27,7 +34,46 @@ services:
         fromDatabase:
           name: oravini-db
           property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: oravini-redis
+          type: redis
+          property: connectionString
       - key: APP_URL
         value: https://oravini.com
       - key: SESSION_SECRET
         generateValue: true
+      - key: RENDERED_DIR
+        value: /opt/render/project/src/uploads/rendered
+
+  # Render Worker — processes video render queue jobs (ffmpeg)
+  - type: worker
+    name: oravini-render-worker
+    runtime: node
+    plan: standard    # 2GB RAM, 1 CPU — ffmpeg needs headroom
+    buildCommand: npm install --include=dev --legacy-peer-deps && node script/build.mjs
+    startCommand: NODE_ENV=production node dist/worker.cjs
+    disk:
+      name: oravini-uploads-worker
+      mountPath: /opt/render/project/src/uploads
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oravini-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: oravini-redis
+          type: redis
+          property: connectionString
+      - key: RENDER_CONCURRENCY
+        value: "3"    # bump to 5-6 on pro plan
+      - key: RENDER_CLEANUP_DAYS
+        value: "7"
+      - key: RENDERED_DIR
+        value: /opt/render/project/src/uploads/rendered
