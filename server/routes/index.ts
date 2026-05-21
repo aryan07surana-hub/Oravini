@@ -1,3 +1,11 @@
 export { registerWebinarPollRoutes } from "./webinar-polls";
 export { registerWebinarSeriesRoutes } from "./webinar-series";
 export { registerVideoHostingRoutes } from "./video-hosting";
+export { registerWebinarPanelistRoutes } from "./webinar-panelists";
+export { registerWebinarBreakoutRoutes } from "./webinar-breakout";
+export { registerWebinarEmailRoutes } from "./webinar-emails";
+export { registerWebinarSurveyRoutes } from "./webinar-surveys";
+export { registerWebinarTemplateRoutes } from "./webinar-templates";
+export { registerWebinarCaptionRoutes } from "./webinar-captions";
+export { registerWebinarBackstageRoutes } from "./webinar-backstage";
+export { registerWebinarAdvancedRoutes } from "./webinar-advanced";

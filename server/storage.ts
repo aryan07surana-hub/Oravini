@@ -100,6 +100,14 @@ import {
   type VideoChapter, type InsertVideoChapter,
   type VideoCta, type InsertVideoCta,
   type VideoViewerSession, type InsertVideoViewerSession,
+  videoInteractiveElements, videoAbTests, videoChannels, videoChannelEpisodes, videoChannelSubscribers, videoDubbingJobs, videoCollabComments,
+  type VideoInteractiveElement, type InsertVideoInteractiveElement,
+  type VideoAbTest, type InsertVideoAbTest,
+  type VideoChannel, type InsertVideoChannel,
+  type VideoChannelEpisode,
+  type VideoChannelSubscriber,
+  type VideoDubbingJob, type InsertVideoDubbingJob,
+  type VideoCollabComment, type InsertVideoCollabComment,
   nicheIntelligence, nicheTrends,
   type NicheIntelligence, type InsertNicheIntelligence,
   type NicheTrend, type InsertNicheTrend,
@@ -115,6 +123,16 @@ import {
   type SmsContactTag,
   type SmsContactTagAssignment,
   type SmsStepVariant,
+  // Webinar Advanced Features
+  webinarPanelists, webinarBackstageMessages, webinarPracticeSessions,
+  webinarBreakoutRooms, webinarBreakoutParticipants,
+  webinarEmails, webinarEmailLogs,
+  webinarSurveys, webinarSurveyResponses,
+  webinarTemplates,
+  webinarCaptions, webinarTranscripts,
+  webinarAttendeeScores,
+  webinarStreamDestinations,
+  webinarResources,
 } from "@shared/schema";
 
 export const pool = new Pool({
@@ -481,6 +499,36 @@ export interface IStorage {
   createViewerSession(data: InsertVideoViewerSession): Promise<VideoViewerSession>;
   getVideoViewerSessions(videoEventId: string): Promise<VideoViewerSession[]>;
   updateViewerSession(id: number, data: Partial<InsertVideoViewerSession>): Promise<void>;
+  // Video Interactive Elements
+  getVideoInteractiveElements(videoEventId: string): Promise<VideoInteractiveElement[]>;
+  createVideoInteractiveElement(data: InsertVideoInteractiveElement): Promise<VideoInteractiveElement>;
+  updateVideoInteractiveElement(id: string, data: Partial<InsertVideoInteractiveElement>): Promise<VideoInteractiveElement | undefined>;
+  deleteVideoInteractiveElement(id: string): Promise<void>;
+  // Video A/B Tests
+  getVideoAbTests(userId: string): Promise<VideoAbTest[]>;
+  createVideoAbTest(data: InsertVideoAbTest): Promise<VideoAbTest>;
+  updateVideoAbTest(id: string, data: Partial<InsertVideoAbTest>): Promise<VideoAbTest | undefined>;
+  deleteVideoAbTest(id: string): Promise<void>;
+  // Video Channels
+  getVideoChannels(userId: string): Promise<VideoChannel[]>;
+  getVideoChannel(id: string): Promise<VideoChannel | undefined>;
+  getVideoChannelBySlug(slug: string): Promise<VideoChannel | undefined>;
+  createVideoChannel(data: InsertVideoChannel): Promise<VideoChannel>;
+  updateVideoChannel(id: string, data: Partial<InsertVideoChannel>): Promise<VideoChannel | undefined>;
+  deleteVideoChannel(id: string): Promise<void>;
+  getChannelEpisodes(channelId: string): Promise<VideoChannelEpisode[]>;
+  addChannelEpisode(channelId: string, videoEventId: string, section?: string, sortOrder?: number): Promise<VideoChannelEpisode>;
+  removeChannelEpisode(id: number): Promise<void>;
+  subscribeToChannel(channelId: string, email: string, name?: string): Promise<VideoChannelSubscriber>;
+  // Video Dubbing Jobs
+  getVideoDubbingJobs(userId: string, videoEventId?: string): Promise<VideoDubbingJob[]>;
+  createVideoDubbingJob(data: InsertVideoDubbingJob): Promise<VideoDubbingJob>;
+  updateVideoDubbingJob(id: string, data: Partial<InsertVideoDubbingJob>): Promise<VideoDubbingJob | undefined>;
+  // Video Collaboration Comments
+  getVideoCollabComments(videoEventId: string): Promise<VideoCollabComment[]>;
+  createVideoCollabComment(data: InsertVideoCollabComment): Promise<VideoCollabComment>;
+  updateVideoCollabComment(id: string, data: Partial<InsertVideoCollabComment>): Promise<VideoCollabComment | undefined>;
+  deleteVideoCollabComment(id: string): Promise<void>;
   // Custom Domains
   getWebinarDomains(userId: string): Promise<WebinarDomain[]>;
   getWebinarDomainByDomain(domain: string): Promise<WebinarDomain | undefined>;
@@ -575,6 +623,77 @@ export interface IStorage {
   incrementVariantClick(id: string): Promise<void>;
 
   getUsersWithPhone(): Promise<{ id: string; name: string | null; phone: string | null; carrierName: string | null; gatewayDomain: string | null }[]>;
+
+  // ── Webinar Panelists ─────────────────────────────────────────────────────
+  getWebinarPanelists(webinarId: string): Promise<any[]>;
+  createWebinarPanelist(data: any): Promise<any>;
+  updateWebinarPanelist(id: string, data: any): Promise<any>;
+  deleteWebinarPanelist(id: string): Promise<void>;
+  acceptWebinarPanelistInvite(token: string): Promise<any>;
+  getWebinarPanelistByToken(token: string): Promise<any>;
+
+  // ── Webinar Backstage ─────────────────────────────────────────────────────
+  getWebinarBackstageMessages(webinarId: string): Promise<any[]>;
+  createBackstageMessage(data: any): Promise<any>;
+  startPracticeSession(data: any): Promise<any>;
+  endPracticeSession(webinarId: string, notes?: string): Promise<any>;
+  getActivePracticeSession(webinarId: string): Promise<any>;
+  getPracticeSessionHistory(webinarId: string): Promise<any[]>;
+
+  // ── Webinar Breakout Rooms ────────────────────────────────────────────────
+  getWebinarBreakoutRooms(webinarId: string): Promise<any[]>;
+  createWebinarBreakoutRoom(data: any): Promise<any>;
+  updateWebinarBreakoutRoom(id: string, data: any): Promise<any>;
+  deleteWebinarBreakoutRoom(id: string): Promise<void>;
+  openAllBreakoutRooms(webinarId: string): Promise<void>;
+  closeAllBreakoutRooms(webinarId: string): Promise<void>;
+  assignBreakoutParticipant(data: any): Promise<any>;
+  removeBreakoutParticipant(roomId: string, viewerId: string): Promise<void>;
+  getBreakoutParticipants(roomId: string): Promise<any[]>;
+
+  // ── Webinar Email Automation ──────────────────────────────────────────────
+  getWebinarEmails(webinarId: string): Promise<any[]>;
+  getWebinarEmailById(id: string): Promise<any>;
+  upsertWebinarEmail(data: any): Promise<any>;
+  updateWebinarEmail(id: string, data: any): Promise<any>;
+  deleteWebinarEmail(id: string): Promise<void>;
+  logWebinarEmail(emailId: string, recipientEmail: string, recipientName?: string): Promise<void>;
+  getWebinarEmailLogs(emailId: string): Promise<any[]>;
+  getWebinarByCode(code: string): Promise<any>;
+
+  // ── Webinar Surveys ───────────────────────────────────────────────────────
+  getWebinarSurvey(webinarId: string): Promise<any>;
+  upsertWebinarSurvey(data: any): Promise<any>;
+  submitWebinarSurveyResponse(data: any): Promise<any>;
+  getWebinarSurveyResponses(surveyId: string): Promise<any[]>;
+
+  // ── Webinar Templates ─────────────────────────────────────────────────────
+  getWebinarTemplates(userId: string): Promise<any[]>;
+  createWebinarTemplate(data: any): Promise<any>;
+  deleteWebinarTemplate(id: string): Promise<void>;
+
+  // ── Webinar Captions ──────────────────────────────────────────────────────
+  getWebinarCaptions(webinarId: string, after?: number, limit?: number): Promise<any[]>;
+  addWebinarCaption(data: any): Promise<any>;
+  getWebinarTranscript(webinarId: string): Promise<any>;
+  saveWebinarTranscript(data: any): Promise<any>;
+
+  // ── Webinar Stream Destinations ───────────────────────────────────────────
+  getWebinarStreamDestinations(webinarId: string): Promise<any[]>;
+  createWebinarStreamDestination(data: any): Promise<any>;
+  updateWebinarStreamDestination(id: string, data: any): Promise<any>;
+  deleteWebinarStreamDestination(id: string): Promise<void>;
+
+  // ── Webinar Resources ─────────────────────────────────────────────────────
+  getWebinarResources(webinarId: string): Promise<any[]>;
+  createWebinarResource(data: any): Promise<any>;
+  pushWebinarResource(id: string): Promise<any>;
+  deleteWebinarResource(id: string): Promise<void>;
+
+  // ── Webinar Engagement Scores ─────────────────────────────────────────────
+  getWebinarAttendeeScores(webinarId: string): Promise<any[]>;
+  updateAttendeeEngagement(webinarId: string, data: any): Promise<any>;
+  computeWebinarEngagementScores(webinarId: string): Promise<any[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -2517,6 +2636,108 @@ class DatabaseStorage implements IStorage {
     await db.update(videoViewerSessions).set(data).where(eq(videoViewerSessions.id, id));
   }
 
+  // ── Video Interactive Elements ────────────────────────────────────────────
+  async getVideoInteractiveElements(videoEventId: string): Promise<VideoInteractiveElement[]> {
+    return db.select().from(videoInteractiveElements).where(eq(videoInteractiveElements.videoEventId, videoEventId)).orderBy(videoInteractiveElements.timestamp);
+  }
+  async createVideoInteractiveElement(data: InsertVideoInteractiveElement): Promise<VideoInteractiveElement> {
+    const [row] = await db.insert(videoInteractiveElements).values(data).returning();
+    return row;
+  }
+  async updateVideoInteractiveElement(id: string, data: Partial<InsertVideoInteractiveElement>): Promise<VideoInteractiveElement | undefined> {
+    const [row] = await db.update(videoInteractiveElements).set(data).where(eq(videoInteractiveElements.id, id)).returning();
+    return row;
+  }
+  async deleteVideoInteractiveElement(id: string): Promise<void> {
+    await db.delete(videoInteractiveElements).where(eq(videoInteractiveElements.id, id));
+  }
+
+  // ── Video A/B Tests ───────────────────────────────────────────────────────
+  async getVideoAbTests(userId: string): Promise<VideoAbTest[]> {
+    return db.select().from(videoAbTests).where(eq(videoAbTests.userId, userId)).orderBy(desc(videoAbTests.createdAt));
+  }
+  async createVideoAbTest(data: InsertVideoAbTest): Promise<VideoAbTest> {
+    const [row] = await db.insert(videoAbTests).values(data).returning();
+    return row;
+  }
+  async updateVideoAbTest(id: string, data: Partial<InsertVideoAbTest>): Promise<VideoAbTest | undefined> {
+    const [row] = await db.update(videoAbTests).set(data).where(eq(videoAbTests.id, id)).returning();
+    return row;
+  }
+  async deleteVideoAbTest(id: string): Promise<void> {
+    await db.delete(videoAbTests).where(eq(videoAbTests.id, id));
+  }
+
+  // ── Video Channels ────────────────────────────────────────────────────────
+  async getVideoChannels(userId: string): Promise<VideoChannel[]> {
+    return db.select().from(videoChannels).where(eq(videoChannels.userId, userId)).orderBy(desc(videoChannels.createdAt));
+  }
+  async getVideoChannel(id: string): Promise<VideoChannel | undefined> {
+    const [row] = await db.select().from(videoChannels).where(eq(videoChannels.id, id));
+    return row;
+  }
+  async getVideoChannelBySlug(slug: string): Promise<VideoChannel | undefined> {
+    const [row] = await db.select().from(videoChannels).where(eq(videoChannels.slug, slug));
+    return row;
+  }
+  async createVideoChannel(data: InsertVideoChannel): Promise<VideoChannel> {
+    const [row] = await db.insert(videoChannels).values(data).returning();
+    return row;
+  }
+  async updateVideoChannel(id: string, data: Partial<InsertVideoChannel>): Promise<VideoChannel | undefined> {
+    const [row] = await db.update(videoChannels).set(data).where(eq(videoChannels.id, id)).returning();
+    return row;
+  }
+  async deleteVideoChannel(id: string): Promise<void> {
+    await db.delete(videoChannels).where(eq(videoChannels.id, id));
+  }
+  async getChannelEpisodes(channelId: string): Promise<VideoChannelEpisode[]> {
+    return db.select().from(videoChannelEpisodes).where(eq(videoChannelEpisodes.channelId, channelId)).orderBy(videoChannelEpisodes.sortOrder);
+  }
+  async addChannelEpisode(channelId: string, videoEventId: string, section?: string, sortOrder?: number): Promise<VideoChannelEpisode> {
+    const [row] = await db.insert(videoChannelEpisodes).values({ channelId, videoEventId, section: section || "Episodes", sortOrder: sortOrder ?? 0 }).returning();
+    return row;
+  }
+  async removeChannelEpisode(id: number): Promise<void> {
+    await db.delete(videoChannelEpisodes).where(eq(videoChannelEpisodes.id, id));
+  }
+  async subscribeToChannel(channelId: string, email: string, name?: string): Promise<VideoChannelSubscriber> {
+    const [row] = await db.insert(videoChannelSubscribers).values({ channelId, email, name: name || null }).returning();
+    await db.update(videoChannels).set({ subscriberCount: sqlExpr`subscriber_count + 1` }).where(eq(videoChannels.id, channelId));
+    return row;
+  }
+
+  // ── Video Dubbing Jobs ────────────────────────────────────────────────────
+  async getVideoDubbingJobs(userId: string, videoEventId?: string): Promise<VideoDubbingJob[]> {
+    const conds = [eq(videoDubbingJobs.userId, userId)];
+    if (videoEventId) conds.push(eq(videoDubbingJobs.videoEventId, videoEventId));
+    return db.select().from(videoDubbingJobs).where(and(...conds)).orderBy(desc(videoDubbingJobs.createdAt));
+  }
+  async createVideoDubbingJob(data: InsertVideoDubbingJob): Promise<VideoDubbingJob> {
+    const [row] = await db.insert(videoDubbingJobs).values(data).returning();
+    return row;
+  }
+  async updateVideoDubbingJob(id: string, data: Partial<InsertVideoDubbingJob>): Promise<VideoDubbingJob | undefined> {
+    const [row] = await db.update(videoDubbingJobs).set(data).where(eq(videoDubbingJobs.id, id)).returning();
+    return row;
+  }
+
+  // ── Video Collaboration Comments ──────────────────────────────────────────
+  async getVideoCollabComments(videoEventId: string): Promise<VideoCollabComment[]> {
+    return db.select().from(videoCollabComments).where(eq(videoCollabComments.videoEventId, videoEventId)).orderBy(desc(videoCollabComments.createdAt));
+  }
+  async createVideoCollabComment(data: InsertVideoCollabComment): Promise<VideoCollabComment> {
+    const [row] = await db.insert(videoCollabComments).values(data).returning();
+    return row;
+  }
+  async updateVideoCollabComment(id: string, data: Partial<InsertVideoCollabComment>): Promise<VideoCollabComment | undefined> {
+    const [row] = await db.update(videoCollabComments).set(data).where(eq(videoCollabComments.id, id)).returning();
+    return row;
+  }
+  async deleteVideoCollabComment(id: string): Promise<void> {
+    await db.delete(videoCollabComments).where(eq(videoCollabComments.id, id));
+  }
+
   // ── Canva Integration ─────────────────────────────────────────────────────
   async getCanvaToken(userId: string): Promise<any | null> {
     // Placeholder - implement when canva_tokens table exists
@@ -3389,6 +3610,330 @@ class DatabaseStorage implements IStorage {
     }).from(users).leftJoin(smsCarrierGateways, eq(users.phone, smsCarrierGateways.phone))
       .where(and(sqlExpr`${users.phone} IS NOT NULL`, sqlExpr`${users.phone} != ''`));
     return rows as any[];
+  }
+
+  // ── Webinar Panelists ─────────────────────────────────────────────────────
+  async getWebinarPanelists(webinarId: string) {
+    return db.select().from(webinarPanelists).where(eq(webinarPanelists.webinarId, webinarId)).orderBy(desc(webinarPanelists.createdAt));
+  }
+
+  async createWebinarPanelist(data: any) {
+    const [panelist] = await db.insert(webinarPanelists).values(data).returning();
+    return panelist;
+  }
+
+  async updateWebinarPanelist(id: string, data: any) {
+    const [panelist] = await db.update(webinarPanelists).set(data).where(eq(webinarPanelists.id, id)).returning();
+    return panelist;
+  }
+
+  async deleteWebinarPanelist(id: string) {
+    await db.delete(webinarPanelists).where(eq(webinarPanelists.id, id));
+  }
+
+  async acceptWebinarPanelistInvite(token: string) {
+    const [panelist] = await db.update(webinarPanelists)
+      .set({ status: "accepted", joinedAt: new Date() })
+      .where(eq(webinarPanelists.inviteToken, token))
+      .returning();
+    return panelist;
+  }
+
+  async getWebinarPanelistByToken(token: string) {
+    const [panelist] = await db.select().from(webinarPanelists).where(eq(webinarPanelists.inviteToken, token));
+    return panelist;
+  }
+
+  // ── Webinar Backstage ─────────────────────────────────────────────────────
+  async getWebinarBackstageMessages(webinarId: string) {
+    return db.select().from(webinarBackstageMessages).where(eq(webinarBackstageMessages.webinarId, webinarId)).orderBy(webinarBackstageMessages.createdAt);
+  }
+
+  async createBackstageMessage(data: any) {
+    const [msg] = await db.insert(webinarBackstageMessages).values(data).returning();
+    return msg;
+  }
+
+  async startPracticeSession(data: any) {
+    const [session] = await db.insert(webinarPracticeSessions).values({ ...data, startedAt: new Date() }).returning();
+    return session;
+  }
+
+  async endPracticeSession(webinarId: string, notes?: string) {
+    const [session] = await db.update(webinarPracticeSessions)
+      .set({ endedAt: new Date(), notes: notes || null })
+      .where(and(eq(webinarPracticeSessions.webinarId, webinarId), isNull(webinarPracticeSessions.endedAt)))
+      .returning();
+    return session;
+  }
+
+  async getActivePracticeSession(webinarId: string) {
+    const [session] = await db.select().from(webinarPracticeSessions)
+      .where(and(eq(webinarPracticeSessions.webinarId, webinarId), isNull(webinarPracticeSessions.endedAt)));
+    return session;
+  }
+
+  async getPracticeSessionHistory(webinarId: string) {
+    return db.select().from(webinarPracticeSessions).where(eq(webinarPracticeSessions.webinarId, webinarId)).orderBy(desc(webinarPracticeSessions.startedAt));
+  }
+
+  // ── Webinar Breakout Rooms ────────────────────────────────────────────────
+  async getWebinarBreakoutRooms(webinarId: string) {
+    return db.select().from(webinarBreakoutRooms).where(eq(webinarBreakoutRooms.webinarId, webinarId)).orderBy(webinarBreakoutRooms.createdAt);
+  }
+
+  async createWebinarBreakoutRoom(data: any) {
+    const [room] = await db.insert(webinarBreakoutRooms).values(data).returning();
+    return room;
+  }
+
+  async updateWebinarBreakoutRoom(id: string, data: any) {
+    const [room] = await db.update(webinarBreakoutRooms).set(data).where(eq(webinarBreakoutRooms.id, id)).returning();
+    return room;
+  }
+
+  async deleteWebinarBreakoutRoom(id: string) {
+    await db.delete(webinarBreakoutParticipants).where(eq(webinarBreakoutParticipants.roomId, id));
+    await db.delete(webinarBreakoutRooms).where(eq(webinarBreakoutRooms.id, id));
+  }
+
+  async openAllBreakoutRooms(webinarId: string) {
+    await db.update(webinarBreakoutRooms).set({ isOpen: true }).where(eq(webinarBreakoutRooms.webinarId, webinarId));
+  }
+
+  async closeAllBreakoutRooms(webinarId: string) {
+    await db.update(webinarBreakoutRooms).set({ isOpen: false }).where(eq(webinarBreakoutRooms.webinarId, webinarId));
+  }
+
+  async assignBreakoutParticipant(data: any) {
+    const [participant] = await db.insert(webinarBreakoutParticipants).values({ ...data, joinedAt: new Date() }).returning();
+    return participant;
+  }
+
+  async removeBreakoutParticipant(roomId: string, viewerId: string) {
+    await db.update(webinarBreakoutParticipants)
+      .set({ leftAt: new Date() })
+      .where(and(eq(webinarBreakoutParticipants.roomId, roomId), eq(webinarBreakoutParticipants.viewerId, viewerId)));
+  }
+
+  async getBreakoutParticipants(roomId: string) {
+    return db.select().from(webinarBreakoutParticipants)
+      .where(and(eq(webinarBreakoutParticipants.roomId, roomId), isNull(webinarBreakoutParticipants.leftAt)));
+  }
+
+  // ── Webinar Email Automation ──────────────────────────────────────────────
+  async getWebinarEmails(webinarId: string) {
+    return db.select().from(webinarEmails).where(eq(webinarEmails.webinarId, webinarId)).orderBy(webinarEmails.createdAt);
+  }
+
+  async getWebinarEmailById(id: string) {
+    const [email] = await db.select().from(webinarEmails).where(eq(webinarEmails.id, id));
+    return email;
+  }
+
+  async upsertWebinarEmail(data: any) {
+    // Check if this type already exists for the webinar
+    const [existing] = await db.select().from(webinarEmails)
+      .where(and(eq(webinarEmails.webinarId, data.webinarId), eq(webinarEmails.type, data.type)));
+    if (existing) {
+      const [updated] = await db.update(webinarEmails).set(data).where(eq(webinarEmails.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(webinarEmails).values(data).returning();
+    return created;
+  }
+
+  async updateWebinarEmail(id: string, data: any) {
+    const [email] = await db.update(webinarEmails).set(data).where(eq(webinarEmails.id, id)).returning();
+    return email;
+  }
+
+  async deleteWebinarEmail(id: string) {
+    await db.delete(webinarEmails).where(eq(webinarEmails.id, id));
+  }
+
+  async logWebinarEmail(emailId: string, recipientEmail: string, recipientName?: string) {
+    await db.insert(webinarEmailLogs).values({ webinarEmailId: emailId, recipientEmail, recipientName: recipientName || null });
+  }
+
+  async getWebinarEmailLogs(emailId: string) {
+    return db.select().from(webinarEmailLogs).where(eq(webinarEmailLogs.webinarEmailId, emailId)).orderBy(desc(webinarEmailLogs.sentAt));
+  }
+
+  async getWebinarByCode(code: string) {
+    const [webinar] = await db.select().from(webinars).where(eq(webinars.meetingCode, code));
+    return webinar;
+  }
+
+  // ── Webinar Surveys ───────────────────────────────────────────────────────
+  async getWebinarSurvey(webinarId: string) {
+    const [survey] = await db.select().from(webinarSurveys).where(eq(webinarSurveys.webinarId, webinarId));
+    return survey;
+  }
+
+  async upsertWebinarSurvey(data: any) {
+    const [existing] = await db.select().from(webinarSurveys).where(eq(webinarSurveys.webinarId, data.webinarId));
+    if (existing) {
+      const [updated] = await db.update(webinarSurveys).set(data).where(eq(webinarSurveys.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(webinarSurveys).values(data).returning();
+    return created;
+  }
+
+  async submitWebinarSurveyResponse(data: any) {
+    const [response] = await db.insert(webinarSurveyResponses).values({ ...data, submittedAt: new Date() }).returning();
+    return response;
+  }
+
+  async getWebinarSurveyResponses(surveyId: string) {
+    return db.select().from(webinarSurveyResponses).where(eq(webinarSurveyResponses.surveyId, surveyId)).orderBy(desc(webinarSurveyResponses.submittedAt));
+  }
+
+  // ── Webinar Templates ─────────────────────────────────────────────────────
+  async getWebinarTemplates(userId: string) {
+    return db.select().from(webinarTemplates).where(eq(webinarTemplates.userId, userId)).orderBy(desc(webinarTemplates.createdAt));
+  }
+
+  async createWebinarTemplate(data: any) {
+    const [template] = await db.insert(webinarTemplates).values(data).returning();
+    return template;
+  }
+
+  async deleteWebinarTemplate(id: string) {
+    await db.delete(webinarTemplates).where(eq(webinarTemplates.id, id));
+  }
+
+  // ── Webinar Captions ──────────────────────────────────────────────────────
+  async getWebinarCaptions(webinarId: string, after: number = 0, limit: number = 50) {
+    return db.select().from(webinarCaptions)
+      .where(and(eq(webinarCaptions.webinarId, webinarId), gte(webinarCaptions.startTime, after)))
+      .orderBy(webinarCaptions.startTime)
+      .limit(limit);
+  }
+
+  async addWebinarCaption(data: any) {
+    const [caption] = await db.insert(webinarCaptions).values(data).returning();
+    return caption;
+  }
+
+  async getWebinarTranscript(webinarId: string) {
+    const [transcript] = await db.select().from(webinarTranscripts).where(eq(webinarTranscripts.webinarId, webinarId));
+    return transcript;
+  }
+
+  async saveWebinarTranscript(data: any) {
+    // Upsert - one transcript per webinar
+    const [existing] = await db.select().from(webinarTranscripts).where(eq(webinarTranscripts.webinarId, data.webinarId));
+    if (existing) {
+      const [updated] = await db.update(webinarTranscripts).set(data).where(eq(webinarTranscripts.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(webinarTranscripts).values({ ...data, generatedAt: new Date() }).returning();
+    return created;
+  }
+
+  // ── Webinar Stream Destinations ───────────────────────────────────────────
+  async getWebinarStreamDestinations(webinarId: string) {
+    return db.select().from(webinarStreamDestinations).where(eq(webinarStreamDestinations.webinarId, webinarId));
+  }
+
+  async createWebinarStreamDestination(data: any) {
+    const [dest] = await db.insert(webinarStreamDestinations).values(data).returning();
+    return dest;
+  }
+
+  async updateWebinarStreamDestination(id: string, data: any) {
+    const [dest] = await db.update(webinarStreamDestinations).set(data).where(eq(webinarStreamDestinations.id, id)).returning();
+    return dest;
+  }
+
+  async deleteWebinarStreamDestination(id: string) {
+    await db.delete(webinarStreamDestinations).where(eq(webinarStreamDestinations.id, id));
+  }
+
+  // ── Webinar Resources ─────────────────────────────────────────────────────
+  async getWebinarResources(webinarId: string) {
+    return db.select().from(webinarResources).where(eq(webinarResources.webinarId, webinarId)).orderBy(webinarResources.createdAt);
+  }
+
+  async createWebinarResource(data: any) {
+    const [resource] = await db.insert(webinarResources).values(data).returning();
+    return resource;
+  }
+
+  async pushWebinarResource(id: string) {
+    const [resource] = await db.update(webinarResources).set({ pushedAt: new Date() }).where(eq(webinarResources.id, id)).returning();
+    return resource;
+  }
+
+  async deleteWebinarResource(id: string) {
+    await db.delete(webinarResources).where(eq(webinarResources.id, id));
+  }
+
+  // ── Webinar Engagement Scores ─────────────────────────────────────────────
+  async getWebinarAttendeeScores(webinarId: string) {
+    return db.select().from(webinarAttendeeScores).where(eq(webinarAttendeeScores.webinarId, webinarId)).orderBy(desc(webinarAttendeeScores.engagementScore));
+  }
+
+  async updateAttendeeEngagement(webinarId: string, data: any) {
+    const { viewerId, viewerName, viewerEmail, event } = data;
+    // Try to get existing score
+    const [existing] = await db.select().from(webinarAttendeeScores)
+      .where(and(eq(webinarAttendeeScores.webinarId, webinarId), eq(webinarAttendeeScores.viewerId, viewerId)));
+
+    const updates: any = { updatedAt: new Date() };
+    if (event === "chat") updates.chatMessages = (existing?.chatMessages || 0) + 1;
+    else if (event === "question") updates.questionsAsked = (existing?.questionsAsked || 0) + 1;
+    else if (event === "poll") updates.pollsVoted = (existing?.pollsVoted || 0) + 1;
+    else if (event === "reaction") updates.reactionsCount = (existing?.reactionsCount || 0) + 1;
+    else if (event === "cta_click") updates.ctaClicks = (existing?.ctaClicks || 0) + 1;
+    else if (event === "hand_raise") updates.handRaises = (existing?.handRaises || 0) + 1;
+
+    if (existing) {
+      const [updated] = await db.update(webinarAttendeeScores).set(updates).where(eq(webinarAttendeeScores.id, existing.id)).returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(webinarAttendeeScores).values({
+        webinarId, viewerId, viewerName, viewerEmail,
+        ...updates,
+        watchDuration: 0, chatMessages: 0, questionsAsked: 0, pollsVoted: 0,
+        reactionsCount: 0, ctaClicks: 0, handRaises: 0, engagementScore: 0,
+        ...(event === "chat" ? { chatMessages: 1 } : {}),
+        ...(event === "question" ? { questionsAsked: 1 } : {}),
+        ...(event === "poll" ? { pollsVoted: 1 } : {}),
+        ...(event === "reaction" ? { reactionsCount: 1 } : {}),
+        ...(event === "cta_click" ? { ctaClicks: 1 } : {}),
+        ...(event === "hand_raise" ? { handRaises: 1 } : {}),
+      }).returning();
+      return created;
+    }
+  }
+
+  async computeWebinarEngagementScores(webinarId: string) {
+    const scores = await db.select().from(webinarAttendeeScores).where(eq(webinarAttendeeScores.webinarId, webinarId));
+    const webinar = await this.getWebinar(webinarId);
+    const totalDuration = (webinar?.durationMinutes || 60) * 60; // seconds
+
+    const results: any[] = [];
+    for (const score of scores) {
+      // Compute engagement score (0-100)
+      const watchPct = Math.min((score.watchDuration || 0) / totalDuration, 1) * 40; // 40% weight
+      const chatPts = Math.min((score.chatMessages || 0) / 10, 1) * 15; // 15%
+      const questionPts = Math.min((score.questionsAsked || 0) / 3, 1) * 15; // 15%
+      const pollPts = Math.min((score.pollsVoted || 0) / 3, 1) * 10; // 10%
+      const reactionPts = Math.min((score.reactionsCount || 0) / 5, 1) * 10; // 10%
+      const ctaPts = Math.min((score.ctaClicks || 0) / 2, 1) * 10; // 10%
+      const engagementScore = Math.round(watchPct + chatPts + questionPts + pollPts + reactionPts + ctaPts);
+      const attendedFullDuration = (score.watchDuration || 0) >= totalDuration * 0.8;
+
+      const [updated] = await db.update(webinarAttendeeScores)
+        .set({ engagementScore, attendedFullDuration })
+        .where(eq(webinarAttendeeScores.id, score.id))
+        .returning();
+      results.push(updated);
+    }
+    return results;
   }
 }
 

@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
+import {
+  AnnotationOverlay,
+  TurnstileOverlay,
+  InteractiveCTAOverlay,
+  ChapterMarkers,
+  ChapterNavStrip,
+  useActiveInteractive,
+  type InteractiveElement,
+  type Chapter,
+} from "@/components/video-marketing/InteractiveOverlays";
+import { OraviniBadge, type WatermarkPosition } from "@/components/video-marketing/OraviniBadge";
 
 /**
  * Oravini Embed Player — Wistia-style embeddable video player.
@@ -164,38 +175,7 @@ function CTAOverlay({ cta, brandColor, videoId }: { cta: any; brandColor: string
 // ── Oravini Watermark ───────────────────────────────────────────────────────
 
 function OraviniWatermark({ position = "bottom-right", show = true }: { position?: string; show?: boolean }) {
-  if (!show) return null;
-
-  const posStyles: Record<string, React.CSSProperties> = {
-    "bottom-right": { bottom: 52, right: 12 },
-    "bottom-left": { bottom: 52, left: 12 },
-    "top-right": { top: 12, right: 12 },
-    "top-left": { top: 12, left: 12 },
-  };
-
-  return (
-    <a
-      href="https://oravini.com"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="absolute z-20 flex items-center gap-1.5 px-2 py-1 rounded-md transition-opacity opacity-60 hover:opacity-100"
-      style={{
-        ...posStyles[position] || posStyles["bottom-right"],
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
-      title="Powered by Oravini"
-    >
-      <img
-        src="/oravini-logo.png"
-        alt="Oravini"
-        className="w-4 h-4 rounded-sm object-cover"
-        style={{ objectPosition: "50% 32%" }}
-      />
-      <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider">Oravini</span>
-    </a>
-  );
+  return <OraviniBadge position={position as WatermarkPosition} show={show} variant="player" />;
 }
 
 // ── Custom Player Controls ──────────────────────────────────────────────────
@@ -210,6 +190,7 @@ function PlayerControls({
   speed,
   brandColor,
   allowSpeedControl,
+  chapters,
   onPlayPause,
   onSeek,
   onVolumeChange,
@@ -226,6 +207,7 @@ function PlayerControls({
   speed: number;
   brandColor: string;
   allowSpeedControl: boolean;
+  chapters?: Chapter[];
   onPlayPause: () => void;
   onSeek: (t: number) => void;
   onVolumeChange: (v: number) => void;
@@ -262,6 +244,8 @@ function PlayerControls({
           className="h-full transition-all"
           style={{ width: `${pct}%`, background: brandColor }}
         />
+        {/* Chapter markers */}
+        {chapters && chapters.length > 0 && <ChapterMarkers chapters={chapters} duration={duration} brandColor={brandColor} />}
         {/* Scrubber dot */}
         <div
           className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -383,6 +367,12 @@ export default function EmbedPlayer() {
   const [activeCta, setActiveCta] = useState<any>(null);
   const [viewTracked, setViewTracked] = useState(false);
 
+  // Wistia-style enhancements
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [interactive, setInteractive] = useState<InteractiveElement[]>([]);
+  const [passedTurnstileIds, setPassedTurnstileIds] = useState<Set<string>>(new Set());
+  const [dismissedCtaIds, setDismissedCtaIds] = useState<Set<string>>(new Set());
+
   // Player state
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -455,6 +445,8 @@ export default function EmbedPlayer() {
   useEffect(() => {
     if (!videoId || !gateUnlocked) return;
     fetch(`/api/video/${videoId}/ctas`).then(r => r.json()).then(setCtas).catch(() => {});
+    fetch(`/api/video/${videoId}/chapters`).then(r => r.json()).then(setChapters).catch(() => {});
+    fetch(`/api/video/${videoId}/interactive`).then(r => r.json()).then(setInteractive).catch(() => {});
   }, [videoId, gateUnlocked]);
 
   // Track view
@@ -477,6 +469,17 @@ export default function EmbedPlayer() {
     });
     setActiveCta(active || null);
   }, [currentTime, ctas]);
+
+  // Wistia-style interactive elements
+  const interactiveState = useActiveInteractive(interactive, currentTime, passedTurnstileIds, dismissedCtaIds);
+
+  // Auto-pause when turnstile shows; resume on dismiss
+  useEffect(() => {
+    if (interactiveState.type === "turnstile" && playing && videoRef.current) {
+      videoRef.current.pause();
+      setPlaying(false);
+    }
+  }, [interactiveState.type, playing]);
 
   // Auto-hide controls
   const resetControlsTimer = useCallback(() => {
@@ -631,8 +634,40 @@ export default function EmbedPlayer() {
         </div>
       )}
 
-      {/* CTA Overlay */}
+      {/* CTA Overlay (legacy timestamped CTAs from videoCtas table) */}
       {activeCta && gateUnlocked && <CTAOverlay cta={activeCta} brandColor={brandColor} videoId={videoId!} />}
+
+      {/* Wistia-style mid-video annotations */}
+      {gateUnlocked && interactiveState.type === "playing" && interactiveState.annotations?.map(el => (
+        <AnnotationOverlay key={el.id} element={el} brandColor={brandColor} videoId={videoId} />
+      ))}
+
+      {/* Wistia-style mid-video CTA pop-up */}
+      {gateUnlocked && interactiveState.type === "playing" && interactiveState.cta && (
+        <InteractiveCTAOverlay
+          element={interactiveState.cta}
+          brandColor={brandColor}
+          videoId={videoId}
+          onDismiss={() => setDismissedCtaIds(prev => new Set([...Array.from(prev), interactiveState.cta!.id]))}
+        />
+      )}
+
+      {/* Wistia-style mid-video turnstile gate */}
+      {gateUnlocked && interactiveState.type === "turnstile" && (
+        <TurnstileOverlay
+          element={interactiveState.element}
+          brandColor={brandColor}
+          videoId={videoId}
+          onPass={() => {
+            setPassedTurnstileIds(prev => new Set([...Array.from(prev), interactiveState.element.id]));
+            videoRef.current?.play();
+          }}
+          onSkip={interactiveState.element.skipAllowed ? () => {
+            setPassedTurnstileIds(prev => new Set([...Array.from(prev), interactiveState.element.id]));
+            videoRef.current?.play();
+          } : undefined}
+        />
+      )}
 
       {/* Oravini Watermark */}
       <OraviniWatermark position={watermarkPosition} show={showWatermark} />
@@ -650,6 +685,7 @@ export default function EmbedPlayer() {
             speed={speed}
             brandColor={brandColor}
             allowSpeedControl={allowSpeed}
+            chapters={chapters}
             onPlayPause={handlePlayPause}
             onSeek={handleSeek}
             onVolumeChange={handleVolumeChange}

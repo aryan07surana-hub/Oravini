@@ -95,12 +95,16 @@ import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import ScreenRecorder from "@/pages/client/ScreenRecorder";
 import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
+import PanelistInvite from "@/pages/public/PanelistInvite";
+import PanelistStudio from "@/pages/public/PanelistStudio";
 import WatchVideo from "@/pages/public/WatchVideo";
 import EmbedPlayer from "@/pages/public/EmbedPlayer";
 import PublicLandingPage from "@/pages/public/PublicLandingPage";
+import ChannelView from "@/pages/public/ChannelView";
 import ClipFinder from "@/pages/client/ClipFinder";
 import Community from "@/pages/client/Community";
 import ClientVideoMarketing from "@/pages/client/VideoMarketing";
@@ -204,10 +208,13 @@ function Router() {
       <Route path="/f/:slug">{() => <PublicForm />}</Route>
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
+      <Route path="/webinar-invite/:token">{() => <PanelistInvite />}</Route>
+      <Route path="/webinar-panelist/:id">{() => <PanelistStudio />}</Route>
       <Route path="/join/:code">{() => <WatchWebinar />}</Route>
       <Route path="/watch-video/:id">{() => <WatchVideo />}</Route>
       <Route path="/embed/:id">{() => <EmbedPlayer />}</Route>
       <Route path="/lp/:slug">{() => <PublicLandingPage />}</Route>
+      <Route path="/c/:slug">{() => <ChannelView />}</Route>
 
       {/* Client — protected */}
       <Route path="/dashboard">{() => <Guard component={ClientDashboard} />}</Route>
@@ -245,6 +252,8 @@ function Router() {
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
+      <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
+      <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
       <Route path="/webinar-studio/:id">{(p) => <Guard component={WebinarStudio} id={p.id} />}</Route>
       <Route path="/clip-finder">{() => <Guard component={ClipFinder} />}</Route>

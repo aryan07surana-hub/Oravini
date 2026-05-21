@@ -184,6 +184,16 @@ export default function WebinarAnalytics() {
     refetchInterval: 15000,
   });
 
+  const { data: engagementScores = [] } = useQuery<any[]>({
+    queryKey: [`/api/webinars/${webinarId}/engagement-scores`],
+    enabled: !!webinarId,
+  });
+
+  const { data: reportData } = useQuery<any>({
+    queryKey: [`/api/webinars/${webinarId}/report`],
+    enabled: !!webinarId,
+  });
+
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: "#09090b" }}>
       <div className="w-6 h-6 rounded-full border-2 animate-spin"
@@ -381,6 +391,58 @@ export default function WebinarAnalytics() {
           </div>
         )}
 
+        {/* ── ENGAGEMENT LEADERBOARD ── */}
+        {engagementScores && engagementScores.length > 0 && (
+          <div>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.22em] mb-4" style={{ color: `${GOLD}50` }}>
+              Top Engaged Attendees ({engagementScores.length})
+            </h2>
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                    {["#", "Attendee", "Engagement", "Chat", "Polls", "Reactions", "CTAs", "Watch Time"].map(h => (
+                      <th key={h} className="text-left px-3 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {engagementScores.slice(0, 20).map((s: any, i: number) => (
+                    <tr key={s.id || i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                      <td className="px-3 py-3 text-zinc-500 font-mono text-xs">#{i + 1}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                            style={{ background: `hsl(${(i * 53) % 360}, 45%, 35%)` }}>
+                            {(s.viewerName || "?").charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-white text-xs font-semibold">{s.viewerName || "Anonymous"}</p>
+                            {s.viewerEmail && <p className="text-[10px] text-zinc-600">{s.viewerEmail}</p>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden max-w-[80px]">
+                            <div className="h-full rounded-full" style={{ width: `${s.engagementScore || 0}%`, background: GOLD }} />
+                          </div>
+                          <span className="text-xs font-bold" style={{ color: GOLD }}>{Math.round(s.engagementScore || 0)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.chatMessages || 0}</td>
+                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.pollsVoted || 0}</td>
+                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.reactionsCount || 0}</td>
+                      <td className="px-3 py-3 text-zinc-300 text-xs">{s.ctaClicks || 0}</td>
+                      <td className="px-3 py-3 text-zinc-300 text-xs">{fmtDuration(s.watchDuration || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ── ATTENDEE LIST ── */}
         {attendeeList && attendeeList.length > 0 && (
           <div>
@@ -388,9 +450,7 @@ export default function WebinarAnalytics() {
             style={{ color: `${GOLD}50` }}>
               Attendees ({attendeeList.length})
             </h2>
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ background: "rgba(255,255,255,0.04)" }}>

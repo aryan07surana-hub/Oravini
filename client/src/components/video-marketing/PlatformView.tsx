@@ -30,6 +30,11 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 import VideoHosting from "@/components/video-marketing/VideoHosting";
+import {
+  ChaptersTab, InteractiveElementsTab, ABTestingTab, ChannelsTab,
+  ViewerHeatmapsTab, ThumbnailsTab, SEOEmbeddingTab, LocalizationTab, CollaborationTab,
+  VideoEditorTab,
+} from "@/components/video-marketing/HostingFeatures";
 
 const GOLD = "#d4b461";
 
@@ -189,6 +194,42 @@ function WebinarsTab() {
     queryKey: ["/api/video-events"],
   });
   const hostedVideos = _hostedVideos ?? [];
+
+  const { data: templates = [] } = useQuery<any[]>({
+    queryKey: ["/api/webinar-templates"],
+  });
+
+  const saveTemplateMut = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/webinars/${id}/save-as-template`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/webinar-templates"] });
+      toast({ title: "Saved as template! 📋" });
+    },
+  });
+
+  const deleteTemplateMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/webinar-templates/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/webinar-templates"] }),
+  });
+
+  const applyTemplate = (template: any) => {
+    if (!template?.config) return;
+    const c = template.config;
+    setForm({
+      ...form,
+      title: c.title || form.title,
+      description: c.description || form.description,
+      durationMinutes: c.durationMinutes || form.durationMinutes,
+      webinarType: c.webinarType || form.webinarType,
+      videoQuality: c.videoQuality || form.videoQuality,
+      maxAttendees: c.maxAttendees ? String(c.maxAttendees) : form.maxAttendees,
+      offerUrl: c.offerUrl || form.offerUrl,
+      offerTitle: c.offerTitle || form.offerTitle,
+      presenterName: c.presenterName || form.presenterName,
+      isPublic: c.isPublic ?? form.isPublic,
+    });
+    toast({ title: `Template "${template.name}" applied` });
+  };
 
   const createMut = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/webinars", data),
@@ -390,6 +431,10 @@ function WebinarsTab() {
                       <>
                         <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-zinc-400 bg-zinc-800/60 transition-all hover:text-white">ANALYTICS</button>
                         <button className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold text-zinc-400 bg-zinc-800/60 transition-all hover:text-white">REPLAY</button>
+                        <button onClick={() => saveTemplateMut.mutate(w.id)} className="px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:scale-105"
+                          style={{ border: `1px solid ${GOLD}44`, color: GOLD }}>
+                          SAVE TEMPLATE
+                        </button>
                       </>
                     )}
                     <button className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-400/10 transition-all"
@@ -411,6 +456,38 @@ function WebinarsTab() {
             <DialogTitle className="text-white font-bold">Create Webinar</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Template Picker */}
+            {templates.length > 0 && (
+              <div>
+                <label className="text-xs text-zinc-400 mb-1.5 block">Start from Template (optional)</label>
+                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                  {templates.map((t: any) => (
+                    <button key={t.id} type="button" onClick={() => applyTemplate(t)}
+                      className="rounded-lg border p-2 text-left transition-all"
+                      style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)" }}>
+                      <p className="text-[11px] font-bold text-white truncate">{t.name}</p>
+                      <p className="text-[9px] text-zinc-500 truncate">{t.config?.webinarType || "live"} · {t.config?.durationMinutes || 60}m</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Template Picker */}
+            {templates.length > 0 && (
+              <div>
+                <label className="text-xs text-zinc-400 mb-1.5 block">Start from Template (optional)</label>
+                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                  {templates.map((t: any) => (
+                    <button key={t.id} type="button" onClick={() => applyTemplate(t)}
+                      className="rounded-lg border p-2 text-left transition-all"
+                      style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.02)" }}>
+                      <p className="text-[11px] font-bold text-white truncate">{t.name}</p>
+                      <p className="text-[9px] text-zinc-500 truncate">{t.config?.webinarType || "live"} · {t.config?.durationMinutes || 60}m</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Webinar Type */}
             <div>
               <label className="text-xs text-zinc-400 mb-1.5 block">Webinar Type *</label>
@@ -4756,11 +4833,34 @@ function PlayerPreview({ settings }: { settings: any }) {
         </div>
       )}
 
-      {/* Oravini watermark — bottom-right, very subtle */}
+      {/* Oravini watermark — branded pill matching the live player */}
       {showWatermark && (
-        <div style={{ position: "absolute", bottom: 34, right: 6, display: "flex", alignItems: "center", gap: 3, opacity: 0.28, pointerEvents: "none" }}>
-          <OraviniSymbol size={10} color="#ffffff" />
-          <span style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", color: "#ffffff", textTransform: "uppercase", lineHeight: 1 }}>oravini</span>
+        <div
+          style={{
+            position: "absolute",
+            bottom: 34,
+            right: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "3px 8px 3px 4px",
+            borderRadius: 999,
+            background: "rgba(0,0,0,0.78)",
+            border: `1px solid ${GOLD}55`,
+            boxShadow: `0 4px 12px rgba(0,0,0,0.4), 0 0 12px ${GOLD}20`,
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: `linear-gradient(135deg, #e8cc6e, ${GOLD})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 6px ${GOLD}55` }}>
+            <svg width="10" height="10" viewBox="0 0 32 32" fill="none">
+              <circle cx="16" cy="16" r="13" stroke="#0a0a0a" strokeWidth="2.5" fill="none" />
+              <circle cx="16" cy="16" r="6" fill="#0a0a0a" />
+            </svg>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
+            <span style={{ fontSize: 5.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: `${GOLD}aa`, marginBottom: 0.5 }}>Powered by</span>
+            <span style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", background: `linear-gradient(135deg, #e8cc6e, ${GOLD})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Oravini</span>
+          </div>
         </div>
       )}
 
@@ -4914,9 +5014,9 @@ function PlayerSettingsTab() {
 
                 {merged.showOraviniWatermark !== false && (
                   <>
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}10` }}>
-                      <div style={{ opacity: 0.35 }}><OraviniSymbol size={12} color="#ffffff" /></div>
-                      <p className="text-xs text-zinc-500">Fixed bottom-right, barely visible — 28% opacity, no background. Viewers won't notice it unless they look.</p>
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}25` }}>
+                      <div style={{ opacity: 1 }}><OraviniSymbol size={14} color={GOLD} /></div>
+                      <p className="text-xs text-zinc-400">Branded pill in the bottom-right with the Oravini logo and "Powered by" badge. Subtle gold glow, expands on hover. Viewers click it → land on oravini.com.</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">Preview</p>
@@ -5117,6 +5217,15 @@ const HOSTING_NAV: NavItem[] = [
   { id: "video-hosting",     label: "Library",          icon: Video },
   { id: "vsl-studio",        label: "VSL Studio",       icon: Zap },
   { id: "collections",       label: "Collections",      icon: Layers },
+  { id: "chapters",          label: "Chapters",         icon: Hash },
+  { id: "interactive",       label: "Interactive",      icon: MousePointer },
+  { id: "ab-testing",        label: "A/B Testing",      icon: Activity },
+  { id: "channels",          label: "Channels",         icon: Film },
+  { id: "viewer-heatmaps",   label: "Heatmaps",        icon: Eye },
+  { id: "thumbnails",        label: "Thumbnails",       icon: Image },
+  { id: "seo-embedding",     label: "SEO & Embed",      icon: Globe },
+  { id: "localization",      label: "Localization",     icon: Globe },
+  { id: "collaboration",     label: "Collaboration",    icon: Users },
   { id: "vsl-library",       label: "VSL Library",      icon: Film },
   { id: "video-analytics",   label: "Analytics",        icon: BarChart3 },
   { id: "video-crm",         label: "Viewer CRM",       icon: UserCheck },
@@ -5252,7 +5361,17 @@ export default function PlatformView() {
           {/* Video hosting section */}
           {activeId === "video-hosting"     && <VideoHosting onNavigate={setActiveId} />}
           {activeId === "vsl-studio"        && <VSLStudioTab />}
+          {activeId === "video-editor"      && <VideoEditorTab />}
           {activeId === "collections"       && <VideoCollectionsTab />}
+          {activeId === "chapters"          && <ChaptersTab />}
+          {activeId === "interactive"       && <InteractiveElementsTab />}
+          {activeId === "ab-testing"        && <ABTestingTab />}
+          {activeId === "channels"          && <ChannelsTab />}
+          {activeId === "viewer-heatmaps"   && <ViewerHeatmapsTab />}
+          {activeId === "thumbnails"        && <ThumbnailsTab />}
+          {activeId === "seo-embedding"     && <SEOEmbeddingTab />}
+          {activeId === "localization"      && <LocalizationTab />}
+          {activeId === "collaboration"     && <CollaborationTab />}
           {activeId === "vsl-library"       && <VideosTab typeFilter="vsl" />}
           {activeId === "video-analytics"   && <VideoAnalyticsTab />}
           {activeId === "video-crm"         && <VideoViewerCRMTab />}

@@ -3,6 +3,15 @@ import { useParams } from "wouter";
 import { Lock, Play, Clock, ChevronRight, AlertCircle, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AnnotationOverlay,
+  TurnstileOverlay,
+  InteractiveCTAOverlay,
+  useActiveInteractive,
+  type InteractiveElement,
+  type Chapter,
+} from "@/components/video-marketing/InteractiveOverlays";
+import { OraviniBadge, type WatermarkPosition } from "@/components/video-marketing/OraviniBadge";
 
 const GOLD = "#d4b461";
 
@@ -66,6 +75,12 @@ export default function WatchVideo() {
   const [viewTracked, setViewTracked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Wistia-style interactive elements
+  const [interactive, setInteractive] = useState<InteractiveElement[]>([]);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [passedTurnstileIds, setPassedTurnstileIds] = useState<Set<string>>(new Set());
+  const [dismissedCtaIds, setDismissedCtaIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (!videoId) return;
     fetch(`/api/video/${videoId}/public`)
@@ -82,7 +97,26 @@ export default function WatchVideo() {
     if (!videoId || !gateUnlocked) return;
     fetch(`/api/video/${videoId}/chapters`).then(r => r.json()).then(setChapters).catch(() => {});
     fetch(`/api/video/${videoId}/ctas`).then(r => r.json()).then(setCtas).catch(() => {});
+    fetch(`/api/video/${videoId}/interactive`).then(r => r.json()).then(setInteractive).catch(() => {});
   }, [videoId, gateUnlocked]);
+
+  // Track playhead for interactive overlays
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onTime = () => setCurrentTime(v.currentTime);
+    v.addEventListener("timeupdate", onTime);
+    return () => v.removeEventListener("timeupdate", onTime);
+  }, [gateUnlocked]);
+
+  const interactiveState = useActiveInteractive(interactive, currentTime, passedTurnstileIds, dismissedCtaIds);
+
+  // Auto-pause on turnstile
+  useEffect(() => {
+    if (interactiveState.type === "turnstile" && videoRef.current && !videoRef.current.paused) {
+      videoRef.current.pause();
+    }
+  }, [interactiveState.type]);
 
   const trackView = useCallback(() => {
     if (!videoId || viewTracked) return;
@@ -210,26 +244,42 @@ export default function WatchVideo() {
                   />
                 )}
                 {/* Oravini Watermark */}
-                {showWatermark && (
-                  <a
-                    href="https://oravini.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute z-20 flex items-center gap-1.5 px-2 py-1 rounded-md transition-opacity opacity-60 hover:opacity-100"
-                    style={{
-                      ...(watermarkPosition === "bottom-left" ? { bottom: 52, left: 12 } :
-                         watermarkPosition === "top-right" ? { top: 12, right: 12 } :
-                         watermarkPosition === "top-left" ? { top: 12, left: 12 } :
-                         { bottom: 52, right: 12 }),
-                      background: "rgba(0,0,0,0.5)",
-                      backdropFilter: "blur(4px)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                <OraviniBadge
+                  position={(watermarkPosition || "bottom-right") as WatermarkPosition}
+                  show={showWatermark}
+                  variant="player"
+                />
+
+                {/* Wistia-style annotations */}
+                {interactiveState.type === "playing" && interactiveState.annotations?.map(el => (
+                  <AnnotationOverlay key={el.id} element={el} brandColor={GOLD} videoId={videoId} />
+                ))}
+
+                {/* Wistia-style mid-video CTA */}
+                {interactiveState.type === "playing" && interactiveState.cta && (
+                  <InteractiveCTAOverlay
+                    element={interactiveState.cta}
+                    brandColor={GOLD}
+                    videoId={videoId}
+                    onDismiss={() => setDismissedCtaIds(prev => new Set([...Array.from(prev), interactiveState.cta!.id]))}
+                  />
+                )}
+
+                {/* Wistia-style turnstile gate */}
+                {interactiveState.type === "turnstile" && (
+                  <TurnstileOverlay
+                    element={interactiveState.element}
+                    brandColor={GOLD}
+                    videoId={videoId}
+                    onPass={() => {
+                      setPassedTurnstileIds(prev => new Set([...Array.from(prev), interactiveState.element.id]));
+                      videoRef.current?.play();
                     }}
-                    title="Powered by Oravini"
-                  >
-                    <img src="/oravini-logo.png" alt="Oravini" className="w-4 h-4 rounded-sm object-cover" style={{ objectPosition: "50% 32%" }} />
-                    <span className="text-[9px] font-bold text-white/70 uppercase tracking-wider">Oravini</span>
-                  </a>
+                    onSkip={interactiveState.element.skipAllowed ? () => {
+                      setPassedTurnstileIds(prev => new Set([...Array.from(prev), interactiveState.element.id]));
+                      videoRef.current?.play();
+                    } : undefined}
+                  />
                 )}
               </div>
 
@@ -269,25 +319,28 @@ export default function WatchVideo() {
                   <p className="text-xs font-black uppercase tracking-wider" style={{ color: `${GOLD}80` }}>Chapters</p>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {chapters.map((ch: any, i: number) => (
-                    <button
-                      key={ch.id}
-                      onClick={() => {
-                        if (videoRef.current && ch.startTimeSec) videoRef.current.currentTime = ch.startTimeSec;
-                      }}
-                      className="w-full flex items-start gap-3 px-4 py-3 text-left transition-all hover:bg-white/[0.04]"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                    >
-                      <span className="text-[10px] font-bold mt-0.5 flex-shrink-0" style={{ color: `${GOLD}70` }}>
-                        {ch.startTimeSec != null ? `${Math.floor(ch.startTimeSec / 60)}:${String(ch.startTimeSec % 60).padStart(2, "0")}` : String(i + 1).padStart(2, "0")}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate">{ch.title}</p>
-                        {ch.description && <p className="text-[10px] text-zinc-600 mt-0.5 line-clamp-2">{ch.description}</p>}
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-zinc-700 flex-shrink-0 mt-0.5" />
-                    </button>
-                  ))}
+                  {chapters.map((ch: any, i: number) => {
+                    const start = ch.startSeconds ?? ch.startTimeSec ?? 0;
+                    return (
+                      <button
+                        key={ch.id}
+                        onClick={() => {
+                          if (videoRef.current && start) videoRef.current.currentTime = start;
+                        }}
+                        className="w-full flex items-start gap-3 px-4 py-3 text-left transition-all hover:bg-white/[0.04]"
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                      >
+                        <span className="text-[10px] font-bold mt-0.5 flex-shrink-0" style={{ color: `${GOLD}70` }}>
+                          {start != null ? `${Math.floor(start / 60)}:${String(Math.floor(start % 60)).padStart(2, "0")}` : String(i + 1).padStart(2, "0")}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-white truncate">{ch.title}</p>
+                          {ch.description && <p className="text-[10px] text-zinc-600 mt-0.5 line-clamp-2">{ch.description}</p>}
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-zinc-700 flex-shrink-0 mt-0.5" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

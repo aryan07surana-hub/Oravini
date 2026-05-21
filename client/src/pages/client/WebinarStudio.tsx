@@ -17,6 +17,16 @@ import {
   BarChart3, Plus, Trash2, Hand,
 } from "lucide-react";
 import { format } from "date-fns";
+import { BackstagePanel } from "@/components/webinar/BackstagePanel";
+import { PanelistsPanel } from "@/components/webinar/PanelistsPanel";
+import { BreakoutRoomsPanel } from "@/components/webinar/BreakoutRoomsPanel";
+import { ResourcesPanel } from "@/components/webinar/ResourcesPanel";
+import { CaptionsPanel } from "@/components/webinar/CaptionsPanel";
+import { EmailAutomationPanel } from "@/components/webinar/EmailAutomationPanel";
+import { SurveyPanel } from "@/components/webinar/SurveyPanel";
+import { StreamDestinationsPanel } from "@/components/webinar/StreamDestinationsPanel";
+import { PanelistVideoGrid } from "@/components/webinar/PanelistVideoGrid";
+import { useLiveKitPanelists } from "@/hooks/use-livekit-panelists";
 
 const GOLD = "#d4b461";
 
@@ -78,7 +88,7 @@ export default function WebinarStudio() {
   const wsRef        = useRef<WebSocket | null>(null);
   const peerConnsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
 
-  const [activeTab,     setActiveTab]     = useState<"chat"|"qa"|"attendees"|"notes"|"polls">("chat");
+  const [activeTab,     setActiveTab]     = useState<"chat"|"qa"|"attendees"|"notes"|"polls"|"backstage"|"panelists"|"breakout"|"resources"|"captions"|"emails"|"survey"|"stream">("chat");
   const [showSettings,  setShowSettings]  = useState(false);
   const [cameraReady,   setCameraReady]   = useState(false);
   const [cameraError,   setCameraError]   = useState<string|null>(null);
@@ -133,6 +143,9 @@ export default function WebinarStudio() {
     onParticipantJoined: (p) => addSys(`${p.name || "A viewer"} joined the live stream.`),
     onParticipantLeft: (p) => addSys(`${p.name || "A viewer"} left.`),
   });
+
+  // Track all publishing participants (host + panelists + co-hosts) for the multi-camera grid
+  const { panelists } = useLiveKitPanelists(livekit.room);
 
   const { data: webinar, isLoading } = useQuery<any>({ queryKey: [`/api/webinars/${webinarId}`], enabled: !!webinarId });
   const { data: registrations = [] }  = useQuery<any[]>({ queryKey: [`/api/webinars/${webinarId}/registrations`], enabled: !!webinarId });
@@ -877,7 +890,10 @@ export default function WebinarStudio() {
               )
             ) : (
               <>
-                {cameraReady || screenSharing ? (
+                {/* Multi-panelist grid takes over when more than just the host is publishing */}
+                {panelists.length > 1 ? (
+                  <PanelistVideoGrid panelists={panelists} />
+                ) : cameraReady || screenSharing ? (
                   <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full gap-5 px-6">
@@ -912,7 +928,14 @@ export default function WebinarStudio() {
                   </div>
                 )}
 
-                {screenSharing && cameraReady && (
+                {/* Panel count badge */}
+                {panelists.length > 1 && (
+                  <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                    <Users className="w-3 h-3" /> {panelists.length} on screen
+                  </div>
+                )}
+
+                {screenSharing && cameraReady && panelists.length <= 1 && (
                   <div className="absolute bottom-4 right-4 w-44 h-32 rounded-2xl overflow-hidden shadow-2xl" style={{ border: "2px solid rgba(255,255,255,0.15)" }}>
                     <video ref={pipRef} className="w-full h-full object-cover" autoPlay playsInline muted />
                     <div className="absolute inset-0 flex items-end justify-end p-1.5">
@@ -1026,18 +1049,38 @@ export default function WebinarStudio() {
         {/* ── RIGHT PANEL ── */}
         <div className="w-72 xl:w-80 flex flex-col flex-shrink-0" style={{ borderLeft: `1px solid ${GOLD}12`, background: "#0c0c10" }}>
           {/* Tabs */}
+          {/* Tab Row 1: Core */}
           <div className="flex flex-shrink-0" style={{ borderBottom: `1px solid ${GOLD}12` }}>
             {([
               ["chat",      "Chat",     MessageSquare],
               ["qa",        "Q&A",      HelpCircle],
               ["attendees", "People",   Users],
-              ["notes",     "Notes",    BookOpen],
               ["polls",     "Polls",    BarChart3],
+              ["backstage", "Green",    Radio],
             ] as const).map(([id, label, Icon]) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className="flex-1 py-2.5 text-[10px] font-bold flex flex-col items-center gap-0.5 transition-colors"
                 style={{ color: activeTab === id ? GOLD : "rgba(255,255,255,0.3)", borderBottom: activeTab === id ? `2px solid ${GOLD}` : "2px solid transparent" }}>
                 <Icon className="w-3.5 h-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Tab Row 2: Advanced */}
+          <div className="flex flex-shrink-0" style={{ borderBottom: `1px solid ${GOLD}08` }}>
+            {([
+              ["panelists", "Panel"],
+              ["breakout",  "Rooms"],
+              ["resources", "Files"],
+              ["captions",  "CC"],
+              ["emails",    "Email"],
+              ["survey",    "Survey"],
+              ["stream",    "Social"],
+              ["notes",     "Notes"],
+            ] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setActiveTab(id)}
+                className="flex-1 py-1.5 text-[9px] font-bold transition-colors"
+                style={{ color: activeTab === id ? GOLD : "rgba(255,255,255,0.25)", borderBottom: activeTab === id ? `2px solid ${GOLD}` : "2px solid transparent" }}>
                 {label}
               </button>
             ))}
@@ -1314,6 +1357,31 @@ export default function WebinarStudio() {
                 </div>
               </div>
             )}
+
+            {/* BACKSTAGE / GREEN ROOM */}
+            {activeTab === "backstage" && <BackstagePanel webinarId={webinarId!} />}
+
+            {/* PANELISTS */}
+            {activeTab === "panelists" && <PanelistsPanel webinarId={webinarId!} />}
+
+            {/* BREAKOUT ROOMS */}
+            {activeTab === "breakout" && <BreakoutRoomsPanel webinarId={webinarId!} attendees={attendees} />}
+
+            {/* RESOURCES / FILE SHARING */}
+            {activeTab === "resources" && <ResourcesPanel webinarId={webinarId!} wsRef={wsRef} />}
+
+            {/* LIVE CAPTIONS */}
+            {activeTab === "captions" && <CaptionsPanel webinarId={webinarId!} isLive={isLive} elapsed={elapsed} wsRef={wsRef} />}
+
+            {/* EMAIL AUTOMATION */}
+            {activeTab === "emails" && <EmailAutomationPanel webinarId={webinarId!} />}
+
+            {/* POST-WEBINAR SURVEY */}
+            {activeTab === "survey" && <SurveyPanel webinarId={webinarId!} />}
+
+            {/* STREAM DESTINATIONS / SIMULCAST */}
+            {activeTab === "stream" && <StreamDestinationsPanel webinarId={webinarId!} />}
+
           </div>
         </div>
       </div>

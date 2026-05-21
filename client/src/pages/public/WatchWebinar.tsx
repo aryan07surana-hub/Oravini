@@ -9,6 +9,9 @@ import {
   Info, CheckCircle, ChevronRight, X, Zap,
 } from "lucide-react";
 import { format } from "date-fns";
+import { PostWebinarSurvey } from "@/components/webinar/PostWebinarSurvey";
+import { PanelistVideoGrid } from "@/components/webinar/PanelistVideoGrid";
+import { useLiveKitPanelists } from "@/hooks/use-livekit-panelists";
 
 const GOLD = "#d4b461";
 
@@ -67,6 +70,9 @@ export default function WatchWebinar() {
   const [qaQuestions,  setQaQuestions]  = useState<QAItem[]>([]);
   const [floatEmojis,  setFloatEmojis]  = useState<FloatEmoji[]>([]);
   const [countdown,    setCountdown]    = useState<{ h: number; m: number; s: number; past: boolean } | null>(null);
+  const [showSurvey,   setShowSurvey]   = useState(true);
+  const [liveCaption,  setLiveCaption]  = useState("");
+  const [activeResource, setActiveResource] = useState<{ title: string; url: string; type: string } | null>(null);
 
   const videoRef      = useRef<HTMLVideoElement>(null);
   const hlsRef        = useRef<Hls | null>(null);
@@ -76,6 +82,7 @@ export default function WatchWebinar() {
   const chatEndRef    = useRef<HTMLDivElement>(null);
   const pollRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const captionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackingRef = useRef<{ sessionId: string | null; interval: ReturnType<typeof setInterval> | null }>({ sessionId: null, interval: null });
   const startTimeRef = useRef<number>(0);
 
@@ -143,8 +150,30 @@ export default function WatchWebinar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventType }),
       });
+      // Also update engagement score
+      const eventMap: Record<string, string> = {
+        chat_sent: "chat",
+        question_asked: "question",
+        poll_voted: "poll",
+        reaction_sent: "reaction",
+        cta_clicked: "cta_click",
+        hand_raised: "hand_raise",
+      };
+      const scoreEvent = eventMap[eventType];
+      if (scoreEvent) {
+        await fetch(`/api/webinars/${webinar.id}/engagement-scores/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            viewerId: vidRef.current,
+            viewerName: regForm.name || "Anonymous",
+            viewerEmail: regForm.email,
+            event: scoreEvent,
+          }),
+        });
+      }
     } catch {}
-  }, [webinar?.id]);
+  }, [webinar?.id, regForm.name, regForm.email]);
 
   // ── Inject float animation ─────────────────────────────────────────────
   useEffect(() => {
@@ -193,7 +222,11 @@ export default function WatchWebinar() {
   // ── LiveKit + WebSocket viewer ──────────────────────────────────────────
   // LiveKit handles media streaming; WebSocket handles chat/reactions/CTA/polls
   const liveKitRoomRef = useRef<any>(null);
+  const [liveKitRoom, setLiveKitRoom] = useState<any>(null);
   const [liveKitAvailable, setLiveKitAvailable] = useState<boolean | null>(null);
+
+  // Track all publishing participants (host + panelists) for multi-camera grid
+  const { panelists } = useLiveKitPanelists(liveKitRoom);
 
   // Check LiveKit availability on mount
   useEffect(() => {
@@ -220,9 +253,16 @@ export default function WatchWebinar() {
 
       const room = new Room({ adaptiveStream: true, dynacast: true });
       liveKitRoomRef.current = room;
+      setLiveKitRoom(room);
 
       room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
-        if (track.kind === Track.Kind.Video) {
+        // When multiple panelists are publishing, the PanelistVideoGrid handles track attachment.
+        // Otherwise, attach the single video track to the legacy <video> element.
+        const remotePublishers = Array.from(room.remoteParticipants.values()).filter((p: any) =>
+          Array.from(p.trackPublications.values()).some((pub: any) => pub.kind === Track.Kind.Video)
+        );
+
+        if (track.kind === Track.Kind.Video && remotePublishers.length <= 1) {
           const el = track.attach();
           el.style.width = "100%";
           el.style.height = "100%";
@@ -234,9 +274,16 @@ export default function WatchWebinar() {
           }
           setStreamReady(true);
           setConnState("connected");
+        } else if (track.kind === Track.Kind.Video) {
+          // Multi-publisher: just mark ready, grid handles rendering
+          setStreamReady(true);
+          setConnState("connected");
         }
         if (track.kind === Track.Kind.Audio) {
-          track.attach(); // Auto-play audio
+          // Audio for single-camera mode plays automatically; for multi-panelist, grid handles per-tile audio
+          if (remotePublishers.length <= 1) {
+            track.attach();
+          }
         }
       });
 
@@ -344,6 +391,7 @@ export default function WatchWebinar() {
             if (liveKitRoomRef.current) {
               liveKitRoomRef.current.disconnect();
               liveKitRoomRef.current = null;
+              setLiveKitRoom(null);
             }
             trackLeave();
             if (trackingRef.current.interval) {
@@ -371,6 +419,17 @@ export default function WatchWebinar() {
           case "wr_poll_ended":
             setActivePoll(prev => prev ? { ...prev, votes: msg.votes || prev.votes } : null);
             setTimeout(() => setActivePoll(null), 8000);
+            break;
+
+          case "wr_caption":
+            setLiveCaption(msg.text || "");
+            if (captionTimeoutRef.current) clearTimeout(captionTimeoutRef.current);
+            captionTimeoutRef.current = setTimeout(() => setLiveCaption(""), 5000);
+            break;
+
+          case "wr_resource_push":
+            setActiveResource(msg.resource);
+            setTimeout(() => setActiveResource(null), 15000);
             break;
         }
       } catch {}
@@ -771,6 +830,16 @@ export default function WatchWebinar() {
           </a>
         )}
       </div>
+      {/* Post-Webinar Survey */}
+      {showSurvey && code && (
+        <PostWebinarSurvey
+          webinarCode={code}
+          viewerId={vidRef.current}
+          viewerName={regForm.name}
+          viewerEmail={regForm.email}
+          onClose={() => setShowSurvey(false)}
+        />
+      )}
     </div>
   );
 
@@ -850,6 +919,9 @@ export default function WatchWebinar() {
                 <p className="text-zinc-500 text-sm">Video starting soon…</p>
               </div>
             )
+          ) : panelists.length > 1 ? (
+            // Multi-panelist grid takes over when host + panelists are all publishing
+            <PanelistVideoGrid panelists={panelists} />
           ) : webinar?.broadcastUrl && !webinar.broadcastUrl.includes(".m3u8") ? (
             isDirectVideo(webinar.broadcastUrl) ? (
               <video src={webinar.broadcastUrl} className="w-full h-full object-contain" autoPlay playsInline controls
@@ -877,6 +949,41 @@ export default function WatchWebinar() {
           <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-red-600 text-white text-xs font-black px-2.5 py-1 rounded-full shadow-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE
           </div>
+
+          {/* Live Captions Overlay */}
+          {liveCaption && (
+            <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 px-4 max-w-3xl w-full pointer-events-none">
+              <div className="px-4 py-2 rounded-xl text-center"
+                style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <p className="text-sm md:text-base text-white leading-relaxed font-medium">{liveCaption}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Resource Pushed Popup */}
+          {activeResource && (
+            <div className="absolute top-16 right-3 z-30 max-w-xs animate-slide-in-right">
+              <div className="rounded-2xl overflow-hidden shadow-2xl" style={{ background: "#0c0c10", border: `1px solid ${GOLD}40` }}>
+                <div className="px-4 py-3 flex items-center gap-2" style={{ background: `${GOLD}10`, borderBottom: `1px solid ${GOLD}20` }}>
+                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD }} />
+                  <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: GOLD }}>
+                    {activeResource.type === "pdf" ? "📄 Document Shared" : activeResource.type === "slide" ? "📊 Slides Shared" : "🔗 Resource Shared"}
+                  </p>
+                  <button onClick={() => setActiveResource(null)} className="ml-auto text-zinc-500 hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <p className="text-sm font-bold text-white mb-3 leading-snug">{activeResource.title}</p>
+                  <a href={activeResource.url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold w-full justify-center"
+                    style={{ background: GOLD, color: "#000" }}>
+                    Open →
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Live CTA Banner — host-triggered via WebSocket */}
           {activeCta && !ctaDismissed && (

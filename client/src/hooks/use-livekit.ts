@@ -63,6 +63,7 @@ export function useLiveKitHost(options: UseLiveKitHostOptions): UseLiveKitHostRe
   const [participantCount, setParticipantCount] = useState(0);
   const [isLiveKitAvailable, setIsLiveKitAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
 
   const roomRef = useRef<Room | null>(null);
   const localVideoTrackRef = useRef<LocalVideoTrack | null>(null);
@@ -104,6 +105,7 @@ export function useLiveKitHost(options: UseLiveKitHostOptions): UseLiveKitHostRe
       });
 
       roomRef.current = room;
+      setRoom(room);
 
       // Set up event listeners
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
@@ -158,6 +160,7 @@ export function useLiveKitHost(options: UseLiveKitHostOptions): UseLiveKitHostRe
       roomRef.current.disconnect();
       roomRef.current = null;
     }
+    setRoom(null);
     setStatus("disconnected");
     setParticipantCount(0);
   }, []);
@@ -285,7 +288,7 @@ export function useLiveKitHost(options: UseLiveKitHostOptions): UseLiveKitHostRe
 
   return {
     status,
-    room: roomRef.current,
+    room,
     participantCount,
     isLiveKitAvailable,
     connect,
@@ -331,6 +334,7 @@ export function useLiveKitViewer(options: UseLiveKitViewerOptions): UseLiveKitVi
   const [isLiveKitAvailable, setIsLiveKitAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
 
   const roomRef = useRef<Room | null>(null);
 
@@ -372,6 +376,7 @@ export function useLiveKitViewer(options: UseLiveKitViewerOptions): UseLiveKitVi
       });
 
       roomRef.current = room;
+      setRoom(room);
 
       // Handle incoming tracks
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
@@ -420,6 +425,7 @@ export function useLiveKitViewer(options: UseLiveKitViewerOptions): UseLiveKitVi
       roomRef.current.disconnect();
       roomRef.current = null;
     }
+    setRoom(null);
     setStatus("disconnected");
   }, []);
 
@@ -438,7 +444,7 @@ export function useLiveKitViewer(options: UseLiveKitViewerOptions): UseLiveKitVi
 
   return {
     status,
-    room: roomRef.current,
+    room,
     isLiveKitAvailable,
     connect,
     disconnect,

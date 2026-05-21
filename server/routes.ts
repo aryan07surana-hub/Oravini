@@ -2,21 +2,21 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
-import { sql } from "drizzle-orm";
-import { storage, pool } from "./storage";
+import { sql, eq, desc, asc, and, inArray } from "drizzle-orm";
+import { storage, pool, db } from "./storage";
 import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
-import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema } from "@shared/schema";
+import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
 import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
-import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
+import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 
 const uploadsDir = path.resolve("uploads");
@@ -41,7 +41,7 @@ const videoUpload = multer({
       cb(null, `${unique}${path.extname(file.originalname)}`);
     },
   }),
-  limits: { fileSize: 200 * 1024 * 1024 },
+  limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v", ".mp3", ".m4a", ".wav"];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -160,6 +160,37 @@ function appendProjectUpdate(tracker: ProjectTracker, title: string, message: st
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
+
+  // ── Auto-migration for screen recorder tables (idempotent) ────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS recording_comments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        video_event_id VARCHAR NOT NULL REFERENCES video_events(id) ON DELETE CASCADE,
+        user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        user_name TEXT NOT NULL,
+        text TEXT DEFAULT '',
+        emoji TEXT,
+        timestamp INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_recording_comments_video ON recording_comments(video_event_id);
+
+      CREATE TABLE IF NOT EXISTS recording_sequences (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        transition TEXT NOT NULL DEFAULT 'fade',
+        clip_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_recording_sequences_user ON recording_sequences(user_id);
+    `);
+    console.log("[migration] Recording tables ready");
+  } catch (e: any) {
+    console.error("[migration] Failed to ensure recording tables:", e.message);
+  }
 
   app.use("/uploads", (req, res, next) => {
     // Prevent directory listing and restrict to authenticated users for sensitive files
@@ -298,6 +329,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             break;
           case "wr_poll_end":
             broadcastToViewers(webinarId, { type: "wr_poll_ended", pollId: msg.pollId, votes: msg.votes });
+            break;
+          case "wr_caption":
+            broadcastToViewers(webinarId, { type: "wr_caption", text: msg.text, language: msg.language, startTime: msg.startTime });
+            break;
+          case "wr_resource_push":
+            broadcastToViewers(webinarId, { type: "wr_resource_push", resource: msg.resource });
             break;
           case "wr_lower_hand": {
             const room = webinarRooms.get(webinarId);
@@ -12154,6 +12191,154 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ── Panelist Token (for accepted invitees to publish camera/mic) ──────
+  app.post("/api/webinars/:id/livekit/panelist-token", async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const { inviteToken } = req.body;
+      if (!inviteToken) return res.status(400).json({ message: "inviteToken required" });
+
+      const panelist = await storage.getWebinarPanelistByToken(inviteToken);
+      if (!panelist) return res.status(404).json({ message: "Invalid invite token" });
+      if (panelist.webinarId !== p(req.params.id)) {
+        return res.status(403).json({ message: "Token doesn't match webinar" });
+      }
+
+      const role = panelist.role === "co_host" ? "co_host" : "panelist";
+      const token = await createPanelistToken(
+        req.params.id as string,
+        `panelist-${panelist.id}`,
+        panelist.name,
+        role as "co_host" | "panelist",
+        {
+          canShareScreen: panelist.canShareScreen,
+          canChat: panelist.canChat,
+          canMuteOthers: panelist.canMuteOthers,
+        },
+      );
+
+      // Mark panelist as joined
+      await storage.updateWebinarPanelist(panelist.id, { status: "joined", joinedAt: new Date() });
+
+      res.json({
+        token,
+        url: getLiveKitUrl(),
+        room: `webinar-${req.params.id}`,
+        role,
+        permissions: {
+          canShareScreen: panelist.canShareScreen,
+          canChat: panelist.canChat,
+          canManagePolls: panelist.canManagePolls,
+          canMuteOthers: panelist.canMuteOthers,
+        },
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Promote attendee to panelist (raise-to-speak) ─────────────────────
+  app.post("/api/webinars/:id/livekit/promote-viewer", requireAuth, async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const { viewerId, viewerName } = req.body;
+      if (!viewerId) return res.status(400).json({ message: "viewerId required" });
+
+      const token = await promoteViewerToPanelist(
+        req.params.id as string,
+        `panelist-promoted-${viewerId}`,
+        viewerName || "Promoted Attendee",
+      );
+
+      // Notify the viewer via WebSocket so they can reconnect
+      const room = webinarRooms.get(req.params.id as string);
+      const viewer = room?.viewers.get(viewerId);
+      if (viewer?.ws?.readyState === WebSocket.OPEN) {
+        viewer.ws.send(JSON.stringify({
+          type: "wr_promoted_to_panelist",
+          token,
+          url: getLiveKitUrl(),
+          room: `webinar-${req.params.id}`,
+        }));
+      }
+
+      res.json({ token, url: getLiveKitUrl(), room: `webinar-${req.params.id}` });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Simulcast / Egress ────────────────────────────────────────────────
+  app.post("/api/webinars/:id/simulcast/start", requireAuth, async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const destinations = await storage.getWebinarStreamDestinations(p(req.params.id));
+      const active = destinations.filter((d: any) => d.isActive);
+      if (!active.length) return res.status(400).json({ message: "No active stream destinations" });
+
+      const result = await startSimulcast(
+        req.params.id as string,
+        active.map((d: any) => ({ rtmpUrl: d.rtmpUrl, streamKey: d.streamKey })),
+      );
+
+      res.json({ ok: true, egressId: result.egressId, destinations: active.length });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/webinars/:id/simulcast/stop", requireAuth, async (req, res) => {
+    try {
+      await stopSimulcast(req.params.id as string);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/webinars/:id/simulcast/status", requireAuth, async (req, res) => {
+    try {
+      const egresses = getActiveEgresses(req.params.id as string);
+      res.json({ active: egresses.length > 0, egressIds: egresses });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Cloud Recording (server-side via LiveKit Egress) ──────────────────
+  app.post("/api/webinars/:id/cloud-recording/start", requireAuth, async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const result = await startCloudRecording(req.params.id as string);
+      res.json({ ok: true, egressId: result.egressId });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Breakout Room LiveKit Tokens ──────────────────────────────────────
+  app.post("/api/webinars/:id/breakout-rooms/:roomId/token", async (req, res) => {
+    try {
+      if (!isLiveKitConfigured()) {
+        return res.status(503).json({ message: "LiveKit is not configured." });
+      }
+      const { participantId, participantName } = req.body;
+      if (!participantId) return res.status(400).json({ message: "participantId required" });
+
+      // Ensure breakout room exists in LiveKit
+      try { await createBreakoutRoom(req.params.id as string, req.params.roomId as string); } catch {}
+
+      const token = await createBreakoutToken(
+        req.params.id as string,
+        req.params.roomId as string,
+        `breakout-${participantId}`,
+        participantName || "Participant",
+      );
+
+      res.json({
+        token,
+        url: getLiveKitUrl(),
+        room: `webinar-${req.params.id}-breakout-${req.params.roomId}`,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // Webinar Registrations
   app.get("/api/webinars/:id/registrations", requireAuth, async (req, res) => {
     try {
@@ -12169,6 +12354,11 @@ Rules:
       const reg = await storage.createWebinarRegistration({
         webinarId: p(req.params.id), name, email, phone: phone || null,
       });
+      // Auto-send confirmation email if configured (non-blocking)
+      try {
+        const { sendRegistrationConfirmation } = await import("./jobs/webinar-email-scheduler");
+        sendRegistrationConfirmation(p(req.params.id), { name, email }).catch(() => {});
+      } catch {}
       res.status(201).json(reg);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -12664,6 +12854,598 @@ Rules:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ── Wistia-like extensions (interactive elements, A/B, channels, dubbing,
+  //    collaboration comments) ──
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Interactive Elements ─────────────────────────────────────────────────
+  app.get("/api/video-events/:id/interactive", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoInteractiveElements(p(req.params.id))); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-events/:id/interactive", requireAuth, async (req, res) => {
+    try {
+      const el = await storage.createVideoInteractiveElement({ ...req.body, videoEventId: p(req.params.id) });
+      res.status(201).json(el);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.patch("/api/video-interactive/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.updateVideoInteractiveElement(p(req.params.id), req.body)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/video-interactive/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteVideoInteractiveElement(p(req.params.id)); res.json({ ok: true }); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Public: get active elements for the embed player
+  app.get("/api/video/:id/interactive", async (req, res) => {
+    try {
+      const els = await storage.getVideoInteractiveElements(p(req.params.id));
+      res.json(els.filter(e => e.isActive));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: track click on an interactive element
+  app.post("/api/video-interactive/:id/click", async (req: Request, res: Response) => {
+    try {
+      await db.update(videoInteractiveElements).set({ clicks: sql`clicks + 1` }).where(eq(videoInteractiveElements.id, p(req.params.id)));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── A/B Tests ────────────────────────────────────────────────────────────
+  app.get("/api/video-ab-tests", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoAbTests((req.user as any).id)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-ab-tests", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const test = await storage.createVideoAbTest({ ...req.body, userId: user.id, status: "running" });
+      res.status(201).json(test);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.patch("/api/video-ab-tests/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.updateVideoAbTest(p(req.params.id), req.body)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/video-ab-tests/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteVideoAbTest(p(req.params.id)); res.json({ ok: true }); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Public: when an embed loads, decide which variant to serve
+  app.get("/api/video/ab-test/:id/variant", async (req, res) => {
+    try {
+      const tests = await storage.getVideoAbTests("*").catch(() => [] as any[]);
+      // Simpler: directly fetch via ID
+      const allTests = await db.select().from(videoAbTests).where(eq(videoAbTests.id, p(req.params.id)));
+      const test = allTests[0];
+      if (!test) return res.status(404).json({ message: "Test not found" });
+      const useA = Math.random() * 100 < (test.splitRatio || 50);
+      const variant = useA ? "A" : "B";
+      const videoId = useA ? test.videoAId : test.videoBId;
+      // Increment plays
+      if (useA) await db.update(videoAbTests).set({ playsA: sql`plays_a + 1` }).where(eq(videoAbTests.id, test.id));
+      else await db.update(videoAbTests).set({ playsB: sql`plays_b + 1` }).where(eq(videoAbTests.id, test.id));
+      res.json({ variant, videoId });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Public: track conversion
+  app.post("/api/video/ab-test/:id/convert", async (req, res) => {
+    try {
+      const { variant } = req.body;
+      const col = variant === "A" ? "conversions_a" : "conversions_b";
+      const setObj = variant === "A" ? { conversionsA: sql`conversions_a + 1` } : { conversionsB: sql`conversions_b + 1` };
+      await db.update(videoAbTests).set(setObj as any).where(eq(videoAbTests.id, p(req.params.id)));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Channels ───────────────────────────────────────────────────────
+  app.get("/api/video-channels", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoChannels((req.user as any).id)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-channels", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const ch = await storage.createVideoChannel({ ...req.body, userId: user.id });
+      res.status(201).json(ch);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.get("/api/video-channels/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoChannel(p(req.params.id))); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.patch("/api/video-channels/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.updateVideoChannel(p(req.params.id), req.body)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/video-channels/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteVideoChannel(p(req.params.id)); res.json({ ok: true }); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Episodes
+  app.get("/api/video-channels/:id/episodes", async (req, res) => {
+    try { res.json(await storage.getChannelEpisodes(p(req.params.id))); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-channels/:id/episodes", requireAuth, async (req, res) => {
+    try {
+      const { videoEventId, section, sortOrder } = req.body;
+      const ep = await storage.addChannelEpisode(p(req.params.id), videoEventId, section, sortOrder);
+      res.status(201).json(ep);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/video-channel-episodes/:id", requireAuth, async (req, res) => {
+    try { await storage.removeChannelEpisode(Number(req.params.id)); res.json({ ok: true }); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Public: view a channel by slug
+  app.get("/api/channel/:slug", async (req, res) => {
+    try {
+      const ch = await storage.getVideoChannelBySlug(p(req.params.slug));
+      if (!ch || !ch.isPublic) return res.status(404).json({ message: "Not found" });
+      const episodes = await storage.getChannelEpisodes(ch.id);
+      res.json({ ...ch, episodes });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/channel/:id/subscribe", async (req, res) => {
+    try {
+      const { email, name } = req.body;
+      if (!email) return res.status(400).json({ message: "email required" });
+      const sub = await storage.subscribeToChannel(p(req.params.id), email, name);
+      res.status(201).json(sub);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Dubbing & Caption Translation Jobs ──────────────────────────────────
+  app.get("/api/video-events/:id/dubbing-jobs", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoDubbingJobs((req.user as any).id, p(req.params.id))); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-events/:id/dub", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { languages } = req.body as { languages: string[] };
+      if (!Array.isArray(languages) || !languages.length) return res.status(400).json({ message: "languages array required" });
+      const jobs = await Promise.all(languages.map(language =>
+        storage.createVideoDubbingJob({ userId: user.id, videoEventId: p(req.params.id), language, jobType: "dub", status: "processing" })
+      ));
+      res.status(201).json({ jobs });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-events/:id/translate-captions", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { languages } = req.body as { languages: string[] };
+      if (!Array.isArray(languages) || !languages.length) return res.status(400).json({ message: "languages array required" });
+      const jobs = await Promise.all(languages.map(language =>
+        storage.createVideoDubbingJob({ userId: user.id, videoEventId: p(req.params.id), language, jobType: "captions", status: "processing" })
+      ));
+      res.status(201).json({ jobs });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Collaboration Comments ──────────────────────────────────────────────
+  app.get("/api/video-events/:id/collab-comments", requireAuth, async (req, res) => {
+    try { res.json(await storage.getVideoCollabComments(p(req.params.id))); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/video-events/:id/collab-comments", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { timestamp, text } = req.body;
+      if (!text) return res.status(400).json({ message: "text required" });
+      const c = await storage.createVideoCollabComment({
+        videoEventId: p(req.params.id), authorId: user.id, authorName: user.name || user.email || "User",
+        timestamp: timestamp ?? null, text, resolved: false,
+      });
+      res.status(201).json(c);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.patch("/api/video-collab-comments/:id", requireAuth, async (req, res) => {
+    try { res.json(await storage.updateVideoCollabComment(p(req.params.id), req.body)); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/video-collab-comments/:id", requireAuth, async (req, res) => {
+    try { await storage.deleteVideoCollabComment(p(req.params.id)); res.json({ ok: true }); }
+    catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── SEO: video sitemap ──────────────────────────────────────────────────
+  app.get("/sitemap-videos.xml", async (req: Request, res: Response) => {
+    try {
+      const all = await db.select().from(videoEvents).where(eq(videoEvents.isPublic, true));
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+${all.map((v: any) => `  <url>
+    <loc>${baseUrl}/watch-video/${v.id}</loc>
+    <video:video>
+      <video:thumbnail_loc>${v.thumbnailUrl || ""}</video:thumbnail_loc>
+      <video:title><![CDATA[${v.seoTitle || v.title}]]></video:title>
+      <video:description><![CDATA[${v.seoDescription || v.description || ""}]]></video:description>
+      <video:content_loc>${v.videoUrl}</video:content_loc>
+      ${v.duration ? `<video:duration>${v.duration * 60}</video:duration>` : ""}
+    </video:video>
+  </url>`).join("\n")}
+</urlset>`;
+      res.set("Content-Type", "application/xml");
+      res.send(xml);
+    } catch (err: any) { res.status(500).send(err.message); }
+  });
+
+
+  // ── Screen Recordings (Loom-style) ────────────────────────────────────────
+  app.get("/api/screen-recordings", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const allVideos = await storage.getVideoEvents(user.id);
+      const recordings = allVideos.filter((v: any) => v.videoType === "screen_recording");
+      res.json(recordings);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/screen-recordings/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const user = req.user as any;
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const title = (req.body.title as string) || `Screen Recording ${new Date().toLocaleString()}`;
+      const description = (req.body.description as string) || null;
+      const video = await storage.createVideoEvent({
+        userId: user.id,
+        title,
+        description,
+        videoUrl: fileUrl,
+        thumbnailUrl: null,
+        duration: null,
+        category: "Screen Recording",
+        tags: [],
+        isPublic: false,
+        allowDownload: true,
+        videoType: "screen_recording",
+        progressBarConfig: null,
+        leadGateEnabled: false,
+        brandColor: null,
+        logoUrl: null,
+        captionUrl: null,
+        resumeEnabled: false,
+        autoplayNextEnabled: false,
+        domainWhitelist: [],
+        expiresAt: null,
+        urgencyText: null,
+        urgencyEndsAt: null,
+        defaultPlaybackSpeed: 1.0,
+        allowSpeedControl: true,
+        allowQualityControl: true,
+        showOraviniWatermark: false,
+        oraviniWatermarkPosition: "bottom-right",
+      });
+      res.status(201).json(video);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/screen-recordings/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video || video.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      // Delete the file from disk
+      if (video.videoUrl.startsWith("/uploads/")) {
+        const filePath = path.join(uploadsDir, path.basename(video.videoUrl));
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+      await storage.deleteVideoEvent(p(req.params.id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Transcribe a screen recording with Whisper ────────────────────────
+  app.post("/api/screen-recordings/:id/transcribe", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video || video.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      if (!video.videoUrl.startsWith("/uploads/")) return res.status(400).json({ message: "Cannot transcribe external video" });
+      const filePath = path.join(uploadsDir, path.basename(video.videoUrl));
+      if (!fs.existsSync(filePath)) return res.status(404).json({ message: "File not found on disk" });
+      const fileStat = fs.statSync(filePath);
+      if (fileStat.size > 25 * 1024 * 1024) return res.status(400).json({ message: "File too large for transcription (max 25MB)" });
+
+      const FormDataLib = (await import("form-data")).default;
+      const formData = new FormDataLib();
+      const fileBuffer = fs.readFileSync(filePath);
+      formData.append("file", fileBuffer, { filename: path.basename(filePath), contentType: "video/webm" });
+      formData.append("model", "whisper-large-v3");
+      formData.append("response_format", "verbose_json");
+      formData.append("timestamp_granularities[]", "word");
+      formData.append("timestamp_granularities[]", "segment");
+      const formBuffer = formData.getBuffer();
+      const formHeaders = formData.getHeaders();
+      const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
+        body: formBuffer,
+      });
+      if (!whisperRes.ok) {
+        const err = await whisperRes.text();
+        return res.status(502).json({ message: "Transcription failed", detail: err });
+      }
+      const data = await whisperRes.json() as any;
+      // Store transcript in description field as JSON for now (no schema change needed)
+      const transcript = {
+        text: data.text,
+        words: data.words || [],
+        segments: data.segments || [],
+        duration: data.duration || 0,
+        language: data.language,
+      };
+      // Persist as captionUrl-related metadata (we'll stash it in description's JSON or a tag-based field)
+      // For now, return it directly — client can call AI summary endpoint next
+      res.json({ ok: true, transcript });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Generate title, summary, chapters from transcript ─────────────────
+  app.post("/api/screen-recordings/:id/ai-summary", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video || video.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      const { transcript } = req.body;
+      if (!transcript?.text) return res.status(400).json({ message: "Transcript required" });
+
+      const systemPrompt = `You are an expert at making screen recordings discoverable and engaging. Given a transcript, generate:
+1. A punchy, clickable title (under 70 chars)
+2. A 2-3 sentence summary
+3. Chapter markers based on topic shifts (each chapter has a startSeconds, title, and brief description)
+4. 3-5 relevant tags
+Return JSON only — no markdown, no commentary. Format: {"title":"...","summary":"...","chapters":[{"startSeconds":0,"title":"...","description":"..."}],"tags":["..."]}`;
+
+      const userPrompt = `Transcript (with word-level timestamps):
+${transcript.text}
+
+Duration: ${transcript.duration} seconds
+${transcript.segments?.length > 0 ? `\nSegments:\n${transcript.segments.slice(0, 30).map((s: any) => `[${s.start.toFixed(1)}s] ${s.text}`).join("\n")}` : ""}`;
+
+      const response = await callAnthropic(systemPrompt, userPrompt, 2000);
+      const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      let parsed;
+      try { parsed = JSON.parse(cleaned); } catch { parsed = { title: cleaned.slice(0, 70), summary: response.slice(0, 200), chapters: [], tags: [] }; }
+      res.json(parsed);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Detect silences in transcript for smart trim ──────────────────────
+  app.post("/api/screen-recordings/:id/detect-silences", requireAuth, async (req, res) => {
+    try {
+      const { words, threshold = 1.0 } = req.body;
+      if (!Array.isArray(words)) return res.status(400).json({ message: "Words array required" });
+      const silences: Array<{ start: number; end: number; duration: number }> = [];
+      for (let i = 1; i < words.length; i++) {
+        const gap = words[i].start - words[i - 1].end;
+        if (gap >= threshold) {
+          silences.push({ start: words[i - 1].end, end: words[i].start, duration: gap });
+        }
+      }
+      res.json({ silences });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI Coach: Analyze recording quality (filler words, pace, etc.) ────────
+  app.post("/api/screen-recordings/:id/coach", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const video = await storage.getVideoEvent(p(req.params.id));
+      if (!video || video.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      const { transcript } = req.body;
+      if (!transcript?.text) return res.status(400).json({ message: "Transcript required" });
+
+      const text = transcript.text || "";
+      const words = transcript.words || [];
+      const duration = transcript.duration || 1;
+      const wordCount = words.length || text.split(/\s+/).length;
+      const wpm = Math.round((wordCount / duration) * 60);
+
+      const fillerWords = ["um", "uh", "like", "you know", "basically", "literally", "actually", "so", "right", "okay"];
+      const fillerCounts: Record<string, number> = {};
+      const lower = text.toLowerCase();
+      let totalFillers = 0;
+      fillerWords.forEach((f) => {
+        const matches = lower.match(new RegExp(`\\b${f}\\b`, "g"));
+        if (matches) { fillerCounts[f] = matches.length; totalFillers += matches.length; }
+      });
+
+      // Long silences
+      const silences: Array<{ start: number; duration: number }> = [];
+      for (let i = 1; i < words.length; i++) {
+        const gap = words[i].start - words[i - 1].end;
+        if (gap >= 2.0) silences.push({ start: words[i - 1].end, duration: gap });
+      }
+
+      // Use Claude for qualitative feedback
+      const systemPrompt = `You are a presentation coach analyzing a screen recording transcript. Be specific, encouraging, and actionable. Return JSON only:
+{"overallScore": 0-100, "strengths": ["..."], "improvements": ["..."], "tip": "one specific suggestion"}`;
+      const userPrompt = `Transcript: "${text.slice(0, 3000)}"
+Speaking pace: ${wpm} WPM
+Filler words: ${totalFillers} total (${Object.entries(fillerCounts).map(([k, v]) => `"${k}" ${v}x`).join(", ")})
+Long pauses: ${silences.length}
+Duration: ${Math.floor(duration)}s`;
+      let aiFeedback: any = { overallScore: 75, strengths: [], improvements: [], tip: "" };
+      try {
+        const response = await callAnthropic(systemPrompt, userPrompt, 1000);
+        const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        aiFeedback = JSON.parse(cleaned);
+      } catch (e) { console.warn("[ai-coach] parse failed:", e); }
+
+      res.json({
+        wpm,
+        wordCount,
+        duration,
+        fillerWords: fillerCounts,
+        totalFillers,
+        longPauses: silences.length,
+        ...aiFeedback,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Translate captions ────────────────────────────────────────────────
+  app.post("/api/screen-recordings/:id/translate", requireAuth, async (req, res) => {
+    try {
+      const { transcript, targetLanguage } = req.body;
+      if (!transcript?.text || !targetLanguage) return res.status(400).json({ message: "Transcript and targetLanguage required" });
+      const systemPrompt = `You are a professional video subtitle translator. Translate the given English text to ${targetLanguage} while preserving meaning and tone. Return only the translated text — no markdown, no extra commentary.`;
+      const translated = await callAnthropic(systemPrompt, transcript.text, 4000);
+      res.json({ translatedText: translated.trim(), language: targetLanguage });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI: Repurpose to short clips ──────────────────────────────────────────
+  app.post("/api/screen-recordings/:id/repurpose", requireAuth, async (req, res) => {
+    try {
+      const { transcript, count = 5 } = req.body;
+      if (!transcript?.segments && !transcript?.text) return res.status(400).json({ message: "Transcript required" });
+
+      const systemPrompt = `You are an expert at finding viral moments in long-form videos. From the transcript, identify ${count} short clips (15-60 seconds each) that would work well as Instagram Reels, TikTok, or YouTube Shorts. Each clip should be a self-contained, hook-driven, share-worthy moment.
+
+Return JSON only:
+{"clips":[{"startSeconds":N,"endSeconds":N,"title":"hook title","reason":"why this works","platforms":["instagram","tiktok","youtube"]}]}`;
+
+      const segText = (transcript.segments || []).slice(0, 80).map((s: any) => `[${s.start.toFixed(1)}-${s.end.toFixed(1)}s] ${s.text}`).join("\n") || transcript.text;
+      const userPrompt = `Transcript:\n${segText}\n\nDuration: ${transcript.duration}s. Find ${count} viral clips.`;
+
+      const response = await callAnthropic(systemPrompt, userPrompt, 2500);
+      const cleaned = response.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      let parsed;
+      try { parsed = JSON.parse(cleaned); } catch { parsed = { clips: [] }; }
+      res.json(parsed);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Recording Sequences (multi-clip reels, persisted in DB) ──────────────
+  app.get("/api/screen-recordings/sequences", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { recordingSequences } = await import("@shared/schema");
+      const rows = await db.select().from(recordingSequences).where(eq(recordingSequences.userId, user.id)).orderBy(desc(recordingSequences.updatedAt));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/screen-recordings/sequences", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, transition = "fade", clipIds = [] } = req.body;
+      if (!name) return res.status(400).json({ message: "Name required" });
+      const { recordingSequences } = await import("@shared/schema");
+      const [row] = await db.insert(recordingSequences).values({
+        userId: user.id, name, transition, clipIds,
+      }).returning();
+      res.status(201).json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/screen-recordings/sequences/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = p(req.params.id);
+      const { recordingSequences } = await import("@shared/schema");
+      const [existing] = await db.select().from(recordingSequences).where(eq(recordingSequences.id, id));
+      if (!existing || existing.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      const { name, transition, clipIds } = req.body;
+      const update: any = { updatedAt: new Date() };
+      if (name !== undefined) update.name = name;
+      if (transition !== undefined) update.transition = transition;
+      if (clipIds !== undefined) update.clipIds = clipIds;
+      const [row] = await db.update(recordingSequences).set(update).where(eq(recordingSequences.id, id)).returning();
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/screen-recordings/sequences/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = p(req.params.id);
+      const { recordingSequences } = await import("@shared/schema");
+      const [existing] = await db.select().from(recordingSequences).where(eq(recordingSequences.id, id));
+      if (!existing || existing.userId !== user.id) return res.status(404).json({ message: "Not found" });
+      await db.delete(recordingSequences).where(eq(recordingSequences.id, id));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/screen-recordings/sequences/:id/clips", async (req, res) => {
+    try {
+      const id = p(req.params.id);
+      const { recordingSequences } = await import("@shared/schema");
+      const [seq] = await db.select().from(recordingSequences).where(eq(recordingSequences.id, id));
+      if (!seq) return res.status(404).json({ message: "Not found" });
+      // Allow access if owner OR if all referenced clips are public
+      const user = (req.user as any);
+      const clipIds = (seq.clipIds || []) as string[];
+      if (clipIds.length === 0) return res.json({ sequence: seq, clips: [] });
+      const allClips = await db.select().from((await import("@shared/schema")).videoEvents).where(inArray((await import("@shared/schema")).videoEvents.id, clipIds));
+      const isOwner = user && user.id === seq.userId;
+      const accessibleClips = isOwner ? allClips : allClips.filter((c) => c.isPublic);
+      // Preserve sequence order
+      const orderedClips = clipIds.map((id) => accessibleClips.find((c) => c.id === id)).filter(Boolean);
+      res.json({ sequence: seq, clips: orderedClips });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Video Reactions / Comments (persisted in DB) ─────────────────────────
+  app.get("/api/screen-recordings/:id/comments", async (req, res) => {
+    try {
+      const id = p(req.params.id);
+      const { recordingComments } = await import("@shared/schema");
+      const rows = await db.select().from(recordingComments).where(eq(recordingComments.videoEventId, id)).orderBy(asc(recordingComments.timestamp));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/screen-recordings/:id/comments", async (req, res) => {
+    try {
+      const id = p(req.params.id);
+      const { text, emoji, timestamp } = req.body;
+      const user = (req.user as any);
+      const userName = user?.name || user?.email || "Anonymous";
+      const userId = user?.id || null;
+      if (!text && !emoji) return res.status(400).json({ message: "text or emoji required" });
+      // Verify the video exists
+      const video = await storage.getVideoEvent(id);
+      if (!video) return res.status(404).json({ message: "Recording not found" });
+      const { recordingComments } = await import("@shared/schema");
+      const [row] = await db.insert(recordingComments).values({
+        videoEventId: id,
+        userId,
+        userName,
+        text: text || "",
+        emoji: emoji || null,
+        timestamp: typeof timestamp === "number" ? Math.floor(timestamp) : 0,
+      }).returning();
+      res.status(201).json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/screen-recordings/:id/comments/:commentId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const commentId = p(req.params.commentId);
+      const { recordingComments } = await import("@shared/schema");
+      const [existing] = await db.select().from(recordingComments).where(eq(recordingComments.id, commentId));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      // Allow delete by comment author OR recording owner
+      const video = await storage.getVideoEvent(existing.videoEventId);
+      if (existing.userId !== user.id && video?.userId !== user.id) return res.status(403).json({ message: "Forbidden" });
+      await db.delete(recordingComments).where(eq(recordingComments.id, commentId));
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // ── Video Collections ─────────────────────────────────────────────────────
   app.get("/api/video-collections", requireAuth, async (req, res) => {
     try {
@@ -12897,6 +13679,11 @@ Rules:
       if (lp) {
         await storage.incrementLandingPageRegistration(lp.id);
       }
+      // Auto-send confirmation email if configured (non-blocking)
+      try {
+        const { sendRegistrationConfirmation } = await import("./jobs/webinar-email-scheduler");
+        sendRegistrationConfirmation(webinar.id, { name, email }).catch(() => {});
+      } catch {}
       res.status(201).json({ success: true, registration: reg });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -13701,6 +14488,14 @@ Return ONLY valid JSON in this exact format:
   registerWebinarPollRoutes(app, requireAuth);
   registerWebinarSeriesRoutes(app, requireAuth);
   registerVideoHostingRoutes(app, requireAuth);
+  registerWebinarPanelistRoutes(app, requireAuth);
+  registerWebinarBreakoutRoutes(app, requireAuth);
+  registerWebinarEmailRoutes(app, requireAuth);
+  registerWebinarSurveyRoutes(app, requireAuth);
+  registerWebinarTemplateRoutes(app, requireAuth);
+  registerWebinarCaptionRoutes(app, requireAuth);
+  registerWebinarBackstageRoutes(app, requireAuth);
+  registerWebinarAdvancedRoutes(app, requireAuth);
 
   return httpServer;
 }
