@@ -840,40 +840,50 @@ function AIStudioModal({ recording, onClose }: { recording: Recording; onClose: 
 // ── Sequence Builder Modal ───────────────────────────────────────────────────
 function SequenceBuilderModal({ recordings, onClose }: { recordings: Recording[]; onClose: () => void }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [sequenceName, setSequenceName] = useState("My Sequence");
   const [selected, setSelected] = useState<Recording[]>([]);
   const [transition, setTransition] = useState<"fade" | "cut" | "slide">("fade");
-  const [savedSequences, setSavedSequences] = useState<any[]>([]);
   const playerRef = useRef<HTMLVideoElement>(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  // Load from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem("oravini-sequences");
-    if (stored) try { setSavedSequences(JSON.parse(stored)); } catch { /* */ }
-  }, []);
+  const { data: savedSequences = [] } = useQuery<any[]>({
+    queryKey: ["/api/screen-recordings/sequences"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/screen-recordings/sequences");
+      return res.json();
+    },
+  });
+
+  const createSeq = useMutation({
+    mutationFn: async (data: { name: string; transition: string; clipIds: string[] }) => {
+      const res = await apiRequest("POST", "/api/screen-recordings/sequences", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/screen-recordings/sequences"] });
+      toast({ title: "Sequence saved!", description: `${selected.length} clips • ${sequenceName}` });
+      setSelected([]);
+    },
+    onError: () => toast({ title: "Save failed", variant: "destructive" }),
+  });
+
+  const deleteSeq = useMutation({
+    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/screen-recordings/sequences/${id}`); },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/screen-recordings/sequences"] }),
+  });
 
   const saveSequence = () => {
-    const seq = {
-      id: `seq-${Date.now()}`,
+    if (selected.length === 0) return;
+    createSeq.mutate({
       name: sequenceName,
-      clips: selected.map((r) => r.id),
       transition,
-      createdAt: new Date().toISOString(),
-    };
-    const all = [...savedSequences, seq];
-    setSavedSequences(all);
-    localStorage.setItem("oravini-sequences", JSON.stringify(all));
-    toast({ title: "Sequence saved!", description: `${selected.length} clips • ${sequenceName}` });
-    setSelected([]);
+      clipIds: selected.map((r) => r.id),
+    });
   };
 
-  const deleteSequence = (id: string) => {
-    const all = savedSequences.filter((s) => s.id !== id);
-    setSavedSequences(all);
-    localStorage.setItem("oravini-sequences", JSON.stringify(all));
-  };
+  const deleteSequence = (id: string) => deleteSeq.mutate(id);
 
   const addClip = (rec: Recording) => {
     if (selected.find((s) => s.id === rec.id)) return;
@@ -967,7 +977,7 @@ function SequenceBuilderModal({ recordings, onClose }: { recordings: Recording[]
                       <Layers className="w-4 h-4" style={{ color: GOLD }} />
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-white truncate">{seq.name}</div>
-                        <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{seq.clips.length} clips</div>
+                        <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{seq.clipIds?.length || 0} clips</div>
                       </div>
                       <button onClick={() => deleteSequence(seq.id)} className="p-1 rounded" style={{ color: "rgba(255,255,255,0.3)" }}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1191,7 +1201,6 @@ export default function ScreenRecorder() {
   const [camEnabled, setCamEnabled] = useState(true);
   const [countdownEnabled, setCountdownEnabled] = useState(true);
   const [cursorHighlight, setCursorHighlight] = useState(true);
-  const [bgBlur, setBgBlur] = useState(false);
   const [annotationsEnabled, setAnnotationsEnabled] = useState(true);
   const [teleprompterEnabled, setTeleprompterEnabled] = useState(false);
   const [teleprompterScript, setTeleprompterScript] = useState("");
@@ -1776,12 +1785,14 @@ export default function ScreenRecorder() {
     if (contextMenu) { document.addEventListener("click", handler); return () => document.removeEventListener("click", handler); }
   }, [contextMenu]);
 
-  // Saved sequences for sequences tab
-  const [savedSequences, setSavedSequences] = useState<any[]>([]);
-  useEffect(() => {
-    const stored = localStorage.getItem("oravini-sequences");
-    if (stored) try { setSavedSequences(JSON.parse(stored)); } catch { /* */ }
-  }, [sequenceBuilderOpen]);
+  // Saved sequences for sequences tab (server-backed)
+  const { data: savedSequences = [] } = useQuery<any[]>({
+    queryKey: ["/api/screen-recordings/sequences"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/screen-recordings/sequences");
+      return res.json();
+    },
+  });
 
   // ═══════════════════════════════════════════════════════════════════════════
   return (
@@ -1994,8 +2005,7 @@ export default function ScreenRecorder() {
                     <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                       <div className="p-3"><div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>Camera Preview</div></div>
                       <div className="aspect-video bg-black/50 relative">
-                        <video ref={camPreviewRef} autoPlay muted playsInline className="w-full h-full object-cover"
-                          style={{ filter: bgBlur ? "blur(0px)" : "none" }} />
+                        <video ref={camPreviewRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                       </div>
                     </div>
                   )}
@@ -2315,7 +2325,7 @@ export default function ScreenRecorder() {
                       </div>
                       <h3 className="text-base font-bold text-white mb-1">{seq.name}</h3>
                       <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        {seq.clips.length} clips • {seq.transition} transition
+                        {seq.clipIds?.length || 0} clips • {seq.transition} transition
                       </p>
                       <p className="text-[10px] mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
                         Created {fmtTimeAgo(seq.createdAt)}

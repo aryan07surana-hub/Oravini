@@ -60,16 +60,16 @@ replit.md
 .ollama/
 .platformio/
 
-# ── Large personal directories ────────────────────────────────
-Applications/
-Library/
-Music/
-Movies/
-Pictures/
-Public/
-Downloads/
-Documents/
-iCloud Drive (Archive)/
+# ── Large personal directories (home-folder only, anchored to repo root) ──
+/Applications/
+/Library/
+/Music/
+/Movies/
+/Pictures/
+/Public/
+/Downloads/
+/Documents/
+/iCloud Drive (Archive)/
 
 # ── Misc ──────────────────────────────────────────────────────
 package-lock.json
