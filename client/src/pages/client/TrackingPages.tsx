@@ -127,15 +127,16 @@ function PostForm({ clientId, platform, post, onClose }: { clientId: string; pla
   const [syncing, setSyncing] = useState(false);
 
   // Live follower reference from tracker (Instagram only)
-  const { data: trackedProfiles = [] } = useQuery<any[]>({
+  const { data: _trackedProfilesForm } = useQuery<any[]>({
     queryKey: ["/api/ig-tracker"],
     enabled: !isYt,
   });
+  const trackedProfiles = Array.isArray(_trackedProfilesForm) ? _trackedProfilesForm : [];
   const [customStyle, setCustomStyle] = useState("");
   const [form, setForm] = useState({
     title: post?.title || "",
     postUrl: post?.postUrl || "",
-    postDate: post ? format(new Date(post.postDate), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    postDate: post?.postDate ? formatDateSafe(post.postDate, "yyyy-MM-dd", format(new Date(), "yyyy-MM-dd")) : format(new Date(), "yyyy-MM-dd"),
     contentType: post?.contentType || (isYt ? "video" : "reel"),
     funnelStage: post?.funnelStage || "top",
     contentStyle: post?.contentStyle || "",
@@ -504,7 +505,7 @@ function MetricsUpdateDialog({ post, clientId, platform, open, onClose }: { post
 
           <TabsContent value="initial" className="space-y-4 pt-3">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-muted-foreground">Posted {format(new Date(post.postDate), "MMMM d, yyyy")}</p>
+              <p className="text-xs text-muted-foreground">Posted {formatDateSafe(post.postDate, "MMMM d, yyyy")}</p>
               <EngagementBadge rate={er0} />
             </div>
             <InitialMetricsEdit post={post} clientId={clientId} platform={platform} onSuccess={onClose} />
@@ -1183,7 +1184,7 @@ function MonthlyAnalyticsCharts({ posts, platform }: { posts: any[]; platform: s
 
   const byMonth = MONTHS.map((month, i) => {
     const monthPosts = posts.filter(p => getMonth(new Date(p.postDate)) === i);
-    const totalViews = monthPosts.reduce((s, p) => s + p.views, 0);
+    const totalViews = monthPosts.reduce((s, p) => s + toNum(p.views), 0);
     const avgEr = monthPosts.length > 0
       ? monthPosts.reduce((s, p) => s + (engRate(p.views, p.likes, p.comments, p.saves) || 0), 0) / monthPosts.length
       : 0;
@@ -1805,10 +1806,13 @@ function IgProfileCard({ profile, onDelete, onScan, scanning }: { profile: any; 
   const gain30d = snap && snapAt30d ? snap.followersCount - snapAt30d.followersCount : null;
 
   // Chart data — last 14 snapshots
-  const chartData = history.slice(-14).map(h => ({
-    date: format(new Date(h.scannedAt), "MMM d"),
-    followers: h.followersCount,
-  }));
+  const chartData = history.slice(-14).map(h => {
+    const d = new Date(h.scannedAt);
+    return {
+      date: Number.isNaN(d.getTime()) ? "?" : format(d, "MMM d"),
+      followers: h.followersCount,
+    };
+  });
 
   return (
     <div data-testid={`ig-profile-card-${profile.id}`} className="rounded-xl border border-pink-500/20 bg-background/70 overflow-hidden">
@@ -1921,7 +1925,8 @@ function IgFollowerPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [scanningId, setScanningId] = useState<number | null>(null);
 
-  const { data: profiles = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
+  const { data: _profiles, isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
+  const profiles = Array.isArray(_profiles) ? _profiles : [];
 
   const addMutation = useMutation({
     mutationFn: (u: string) => apiRequest("POST", "/api/ig-tracker", { username: u }),
@@ -2027,7 +2032,8 @@ function FollowerReportDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [scanningAll, setScanningAll] = useState(false);
   const [scanningId, setScanningId] = useState<number | null>(null);
 
-  const { data: profiles = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
+  const { data: _profiles2, isLoading } = useQuery<any[]>({ queryKey: ["/api/ig-tracker"] });
+  const profiles = Array.isArray(_profiles2) ? _profiles2 : [];
 
   const totalCurrentFollowers = profiles.reduce((s: number, p: any) => s + (p.latestSnapshot?.followersCount ?? 0), 0);
   const totalNetGain = profiles.reduce((s: number, p: any) => {
@@ -2171,6 +2177,7 @@ function IgHeroDashboard({ posts, trackedProfiles, user }: { posts: any[]; track
   const byWeek: Record<string, { week: string; views: number; interactions: number }> = {};
   posts.forEach(p => {
     const d = new Date(p.postDate);
+    if (Number.isNaN(d.getTime())) return;
     const weekStart = new Date(d);
     weekStart.setDate(d.getDate() - d.getDay());
     const key = format(weekStart, "MMM d");
@@ -2524,7 +2531,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
     queryKey: [`/api/content/${user?.id}`],
     enabled: !!user?.id,
   });
-  const allPosts = _allPosts ?? [];
+  const allPosts = Array.isArray(_allPosts) ? _allPosts : [];
 
   const posts = allPosts.filter(p => p.platform === platform);
 
@@ -2546,10 +2553,11 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const totalPosts = posts.length;
 
   // Live follower data from tracker (Instagram only)
-  const { data: trackedProfiles = [] } = useQuery<any[]>({
+  const { data: _trackedProfiles } = useQuery<any[]>({
     queryKey: ["/api/ig-tracker"],
     enabled: !isYt,
   });
+  const trackedProfiles = Array.isArray(_trackedProfiles) ? _trackedProfiles : [];
   // Net gain = sum of (latest - prev) across all tracked profiles
   const trackerNetGain = !isYt && trackedProfiles.length > 0
     ? trackedProfiles.reduce((sum: number, p: any) => {
@@ -2559,7 +2567,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
       }, 0)
     : null;
   // Fall back to manually logged followers if no tracker data
-  const manualFollowers = posts.reduce((s, p) => s + (isYt ? p.subscribersGained : p.followersGained), 0);
+  const manualFollowers = posts.reduce((s, p) => s + toNum(isYt ? p.subscribersGained : p.followersGained), 0);
   const totalFollowers = isYt ? manualFollowers : (trackerNetGain ?? manualFollowers);
   const followerIsLive = !isYt && trackedProfiles.length > 0;
 
