@@ -41,7 +41,7 @@ const videoUpload = multer({
       cb(null, `${unique}${path.extname(file.originalname)}`);
     },
   }),
-  limits: { fileSize: 500 * 1024 * 1024 },
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1 GB to support long 1080p/1440p recordings
   fileFilter: (_req, file, cb) => {
     const allowed = [".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v", ".mp3", ".m4a", ".wav"];
     const ext = path.extname(file.originalname).toLowerCase();

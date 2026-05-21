@@ -1184,6 +1184,75 @@ function CommentsPanel({ recordingId, videoUrl, onClose }: { recordingId: string
   );
 }
 
+// ── Draggable Camera Bubble (live preview during recording) ──────────────────
+function DraggableCamBubble({
+  videoRef, position, onPositionChange, size, shape, dragging, setDragging,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement>;
+  position: { x: number; y: number };
+  onPositionChange: (p: { x: number; y: number }) => void;
+  size: "sm" | "md" | "lg";
+  shape: "circle" | "square";
+  dragging: boolean;
+  setDragging: (d: boolean) => void;
+}) {
+  const sizeMap = { sm: 120, md: 168, lg: 220 };
+  const px = sizeMap[size];
+  const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    dragOffsetRef.current = {
+      dx: e.clientX - (rect.left + rect.width / 2),
+      dy: e.clientY - (rect.top + rect.height / 2),
+    };
+    setDragging(true);
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const cx = e.clientX - dragOffsetRef.current.dx;
+      const cy = e.clientY - dragOffsetRef.current.dy;
+      onPositionChange({
+        x: Math.max(0.05, Math.min(0.95, cx / window.innerWidth)),
+        y: Math.max(0.05, Math.min(0.95, cy / window.innerHeight)),
+      });
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [dragging, onPositionChange, setDragging]);
+
+  // Position is in normalized coordinates of the OUTPUT FRAME (which roughly equals the screen).
+  // For the on-screen preview we use the same fractions of the window.
+  const left = position.x * window.innerWidth - px / 2;
+  const top = position.y * window.innerHeight - px / 2;
+
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      className="fixed z-50 overflow-hidden shadow-2xl select-none"
+      style={{
+        left, top, width: px, height: px,
+        borderRadius: shape === "circle" ? "50%" : "18%",
+        border: `3px solid ${GOLD}`,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 ${dragging ? "4px" : "0px"} ${GOLD}55`,
+        cursor: dragging ? "grabbing" : "grab",
+        transition: dragging ? "none" : "box-shadow 0.2s",
+      }}>
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover pointer-events-none" />
+      {/* Drag handle hint */}
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-semibold pointer-events-none"
+        style={{ background: "rgba(0,0,0,0.6)", color: "#fff", opacity: dragging ? 1 : 0.7 }}>
+        {dragging ? "DRAGGING" : "DRAG ME"}
+      </div>
+    </div>
+  );
+}
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -1206,6 +1275,13 @@ export default function ScreenRecorder() {
   const [teleprompterScript, setTeleprompterScript] = useState("");
   const [teleprompterSpeed, setTeleprompterSpeed] = useState(0.5);
   const [showTeleprompterEditor, setShowTeleprompterEditor] = useState(false);
+  const [quality, setQuality] = useState<"720p" | "1080p" | "1440p" | "source">("1080p");
+  const [frameRate, setFrameRate] = useState<30 | 60>(30);
+  // Camera bubble customization (position is fraction 0-1 of output frame; size is fraction of output height; shape: circle or square)
+  const [camPosition, setCamPosition] = useState<{ x: number; y: number }>({ x: 0.97, y: 0.97 }); // bottom-right by default
+  const [camSize, setCamSize] = useState<"sm" | "md" | "lg">("md"); // 0.16 / 0.22 / 0.3 of height
+  const [camShape, setCamShape] = useState<"circle" | "square">("circle");
+  const [draggingCam, setDraggingCam] = useState(false);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -1261,6 +1337,9 @@ export default function ScreenRecorder() {
   const cursorHighlightRef = useRef(true);
   const recordingModeRef = useRef<RecordingMode>("screen_cam");
   const camEnabledRef = useRef(true);
+  const camPositionRef = useRef<{ x: number; y: number }>({ x: 0.97, y: 0.97 });
+  const camSizeRef = useRef<"sm" | "md" | "lg">("md");
+  const camShapeRef = useRef<"circle" | "square">("circle");
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const { data: recordings = [], isLoading } = useQuery<Recording[]>({
@@ -1270,6 +1349,16 @@ export default function ScreenRecorder() {
       return res.json();
     },
   });
+
+  // Keep refs in sync with state for use inside animation loop
+  useEffect(() => { cursorHighlightRef.current = cursorHighlight; }, [cursorHighlight]);
+  useEffect(() => { recordingModeRef.current = recordingMode; }, [recordingMode]);
+  useEffect(() => { camEnabledRef.current = camEnabled; }, [camEnabled]);
+  useEffect(() => { annotationsRef.current = annotations; }, [annotations]);
+  useEffect(() => { drawingNowRef.current = drawingNow; }, [drawingNow]);
+  useEffect(() => { camPositionRef.current = camPosition; }, [camPosition]);
+  useEffect(() => { camSizeRef.current = camSize; }, [camSize]);
+  useEffect(() => { camShapeRef.current = camShape; }, [camShape]);
 
   const filteredRecordings = useMemo(() => {
     let list = [...recordings];
@@ -1337,7 +1426,7 @@ export default function ScreenRecorder() {
   });
 
   // ── Recording Logic ───────────────────────────────────────────────────────
-  // Track global mouse position for cursor highlight composition
+  // Track global mouse position for cursor highlight composition (smoothed)
   useEffect(() => {
     const onMove = (e: MouseEvent) => { cursorPosRef.current = { x: e.clientX, y: e.clientY }; };
     const onClick = (e: MouseEvent) => {
@@ -1355,20 +1444,47 @@ export default function ScreenRecorder() {
       let camStream: MediaStream | null = null;
       let audioStream: MediaStream | null = null;
 
+      // Quality preset → target dimensions and bitrate
+      const QUALITY_PRESETS: Record<string, { w: number; h: number; bitrate: number }> = {
+        "720p": { w: 1280, h: 720, bitrate: 4_000_000 },
+        "1080p": { w: 1920, h: 1080, bitrate: 8_000_000 },
+        "1440p": { w: 2560, h: 1440, bitrate: 14_000_000 },
+        "source": { w: 0, h: 0, bitrate: 10_000_000 },
+      };
+      const preset = QUALITY_PRESETS[quality];
+
       if (recordingMode !== "cam_only") {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: true });
+        // Request the highest quality the screen can give. Browser will negotiate.
+        const screenConstraints: any = {
+          video: {
+            frameRate: { ideal: frameRate, max: frameRate },
+            width: quality === "source" ? undefined : { ideal: preset.w },
+            height: quality === "source" ? undefined : { ideal: preset.h },
+          },
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            sampleRate: 48000,
+          },
+        };
+        screenStream = await navigator.mediaDevices.getDisplayMedia(screenConstraints);
         screenStreamRef.current = screenStream;
       }
 
       if (recordingMode === "screen_cam" || recordingMode === "cam_only") {
         try {
-          camStream = await navigator.mediaDevices.getUserMedia({
+          // High-quality camera. cam_only goes full output res; bubble mode gets HD source so the bubble looks crisp.
+          const camConstraints: any = {
             video: {
-              width: recordingMode === "cam_only" ? 1280 : 640,
-              height: recordingMode === "cam_only" ? 720 : 480,
-              frameRate: 30,
+              width: { ideal: recordingMode === "cam_only" ? preset.w || 1920 : 1280 },
+              height: { ideal: recordingMode === "cam_only" ? preset.h || 1080 : 720 },
+              frameRate: { ideal: frameRate, max: frameRate },
+              facingMode: "user",
             },
-          });
+            audio: false,
+          };
+          camStream = await navigator.mediaDevices.getUserMedia(camConstraints);
           camStreamRef.current = camStream;
           if (liveCamRef.current) liveCamRef.current.srcObject = camStream;
         } catch { /* */ }
@@ -1376,26 +1492,51 @@ export default function ScreenRecorder() {
 
       if (micEnabled) {
         try {
-          audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+          // High quality voice: 48kHz Opus, processing on
+          audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: 48000,
+              channelCount: 2,
+            },
+          });
           audioStreamRef.current = audioStream;
         } catch { /* */ }
       }
 
       // ── COMPOSITION CANVAS PIPELINE ──
-      // Build hidden video elements for screen + cam, paint them to a canvas
-      // along with cursor highlight, click ripples, and annotations,
-      // then capture the canvas stream for recording.
-
       // Determine output dimensions
-      let outputWidth = 1920, outputHeight = 1080;
+      let outputWidth: number, outputHeight: number;
       if (recordingMode === "cam_only" && camStream) {
         const settings = camStream.getVideoTracks()[0].getSettings();
-        outputWidth = settings.width || 1280;
-        outputHeight = settings.height || 720;
+        outputWidth = settings.width || preset.w || 1920;
+        outputHeight = settings.height || preset.h || 1080;
       } else if (screenStream) {
         const settings = screenStream.getVideoTracks()[0].getSettings();
-        outputWidth = settings.width || 1920;
-        outputHeight = settings.height || 1080;
+        const sw = settings.width || 1920;
+        const sh = settings.height || 1080;
+        if (quality === "source") {
+          outputWidth = sw;
+          outputHeight = sh;
+        } else {
+          // Match preset but preserve aspect ratio
+          const screenAspect = sw / sh;
+          if (screenAspect >= preset.w / preset.h) {
+            outputWidth = preset.w;
+            outputHeight = Math.round(preset.w / screenAspect);
+          } else {
+            outputHeight = preset.h;
+            outputWidth = Math.round(preset.h * screenAspect);
+          }
+          // Round to even numbers (codec friendly)
+          outputWidth = outputWidth - (outputWidth % 2);
+          outputHeight = outputHeight - (outputHeight % 2);
+        }
+      } else {
+        outputWidth = preset.w || 1920;
+        outputHeight = preset.h || 1080;
       }
 
       // Create source video elements
@@ -1422,13 +1563,15 @@ export default function ScreenRecorder() {
       compCanvas.width = outputWidth;
       compCanvas.height = outputHeight;
       compositionCanvasRef.current = compCanvas;
-      const compCtx = compCanvas.getContext("2d", { alpha: false });
+      const compCtx = compCanvas.getContext("2d", { alpha: false, desynchronized: true });
       if (!compCtx) throw new Error("Canvas 2D context unavailable");
+
+      // High-quality compositing: keep video crisp, smooth annotations
+      compCtx.imageSmoothingEnabled = true;
+      compCtx.imageSmoothingQuality = "high";
 
       // Compute scale factors for translating screen coords to canvas coords
       const getScreenScale = () => {
-        // Annotations and cursor are in window pixels — but the screen capture
-        // is the actual screen pixel dimensions. Map them by ratio.
         const isUsingScreen = recordingMode !== "cam_only";
         if (!isUsingScreen) return { sx: 0, sy: 0 };
         const sx = outputWidth / window.innerWidth;
@@ -1436,38 +1579,80 @@ export default function ScreenRecorder() {
         return { sx, sy };
       };
 
+      // Smoothed cursor position (eased toward real position) for buttery cursor glow
+      let smoothCursor: { x: number; y: number } | null = null;
+      const SMOOTH_FACTOR = 0.25; // 0=no smoothing, 1=instant
+
       // Render loop
       const renderFrame = () => {
         if (!compCtx) return;
-        // Clear with black
-        compCtx.fillStyle = "#000";
-        compCtx.fillRect(0, 0, outputWidth, outputHeight);
 
         // 1. Paint base video (screen or cam)
         if (recordingModeRef.current === "cam_only") {
           if (camVid.readyState >= 2) {
-            compCtx.drawImage(camVid, 0, 0, outputWidth, outputHeight);
+            // Cover-fit camera into output
+            const camAspect = (camVid.videoWidth || outputWidth) / (camVid.videoHeight || outputHeight);
+            const outAspect = outputWidth / outputHeight;
+            let sw = camVid.videoWidth, sh = camVid.videoHeight;
+            let sx = 0, sy = 0;
+            if (camAspect > outAspect) {
+              // Camera wider — crop sides
+              sw = sh * outAspect;
+              sx = (camVid.videoWidth - sw) / 2;
+            } else {
+              sh = sw / outAspect;
+              sy = (camVid.videoHeight - sh) / 2;
+            }
+            compCtx.drawImage(camVid, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+          } else {
+            compCtx.fillStyle = "#000";
+            compCtx.fillRect(0, 0, outputWidth, outputHeight);
           }
         } else {
           if (screenVid.readyState >= 2) {
-            compCtx.drawImage(screenVid, 0, 0, outputWidth, outputHeight);
+            // Letterbox screen video into canvas (preserve aspect)
+            const screenAspect = (screenVid.videoWidth || outputWidth) / (screenVid.videoHeight || outputHeight);
+            const outAspect = outputWidth / outputHeight;
+            let dw = outputWidth, dh = outputHeight, dx = 0, dy = 0;
+            if (screenAspect > outAspect) {
+              dh = outputWidth / screenAspect;
+              dy = (outputHeight - dh) / 2;
+            } else if (screenAspect < outAspect) {
+              dw = outputHeight * screenAspect;
+              dx = (outputWidth - dw) / 2;
+            }
+            // Black letterbox bars
+            if (dx > 0 || dy > 0) {
+              compCtx.fillStyle = "#000";
+              compCtx.fillRect(0, 0, outputWidth, outputHeight);
+            }
+            compCtx.drawImage(screenVid, dx, dy, dw, dh);
+          } else {
+            compCtx.fillStyle = "#000";
+            compCtx.fillRect(0, 0, outputWidth, outputHeight);
           }
         }
 
-        // 2. Paint annotations (only over screen, scaled from window coords)
+        // 2. Paint annotations
         if (recordingModeRef.current !== "cam_only") {
           const { sx, sy } = getScreenScale();
+          // Use canvas-relative scale matching the output (annotations were drawn in window pixels)
           const all = drawingNowRef.current ? [...annotationsRef.current, drawingNowRef.current] : annotationsRef.current;
           all.forEach((a) => {
             compCtx.strokeStyle = a.color;
             compCtx.fillStyle = a.color;
-            compCtx.lineWidth = 4;
+            compCtx.lineWidth = Math.max(3, outputHeight / 270); // ~4px at 1080p, 5px at 1440p
             compCtx.lineCap = "round";
             compCtx.lineJoin = "round";
             const sX = a.startX * sx;
             const sY = a.startY * sy;
             const eX = a.endX * sx;
             const eY = a.endY * sy;
+            // Subtle drop shadow for depth
+            compCtx.shadowColor = "rgba(0,0,0,0.4)";
+            compCtx.shadowBlur = 4;
+            compCtx.shadowOffsetX = 1;
+            compCtx.shadowOffsetY = 1;
             if (a.type === "rectangle") {
               compCtx.strokeRect(sX, sY, eX - sX, eY - sY);
             } else if (a.type === "circle") {
@@ -1476,7 +1661,7 @@ export default function ScreenRecorder() {
               compCtx.arc(sX, sY, r, 0, Math.PI * 2);
               compCtx.stroke();
             } else if (a.type === "arrow") {
-              const headLen = 18;
+              const headLen = Math.max(18, outputHeight / 60);
               const angle = Math.atan2(eY - sY, eX - sX);
               compCtx.beginPath();
               compCtx.moveTo(sX, sY);
@@ -1498,28 +1683,47 @@ export default function ScreenRecorder() {
               });
               compCtx.stroke();
             } else if (a.type === "highlight") {
+              compCtx.shadowBlur = 0;
               compCtx.fillStyle = a.color + "55";
               compCtx.fillRect(Math.min(sX, eX), Math.min(sY, eY), Math.abs(eX - sX), Math.abs(eY - sY));
             }
+            compCtx.shadowColor = "transparent";
+            compCtx.shadowBlur = 0;
+            compCtx.shadowOffsetX = 0;
+            compCtx.shadowOffsetY = 0;
           });
 
-          // 3. Cursor highlight + click ripples
+          // 3. Cursor highlight (smooth, soft glow) + click ripples
           if (cursorHighlightRef.current && cursorPosRef.current) {
-            const cx = cursorPosRef.current.x * sx;
-            const cy = cursorPosRef.current.y * sy;
-            const grad = compCtx.createRadialGradient(cx, cy, 0, cx, cy, 50);
-            grad.addColorStop(0, "rgba(212,180,97,0.5)");
+            const targetX = cursorPosRef.current.x * sx;
+            const targetY = cursorPosRef.current.y * sy;
+            if (!smoothCursor) {
+              smoothCursor = { x: targetX, y: targetY };
+            } else {
+              smoothCursor.x += (targetX - smoothCursor.x) * SMOOTH_FACTOR;
+              smoothCursor.y += (targetY - smoothCursor.y) * SMOOTH_FACTOR;
+            }
+            const cx = smoothCursor.x;
+            const cy = smoothCursor.y;
+            const glowRadius = Math.max(40, outputHeight / 27); // scales with res
+            const grad = compCtx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+            grad.addColorStop(0, "rgba(212,180,97,0.55)");
+            grad.addColorStop(0.6, "rgba(212,180,97,0.15)");
             grad.addColorStop(1, "rgba(212,180,97,0)");
             compCtx.fillStyle = grad;
-            compCtx.fillRect(cx - 50, cy - 50, 100, 100);
-            // Click ripples
+            compCtx.beginPath();
+            compCtx.arc(cx, cy, glowRadius, 0, Math.PI * 2);
+            compCtx.fill();
+
+            // Click ripples (eased)
             cursorClicksRef.current.forEach((click) => {
               const age = Date.now() - click.t;
               if (age > 800) return;
-              const progress = age / 800;
-              const radius = 20 + progress * 50;
-              compCtx.strokeStyle = `rgba(212,180,97,${1 - progress})`;
-              compCtx.lineWidth = 3;
+              const t = age / 800;
+              const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+              const radius = (Math.max(20, outputHeight / 54)) + eased * (Math.max(60, outputHeight / 18));
+              compCtx.strokeStyle = `rgba(212,180,97,${1 - t})`;
+              compCtx.lineWidth = Math.max(2, outputHeight / 540);
               compCtx.beginPath();
               compCtx.arc(click.x * sx, click.y * sy, radius, 0, Math.PI * 2);
               compCtx.stroke();
@@ -1527,56 +1731,126 @@ export default function ScreenRecorder() {
           }
         }
 
-        // 4. Camera bubble (only for screen_cam mode)
+        // 4. Camera bubble (only for screen_cam mode) — Loom-style with shadow + ring + draggable position
         if (recordingModeRef.current === "screen_cam" && camEnabledRef.current && camVid.readyState >= 2) {
-          const bubbleSize = Math.floor(outputHeight * 0.22);
-          const margin = 30;
-          const bx = outputWidth - bubbleSize - margin;
-          const by = outputHeight - bubbleSize - margin;
+          const sizeMap = { sm: 0.16, md: 0.22, lg: 0.30 } as const;
+          const sizeFraction = sizeMap[camSizeRef.current];
+          const bubbleSize = Math.floor(outputHeight * sizeFraction);
+          const margin = Math.floor(outputHeight * 0.025);
+          // camPosition is normalized (0..1) representing the CENTER of the bubble in output coords
+          // Default 0.97/0.97 puts the bubble's right/bottom edges at 97% of the screen
+          const cxB = Math.max(bubbleSize / 2 + margin, Math.min(outputWidth - bubbleSize / 2 - margin, camPositionRef.current.x * outputWidth));
+          const cyB = Math.max(bubbleSize / 2 + margin, Math.min(outputHeight - bubbleSize / 2 - margin, camPositionRef.current.y * outputHeight));
+          const bx = cxB - bubbleSize / 2;
+          const by = cyB - bubbleSize / 2;
+          const radius = bubbleSize / 2;
+          const cornerRadius = bubbleSize * 0.18; // for rounded square
+
+          const drawShape = (path: () => void) => {
+            compCtx.beginPath();
+            path();
+            compCtx.closePath();
+          };
+          const buildShapePath = () => {
+            if (camShapeRef.current === "circle") {
+              compCtx.beginPath();
+              compCtx.arc(cxB, cyB, radius, 0, Math.PI * 2);
+              compCtx.closePath();
+            } else {
+              // Rounded square
+              const r = cornerRadius;
+              compCtx.beginPath();
+              compCtx.moveTo(bx + r, by);
+              compCtx.lineTo(bx + bubbleSize - r, by);
+              compCtx.quadraticCurveTo(bx + bubbleSize, by, bx + bubbleSize, by + r);
+              compCtx.lineTo(bx + bubbleSize, by + bubbleSize - r);
+              compCtx.quadraticCurveTo(bx + bubbleSize, by + bubbleSize, bx + bubbleSize - r, by + bubbleSize);
+              compCtx.lineTo(bx + r, by + bubbleSize);
+              compCtx.quadraticCurveTo(bx, by + bubbleSize, bx, by + bubbleSize - r);
+              compCtx.lineTo(bx, by + r);
+              compCtx.quadraticCurveTo(bx, by, bx + r, by);
+              compCtx.closePath();
+            }
+          };
+
+          // Drop shadow
           compCtx.save();
-          // Circular clip
-          compCtx.beginPath();
-          compCtx.arc(bx + bubbleSize / 2, by + bubbleSize / 2, bubbleSize / 2, 0, Math.PI * 2);
-          compCtx.closePath();
-          compCtx.clip();
-          // Cover-fit camera into circle
-          const camAspect = (camVid.videoWidth || 4) / (camVid.videoHeight || 3);
-          let drawW = bubbleSize, drawH = bubbleSize;
-          if (camAspect > 1) drawW = bubbleSize * camAspect;
-          else drawH = bubbleSize / camAspect;
-          compCtx.drawImage(camVid, bx + (bubbleSize - drawW) / 2, by + (bubbleSize - drawH) / 2, drawW, drawH);
+          compCtx.shadowColor = "rgba(0,0,0,0.5)";
+          compCtx.shadowBlur = bubbleSize * 0.12;
+          compCtx.shadowOffsetX = 0;
+          compCtx.shadowOffsetY = bubbleSize * 0.04;
+          compCtx.fillStyle = "#000";
+          buildShapePath();
+          compCtx.fill();
           compCtx.restore();
-          // Gold ring
-          compCtx.strokeStyle = "#d4b461";
-          compCtx.lineWidth = 4;
-          compCtx.beginPath();
-          compCtx.arc(bx + bubbleSize / 2, by + bubbleSize / 2, bubbleSize / 2, 0, Math.PI * 2);
-          compCtx.stroke();
+
+          // Camera content (cover-fit with shape clip)
+          compCtx.save();
+          buildShapePath();
+          compCtx.clip();
+
+          const camAspect = (camVid.videoWidth || 16) / (camVid.videoHeight || 9);
+          let sw = camVid.videoWidth, sh = camVid.videoHeight;
+          let sx = 0, sy = 0;
+          if (camAspect > 1) {
+            sw = sh;
+            sx = (camVid.videoWidth - sw) / 2;
+          } else if (camAspect < 1) {
+            sh = sw;
+            sy = (camVid.videoHeight - sh) / 2;
+          }
+          compCtx.drawImage(camVid, sx, sy, sw, sh, bx, by, bubbleSize, bubbleSize);
+          compCtx.restore();
+
+          // Outer gold ring with subtle gradient
+          const ringWidth = Math.max(3, bubbleSize * 0.025);
+          const ringGrad = compCtx.createLinearGradient(bx, by, bx + bubbleSize, by + bubbleSize);
+          ringGrad.addColorStop(0, "#f0c84b");
+          ringGrad.addColorStop(1, "#d4b461");
+          compCtx.strokeStyle = ringGrad;
+          compCtx.lineWidth = ringWidth;
+          if (camShapeRef.current === "circle") {
+            compCtx.beginPath();
+            compCtx.arc(cxB, cyB, radius - ringWidth / 2, 0, Math.PI * 2);
+            compCtx.stroke();
+          } else {
+            buildShapePath();
+            compCtx.stroke();
+          }
         }
 
         animFrameRef.current = requestAnimationFrame(renderFrame);
       };
       renderFrame();
 
-      // Capture canvas as video stream
-      const canvasStream = (compCanvas as any).captureStream(30) as MediaStream;
+      // Capture canvas as video stream at desired frame rate
+      const canvasStream = (compCanvas as any).captureStream(frameRate) as MediaStream;
       const videoTracks = canvasStream.getVideoTracks();
+      // Apply content hints — "motion" keeps motion smooth, "detail" preserves text clarity
+      videoTracks.forEach((t) => { try { (t as any).contentHint = recordingModeRef.current === "cam_only" ? "motion" : "detail"; } catch { } });
 
-      // Build audio mix
-      const audioContext = new AudioContext();
+      // Audio mix
+      const audioContext = new AudioContext({ sampleRate: 48000 });
       const destination = audioContext.createMediaStreamDestination();
       let hasAudio = false;
       if (screenStream) {
         const screenAudio = screenStream.getAudioTracks();
         if (screenAudio.length > 0) {
           const source = audioContext.createMediaStreamSource(new MediaStream(screenAudio));
-          source.connect(destination);
+          // Slight gain reduction so mic stays primary
+          const gain = audioContext.createGain();
+          gain.gain.value = 0.85;
+          source.connect(gain);
+          gain.connect(destination);
           hasAudio = true;
         }
       }
       if (audioStream) {
         const source = audioContext.createMediaStreamSource(audioStream);
-        source.connect(destination);
+        const gain = audioContext.createGain();
+        gain.gain.value = 1.0;
+        source.connect(gain);
+        gain.connect(destination);
         hasAudio = true;
       }
 
@@ -1584,8 +1858,17 @@ export default function ScreenRecorder() {
       if (hasAudio) tracks.push(...destination.stream.getAudioTracks());
 
       const combinedStream = new MediaStream(tracks);
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
-      const mediaRecorder = new MediaRecorder(combinedStream, { mimeType, videoBitsPerSecond: 4000000 });
+      // Pick best codec: VP9 > VP8. Skip av01 (not all browsers encode).
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+          ? "video/webm;codecs=vp8,opus"
+          : "video/webm";
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: preset.bitrate,
+        audioBitsPerSecond: 128_000,
+      });
 
       chunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -1613,7 +1896,7 @@ export default function ScreenRecorder() {
     } catch (err: any) {
       if (err.name !== "NotAllowedError") toast({ title: "Recording failed", description: err.message, variant: "destructive" });
     }
-  }, [recordingMode, micEnabled, teleprompterEnabled, teleprompterScript, toast]);
+  }, [recordingMode, micEnabled, teleprompterEnabled, teleprompterScript, quality, frameRate, toast]);
 
   const startRecording = useCallback(() => {
     if (countdownEnabled) setShowCountdown(true);
@@ -2000,13 +2283,173 @@ export default function ScreenRecorder() {
                     )}
                   </div>
 
-                  {/* Cam preview */}
+                  {/* Quality settings */}
+                  <div className="rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: GOLD }}>Video Quality</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                      {([
+                        { id: "720p" as const, label: "720p", desc: "4 Mbps · Smaller" },
+                        { id: "1080p" as const, label: "1080p", desc: "8 Mbps · Loom-grade" },
+                        { id: "1440p" as const, label: "1440p", desc: "14 Mbps · Crisp" },
+                        { id: "source" as const, label: "Source", desc: "Native res" },
+                      ]).map((q) => {
+                        const active = quality === q.id;
+                        return (
+                          <button key={q.id} onClick={() => setQuality(q.id)}
+                            className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl transition-all text-left"
+                            style={{
+                              background: active ? `${GOLD}12` : "rgba(255,255,255,0.03)",
+                              border: `1px solid ${active ? `${GOLD}55` : "rgba(255,255,255,0.08)"}`,
+                              color: active ? GOLD : "rgba(255,255,255,0.7)",
+                            }}>
+                            <span className="text-sm font-bold">{q.label}</span>
+                            <span className="text-[10px]" style={{ color: active ? `${GOLD}99` : "rgba(255,255,255,0.4)" }}>{q.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Frame rate:</span>
+                      <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                        {([30, 60] as const).map((fps) => (
+                          <button key={fps} onClick={() => setFrameRate(fps)}
+                            className="px-3 py-1.5 text-xs font-semibold transition-all"
+                            style={{
+                              background: frameRate === fps ? `${GOLD}15` : "transparent",
+                              color: frameRate === fps ? GOLD : "rgba(255,255,255,0.5)",
+                            }}>{fps} FPS</button>
+                        ))}
+                      </div>
+                      <span className="text-[10px] ml-auto" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        {frameRate === 60 ? "Buttery smooth — uses more storage" : "Standard — recommended for most"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Cam preview + bubble position picker */}
                   {(recordingMode === "cam_only" || (recordingMode === "screen_cam" && camEnabled)) && (
                     <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <div className="p-3"><div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>Camera Preview</div></div>
-                      <div className="aspect-video bg-black/50 relative">
-                        <video ref={camPreviewRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                      <div className="p-3 flex items-center justify-between">
+                        <div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.4)" }}>Camera Preview</div>
+                        {recordingMode === "screen_cam" && (
+                          <div className="text-[10px]" style={{ color: GOLD }}>You can drag the bubble while recording</div>
+                        )}
                       </div>
+                      <div className="aspect-video bg-black/50 relative overflow-hidden">
+                        <video ref={camPreviewRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+
+                        {/* In screen_cam mode, show a draggable preview bubble inside the preview box */}
+                        {recordingMode === "screen_cam" && (
+                          <div
+                            className="absolute select-none cursor-grab active:cursor-grabbing"
+                            style={{
+                              left: `calc(${camPosition.x * 100}% - ${camSize === "sm" ? 24 : camSize === "md" ? 36 : 48}px)`,
+                              top: `calc(${camPosition.y * 100}% - ${camSize === "sm" ? 24 : camSize === "md" ? 36 : 48}px)`,
+                              width: camSize === "sm" ? 48 : camSize === "md" ? 72 : 96,
+                              height: camSize === "sm" ? 48 : camSize === "md" ? 72 : 96,
+                              borderRadius: camShape === "circle" ? "50%" : "18%",
+                              border: `2px solid ${GOLD}`,
+                              background: `${GOLD}22`,
+                              boxShadow: `0 4px 16px rgba(0,0,0,0.4)`,
+                              fontSize: 9,
+                              color: GOLD,
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                            }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const target = e.currentTarget.parentElement!;
+                              const rect = target.getBoundingClientRect();
+                              const onMove = (ev: MouseEvent) => {
+                                const x = (ev.clientX - rect.left) / rect.width;
+                                const y = (ev.clientY - rect.top) / rect.height;
+                                setCamPosition({
+                                  x: Math.max(0.05, Math.min(0.95, x)),
+                                  y: Math.max(0.05, Math.min(0.95, y)),
+                                });
+                              };
+                              const onUp = () => {
+                                window.removeEventListener("mousemove", onMove);
+                                window.removeEventListener("mouseup", onUp);
+                              };
+                              window.addEventListener("mousemove", onMove);
+                              window.addEventListener("mouseup", onUp);
+                            }}>
+                            CAM
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bubble customizer (only for screen_cam) */}
+                      {recordingMode === "screen_cam" && (
+                        <div className="p-3 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                          <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: GOLD }}>Bubble Position & Style</div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Position presets */}
+                            <div>
+                              <div className="text-[10px] mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Quick Position</div>
+                              <div className="grid grid-cols-3 gap-1">
+                                {([
+                                  { id: "tl", x: 0.1, y: 0.1, label: "↖" },
+                                  { id: "tc", x: 0.5, y: 0.1, label: "↑" },
+                                  { id: "tr", x: 0.9, y: 0.1, label: "↗" },
+                                  { id: "ml", x: 0.1, y: 0.5, label: "←" },
+                                  { id: "mc", x: 0.5, y: 0.5, label: "•" },
+                                  { id: "mr", x: 0.9, y: 0.5, label: "→" },
+                                  { id: "bl", x: 0.1, y: 0.9, label: "↙" },
+                                  { id: "bc", x: 0.5, y: 0.9, label: "↓" },
+                                  { id: "br", x: 0.9, y: 0.9, label: "↘" },
+                                ]).map((p) => {
+                                  const active = Math.abs(camPosition.x - p.x) < 0.05 && Math.abs(camPosition.y - p.y) < 0.05;
+                                  return (
+                                    <button key={p.id} onClick={() => setCamPosition({ x: p.x, y: p.y })}
+                                      className="aspect-square rounded-md text-sm font-bold transition-all"
+                                      style={{
+                                        background: active ? `${GOLD}25` : "rgba(255,255,255,0.04)",
+                                        color: active ? GOLD : "rgba(255,255,255,0.5)",
+                                        border: `1px solid ${active ? `${GOLD}55` : "rgba(255,255,255,0.06)"}`,
+                                      }}>{p.label}</button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div>
+                              {/* Size */}
+                              <div className="text-[10px] mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Size</div>
+                              <div className="flex items-center rounded-md overflow-hidden mb-2" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                                {(["sm", "md", "lg"] as const).map((s) => (
+                                  <button key={s} onClick={() => setCamSize(s)}
+                                    className="flex-1 py-1.5 text-xs font-semibold uppercase transition-all"
+                                    style={{
+                                      background: camSize === s ? `${GOLD}15` : "transparent",
+                                      color: camSize === s ? GOLD : "rgba(255,255,255,0.5)",
+                                    }}>{s === "sm" ? "Small" : s === "md" ? "Medium" : "Large"}</button>
+                                ))}
+                              </div>
+
+                              {/* Shape */}
+                              <div className="text-[10px] mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Shape</div>
+                              <div className="flex items-center rounded-md overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                                {(["circle", "square"] as const).map((s) => (
+                                  <button key={s} onClick={() => setCamShape(s)}
+                                    className="flex-1 py-1.5 text-xs font-semibold capitalize transition-all"
+                                    style={{
+                                      background: camShape === s ? `${GOLD}15` : "transparent",
+                                      color: camShape === s ? GOLD : "rgba(255,255,255,0.5)",
+                                    }}>{s === "circle" ? "Circle" : "Rounded"}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                            💡 Drag the CAM marker above to position freely, or pick a quick spot. The position bakes into your video.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2042,10 +2485,15 @@ export default function ScreenRecorder() {
                   </div>
 
                   {camEnabled && recordingMode === "screen_cam" && (
-                    <div className="fixed bottom-8 right-8 w-40 h-40 rounded-full overflow-hidden shadow-2xl z-50"
-                      style={{ border: `3px solid ${GOLD}`, boxShadow: `0 0 30px ${GOLD}33` }}>
-                      <video ref={liveCamRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-                    </div>
+                    <DraggableCamBubble
+                      videoRef={liveCamRef}
+                      position={camPosition}
+                      onPositionChange={setCamPosition}
+                      size={camSize}
+                      shape={camShape}
+                      dragging={draggingCam}
+                      setDragging={setDraggingCam}
+                    />
                   )}
 
                   <div className="flex items-center justify-center gap-3">
