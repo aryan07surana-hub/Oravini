@@ -546,11 +546,15 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
           ilike(crmContacts.company, `%${q}%`),
         ));
       }
-      let query = db.select().from(crmContacts).orderBy(desc(crmContacts.updatedAt)).limit(limit);
-      if (conditions.length) query = (query as any).where(and(...conditions));
-      let rows = await query;
-      if (tag) rows = rows.filter(r => Array.isArray(r.tags) && r.tags.includes(tag));
-      res.json(rows);
+      let rows;
+      if (conditions.length) {
+        rows = await db.select().from(crmContacts).where(and(...conditions)).orderBy(desc(crmContacts.updatedAt)).limit(limit);
+      } else {
+        rows = await db.select().from(crmContacts).orderBy(desc(crmContacts.updatedAt)).limit(limit);
+      }
+      let filtered = rows;
+      if (tag) filtered = rows.filter(r => Array.isArray(r.tags) && r.tags.includes(tag));
+      res.json(filtered);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -691,24 +695,38 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
         }
         result.users++;
       }
-      // DM leads (best-effort — table may differ)
+      // DM leads — pulls from the actual dm_leads schema (instagram_handle, name, email, phone)
       try {
-        const { rows: dms } = await pool.query(`SELECT username, full_name, ig_user_id FROM dm_leads LIMIT 1000`);
+        const { rows: dms } = await pool.query(
+          `SELECT name, instagram_handle, email, phone, source, lead_score, notes
+             FROM dm_leads LIMIT 1000`,
+        );
         for (const d of dms) {
-          if (!d.ig_user_id && !d.username) continue;
-          const fakeEmail = `${d.username || d.ig_user_id}@instagram.local`;
-          const [existing] = await db.select().from(crmContacts).where(eq(crmContacts.email, fakeEmail));
-          if (existing) continue;
+          const handle = (d.instagram_handle || "").toString().trim();
+          const email = (d.email || "").toString().trim().toLowerCase() || (handle ? `${handle}@instagram.local` : null);
+          if (!email && !handle) { result.skipped++; continue; }
+          const [existing] = email
+            ? await db.select().from(crmContacts).where(eq(crmContacts.email, email))
+            : [null as any];
+          if (existing) { result.skipped++; continue; }
+          const [first, ...rest] = (d.name || handle || "").split(" ");
           await db.insert(crmContacts).values({
-            firstName: d.full_name || d.username || null,
-            email: fakeEmail,
-            instagram: d.username ? `https://instagram.com/${d.username}` : null,
-            source: "dm",
+            firstName: first || null,
+            lastName: rest.join(" ") || null,
+            email,
+            phone: d.phone || null,
+            instagram: handle ? `https://instagram.com/${handle.replace(/^@/, "")}` : null,
+            source: d.source || "dm",
             status: "lead",
+            score: typeof d.lead_score === "number" ? Math.max(0, Math.min(100, d.lead_score)) : 0,
+            notes: d.notes || null,
           });
           result.dmLeads++;
         }
-      } catch { /* table missing or shape mismatch — non-fatal */ }
+      } catch (err: any) {
+        // Non-fatal — table may not exist yet on a fresh deploy
+        console.warn("[crm-suite] dm_leads import skipped:", err?.message || err);
+      }
       res.json(result);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -729,9 +747,12 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
       if (contactId) conds.push(eq(crmOpportunities.contactId, contactId));
       if (status !== "all") conds.push(eq(crmOpportunities.status, status as any));
 
-      let q = db.select().from(crmOpportunities).orderBy(asc(crmOpportunities.position));
-      if (conds.length) q = (q as any).where(and(...conds));
-      const rows = await q;
+      let rows;
+      if (conds.length) {
+        rows = await db.select().from(crmOpportunities).where(and(...conds)).orderBy(asc(crmOpportunities.position));
+      } else {
+        rows = await db.select().from(crmOpportunities).orderBy(asc(crmOpportunities.position));
+      }
       res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -845,9 +866,12 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
       const status = req.query.status as string | undefined;
       const conds: any[] = [];
       if (status) conds.push(eq(crmTasks.status, status as any));
-      let q = db.select().from(crmTasks).orderBy(asc(crmTasks.dueAt));
-      if (conds.length) q = (q as any).where(and(...conds));
-      const rows = await q;
+      let rows;
+      if (conds.length) {
+        rows = await db.select().from(crmTasks).where(and(...conds)).orderBy(asc(crmTasks.dueAt));
+      } else {
+        rows = await db.select().from(crmTasks).orderBy(asc(crmTasks.dueAt));
+      }
       res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1243,29 +1267,30 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   app.get("/api/crm-suite/contacts/duplicates", requireAuth, async (_req, res) => {
     try {
       const { rows } = await pool.query(`
-        SELECT key, COUNT(*)::int AS n,
-          (array_agg(id ORDER BY updated_at DESC))::text[] AS ids,
-          (array_agg(json_build_object(
-            'id', id,
-            'firstName', first_name,
-            'lastName', last_name,
-            'email', email,
-            'phone', phone,
-            'company', company,
-            'status', status,
-            'createdAt', created_at,
-            'updatedAt', updated_at
-          ) ORDER BY updated_at DESC))::jsonb AS contacts
-        FROM (
-          SELECT id, first_name, last_name, email, phone, company, status, created_at, updated_at,
-                 LOWER(email) AS key
-          FROM crm_contacts
-          WHERE deleted_at IS NULL AND archived_at IS NULL AND email IS NOT NULL AND email <> ''
-        ) t
-        GROUP BY key
+        SELECT key,
+               COUNT(*)::int AS n,
+               array_agg(id ORDER BY updated_at DESC) AS ids,
+               jsonb_agg(jsonb_build_object(
+                 'id', id,
+                 'firstName', first_name,
+                 'lastName', last_name,
+                 'email', email,
+                 'phone', phone,
+                 'company', company,
+                 'status', status,
+                 'createdAt', created_at,
+                 'updatedAt', updated_at
+               ) ORDER BY updated_at DESC) AS contacts
+          FROM (
+            SELECT id, first_name, last_name, email, phone, company, status, created_at, updated_at,
+                   LOWER(email) AS key
+              FROM crm_contacts
+             WHERE deleted_at IS NULL AND archived_at IS NULL AND email IS NOT NULL AND email <> ''
+          ) t
+         GROUP BY key
         HAVING COUNT(*) > 1
-        ORDER BY n DESC
-        LIMIT 200
+         ORDER BY n DESC
+         LIMIT 200
       `);
       res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -1302,20 +1327,19 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
       await pool.query(`UPDATE crm_opportunities SET contact_id = $1 WHERE contact_id = ANY($2)`, [keepId, mergeIds]);
       await pool.query(`UPDATE crm_tasks         SET contact_id = $1 WHERE contact_id = ANY($2)`, [keepId, mergeIds]);
 
-      // Union tags onto the keeper
-      await pool.query(`
-        UPDATE crm_contacts c
-           SET tags = (
-              SELECT to_jsonb(array(
-                SELECT DISTINCT jsonb_array_elements_text(
-                  COALESCE(c.tags, '[]'::jsonb) ||
-                  COALESCE((SELECT jsonb_agg(t) FROM crm_contacts m, jsonb_array_elements_text(COALESCE(m.tags, '[]'::jsonb)) AS t WHERE m.id = ANY($1)), '[]'::jsonb)
-                )
-              ))
-           ),
-               updated_at = now()
-         WHERE c.id = $2
-      `, [mergeIds, keepId]);
+      // Union tags from merged contacts onto the keeper, then dedup.
+      // Done in two simple queries to avoid fragile nested SELECTs.
+      const { rows: tagRows } = await pool.query(
+        `SELECT DISTINCT jsonb_array_elements_text(COALESCE(tags, '[]'::jsonb)) AS tag
+           FROM crm_contacts
+          WHERE id = ANY($1) OR id = $2`,
+        [mergeIds, keepId],
+      );
+      const unionTags = tagRows.map((r: any) => r.tag).filter(Boolean);
+      await pool.query(
+        `UPDATE crm_contacts SET tags = $1::jsonb, updated_at = now() WHERE id = $2`,
+        [JSON.stringify(unionTags), keepId],
+      );
 
       // Soft-delete the others
       await pool.query(`UPDATE crm_contacts SET deleted_at = now(), archived_at = now() WHERE id = ANY($1)`, [mergeIds]);
