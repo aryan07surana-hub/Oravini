@@ -408,6 +408,27 @@ function logActivity(
 
 export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
+     ACCESS — admin sees everything; elite clients see only their
+     own owned records. Anyone else gets a 403.
+  ───────────────────────────────────────────────────────── */
+  function getScope(req: Request): { isAdmin: boolean; userId: string | null; canAccess: boolean } {
+    const u = (req as any).user;
+    if (!u) return { isAdmin: false, userId: null, canAccess: false };
+    const isAdmin = u.role === "admin";
+    const isElite = u.role === "client" && u.plan === "elite";
+    return { isAdmin, userId: u.id ?? null, canAccess: isAdmin || isElite };
+  }
+
+  function requireCrmAccess(req: Request, res: Response, next: any) {
+    const s = getScope(req);
+    if (!s.canAccess) {
+      return res.status(403).json({ ok: false, message: "CRM access requires admin or Tier 5 (Elite) plan." });
+    }
+    (req as any).crmScope = s;
+    next();
+  }
+
+  /* ─────────────────────────────────────────────────────────
      SAFETY NET — runs before every CRM route.
      1. Make sure the schema is bootstrapped (lazy retry on first hit).
      2. Catch anything thrown so a 500 never tears down the session
@@ -428,7 +449,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      PIPELINES
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/pipelines", requireAuth, async (_req, res) => {
+  app.get("/api/crm-suite/pipelines", requireCrmAccess, async (_req, res) => {
     try {
       const pipelines = await db.select().from(crmPipelines).orderBy(asc(crmPipelines.position));
       const stages = await db.select().from(crmPipelineStages).orderBy(asc(crmPipelineStages.position));
@@ -441,7 +462,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/pipelines", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/pipelines", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmPipelineSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -450,14 +471,14 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/pipelines/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/pipelines/:id", requireCrmAccess, async (req, res) => {
     try {
       const [row] = await db.update(crmPipelines).set(req.body).where(eq(crmPipelines.id, p(req.params.id))).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/pipelines/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/pipelines/:id", requireCrmAccess, async (req, res) => {
     try {
       await db.delete(crmPipelines).where(eq(crmPipelines.id, p(req.params.id)));
       res.json({ ok: true });
@@ -467,7 +488,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      STAGES
   ───────────────────────────────────────────────────────── */
-  app.post("/api/crm-suite/pipelines/:id/stages", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/pipelines/:id/stages", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmPipelineStageSchema.safeParse({ ...req.body, pipelineId: p(req.params.id) });
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -476,14 +497,14 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/stages/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/stages/:id", requireCrmAccess, async (req, res) => {
     try {
       const [row] = await db.update(crmPipelineStages).set(req.body).where(eq(crmPipelineStages.id, p(req.params.id))).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/stages/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/stages/:id", requireCrmAccess, async (req, res) => {
     try {
       // Refuse if any opportunity sits in this stage
       const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(crmOpportunities).where(eq(crmOpportunities.stageId, p(req.params.id)));
@@ -494,7 +515,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Reorder stages within a pipeline
-  app.post("/api/crm-suite/pipelines/:id/stages/reorder", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/pipelines/:id/stages/reorder", requireCrmAccess, async (req, res) => {
     try {
       const { stageIds } = req.body as { stageIds: string[] };
       if (!Array.isArray(stageIds)) return res.status(400).json({ message: "stageIds[] required" });
@@ -508,7 +529,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      CONTACTS
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/contacts", requireAuth, async (req, res) => {
+  app.get("/api/crm-suite/contacts", requireCrmAccess, async (req, res) => {
     try {
       const q = (req.query.q as string)?.toLowerCase()?.trim();
       const status = req.query.status as string | undefined;
@@ -526,6 +547,11 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
       // Always exclude soft-deleted unless explicitly asked
       if (!includeDeleted) conditions.push(sql`(${crmContacts.id} IN (SELECT id FROM crm_contacts WHERE deleted_at IS NULL))`);
       if (!archived) conditions.push(isNull(crmContacts.archivedAt));
+      // Tier 5 clients only see their own contacts. Admins see everything.
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && scope.userId) {
+        conditions.push(eq(crmContacts.ownerId, scope.userId));
+      }
       if (status) conditions.push(eq(crmContacts.status, status as any));
       if (source) conditions.push(eq(crmContacts.source, source));
       if (typeof scoreMin === "number") conditions.push(sql`${crmContacts.score} >= ${scoreMin}`);
@@ -558,11 +584,16 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/crm-suite/contacts/:id", requireAuth, async (req, res) => {
+  app.get("/api/crm-suite/contacts/:id", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       const [contact] = await db.select().from(crmContacts).where(eq(crmContacts.id, id));
       if (!contact) return res.status(404).json({ message: "Contact not found" });
+      // Scope: a Tier 5 client can only view contacts they own
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
+        return res.status(403).json({ message: "Not your contact." });
+      }
       const [activities, opportunities, tasks] = await Promise.all([
         db.select().from(crmActivities).where(eq(crmActivities.contactId, id)).orderBy(desc(crmActivities.occurredAt)).limit(100),
         db.select().from(crmOpportunities).where(eq(crmOpportunities.contactId, id)).orderBy(desc(crmOpportunities.updatedAt)),
@@ -572,7 +603,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/contacts", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/contacts", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmContactSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -592,7 +623,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/contacts/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/contacts/:id", requireCrmAccess, async (req, res) => {
     try {
       const userId = (req.user as any)?.id;
       const id = p(req.params.id);
@@ -614,7 +645,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/contacts/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/contacts/:id", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       // Soft delete — mark deleted_at for Undo. Hard-delete after 24h via cron-equivalent on next access.
@@ -627,7 +658,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Restore a soft-deleted contact (used by the Undo toast)
-  app.post("/api/crm-suite/contacts/:id/restore", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/contacts/:id/restore", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       await pool.query(`UPDATE crm_contacts SET deleted_at = NULL, archived_at = NULL, updated_at = now() WHERE id = $1`, [id]);
@@ -637,7 +668,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Permanent delete (admin power-tool)
-  app.delete("/api/crm-suite/contacts/:id/permanent", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/contacts/:id/permanent", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       await db.delete(crmContacts).where(eq(crmContacts.id, id));
@@ -647,7 +678,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Bulk import landing leads + DM leads + clients into the CRM contact table
-  app.post("/api/crm-suite/contacts/import-from-platform", requireAuth, async (_req, res) => {
+  app.post("/api/crm-suite/contacts/import-from-platform", requireCrmAccess, async (req, res) => {
+    if (!(req as any).crmScope?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const result = { landingLeads: 0, users: 0, dmLeads: 0, skipped: 0 };
       // Landing leads
@@ -734,7 +766,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      OPPORTUNITIES
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/opportunities", requireAuth, async (req, res) => {
+  app.get("/api/crm-suite/opportunities", requireCrmAccess, async (req, res) => {
     try {
       const pipelineId = req.query.pipelineId as string | undefined;
       const stageId = req.query.stageId as string | undefined;
@@ -746,6 +778,11 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
       if (stageId) conds.push(eq(crmOpportunities.stageId, stageId));
       if (contactId) conds.push(eq(crmOpportunities.contactId, contactId));
       if (status !== "all") conds.push(eq(crmOpportunities.status, status as any));
+      // Scope: Tier 5 clients only see their own opportunities
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && scope.userId) {
+        conds.push(eq(crmOpportunities.ownerId, scope.userId));
+      }
 
       let rows;
       if (conds.length) {
@@ -757,7 +794,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/opportunities", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/opportunities", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmOpportunitySchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -775,7 +812,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/opportunities/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/opportunities/:id", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       const userId = (req.user as any)?.id;
@@ -806,7 +843,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/opportunities/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/opportunities/:id", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       await db.delete(crmOpportunities).where(eq(crmOpportunities.id, id));
@@ -816,7 +853,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Drag & drop reorder within a stage
-  app.post("/api/crm-suite/opportunities/reorder", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/opportunities/reorder", requireCrmAccess, async (req, res) => {
     try {
       const { stageId, opportunityIds } = req.body as { stageId: string; opportunityIds: string[] };
       if (!stageId || !Array.isArray(opportunityIds)) return res.status(400).json({ message: "stageId + opportunityIds[] required" });
@@ -832,7 +869,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      ACTIVITIES (notes / calls / emails / sms)
   ───────────────────────────────────────────────────────── */
-  app.post("/api/crm-suite/activities", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/activities", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmActivitySchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -851,7 +888,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/activities/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/activities/:id", requireCrmAccess, async (req, res) => {
     try {
       await db.delete(crmActivities).where(eq(crmActivities.id, p(req.params.id)));
       res.json({ ok: true });
@@ -861,11 +898,16 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      TASKS
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/tasks", requireAuth, async (req, res) => {
+  app.get("/api/crm-suite/tasks", requireCrmAccess, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const conds: any[] = [];
       if (status) conds.push(eq(crmTasks.status, status as any));
+      // Scope: Tier 5 clients only see their own tasks
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && scope.userId) {
+        conds.push(eq(crmTasks.assigneeId, scope.userId));
+      }
       let rows;
       if (conds.length) {
         rows = await db.select().from(crmTasks).where(and(...conds)).orderBy(asc(crmTasks.dueAt));
@@ -876,7 +918,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/tasks", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/tasks", requireCrmAccess, async (req, res) => {
     try {
       const body = { ...req.body };
       if (body.dueAt && typeof body.dueAt === "string") body.dueAt = new Date(body.dueAt);
@@ -896,7 +938,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/tasks/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/tasks/:id", requireCrmAccess, async (req, res) => {
     try {
       const id = p(req.params.id);
       const body: any = { ...req.body, updatedAt: new Date() };
@@ -908,7 +950,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/tasks/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/tasks/:id", requireCrmAccess, async (req, res) => {
     try {
       await db.delete(crmTasks).where(eq(crmTasks.id, p(req.params.id)));
       res.json({ ok: true });
@@ -918,14 +960,14 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      TAGS
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/tags", requireAuth, async (_req, res) => {
+  app.get("/api/crm-suite/tags", requireCrmAccess, async (_req, res) => {
     try {
       const rows = await db.select().from(crmTags).orderBy(asc(crmTags.name));
       res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/tags", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/tags", requireCrmAccess, async (req, res) => {
     try {
       const parsed = insertCrmTagSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -934,7 +976,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/tags/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/tags/:id", requireCrmAccess, async (req, res) => {
     try {
       await db.delete(crmTags).where(eq(crmTags.id, p(req.params.id)));
       res.json({ ok: true });
@@ -944,7 +986,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      SMART LISTS — saved filter sets
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/smart-lists", requireAuth, async (_req, res) => {
+  app.get("/api/crm-suite/smart-lists", requireCrmAccess, async (_req, res) => {
     try {
       const rows = await db.select().from(crmSmartLists).orderBy(asc(crmSmartLists.position), asc(crmSmartLists.name));
       // Decorate with live counts
@@ -974,7 +1016,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/smart-lists", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/smart-lists", requireCrmAccess, async (req, res) => {
     try {
       const userId = (req.user as any)?.id;
       const parsed = insertCrmSmartListSchema.safeParse({ ...req.body, ownerId: req.body.ownerId ?? userId ?? null });
@@ -984,14 +1026,14 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/crm-suite/smart-lists/:id", requireAuth, async (req, res) => {
+  app.patch("/api/crm-suite/smart-lists/:id", requireCrmAccess, async (req, res) => {
     try {
       const [row] = await db.update(crmSmartLists).set(req.body).where(eq(crmSmartLists.id, p(req.params.id))).returning();
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/smart-lists/:id", requireAuth, async (req, res) => {
+  app.delete("/api/crm-suite/smart-lists/:id", requireCrmAccess, async (req, res) => {
     try {
       await db.delete(crmSmartLists).where(eq(crmSmartLists.id, p(req.params.id)));
       res.json({ ok: true });
@@ -1001,7 +1043,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      BULK ACTIONS — operate on a set of contact IDs
   ───────────────────────────────────────────────────────── */
-  app.post("/api/crm-suite/contacts/bulk", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/contacts/bulk", requireCrmAccess, async (req, res) => {
     try {
       const { ids, action, payload } = req.body as {
         ids: string[]; action: string; payload?: any;
@@ -1113,7 +1155,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     return s;
   }
 
-  app.get("/api/crm-suite/contacts/export.csv", requireAuth, async (req, res) => {
+  app.get("/api/crm-suite/contacts/export.csv", requireCrmAccess, async (req, res) => {
     try {
       // Reuse same filter logic as the list endpoint via inline build
       const q = (req.query.q as string)?.toLowerCase()?.trim();
@@ -1179,7 +1221,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // CSV import — accepts JSON { rows: [{...}], dedupBy: 'email' | 'phone' | 'none' }
-  app.post("/api/crm-suite/contacts/import-csv", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/contacts/import-csv", requireCrmAccess, async (req, res) => {
     try {
       const { rows, dedupBy = "email" } = req.body as { rows: any[]; dedupBy?: "email" | "phone" | "none" };
       if (!Array.isArray(rows)) return res.status(400).json({ message: "rows[] required" });
@@ -1264,7 +1306,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      DUPLICATES + MERGE
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/contacts/duplicates", requireAuth, async (_req, res) => {
+  app.get("/api/crm-suite/contacts/duplicates", requireCrmAccess, async (req, res) => {
+    if (!(req as any).crmScope?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { rows } = await pool.query(`
         SELECT key,
@@ -1297,7 +1340,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   // Merge: keepId absorbs all other ids — activities/opps/tasks reassigned, others soft-deleted.
-  app.post("/api/crm-suite/contacts/merge", requireAuth, async (req, res) => {
+  app.post("/api/crm-suite/contacts/merge", requireCrmAccess, async (req, res) => {
+    if (!(req as any).crmScope?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const { keepId, mergeIds, fields } = req.body as { keepId: string; mergeIds: string[]; fields?: Record<string, any> };
       if (!keepId || !Array.isArray(mergeIds) || mergeIds.length === 0) {
@@ -1365,37 +1409,55 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      DASHBOARD STATS
   ───────────────────────────────────────────────────────── */
-  app.get("/api/crm-suite/dashboard", requireAuth, async (_req, res) => {
+  app.get("/api/crm-suite/dashboard", requireCrmAccess, async (req, res) => {
     try {
+      // Scope: Tier 5 clients see only their own counts; admin sees everything.
+      const scope = (req as any).crmScope;
+      const ownerFilter = (scope && !scope.isAdmin && scope.userId) ? scope.userId : null;
+      const ownerWhere = ownerFilter ? ` AND owner_id = $1` : ``;
+      const ownerWhereOnly = ownerFilter ? ` WHERE owner_id = $1` : ``;
+      const params = ownerFilter ? [ownerFilter] : [];
+      // For tasks we filter by assignee_id (matches the list endpoint)
+      const taskWhere = ownerFilter ? ` AND assignee_id = $1` : ``;
+
       const [
         contactsCount, leadsCount, customersCount,
         openOppValue, wonOppValue, lostOppCount, openOppCount,
         openTasksCount, overdueTasksCount,
         recentActivities,
       ] = await Promise.all([
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE archived_at IS NULL AND deleted_at IS NULL`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE status = 'lead' AND archived_at IS NULL AND deleted_at IS NULL`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE status = 'customer' AND archived_at IS NULL AND deleted_at IS NULL`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COALESCE(SUM(value_cents)::bigint, 0) AS v FROM crm_opportunities WHERE status = 'open'`).then(r => Number(r.rows[0].v)),
-        pool.query(`SELECT COALESCE(SUM(value_cents)::bigint, 0) AS v FROM crm_opportunities WHERE status = 'won'`).then(r => Number(r.rows[0].v)),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_opportunities WHERE status = 'lost'`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_opportunities WHERE status = 'open'`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open'`).then(r => r.rows[0].n as number),
-        pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at < NOW()`).then(r => r.rows[0].n as number),
-        db.select().from(crmActivities).orderBy(desc(crmActivities.occurredAt)).limit(15),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE archived_at IS NULL AND deleted_at IS NULL${ownerWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE status = 'lead' AND archived_at IS NULL AND deleted_at IS NULL${ownerWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_contacts WHERE status = 'customer' AND archived_at IS NULL AND deleted_at IS NULL${ownerWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COALESCE(SUM(value_cents)::bigint, 0) AS v FROM crm_opportunities WHERE status = 'open'${ownerWhere}`, params).then(r => Number(r.rows[0].v)),
+        pool.query(`SELECT COALESCE(SUM(value_cents)::bigint, 0) AS v FROM crm_opportunities WHERE status = 'won'${ownerWhere}`, params).then(r => Number(r.rows[0].v)),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_opportunities WHERE status = 'lost'${ownerWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_opportunities WHERE status = 'open'${ownerWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open'${taskWhere}`, params).then(r => r.rows[0].n as number),
+        pool.query(`SELECT COUNT(*)::int AS n FROM crm_tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at < NOW()${taskWhere}`, params).then(r => r.rows[0].n as number),
+        ownerFilter
+          ? pool.query(
+              `SELECT a.* FROM crm_activities a
+                 LEFT JOIN crm_contacts c ON c.id = a.contact_id
+                WHERE c.owner_id = $1 OR a.user_id = $1
+                ORDER BY a.occurred_at DESC LIMIT 15`,
+              [ownerFilter],
+            ).then(r => r.rows)
+          : db.select().from(crmActivities).orderBy(desc(crmActivities.occurredAt)).limit(15),
       ]);
 
-      // Stage breakdown for default pipeline
-      const { rows: stageStats } = await pool.query(`
-        SELECT s.id, s.name, s.color, s.position,
-          COUNT(o.id)::int AS deals,
-          COALESCE(SUM(o.value_cents)::bigint, 0) AS total_value
-        FROM crm_pipeline_stages s
-        LEFT JOIN crm_opportunities o ON o.stage_id = s.id AND o.status = 'open'
-        WHERE s.pipeline_id = (SELECT id FROM crm_pipelines ORDER BY is_default DESC, position ASC LIMIT 1)
-        GROUP BY s.id, s.name, s.color, s.position
-        ORDER BY s.position ASC
-      `);
+      // Stage breakdown for default pipeline (scoped per owner)
+      const { rows: stageStats } = await pool.query(
+        `SELECT s.id, s.name, s.color, s.position,
+                COUNT(o.id)::int AS deals,
+                COALESCE(SUM(o.value_cents)::bigint, 0) AS total_value
+           FROM crm_pipeline_stages s
+           LEFT JOIN crm_opportunities o ON o.stage_id = s.id AND o.status = 'open'${ownerFilter ? ` AND o.owner_id = $1` : ``}
+          WHERE s.pipeline_id = (SELECT id FROM crm_pipelines ORDER BY is_default DESC, position ASC LIMIT 1)
+          GROUP BY s.id, s.name, s.color, s.position
+          ORDER BY s.position ASC`,
+        params,
+      );
 
       res.json({
         counts: {
@@ -1418,7 +1480,8 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      TIER 5 — manual sync of all elite-plan clients into the CRM
   ───────────────────────────────────────────────────────── */
-  app.post("/api/crm-suite/sync-tier5", requireAuth, async (_req, res) => {
+  app.post("/api/crm-suite/sync-tier5", requireCrmAccess, async (req, res) => {
+    if (!(req as any).crmScope?.isAdmin) return res.status(403).json({ message: "Admin only" });
     try {
       const result = await syncTier5Clients();
       emitCrmEvent({ kind: "contact.updated", id: "tier-5-sync" });

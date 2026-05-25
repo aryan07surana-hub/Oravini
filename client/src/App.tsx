@@ -113,6 +113,7 @@ import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ContentIntelligence from "@/pages/ContentIntelligence";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
+import ClientCRM from "@/pages/client/CRM";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -283,6 +284,7 @@ function Router() {
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
       <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
+      <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}
       <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>

@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -281,6 +281,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   return true;
                 }),
                 ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
+                ...((user as any)?.plan === "elite" ? [{ href: "/crm", label: "CRM", icon: Database }] : []),
               ].map(({ href, label, icon: Icon }) => {
                 const active = href === "/tracking"
                   ? (location === "/tracking" || location.startsWith("/tracking/content"))

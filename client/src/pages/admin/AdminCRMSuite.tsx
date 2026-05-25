@@ -61,6 +61,14 @@ function writeURL(state: { tab?: TabKey; contact?: string | null; list?: string 
 }
 
 export default function AdminCRMSuite() {
+  return (
+    <AdminLayout>
+      <CRMSuiteInner isAdmin={true} />
+    </AdminLayout>
+  );
+}
+
+export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
   // Subscribe to live updates
   useCrmRealtime();
 
@@ -114,7 +122,7 @@ export default function AdminCRMSuite() {
   };
 
   return (
-    <AdminLayout>
+    <>
       <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 20, minHeight: "100vh" }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
@@ -166,6 +174,7 @@ export default function AdminCRMSuite() {
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none;} }`}</style>
           {tab === "dashboard" && (
             <DashboardTab
+              isAdmin={isAdmin}
               onOpenContact={setOpenContactId}
               onShowDuplicates={() => setShowDuplicates(true)}
               onShowImport={() => setShowImport(true)}
@@ -186,7 +195,7 @@ export default function AdminCRMSuite() {
           )}
           {tab === "pipelines" && <PipelinesTab onOpenContact={setOpenContactId} />}
           {tab === "tasks" && <TasksTab onOpenContact={setOpenContactId} onNewTask={() => setShowNewTask(true)} />}
-          {tab === "settings" && <SettingsTab />}
+          {tab === "settings" && <SettingsTab isAdmin={isAdmin} />}
         </div>
       </div>
 
@@ -222,7 +231,7 @@ export default function AdminCRMSuite() {
           </button>
         </div>
       )}
-    </AdminLayout>
+    </>
   );
 }
 
@@ -230,12 +239,13 @@ export default function AdminCRMSuite() {
    DASHBOARD TAB
 ═════════════════════════════════════════════════════════ */
 function DashboardTab({
-  onOpenContact, onShowDuplicates, onShowImport, onExportCSV,
+  onOpenContact, onShowDuplicates, onShowImport, onExportCSV, isAdmin,
 }: {
   onOpenContact: (id: string) => void;
   onShowDuplicates: () => void;
   onShowImport: () => void;
   onExportCSV: () => void;
+  isAdmin: boolean;
 }) {
   const { data, isLoading, refetch, isFetching } = useQuery<{
     counts: { contacts: number; leads: number; customers: number; openOpportunities: number; lostOpportunities: number; openTasks: number; overdueTasks: number };
@@ -288,13 +298,17 @@ function DashboardTab({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={onShowImport} style={tbBtn(GOLD)}><Upload className="w-3.5 h-3.5" /> Import CSV</button>
           <button onClick={onExportCSV} style={tbBtn("rgba(255,255,255,0.7)")}><Download className="w-3.5 h-3.5" /> Export CSV</button>
-          <button onClick={() => importMut.mutate()} disabled={importMut.isPending} style={tbBtn(GOLD)}>
-            <Upload className="w-3.5 h-3.5" /> {importMut.isPending ? "Importing..." : "Pull platform leads"}
-          </button>
-          <button onClick={() => tier5Mut.mutate()} disabled={tier5Mut.isPending} style={tbBtn("#22c55e")}>
-            <CheckCircle2 className="w-3.5 h-3.5" /> {tier5Mut.isPending ? "Syncing..." : "Sync Tier 5 clients"}
-          </button>
-          <button onClick={onShowDuplicates} style={tbBtn("#f59e0b")}><CopyIcon className="w-3.5 h-3.5" /> Find duplicates</button>
+          {isAdmin && (
+            <>
+              <button onClick={() => importMut.mutate()} disabled={importMut.isPending} style={tbBtn(GOLD)}>
+                <Upload className="w-3.5 h-3.5" /> {importMut.isPending ? "Importing..." : "Pull platform leads"}
+              </button>
+              <button onClick={() => tier5Mut.mutate()} disabled={tier5Mut.isPending} style={tbBtn("#22c55e")}>
+                <CheckCircle2 className="w-3.5 h-3.5" /> {tier5Mut.isPending ? "Syncing..." : "Sync Tier 5 clients"}
+              </button>
+              <button onClick={onShowDuplicates} style={tbBtn("#f59e0b")}><CopyIcon className="w-3.5 h-3.5" /> Find duplicates</button>
+            </>
+          )}
           <button onClick={() => refetch()} disabled={isFetching} style={tbBtn("rgba(255,255,255,0.6)")}>
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </button>
@@ -963,7 +977,7 @@ function CreateTaskModal({ onClose }: { onClose: () => void }) {
 /* ═════════════════════════════════════════════════════════
    SETTINGS TAB
 ═════════════════════════════════════════════════════════ */
-function SettingsTab() {
+function SettingsTab({ isAdmin }: { isAdmin: boolean }) {
   const { data: pipelines = [] } = useQuery<CrmPipeline[]>({ queryKey: ["/api/crm-suite/pipelines"] });
   const { data: tags = [] } = useQuery<CrmTag[]>({ queryKey: ["/api/crm-suite/tags"] });
   const { toast } = useToast();
@@ -1046,7 +1060,7 @@ function SettingsTab() {
       </div>
 
       <style>{`@media(max-width:900px){ .bv-crm-set-grid{grid-template-columns:1fr !important;} }`}</style>
-      <ApiKeysPanel />
+      {isAdmin && <ApiKeysPanel />}
     </div>
   );
 }
