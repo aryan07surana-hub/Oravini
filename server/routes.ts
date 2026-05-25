@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -498,6 +498,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(data));
     }
+  }
+
+  // ── CRM real-time fanout ─────────────────────────────────────────────────────
+  // Every server-side mutation in /api/crm-suite/* emits an event. Mirror it to
+  // every connected admin socket so multiple operators see updates instantly.
+  {
+    const { onCrmEvent } = await import("./routes/crm-events");
+    onCrmEvent((evt) => {
+      const payload = JSON.stringify({ type: "crm_event", event: evt });
+      for (const [, ws] of clients) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(payload);
+      }
+    });
   }
 
   const getConfiguredAppBase = () => {
@@ -14496,6 +14509,19 @@ Return ONLY valid JSON in this exact format:
   registerWebinarCaptionRoutes(app, requireAuth);
   registerWebinarBackstageRoutes(app, requireAuth);
   registerWebinarAdvancedRoutes(app, requireAuth);
+
+  // ── CRM (GoHighLevel bridge) ──────────────────────────────────────────────
+  // Public lead-capture endpoint used by the Brandverse landing page.
+  // Configure with GHL_API_KEY (+ optional GHL_LOCATION_ID, GHL_PIPELINE_ID, GHL_STAGE_ID).
+  registerCrmRoutes(app);
+
+  // ── CRM Suite (native, GHL-style — Contacts · Pipelines · Activities · Tasks) ─
+  await bootstrapCrmSuite().catch(err => console.error("[crm-suite] bootstrap failed:", err));
+  registerCrmSuiteRoutes(app, requireAuth);
+
+  // ── CRM Public API (API key auth — landing pages POST contacts directly) ─────
+  await bootstrapCrmPublicApi().catch(err => console.error("[crm-public-api] bootstrap failed:", err));
+  registerCrmPublicApi(app, requireAdmin);
 
   return httpServer;
 }

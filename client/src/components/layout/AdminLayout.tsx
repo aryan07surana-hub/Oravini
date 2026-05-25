@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 const mainNavItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/clients", label: "Elite Members", icon: Users },
-  { href: "/admin/crm", label: "CRM", icon: Database },
+  { href: "/admin/crm-suite", label: "CRM", icon: Database },
   { href: "/admin/email-marketing", label: "Email Marketing", icon: Mail },
   { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
   { href: "/admin/feedback", label: "Feedback", icon: Star },

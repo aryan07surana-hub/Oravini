@@ -123,6 +123,7 @@ import AdminTracking from "@/pages/admin/Tracking";
 import AdminAIIdeas from "@/pages/admin/AdminAIIdeas";
 import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
+import AdminCRMSuite from "@/pages/admin/AdminCRMSuite";
 import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
 import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
 import AdminReferrals from "@/pages/admin/AdminReferrals";
@@ -305,7 +306,9 @@ function Router() {
       <Route path="/admin/video-editor">{() => <Guard component={AIVideoEditor} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/scheduling">{() => <Guard component={AdminScheduling} adminOnly />}</Route>
       <Route path="/admin/credits">{() => <Guard component={AdminCredits} adminOnly />}</Route>
-      <Route path="/admin/crm">{() => <Guard component={AdminCRM} adminOnly />}</Route>
+      <Route path="/admin/crm">{() => <Redirect to="/admin/crm-suite" />}</Route>
+      <Route path="/admin/crm-legacy">{() => <Guard component={AdminCRM} adminOnly />}</Route>
+      <Route path="/admin/crm-suite">{() => <Guard component={AdminCRMSuite} adminOnly />}</Route>
       <Route path="/admin/email-marketing">{() => <Guard component={AdminEmailMarketing} adminOnly />}</Route>
       <Route path="/admin/churn">{() => <Guard component={AdminChurnAnalysis} adminOnly />}</Route>
       <Route path="/admin/referrals">{() => <Guard component={AdminReferrals} adminOnly />}</Route>

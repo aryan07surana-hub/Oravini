@@ -2432,3 +2432,194 @@ export const webinarResources = pgTable("webinar_resources", {
 export const insertWebinarResourceSchema = createInsertSchema(webinarResources).omit({ id: true, createdAt: true, downloadCount: true });
 export type InsertWebinarResource = z.infer<typeof insertWebinarResourceSchema>;
 export type WebinarResource = typeof webinarResources.$inferSelect;
+
+/* ───────────────────────────────────────────────────────────
+   CRM SUITE — Contacts · Pipelines · Opportunities · Activities · Tasks · Tags
+─────────────────────────────────────────────────────────── */
+
+export const crmContactStatusEnum = pgEnum("crm_contact_status", ["lead", "prospect", "customer", "inactive"]);
+export const crmActivityTypeEnum = pgEnum("crm_activity_type", ["note", "email", "call", "sms", "meeting", "task", "stage_change", "tag", "system"]);
+export const crmTaskStatusEnum = pgEnum("crm_task_status", ["open", "done", "snoozed"]);
+export const crmOpportunityStatusEnum = pgEnum("crm_opportunity_status", ["open", "won", "lost", "abandoned"]);
+
+export const crmContacts = pgTable("crm_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  phone: text("phone"),
+  company: text("company"),
+  title: text("title"),
+  source: text("source").default("manual"), // landing | dm | webinar | manual | api | form
+  status: crmContactStatusEnum("status").notNull().default("lead"),
+  lifecycleStage: text("lifecycle_stage").default("subscriber"),
+  city: text("city"),
+  country: text("country"),
+  timezone: text("timezone"),
+  // Social profiles
+  instagram: text("instagram"),
+  youtube: text("youtube"),
+  linkedin: text("linkedin"),
+  twitter: text("twitter"),
+  website: text("website"),
+  // Lead scoring
+  score: integer("score").notNull().default(0),
+  // Free-form
+  tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  customFields: jsonb("custom_fields").$type<Record<string, any>>().notNull().default(sql`'{}'::jsonb`),
+  notes: text("notes"),
+  // Linkage to platform user, when applicable
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  // Engagement
+  lastContactedAt: timestamp("last_contacted_at"),
+  doNotContact: boolean("do_not_contact").notNull().default(false),
+  archivedAt: timestamp("archived_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertCrmContactSchema = createInsertSchema(crmContacts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCrmContact = z.infer<typeof insertCrmContactSchema>;
+export type CrmContact = typeof crmContacts.$inferSelect;
+
+export const crmPipelines = pgTable("crm_pipelines", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").default("#d4b461"),
+  isDefault: boolean("is_default").notNull().default(false),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCrmPipelineSchema = createInsertSchema(crmPipelines).omit({ id: true, createdAt: true });
+export type InsertCrmPipeline = z.infer<typeof insertCrmPipelineSchema>;
+export type CrmPipeline = typeof crmPipelines.$inferSelect;
+
+export const crmPipelineStages = pgTable("crm_pipeline_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pipelineId: varchar("pipeline_id").notNull().references(() => crmPipelines.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").default("#d4b461"),
+  position: integer("position").notNull().default(0),
+  // Probability of close at this stage (0-100), used for forecasting
+  probability: integer("probability").notNull().default(0),
+  // Mark as terminal stage
+  isWon: boolean("is_won").notNull().default(false),
+  isLost: boolean("is_lost").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCrmPipelineStageSchema = createInsertSchema(crmPipelineStages).omit({ id: true, createdAt: true });
+export type InsertCrmPipelineStage = z.infer<typeof insertCrmPipelineStageSchema>;
+export type CrmPipelineStage = typeof crmPipelineStages.$inferSelect;
+
+export const crmOpportunities = pgTable("crm_opportunities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pipelineId: varchar("pipeline_id").notNull().references(() => crmPipelines.id, { onDelete: "cascade" }),
+  stageId: varchar("stage_id").notNull().references(() => crmPipelineStages.id, { onDelete: "restrict" }),
+  contactId: varchar("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  // dollars * 100 (cents) to avoid float drift
+  valueCents: integer("value_cents").notNull().default(0),
+  currency: text("currency").notNull().default("USD"),
+  status: crmOpportunityStatusEnum("status").notNull().default("open"),
+  expectedCloseDate: timestamp("expected_close_date"),
+  closedAt: timestamp("closed_at"),
+  // free-form ordering inside a stage column for drag/drop
+  position: integer("position").notNull().default(0),
+  tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  customFields: jsonb("custom_fields").$type<Record<string, any>>().notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertCrmOpportunitySchema = createInsertSchema(crmOpportunities).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCrmOpportunity = z.infer<typeof insertCrmOpportunitySchema>;
+export type CrmOpportunity = typeof crmOpportunities.$inferSelect;
+
+export const crmActivities = pgTable("crm_activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").references(() => crmContacts.id, { onDelete: "cascade" }),
+  opportunityId: varchar("opportunity_id").references(() => crmOpportunities.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  type: crmActivityTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default(sql`'{}'::jsonb`),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCrmActivitySchema = createInsertSchema(crmActivities).omit({ id: true, createdAt: true });
+export type InsertCrmActivity = z.infer<typeof insertCrmActivitySchema>;
+export type CrmActivity = typeof crmActivities.$inferSelect;
+
+export const crmTasks = pgTable("crm_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  contactId: varchar("contact_id").references(() => crmContacts.id, { onDelete: "cascade" }),
+  opportunityId: varchar("opportunity_id").references(() => crmOpportunities.id, { onDelete: "cascade" }),
+  assigneeId: varchar("assignee_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: crmTaskStatusEnum("status").notNull().default("open"),
+  priority: text("priority").notNull().default("normal"), // low | normal | high | urgent
+  dueAt: timestamp("due_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertCrmTaskSchema = createInsertSchema(crmTasks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCrmTask = z.infer<typeof insertCrmTaskSchema>;
+export type CrmTask = typeof crmTasks.$inferSelect;
+
+export const crmTags = pgTable("crm_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  color: text("color").default("#d4b461"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCrmTagSchema = createInsertSchema(crmTags).omit({ id: true, createdAt: true });
+export type InsertCrmTag = z.infer<typeof insertCrmTagSchema>;
+export type CrmTag = typeof crmTags.$inferSelect;
+
+
+export const crmSmartLists = pgTable("crm_smart_lists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  // Filter spec — JSON object: { q, status, tag, source, scoreMin, scoreMax, archived, lastContactedDays, doNotContact }
+  filters: jsonb("filters").$type<Record<string, any>>().notNull().default(sql`'{}'::jsonb`),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  pinned: boolean("pinned").notNull().default(false),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCrmSmartListSchema = createInsertSchema(crmSmartLists).omit({ id: true, createdAt: true });
+export type InsertCrmSmartList = z.infer<typeof insertCrmSmartListSchema>;
+export type CrmSmartList = typeof crmSmartLists.$inferSelect;
+
+
+export const crmApiKeys = pgTable("crm_api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),                                  // display label
+  keyHash: text("key_hash").notNull().unique(),                  // sha256 of the secret
+  keyPrefix: text("key_prefix").notNull(),                       // first 12 chars, for ID display
+  // Scopes restrict what the key can do. e.g. ["contacts:write","opportunities:write","activities:write","tasks:write"]
+  scopes: jsonb("scopes").$type<string[]>().notNull().default(sql`'["contacts:write"]'::jsonb`),
+  // Auto-tag every contact created with this key (e.g. "brandverse-landing")
+  defaultTags: jsonb("default_tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  defaultSource: text("default_source"),                         // e.g. "brandverse-landing"
+  // CORS — comma-separated list of allowed origins, or "*" for any
+  allowedOrigins: text("allowed_origins").default("*"),
+  rateLimitPerMin: integer("rate_limit_per_min").notNull().default(60),
+  ownerId: varchar("owner_id").references(() => users.id, { onDelete: "set null" }),
+  // Telemetry
+  lastUsedAt: timestamp("last_used_at"),
+  lastUsedIp: text("last_used_ip"),
+  usageCount: integer("usage_count").notNull().default(0),
+  // Lifecycle
+  expiresAt: timestamp("expires_at"),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CrmApiKey = typeof crmApiKeys.$inferSelect;

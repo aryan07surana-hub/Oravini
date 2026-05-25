@@ -9,3 +9,6 @@ export { registerWebinarTemplateRoutes } from "./webinar-templates";
 export { registerWebinarCaptionRoutes } from "./webinar-captions";
 export { registerWebinarBackstageRoutes } from "./webinar-backstage";
 export { registerWebinarAdvancedRoutes } from "./webinar-advanced";
+export { registerCrmRoutes } from "./crm";
+export { registerCrmSuiteRoutes, bootstrapCrmSuite } from "./crm-suite";
+export { registerCrmPublicApi, bootstrapCrmPublicApi } from "./crm-public-api";
