@@ -405,7 +405,7 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
     res.setHeader("Access-Control-Max-Age", "86400");
     return res.status(204).end();
   };
-  app.options("/api/v1/crm/*", handlePreflight);
+  app.options("/api/v1/crm/*splat", handlePreflight);
 
   /* Public endpoints */
   app.post("/api/v1/crm/contacts", authenticate, requireScope("contacts:write"), async (req: AuthedReq, res) => {
