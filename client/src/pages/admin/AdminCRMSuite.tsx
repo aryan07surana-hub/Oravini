@@ -254,6 +254,18 @@ function DashboardTab({
     onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
   });
 
+  const tier5Mut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/crm-suite/sync-tier5"),
+    onSuccess: (r: any) => {
+      toast({
+        title: "Tier 5 synced",
+        description: `+${r.inserted} new · ↻${r.updated} updated${r.demoted ? ` · ${r.demoted} demoted` : ""}`,
+      });
+      queryClient.invalidateQueries();
+    },
+    onError: (e: any) => toast({ title: "Tier 5 sync failed", description: e.message, variant: "destructive" }),
+  });
+
   if (isLoading || !data) return <Loading />;
   const c = data.counts;
   const r = data.revenue;
@@ -278,6 +290,9 @@ function DashboardTab({
           <button onClick={onExportCSV} style={tbBtn("rgba(255,255,255,0.7)")}><Download className="w-3.5 h-3.5" /> Export CSV</button>
           <button onClick={() => importMut.mutate()} disabled={importMut.isPending} style={tbBtn(GOLD)}>
             <Upload className="w-3.5 h-3.5" /> {importMut.isPending ? "Importing..." : "Pull platform leads"}
+          </button>
+          <button onClick={() => tier5Mut.mutate()} disabled={tier5Mut.isPending} style={tbBtn("#22c55e")}>
+            <CheckCircle2 className="w-3.5 h-3.5" /> {tier5Mut.isPending ? "Syncing..." : "Sync Tier 5 clients"}
           </button>
           <button onClick={onShowDuplicates} style={tbBtn("#f59e0b")}><CopyIcon className="w-3.5 h-3.5" /> Find duplicates</button>
           <button onClick={() => refetch()} disabled={isFetching} style={tbBtn("rgba(255,255,255,0.6)")}>

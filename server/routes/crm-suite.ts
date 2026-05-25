@@ -17,10 +17,52 @@ const p = (param: string | string[] | undefined): string => {
 };
 
 /**
+ * Bootstrap state — used by the lazy-init guard so a partially-failed bootstrap
+ * gets retried before it can serve a 500 from a missing table.
+ */
+let __bootstrapped = false;
+let __bootstrapping: Promise<void> | null = null;
+
+async function ensureBootstrapped() {
+  if (__bootstrapped) return;
+  if (!__bootstrapping) __bootstrapping = doBootstrap().then(
+    () => { __bootstrapped = true; },
+    (err) => {
+      __bootstrapping = null;
+      console.error("[crm-suite] bootstrap retry failed:", err);
+      throw err;
+    },
+  );
+  await __bootstrapping;
+}
+
+/** Wrap individual handlers if ever needed; the prefix middleware already
+ *  ensures bootstrap, and the terminal error handler catches any throw, so
+ *  this is currently unused but kept for future surgical use. */
+function safe(handler: (req: Request, res: Response) => Promise<any>) {
+  return async (req: Request, res: Response, _next: any) => {
+    try {
+      await ensureBootstrapped();
+      await handler(req, res);
+    } catch (err: any) {
+      console.error(`[crm-suite] ${req.method} ${req.path} error:`, err?.message || err);
+      if (res.headersSent) return;
+      res.status(500).json({ ok: false, message: err?.message || "Server error", endpoint: req.path });
+    }
+  };
+}
+// Silence unused-warning in strict builds
+void safe;
+
+/**
  * Bootstrap CRM tables. Idempotent — safe to run on every boot.
  * Avoids the need for a manual `drizzle-kit push` for users.
  */
 export async function bootstrapCrmSuite() {
+  return ensureBootstrapped();
+}
+
+async function doBootstrap() {
   // Enums
   await pool.query(`DO $$ BEGIN
     CREATE TYPE crm_contact_status AS ENUM ('lead','prospect','customer','inactive');
@@ -216,10 +258,11 @@ export async function bootstrapCrmSuite() {
   if (smartCount[0].n === 0) {
     const lists: { name: string; description: string; filters: Record<string, any>; pinned: boolean; position: number }[] = [
       { name: "All contacts", description: "Everyone in the CRM", filters: {}, pinned: true, position: 0 },
-      { name: "Hot leads", description: "Score ≥ 50, status = lead", filters: { status: "lead", scoreMin: 50 }, pinned: true, position: 1 },
-      { name: "Customers", description: "Status = customer", filters: { status: "customer" }, pinned: true, position: 2 },
-      { name: "Stale (no contact 30d+)", description: "Need re-engagement", filters: { lastContactedDays: 30 }, pinned: false, position: 3 },
-      { name: "Tagged: hot-lead", description: "Tag-based list", filters: { tag: "hot-lead" }, pinned: false, position: 4 },
+      { name: "Tier 5 (Elite)", description: "All Tier 5 / Elite clients — auto-synced", filters: { tag: "tier-5" }, pinned: true, position: 1 },
+      { name: "Hot leads", description: "Score ≥ 50, status = lead", filters: { status: "lead", scoreMin: 50 }, pinned: true, position: 2 },
+      { name: "Customers", description: "Status = customer", filters: { status: "customer" }, pinned: true, position: 3 },
+      { name: "Stale (no contact 30d+)", description: "Need re-engagement", filters: { lastContactedDays: 30 }, pinned: false, position: 4 },
+      { name: "Tagged: hot-lead", description: "Tag-based list", filters: { tag: "hot-lead" }, pinned: false, position: 5 },
     ];
     for (const l of lists) {
       await pool.query(
@@ -227,7 +270,118 @@ export async function bootstrapCrmSuite() {
         [l.name, l.description, JSON.stringify(l.filters), l.pinned, l.position],
       );
     }
+  } else {
+    // Existing deployments: make sure the Tier 5 list exists.
+    const { rows: hasTier5 } = await pool.query(`SELECT id FROM crm_smart_lists WHERE name = 'Tier 5 (Elite)' LIMIT 1`);
+    if (hasTier5.length === 0) {
+      await pool.query(
+        `INSERT INTO crm_smart_lists (name, description, filters, pinned, position)
+         VALUES ('Tier 5 (Elite)', 'All Tier 5 / Elite clients — auto-synced', $1::jsonb, true, 1)`,
+        [JSON.stringify({ tag: "tier-5" })],
+      );
+    }
   }
+
+  // Auto-sync Tier 5 (elite) clients into the CRM as contacts on every boot.
+  // Idempotent: upsert by email, never destructive, only updates the tier-5 markers.
+  await syncTier5Clients().catch(err => console.error("[crm-suite] Tier 5 sync failed:", err));
+}
+
+/**
+ * One-shot sync of every elite-plan client into the CRM.
+ *  - inserts a contact for any elite user not already in the CRM
+ *  - tags every elite contact with "tier-5"
+ *  - marks status as "customer"
+ *  - links contact.userId so the contact and platform user are joined
+ *  - removes tier-5 tag from contacts whose user dropped off elite (no rows nuked)
+ */
+export async function syncTier5Clients(): Promise<{ inserted: number; updated: number; demoted: number }> {
+  const result = { inserted: 0, updated: 0, demoted: 0 };
+  // Make sure the tag exists in the global table
+  await pool.query(
+    `INSERT INTO crm_tags (name, color, description)
+     VALUES ('tier-5', '#d4b461', 'Auto-synced from elite-plan users')
+     ON CONFLICT (name) DO NOTHING`,
+  );
+
+  const { rows: elites } = await pool.query(
+    `SELECT id, email, name, phone, plan, program, next_call_date, created_at
+       FROM users
+      WHERE role = 'client' AND plan = 'elite' AND email IS NOT NULL`,
+  );
+
+  for (const u of elites) {
+    const [first, ...rest] = (u.name || "").split(" ");
+    const firstName = first || null;
+    const lastName  = rest.join(" ") || null;
+    const email = u.email.toLowerCase();
+    const customFields = {
+      plan: u.plan,
+      program: u.program,
+      nextCallDate: u.next_call_date,
+      platformUserId: u.id,
+    };
+    // Upsert by email
+    const { rows: existing } = await pool.query(
+      `SELECT id, tags, status FROM crm_contacts WHERE lower(email) = $1 AND deleted_at IS NULL LIMIT 1`,
+      [email],
+    );
+    if (existing.length === 0) {
+      await pool.query(
+        `INSERT INTO crm_contacts
+           (first_name, last_name, email, phone, status, source, user_id, tags, custom_fields, lifecycle_stage, score)
+         VALUES ($1,$2,$3,$4,'customer','tier-5-sync',$5,$6,$7,'customer',75)`,
+        [
+          firstName, lastName, u.email, u.phone || null, u.id,
+          JSON.stringify(["tier-5", "client"]),
+          JSON.stringify(customFields),
+        ],
+      );
+      result.inserted++;
+    } else {
+      const existingTags: string[] = Array.isArray(existing[0].tags) ? existing[0].tags : [];
+      const tags = Array.from(new Set([...existingTags, "tier-5", "client"]));
+      await pool.query(
+        `UPDATE crm_contacts SET
+            first_name    = COALESCE($1, first_name),
+            last_name     = COALESCE($2, last_name),
+            phone         = COALESCE($3, phone),
+            status        = 'customer',
+            user_id       = COALESCE(user_id, $4),
+            tags          = $5::jsonb,
+            custom_fields = COALESCE(custom_fields, '{}'::jsonb) || $6::jsonb,
+            updated_at    = now()
+          WHERE id = $7`,
+        [firstName, lastName, u.phone || null, u.id, JSON.stringify(tags), JSON.stringify(customFields), existing[0].id],
+      );
+      result.updated++;
+    }
+  }
+
+  // Demote: any contact tagged tier-5 but whose linked user is no longer elite.
+  // We don't delete — we just remove the tier-5 tag and log a system activity.
+  const { rows: stale } = await pool.query(
+    `SELECT c.id, c.user_id
+       FROM crm_contacts c
+       LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.tags ? 'tier-5'
+        AND (u.id IS NULL OR u.plan <> 'elite')
+        AND c.deleted_at IS NULL`,
+  );
+  for (const row of stale) {
+    await pool.query(
+      `UPDATE crm_contacts SET tags = COALESCE(tags, '[]'::jsonb) - 'tier-5', updated_at = now() WHERE id = $1`,
+      [row.id],
+    );
+    await pool.query(
+      `INSERT INTO crm_activities (contact_id, type, title, body)
+       VALUES ($1, 'system', 'No longer Tier 5', 'Plan downgraded from elite — tier-5 tag removed automatically.')`,
+      [row.id],
+    );
+    result.demoted++;
+  }
+
+  return result;
 }
 
 function logActivity(
@@ -253,6 +407,24 @@ function logActivity(
 }
 
 export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
+  /* ─────────────────────────────────────────────────────────
+     SAFETY NET — runs before every CRM route.
+     1. Make sure the schema is bootstrapped (lazy retry on first hit).
+     2. Catch anything thrown so a 500 never tears down the session
+        (the client treats route-handler crashes as 401 → forced logout).
+  ───────────────────────────────────────────────────────── */
+  app.use("/api/crm-suite", async (req: Request, res: Response, next: any) => {
+    try {
+      await ensureBootstrapped();
+      next();
+    } catch (err: any) {
+      console.error(`[crm-suite] bootstrap blocked ${req.method} ${req.path}:`, err?.message || err);
+      if (!res.headersSent) {
+        res.status(503).json({ ok: false, message: "CRM is initializing — try again in a moment." });
+      }
+    }
+  });
+
   /* ─────────────────────────────────────────────────────────
      PIPELINES
   ───────────────────────────────────────────────────────── */
@@ -1217,5 +1389,37 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
+  });
+
+  /* ─────────────────────────────────────────────────────────
+     TIER 5 — manual sync of all elite-plan clients into the CRM
+  ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/sync-tier5", requireAuth, async (_req, res) => {
+    try {
+      const result = await syncTier5Clients();
+      emitCrmEvent({ kind: "contact.updated", id: "tier-5-sync" });
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[crm-suite] /sync-tier5 failed:", err);
+      res.status(500).json({ ok: false, message: err?.message || "Tier 5 sync failed" });
+    }
+  });
+
+  /* ─────────────────────────────────────────────────────────
+     TERMINAL ERROR HANDLER
+     Catches anything any handler throws (or any call to next(err))
+     so the response is always a clean JSON 500 — never a connection
+     reset, never a hanging request. Without this, Express logs the
+     stack and the client sees "fetch failed" which our auth hook
+     interprets as a session loss.
+  ───────────────────────────────────────────────────────── */
+  app.use("/api/crm-suite", (err: any, req: Request, res: Response, _next: any) => {
+    console.error(`[crm-suite] uncaught in ${req.method} ${req.path}:`, err?.message || err);
+    if (res.headersSent) return;
+    res.status(500).json({
+      ok: false,
+      message: err?.message || "Server error in CRM",
+      endpoint: req.path,
+    });
   });
 }

@@ -396,6 +396,15 @@ async function upsertContact(req: AuthedReq, body: IncomingContact) {
 /* ─── Public API routes ─────────────────────────────────── */
 
 export function registerCrmPublicApi(app: Express, requireAdmin: any) {
+  /* SAFETY NET — admin endpoints under /api/crm-suite/api-keys can throw if the
+     api_keys table isn't present yet. Catch everything cleanly so a single bad
+     call never tears down the auth session on the client. */
+  app.use("/api/crm-suite/api-keys", (err: any, req: Request, res: Response, _next: any) => {
+    console.error(`[crm-public-api] uncaught in ${req.method} ${req.path}:`, err?.message || err);
+    if (res.headersSent) return;
+    res.status(500).json({ ok: false, message: err?.message || "Server error in API keys" });
+  });
+
   /* CORS preflight — accept everything; auth happens on the actual call. */
   const handlePreflight = (req: Request, res: Response) => {
     res.setHeader("Access-Control-Allow-Origin", req.header("origin") || "*");
