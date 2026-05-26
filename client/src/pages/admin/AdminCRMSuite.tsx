@@ -8,7 +8,7 @@ import {
   Plus, Search, Upload, Download, RefreshCw, CheckCircle2,
   TrendingUp, DollarSign, Target, AlertCircle, Tag as TagIcon,
   Bookmark, Star, MoreHorizontal, Trash2, Archive, Mail, Phone, X,
-  Copy as CopyIcon, ChevronRight,
+  Copy as CopyIcon, ChevronRight, Sparkles, Wand2, Bot, Lightbulb,
 } from "lucide-react";
 import {
   type CrmContact, type CrmTask, type CrmTag, type CrmPipeline, type CrmSmartList,
@@ -21,6 +21,7 @@ import { ImportCSVModal } from "./crm-suite/ImportCSVModal";
 import { DuplicatesPanel } from "./crm-suite/DuplicatesPanel";
 import { QuickPalette } from "./crm-suite/QuickPalette";
 import { ApiKeysPanel } from "./crm-suite/ApiKeysPanel";
+import { AIPipelineBuilder, AIQuickAddContact, AISuggestAction, AIEmailDrafter } from "./crm-suite/AIAssist";
 import { useCrmRealtime } from "./crm-suite/useCrmRealtime";
 import { downloadFile } from "./crm-suite/csv";
 
@@ -83,6 +84,12 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
   const [showNewContact, setShowNewContact] = useState(false);
   const [showNewTask, setShowNewTask] = useState(false);
   const [showNewDeal, setShowNewDeal] = useState(false);
+
+  // AI modals
+  const [showAIPipeline, setShowAIPipeline] = useState(false);
+  const [showAIQuickAdd, setShowAIQuickAdd] = useState(false);
+  const [aiSuggestForId, setAiSuggestForId] = useState<string | null>(null);
+  const [aiDraftEmailForId, setAiDraftEmailForId] = useState<string | null>(null);
 
   const [undo, setUndo] = useState<{ ids: string[]; label: string } | null>(null);
 
@@ -179,6 +186,8 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
               onShowDuplicates={() => setShowDuplicates(true)}
               onShowImport={() => setShowImport(true)}
               onExportCSV={handleExportCSV}
+              onAIQuickAdd={() => setShowAIQuickAdd(true)}
+              onAIPipeline={() => setShowAIPipeline(true)}
             />
           )}
           {tab === "contacts" && (
@@ -191,6 +200,7 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
               onShowDuplicates={() => setShowDuplicates(true)}
               onUndoSet={setUndo}
               onNewContact={() => setShowNewContact(true)}
+              onAIQuickAdd={() => setShowAIQuickAdd(true)}
             />
           )}
           {tab === "pipelines" && <PipelinesTab onOpenContact={setOpenContactId} />}
@@ -203,6 +213,10 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
       {openContactId && <ContactDrawer contactId={openContactId} onClose={() => setOpenContactId(null)} />}
       {showImport && <ImportCSVModal onClose={() => setShowImport(false)} />}
       {showDuplicates && <DuplicatesPanel onClose={() => setShowDuplicates(false)} onOpenContact={id => { setOpenContactId(id); setShowDuplicates(false); }} />}
+      {showAIPipeline && <AIPipelineBuilder onClose={() => setShowAIPipeline(false)} />}
+      {showAIQuickAdd && <AIQuickAddContact onClose={() => setShowAIQuickAdd(false)} />}
+      {aiSuggestForId && <AISuggestAction contactId={aiSuggestForId} onClose={() => setAiSuggestForId(null)} />}
+      {aiDraftEmailForId && <AIEmailDrafter contactId={aiDraftEmailForId} onClose={() => setAiDraftEmailForId(null)} />}
       {showPalette && (
         <QuickPalette
           onClose={() => setShowPalette(false)}
@@ -240,12 +254,15 @@ export function CRMSuiteInner({ isAdmin }: { isAdmin: boolean }) {
 ═════════════════════════════════════════════════════════ */
 function DashboardTab({
   onOpenContact, onShowDuplicates, onShowImport, onExportCSV, isAdmin,
+  onAIQuickAdd, onAIPipeline,
 }: {
   onOpenContact: (id: string) => void;
   onShowDuplicates: () => void;
   onShowImport: () => void;
   onExportCSV: () => void;
   isAdmin: boolean;
+  onAIQuickAdd: () => void;
+  onAIPipeline: () => void;
 }) {
   const { data, isLoading, refetch, isFetching } = useQuery<{
     counts: { contacts: number; leads: number; customers: number; openOpportunities: number; lostOpportunities: number; openTasks: number; overdueTasks: number };
@@ -298,6 +315,8 @@ function DashboardTab({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={onShowImport} style={tbBtn(GOLD)}><Upload className="w-3.5 h-3.5" /> Import CSV</button>
           <button onClick={onExportCSV} style={tbBtn("rgba(255,255,255,0.7)")}><Download className="w-3.5 h-3.5" /> Export CSV</button>
+          <button onClick={onAIQuickAdd} style={tbBtn("#a78bfa")}><Sparkles className="w-3.5 h-3.5" /> Quick-add with AI</button>
+          <button onClick={onAIPipeline} style={tbBtn("#a78bfa")}><Wand2 className="w-3.5 h-3.5" /> Build pipeline with AI</button>
           {isAdmin && (
             <>
               <button onClick={() => importMut.mutate()} disabled={importMut.isPending} style={tbBtn(GOLD)}>
@@ -400,7 +419,7 @@ function tbBtn(accent: string): React.CSSProperties {
 ═════════════════════════════════════════════════════════ */
 function ContactsTab({
   onOpenContact, activeListId, setActiveListId, onShowImport, onExportCSV,
-  onShowDuplicates, onUndoSet, onNewContact,
+  onShowDuplicates, onUndoSet, onNewContact, onAIQuickAdd,
 }: {
   onOpenContact: (id: string) => void;
   activeListId: string | null;
@@ -410,6 +429,7 @@ function ContactsTab({
   onShowDuplicates: () => void;
   onUndoSet: (u: { ids: string[]; label: string } | null) => void;
   onNewContact: () => void;
+  onAIQuickAdd: () => void;
 }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("");
@@ -511,6 +531,7 @@ function ContactsTab({
             {tags.map(t => <option key={t.id} value={t.name} style={{ background: "#0a0a0c" }}>{t.name}</option>)}
           </select>
           <button onClick={() => setShowSaveList(true)} style={tbBtn(GOLD)}><Bookmark className="w-3.5 h-3.5" /> Save view</button>
+          <button onClick={onAIQuickAdd} style={tbBtn("#a78bfa")}><Sparkles className="w-3.5 h-3.5" /> AI quick-add</button>
           <button onClick={onNewContact} style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", border: "none", borderRadius: 8, padding: "10px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
             <Plus className="w-3.5 h-3.5" /> New contact
           </button>
@@ -1060,7 +1081,8 @@ function SettingsTab({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       <style>{`@media(max-width:900px){ .bv-crm-set-grid{grid-template-columns:1fr !important;} }`}</style>
-      {isAdmin && <ApiKeysPanel />}
+      {/* API Keys panel — visible to admin AND Tier 5 clients (server scopes by owner). */}
+      <ApiKeysPanel />
     </div>
   );
 }

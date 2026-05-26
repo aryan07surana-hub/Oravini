@@ -395,7 +395,7 @@ async function upsertContact(req: AuthedReq, body: IncomingContact) {
 
 /* ─── Public API routes ─────────────────────────────────── */
 
-export function registerCrmPublicApi(app: Express, requireAdmin: any) {
+export function registerCrmPublicApi(app: Express, requireAdmin: any, requireAuth?: any) {
   /* SAFETY NET — admin endpoints under /api/crm-suite/api-keys can throw if the
      api_keys table isn't present yet. Catch everything cleanly so a single bad
      call never tears down the auth session on the client. */
@@ -404,6 +404,21 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
     if (res.headersSent) return;
     res.status(500).json({ ok: false, message: err?.message || "Server error in API keys" });
   });
+
+  /* Access — admin OR Tier 5 (elite) client can manage their own keys.
+     Sets req.crmScope.{ isAdmin, userId, canAccess } the same shape used in
+     crm-suite.ts so the rest of the code can scope by owner_id. */
+  function requireKeyAccess(req: Request, res: Response, next: any) {
+    const u = (req as any).user;
+    if (!u) return res.status(401).json({ ok: false, message: "Unauthorized" });
+    const isAdmin = u.role === "admin";
+    const isElite = u.role === "client" && u.plan === "elite";
+    if (!isAdmin && !isElite) {
+      return res.status(403).json({ ok: false, message: "API keys are available to admins and Tier 5 (Elite) clients only." });
+    }
+    (req as any).crmScope = { isAdmin, userId: u.id ?? null, canAccess: true };
+    next();
+  }
 
   /* CORS preflight — accept everything; auth happens on the actual call. */
   const handlePreflight = (req: Request, res: Response) => {
@@ -467,11 +482,14 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
     });
   });
 
-  /* ─── Admin-only key management UI endpoints ────────────── */
+  /* ─── Key management — owner-scoped (admin sees all, Tier 5 sees own) ── */
 
-  app.get("/api/crm-suite/api-keys", requireAdmin, async (_req, res) => {
+  app.get("/api/crm-suite/api-keys", requireKeyAccess, async (req, res) => {
     try {
-      const rows = await db.select().from(crmApiKeys).orderBy(desc(crmApiKeys.createdAt));
+      const scope = (req as any).crmScope;
+      const rows = scope.isAdmin
+        ? await db.select().from(crmApiKeys).orderBy(desc(crmApiKeys.createdAt))
+        : await db.select().from(crmApiKeys).where(eq(crmApiKeys.ownerId, scope.userId)).orderBy(desc(crmApiKeys.createdAt));
       // Never return the hash. Caller already has the prefix.
       const sanitized = rows.map(r => ({
         id: r.id, name: r.name, prefix: r.keyPrefix,
@@ -479,12 +497,13 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
         allowedOrigins: r.allowedOrigins, rateLimitPerMin: r.rateLimitPerMin,
         usageCount: r.usageCount, lastUsedAt: r.lastUsedAt, lastUsedIp: r.lastUsedIp,
         revokedAt: r.revokedAt, expiresAt: r.expiresAt, createdAt: r.createdAt,
+        ownerId: r.ownerId,
       }));
       res.json(sanitized);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/crm-suite/api-keys", requireAdmin, async (req, res) => {
+  app.post("/api/crm-suite/api-keys", requireKeyAccess, async (req, res) => {
     try {
       const { name, scopes, defaultTags, defaultSource, allowedOrigins, rateLimitPerMin, expiresAt } = req.body as {
         name?: string; scopes?: string[]; defaultTags?: string[]; defaultSource?: string | null;
@@ -495,7 +514,7 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
         ? scopes.filter(s => /^(contacts|opportunities|activities|tasks):(read|write)$/.test(s))
         : ["contacts:write"];
       const { secret, hash, prefix } = generateKey();
-      const userId = (req.user as any)?.id ?? null;
+      const userId = (req as any).crmScope?.userId ?? null;
 
       const ins = await pool.query(
         `INSERT INTO crm_api_keys (name, key_hash, key_prefix, scopes, default_tags, default_source, allowed_origins, rate_limit_per_min, owner_id, expires_at)
@@ -523,9 +542,21 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
     }
   });
 
-  app.patch("/api/crm-suite/api-keys/:id", requireAdmin, async (req, res) => {
+  // Helper — refuse if the caller isn't admin and doesn't own the key.
+  async function assertOwnsOrAdmin(req: Request, keyId: string): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    const scope = (req as any).crmScope;
+    if (scope?.isAdmin) return { ok: true };
+    const r = await pool.query(`SELECT owner_id FROM crm_api_keys WHERE id = $1`, [keyId]);
+    if (r.rows.length === 0) return { ok: false, status: 404, message: "Key not found" };
+    if (r.rows[0].owner_id !== scope.userId) return { ok: false, status: 403, message: "Not your key." };
+    return { ok: true };
+  }
+
+  app.patch("/api/crm-suite/api-keys/:id", requireKeyAccess, async (req, res) => {
     try {
       const id = req.params.id as string;
+      const owns = await assertOwnsOrAdmin(req, id);
+      if (!owns.ok) return res.status(owns.status).json({ message: owns.message });
       const allowed = ["name", "scopes", "defaultTags", "defaultSource", "allowedOrigins", "rateLimitPerMin", "expiresAt"];
       const sets: string[] = [];
       const vals: any[] = [];
@@ -552,15 +583,19 @@ export function registerCrmPublicApi(app: Express, requireAdmin: any) {
     }
   });
 
-  app.post("/api/crm-suite/api-keys/:id/revoke", requireAdmin, async (req, res) => {
+  app.post("/api/crm-suite/api-keys/:id/revoke", requireKeyAccess, async (req, res) => {
     try {
+      const owns = await assertOwnsOrAdmin(req, req.params.id);
+      if (!owns.ok) return res.status(owns.status).json({ message: owns.message });
       await pool.query(`UPDATE crm_api_keys SET revoked_at = now() WHERE id = $1`, [req.params.id]);
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/crm-suite/api-keys/:id", requireAdmin, async (req, res) => {
+  app.delete("/api/crm-suite/api-keys/:id", requireKeyAccess, async (req, res) => {
     try {
+      const owns = await assertOwnsOrAdmin(req, req.params.id);
+      if (!owns.ok) return res.status(owns.status).json({ message: owns.message });
       await pool.query(`DELETE FROM crm_api_keys WHERE id = $1`, [req.params.id]);
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }

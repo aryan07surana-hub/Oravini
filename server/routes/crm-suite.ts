@@ -1478,6 +1478,330 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   });
 
   /* ─────────────────────────────────────────────────────────
+     AI PIPELINE BUILDER — describe what you sell, get a tailored
+     pipeline with stages, names, colors, and probabilities.
+     Powered by Groq (llama-3.1-70b). Falls back to a sensible default
+     pipeline if the AI is unavailable.
+  ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/ai/build-pipeline", requireCrmAccess, async (req, res) => {
+    try {
+      const { description, name } = req.body as { description?: string; name?: string };
+      if (!description?.trim()) return res.status(400).json({ message: "description required" });
+
+      const systemPrompt = `You are a CRM consultant. The user describes their business / sales process. You output a JSON object describing the perfect sales pipeline for them.
+Schema: {
+  "name": string (short name, e.g. "Coaching Sales Pipeline"),
+  "description": string (1 sentence about what this pipeline tracks),
+  "stages": [
+    {
+      "name": string (3-4 words max),
+      "color": string (hex color like "#60a5fa"),
+      "probability": number (0-100, % chance of closing at this stage),
+      "isWon": boolean (true ONLY for the final won stage),
+      "isLost": boolean (true ONLY for the final lost stage)
+    }
+  ]
+}
+Rules:
+- 5-9 stages including exactly one "isWon" and one "isLost" stage at the end.
+- Probabilities increase from 5 to 100 across the open stages, then 100 for won, 0 for lost.
+- Use diverse hex colors: blues, purples, ambers, oranges for open stages; green for won, red for lost.
+- Tailor stage names to the user's specific business — don't use generic "Lead/Contacted/Qualified" if the user describes a real-estate or coaching or SaaS-onboarding flow.
+- Output ONLY the JSON, no markdown fences, no prose.`;
+
+      const userPrompt = `Business / sales process: ${description.trim()}\n${name ? `Pipeline name: ${name}` : ""}`;
+
+      const apiKey = process.env.GROQ_API_KEY;
+      let parsed: any = null;
+      if (apiKey) {
+        try {
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "llama-3.1-70b-versatile",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 1200,
+              response_format: { type: "json_object" },
+            }),
+          });
+          if (groqRes.ok) {
+            const j = await groqRes.json();
+            const text = j.choices?.[0]?.message?.content;
+            if (text) parsed = JSON.parse(text);
+          }
+        } catch (err: any) {
+          console.warn("[crm-suite] AI pipeline build failed, falling back:", err?.message);
+        }
+      }
+
+      // Fallback: a sensible default
+      if (!parsed || !Array.isArray(parsed.stages) || parsed.stages.length < 3) {
+        parsed = {
+          name: name || "Sales Pipeline",
+          description: description.trim().slice(0, 240),
+          stages: [
+            { name: "New Lead",    color: "#94a3b8", probability: 5,   isWon: false, isLost: false },
+            { name: "Discovery",   color: "#60a5fa", probability: 20,  isWon: false, isLost: false },
+            { name: "Qualified",   color: "#a78bfa", probability: 40,  isWon: false, isLost: false },
+            { name: "Proposal",    color: "#f59e0b", probability: 65,  isWon: false, isLost: false },
+            { name: "Negotiation", color: "#f97316", probability: 85,  isWon: false, isLost: false },
+            { name: "Won",         color: "#22c55e", probability: 100, isWon: true,  isLost: false },
+            { name: "Lost",        color: "#ef4444", probability: 0,   isWon: false, isLost: true  },
+          ],
+        };
+      }
+
+      // Sanity-clamp probabilities and force exactly one won + one lost
+      const stages = parsed.stages.slice(0, 12).map((s: any, i: number) => ({
+        name: String(s.name || `Stage ${i + 1}`).slice(0, 40),
+        color: typeof s.color === "string" && /^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : "#d4b461",
+        probability: Math.max(0, Math.min(100, parseInt(s.probability, 10) || 0)),
+        isWon: !!s.isWon,
+        isLost: !!s.isLost,
+        position: i,
+      }));
+      // Ensure at least one won + one lost — if AI forgot, append them
+      if (!stages.some((s: any) => s.isWon))  stages.push({ name: "Won",  color: "#22c55e", probability: 100, isWon: true,  isLost: false, position: stages.length });
+      if (!stages.some((s: any) => s.isLost)) stages.push({ name: "Lost", color: "#ef4444", probability: 0,   isWon: false, isLost: true,  position: stages.length });
+
+      // Insert pipeline + stages atomically (best-effort transaction)
+      const ownerId = (req as any).crmScope?.userId ?? null;
+      const pipelineRes = await pool.query(
+        `INSERT INTO crm_pipelines (name, description, color, is_default, position)
+         VALUES ($1, $2, '#d4b461', false, COALESCE((SELECT MAX(position) + 1 FROM crm_pipelines), 0))
+         RETURNING id, name, description`,
+        [parsed.name || "AI Pipeline", parsed.description || null],
+      );
+      const pipelineId = pipelineRes.rows[0].id;
+
+      for (const s of stages) {
+        await pool.query(
+          `INSERT INTO crm_pipeline_stages (pipeline_id, name, color, position, probability, is_won, is_lost)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [pipelineId, s.name, s.color, s.position, s.probability, s.isWon, s.isLost],
+        );
+      }
+
+      emitCrmEvent({ kind: "pipeline.created", id: pipelineId });
+      res.status(201).json({
+        ok: true,
+        aiUsed: !!apiKey,
+        pipeline: pipelineRes.rows[0],
+        stages,
+      });
+    } catch (err: any) {
+      console.error("[crm-suite] /ai/build-pipeline failed:", err);
+      res.status(500).json({ ok: false, message: err?.message || "AI pipeline build failed" });
+    }
+  });
+
+  /* ─────────────────────────────────────────────────────────
+     AI CONTACT ENRICHER — describe a lead in one sentence,
+     get back firstName/lastName/company/title/tags/notes/score.
+     Useful for "I just got a DM from this person" quick-add.
+  ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/ai/enrich-contact", requireCrmAccess, async (req, res) => {
+    try {
+      const { description } = req.body as { description?: string };
+      if (!description?.trim()) return res.status(400).json({ message: "description required" });
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
+
+      const systemPrompt = `You are a CRM data assistant. Extract structured contact details from a free-form description and infer reasonable defaults.
+Output ONLY this JSON shape:
+{
+  "firstName": string|null,
+  "lastName": string|null,
+  "email": string|null,
+  "phone": string|null,
+  "company": string|null,
+  "title": string|null,
+  "instagram": string|null,
+  "status": "lead"|"prospect"|"customer"|"inactive",
+  "score": number (0-100, your guess based on intent signals in the text),
+  "tags": string[] (1-4 tags, all lowercase, hyphenated),
+  "notes": string (a 1-2 sentence summary you'd put on the contact)
+}`;
+
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.1-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: description.trim() },
+          ],
+          temperature: 0.5,
+          max_tokens: 500,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!groqRes.ok) {
+        return res.status(502).json({ ok: false, message: "AI unavailable" });
+      }
+      const j = await groqRes.json();
+      const text = j.choices?.[0]?.message?.content;
+      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      const parsed = JSON.parse(text);
+      res.json({ ok: true, contact: parsed });
+    } catch (err: any) {
+      console.error("[crm-suite] /ai/enrich-contact failed:", err);
+      res.status(500).json({ ok: false, message: err?.message || "AI enrichment failed" });
+    }
+  });
+
+  /* ─────────────────────────────────────────────────────────
+     AI NEXT-BEST-ACTION — given a contact + their activity,
+     suggest the next move (email, call, wait X days, propose, etc.)
+     plus an updated lead score.
+  ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/ai/suggest-action/:contactId", requireCrmAccess, async (req, res) => {
+    try {
+      const id = p(req.params.contactId);
+      const [contact] = await db.select().from(crmContacts).where(eq(crmContacts.id, id));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+
+      // Scope: Tier 5 clients only access their own contacts
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
+        return res.status(403).json({ message: "Not your contact." });
+      }
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
+
+      const recentActs = await db.select().from(crmActivities)
+        .where(eq(crmActivities.contactId, id))
+        .orderBy(desc(crmActivities.occurredAt))
+        .limit(15);
+      const opps = await db.select().from(crmOpportunities)
+        .where(eq(crmOpportunities.contactId, id));
+
+      const ctxBlock = JSON.stringify({
+        contact: {
+          name: [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.email,
+          email: contact.email, phone: contact.phone,
+          company: contact.company, title: contact.title,
+          status: contact.status, score: contact.score, tags: contact.tags,
+          lastContactedAt: contact.lastContactedAt, doNotContact: contact.doNotContact,
+        },
+        recentActivities: recentActs.map(a => ({ type: a.type, title: a.title, body: a.body?.slice(0, 200), at: a.occurredAt })),
+        opportunities: opps.map(o => ({ title: o.title, valueCents: o.valueCents, status: o.status })),
+      });
+
+      const systemPrompt = `You are a CRM coach. Given a contact + their activity history + open opportunities, recommend the single most-valuable next action and a tactical reason. Output ONLY this JSON:
+{
+  "action": "email" | "call" | "sms" | "meeting" | "wait" | "propose" | "close-won" | "close-lost",
+  "title": string (short — what to do, e.g. "Send proposal follow-up"),
+  "body": string (2-3 sentences — why this action and what to say/ask),
+  "scoreSuggestion": number (0-100, your suggested updated score),
+  "tagsToAdd": string[] (0-3 lowercase hyphenated tags to add),
+  "waitDays": number (only set when action='wait', otherwise 0)
+}`;
+
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.1-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: ctxBlock },
+          ],
+          temperature: 0.5,
+          max_tokens: 500,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!groqRes.ok) return res.status(502).json({ ok: false, message: "AI unavailable" });
+      const j = await groqRes.json();
+      const text = j.choices?.[0]?.message?.content;
+      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      res.json({ ok: true, suggestion: JSON.parse(text) });
+    } catch (err: any) {
+      console.error("[crm-suite] /ai/suggest-action failed:", err);
+      res.status(500).json({ ok: false, message: err?.message || "AI suggestion failed" });
+    }
+  });
+
+  /* ─────────────────────────────────────────────────────────
+     AI EMAIL DRAFTER — generate a tailored follow-up email
+     for a contact in their voice.
+  ───────────────────────────────────────────────────────── */
+  app.post("/api/crm-suite/ai/draft-email/:contactId", requireCrmAccess, async (req, res) => {
+    try {
+      const id = p(req.params.contactId);
+      const { goal, tone, length } = req.body as { goal?: string; tone?: string; length?: "short" | "medium" | "long" };
+      const [contact] = await db.select().from(crmContacts).where(eq(crmContacts.id, id));
+      if (!contact) return res.status(404).json({ message: "Contact not found" });
+      const scope = (req as any).crmScope;
+      if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
+        return res.status(403).json({ message: "Not your contact." });
+      }
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
+
+      const recentActs = await db.select().from(crmActivities)
+        .where(eq(crmActivities.contactId, id))
+        .orderBy(desc(crmActivities.occurredAt))
+        .limit(8);
+
+      const lengthHint = length === "short" ? "3-5 sentences" : length === "long" ? "8-12 sentences" : "5-7 sentences";
+      const systemPrompt = `You are a top-performing salesperson writing a personal outreach email.
+Output ONLY this JSON: { "subject": string, "body": string }
+Rules:
+- Length: ${lengthHint}
+- Tone: ${tone || "warm, direct, no fluff"}
+- Reference specific things from their history when relevant
+- One clear ask at the end (a question or a single-action CTA)
+- No "I hope this email finds you well", no "Just checking in", no LinkedIn-pitch corp speak
+- Sign off with "—" and a placeholder name [Your name]`;
+
+      const userBlock = JSON.stringify({
+        goal: goal || "Move them forward in our sales process",
+        contact: {
+          name: [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "there",
+          firstName: contact.firstName,
+          company: contact.company, title: contact.title,
+          status: contact.status, score: contact.score, tags: contact.tags,
+          notes: contact.notes,
+        },
+        recentActivities: recentActs.map(a => ({ type: a.type, title: a.title, body: a.body?.slice(0, 200) })),
+      });
+
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.1-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userBlock },
+          ],
+          temperature: 0.8,
+          max_tokens: 700,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!groqRes.ok) return res.status(502).json({ ok: false, message: "AI unavailable" });
+      const j = await groqRes.json();
+      const text = j.choices?.[0]?.message?.content;
+      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      res.json({ ok: true, draft: JSON.parse(text) });
+    } catch (err: any) {
+      console.error("[crm-suite] /ai/draft-email failed:", err);
+      res.status(500).json({ ok: false, message: err?.message || "AI email draft failed" });
+    }
+  });
+
+  /* ─────────────────────────────────────────────────────────
      TIER 5 — manual sync of all elite-plan clients into the CRM
   ───────────────────────────────────────────────────────── */
   app.post("/api/crm-suite/sync-tier5", requireCrmAccess, async (req, res) => {

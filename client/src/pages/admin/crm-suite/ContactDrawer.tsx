@@ -5,7 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   X, Mail, Phone, Building2, MapPin, Tag, Save, Trash2,
   Instagram, Youtube, Linkedin, Globe, MessageSquare, PhoneCall, StickyNote, Send,
+  Lightbulb, Wand2,
 } from "lucide-react";
+import { AISuggestAction, AIEmailDrafter } from "./AIAssist";
 import {
   type CrmContact, type CrmActivity, type CrmOpportunity, type CrmTask,
   STATUS_COLORS, STATUS_LABEL, ACTIVITY_ICON, fullName, initials, formatMoney, timeAgo,
@@ -28,6 +30,8 @@ export function ContactDrawer({ contactId, onClose }: { contactId: string; onClo
   const [edit, setEdit] = useState<Partial<CrmContact>>({});
   const [tab, setTab] = useState<"timeline" | "details" | "deals" | "tasks">("timeline");
   const [noteText, setNoteText] = useState("");
+  const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
+  const [aiEmailOpen, setAiEmailOpen] = useState(false);
   const [activityType, setActivityType] = useState<"note" | "email" | "call" | "sms" | "meeting">("note");
 
   useEffect(() => { setEdit({}); }, [contactId]);
@@ -110,6 +114,20 @@ export function ContactDrawer({ contactId, onClose }: { contactId: string; onClo
             )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setAiSuggestOpen(true)}
+              title="AI: suggest the next best action"
+              style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", borderRadius: 8, padding: "8px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <Lightbulb className="w-3.5 h-3.5" /> Suggest
+            </button>
+            <button
+              onClick={() => setAiEmailOpen(true)}
+              title="AI: draft an email"
+              style={{ background: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.3)", color: "#a78bfa", borderRadius: 8, padding: "8px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <Wand2 className="w-3.5 h-3.5" /> Draft
+            </button>
             {dirty && (
               <button
                 onClick={() => saveMut.mutate()}
@@ -212,6 +230,8 @@ export function ContactDrawer({ contactId, onClose }: { contactId: string; onClo
           </div>
         )}
       </aside>
+      {aiSuggestOpen && <AISuggestAction contactId={contactId} onClose={() => setAiSuggestOpen(false)} />}
+      {aiEmailOpen && <AIEmailDrafter contactId={contactId} onClose={() => setAiEmailOpen(false)} />}
     </div>
   );
 }
