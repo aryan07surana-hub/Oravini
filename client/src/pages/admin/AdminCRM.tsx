@@ -137,6 +137,11 @@ export default function AdminCRM() {
     elite:   clients.filter(c => c.plan === "elite").length,
   };
 
+  const mrr =
+    clientsByPlan.starter * 29 +
+    clientsByPlan.growth  * 59 +
+    clientsByPlan.pro     * 79;
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -168,7 +173,14 @@ export default function AdminCRM() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-3">
+          <Card className="border border-card-border lg:col-span-2">
+            <CardContent className="p-4">
+              <p className="text-xs text-zinc-500 mb-1">Total Clients</p>
+              <p className="text-2xl font-bold text-white">{clients.length}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">all tiers</p>
+            </CardContent>
+          </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
               <p className="text-xs text-zinc-500 mb-1">Leads</p>
@@ -178,35 +190,42 @@ export default function AdminCRM() {
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Tier 1</p>
-              <p className="text-2xl font-bold text-zinc-400">{clientsByPlan.free}</p>
-              <p className="text-xs text-zinc-600 mt-0.5">Free</p>
+              <p className="text-xs text-zinc-500 mb-1">Conversion</p>
+              <p className="text-2xl font-bold text-emerald-400">{conversionRate}%</p>
+              <p className="text-xs text-zinc-600 mt-0.5">lead→client</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-card-border lg:col-span-2">
+            <CardContent className="p-4">
+              <p className="text-xs text-zinc-500 mb-1">Est. MRR</p>
+              <p className="text-2xl font-bold text-[#d4b461]">${mrr.toLocaleString()}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">excl. Elite</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Tier 2</p>
+              <p className="text-xs text-zinc-500 mb-1">T2</p>
               <p className="text-2xl font-bold text-blue-400">{clientsByPlan.starter}</p>
               <p className="text-xs text-zinc-600 mt-0.5">$29/mo</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Tier 3</p>
+              <p className="text-xs text-zinc-500 mb-1">T3</p>
               <p className="text-2xl font-bold text-violet-400">{clientsByPlan.growth}</p>
               <p className="text-xs text-zinc-600 mt-0.5">$59/mo</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Tier 4</p>
+              <p className="text-xs text-zinc-500 mb-1">T4</p>
               <p className="text-2xl font-bold text-emerald-400">{clientsByPlan.pro}</p>
               <p className="text-xs text-zinc-600 mt-0.5">$79/mo</p>
             </CardContent>
           </Card>
           <Card className="border border-card-border">
             <CardContent className="p-4">
-              <p className="text-xs text-zinc-500 mb-1">Tier 5</p>
+              <p className="text-xs text-zinc-500 mb-1">T5</p>
               <p className="text-2xl font-bold text-[#d4b461]">{clientsByPlan.elite}</p>
               <p className="text-xs text-zinc-600 mt-0.5">Elite ∞</p>
             </CardContent>

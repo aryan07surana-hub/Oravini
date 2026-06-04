@@ -7650,16 +7650,24 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
   // GET /api/admin/crm — admin: full CRM data
   app.get("/api/admin/crm", requireAdmin, async (_req: Request, res: Response) => {
     try {
-      const [clients, leads, creditBals] = await Promise.all([
+      const [clients, leads, creditBals, surveys] = await Promise.all([
         storage.getAllClients(),
         storage.getAllLandingLeads(),
         storage.getAllCreditBalances(),
+        storage.getAllOnboardingSurveys(),
       ]);
       const creditMap = Object.fromEntries(creditBals.map((b: any) => [b.userId, b]));
-      const clientsWithCredits = clients.map((c: any) => ({
-        ...c,
-        credits: creditMap[c.id] || null,
-      }));
+      const surveyMap = Object.fromEntries(surveys.map((s: any) => [s.user_id, s]));
+      const clientsWithCredits = clients.map((c: any) => {
+        const survey = surveyMap[c.id];
+        return {
+          ...c,
+          credits: creditMap[c.id] || null,
+          fields: survey?.fields || [],
+          platforms: survey?.platforms || [],
+          primaryGoal: survey?.primary_goal || null,
+        };
+      });
       return res.json({ clients: clientsWithCredits, leads });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
