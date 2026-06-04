@@ -416,18 +416,8 @@ export function validatePasswordStrength(password: string): {
   if (password.length > 128) {
     errors.push("Password must not exceed 128 characters");
   }
-  if (!/[A-Z]/.test(password)) {
-    errors.push("Password must contain at least one uppercase letter");
-  }
-  if (!/[a-z]/.test(password)) {
-    errors.push("Password must contain at least one lowercase letter");
-  }
-  if (!/[0-9]/.test(password)) {
-    errors.push("Password must contain at least one number");
-  }
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    errors.push("Password must contain at least one special character");
-  }
+  // Optional: Add password strength recommendations (but don't enforce)
+  // Users can choose simple passwords if they want
 
   return { valid: errors.length === 0, errors };
 }
