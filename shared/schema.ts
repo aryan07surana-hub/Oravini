@@ -2776,3 +2776,30 @@ export const competitorAlerts = pgTable("competitor_alerts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type CompetitorAlert = typeof competitorAlerts.$inferSelect;
+
+export const aiFeedback = pgTable("ai_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  responseId: text("response_id"),
+  responseType: text("response_type"),
+  rating: boolean("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertAiFeedbackSchema = createInsertSchema(aiFeedback).omit({ id: true, createdAt: true });
+export type InsertAiFeedback = z.infer<typeof insertAiFeedbackSchema>;
+export type AiFeedback = typeof aiFeedback.$inferSelect;
+
+
+export const aiMemory = pgTable("ai_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  value: jsonb("value").$type<any>().notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertAiMemorySchema = createInsertSchema(aiMemory).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiMemory = z.infer<typeof insertAiMemorySchema>;
+export type AiMemory = typeof aiMemory.$inferSelect;
