@@ -873,7 +873,7 @@ const CommunityPulse = memo(function CommunityPulse() {
       </div>
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    WORLD CLOCK
