@@ -43,6 +43,9 @@ app.use(
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(cookieParser());
 
+// Required for Render/any reverse-proxy: makes req.secure, req.ip, req.protocol correct
+app.set("trust proxy", 1);
+
 const PgSession = connectPgSimple(session);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 

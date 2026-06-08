@@ -25,7 +25,7 @@ import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useTimezone } from "@/hooks/use-timezone";
 
 const GOLD = "#d4b461";
@@ -1883,48 +1883,64 @@ export default function ClientDashboard() {
     queryKey: ["/api/user/onboarding-status"],
     enabled: !!user?.id,
     staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
   const showOnboarding = false; // survey is handled by /onboarding page — never show modal again
 
   const { data: prog, isLoading: progLoading } = useQuery<any>({
     queryKey: [`/api/progress/${user?.id}`],
     enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: projectTracker } = useQuery<any>({
     queryKey: [`/api/project-tracker/${user?.id}`],
     enabled: !!user?.id && (user as any)?.plan === "elite",
+    staleTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: tasks, isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: [`/api/tasks/${user?.id}`],
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: notifications, isLoading: notifsLoading } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
+    staleTime: 3 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: contentPosts } = useQuery<any[]>({
     queryKey: [`/api/content/${user?.id}`],
     enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: goal, isLoading: goalLoading } = useQuery<any>({
     queryKey: [`/api/income-goal/${user?.id}`],
     enabled: !!user?.id,
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: activity } = useQuery<any>({
     queryKey: ["/api/activity/summary"],
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: referralStats } = useQuery<any>({
     queryKey: ["/api/referral/my-stats"],
     enabled: !!user?.id,
     staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const markAllRead = useMutation({
@@ -1950,12 +1966,12 @@ export default function ClientDashboard() {
     },
   });
 
-  const avgProgress = prog ? Math.round((prog.offerCreation + prog.funnelProgress + prog.contentProgress + prog.monetizationProgress) / 4) : 0;
-  const completedTasks = (tasks || []).filter((t: any) => t.completed).length;
-  const pendingTasks = (tasks || []).filter((t: any) => !t.pending).length;
-  const unreadNotifs = (notifications || []).filter((n: any) => !n.read);
-  const totalContentViews = (contentPosts || []).reduce((s: number, p: any) => s + p.views, 0);
-  const totalFollowers = (contentPosts || []).reduce((s: number, p: any) => s + p.followersGained + p.subscribersGained, 0);
+  const avgProgress = useMemo(() => prog ? Math.round((prog.offerCreation + prog.funnelProgress + prog.contentProgress + prog.monetizationProgress) / 4) : 0, [prog]);
+  const completedTasks = useMemo(() => (tasks || []).filter((t: any) => t.completed).length, [tasks]);
+  const pendingTasks = useMemo(() => (tasks || []).filter((t: any) => !t.pending).length, [tasks]);
+  const unreadNotifs = useMemo(() => (notifications || []).filter((n: any) => !n.read), [notifications]);
+  const totalContentViews = useMemo(() => (contentPosts || []).reduce((s: number, p: any) => s + p.views, 0), [contentPosts]);
+  const totalFollowers = useMemo(() => (contentPosts || []).reduce((s: number, p: any) => s + p.followersGained + p.subscribersGained, 0), [contentPosts]);
 
   const isElite = (user as any)?.plan === "elite";
   const dailyQuote = getDailyQuote();

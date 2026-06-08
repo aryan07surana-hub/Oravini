@@ -42,23 +42,26 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
 
   const activeClientId = isAdmin ? (selectedClientId === "all" ? "" : selectedClientId) : (user?.id || "");
 
-  const { data: _leads } = useQuery<any[]>({
+  const { data: leads = [], isLoading: leadsLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/leads", activeClientId],
     queryFn: () => fetch(`/api/dm/leads${activeClientId ? `?clientId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
-  const leads = _leads ?? [];
 
-  const { data: _triggers } = useQuery<any[]>({
+  const { data: triggers = [], isLoading: triggersLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/triggers", activeClientId],
     queryFn: () => fetch(`/api/dm/triggers${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
-  const triggers = _triggers ?? [];
 
-  const { data: _sequences } = useQuery<any[]>({
+  const { data: sequences = [], isLoading: sequencesLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/sequences", activeClientId],
     queryFn: () => fetch(`/api/dm/sequences${activeClientId ? `?userId=${activeClientId}` : ""}`).then(r => r.ok ? r.json() : []),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
-  const sequences = _sequences ?? [];
 
   const stats = {
     totalLeads: leads.length,
@@ -296,7 +299,17 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
               </Button>
             </div>
 
-            {triggers.length === 0 ? (
+            {triggersLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <Skeleton className="h-16 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : triggers.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
                   <Target className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-20" />
@@ -348,7 +361,17 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
               </Button>
             </div>
 
-            {sequences.length === 0 ? (
+            {sequencesLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4">
+                      <Skeleton className="h-20 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : sequences.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
                   <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-20" />
@@ -418,7 +441,15 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
               </div>
             </div>
 
-            {leads.length === 0 ? (
+            {leadsLoading ? (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : leads.length === 0 ? (
               <Card>
                 <CardContent className="p-12 text-center">
                   <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-20" />

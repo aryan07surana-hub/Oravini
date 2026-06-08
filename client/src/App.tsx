@@ -31,6 +31,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
+import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
@@ -62,6 +63,7 @@ import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
 import DMAutomation from "@/pages/client/DMAutomation";
+import EmailMarketing from "@/pages/client/EmailMarketing";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -94,6 +96,7 @@ import FormResponses from "@/pages/client/FormResponses";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
+import ClientScheduling from "@/pages/client/ClientScheduling";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import ScreenRecorder from "@/pages/client/ScreenRecorder";
 import WebinarStudio from "@/pages/client/WebinarStudio";
@@ -195,6 +198,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
       <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
       <Route path="/brandverse" component={Brandverse} />
       <Route path="/login" component={Login} />
@@ -249,6 +253,7 @@ function Router() {
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
+      <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
@@ -282,6 +287,7 @@ function Router() {
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
+      <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
       <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>

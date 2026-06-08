@@ -12,7 +12,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -280,6 +280,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   if (item.href === "/documents") return (user as any)?.plan === "elite";
                   return true;
                 }),
+                ...(["growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/email-marketing", label: "Email & Workflows", icon: Mail }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/crm", label: "CRM", icon: Database }] : []),
               ].map(({ href, label, icon: Icon }) => {
@@ -410,24 +411,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <SidebarReferralWidget />
           <CreditWidget />
 
-          {(user as any)?.plan === "elite" && (
-            <div className="px-4 pb-3">
-              <a
-                href="https://calendly.com/brandversee/30min"
-                target="_blank"
-                rel="noreferrer"
-                data-testid="sidebar-book-call"
-                className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors group"
-              >
-                <CalendarPlus className="w-4 h-4 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold leading-tight">Book a Call</p>
-                  <p className="text-[10px] text-primary-foreground/70 mt-0.5">30 min · Calendly</p>
-                </div>
-                <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-              </a>
-            </div>
-          )}
+          <div className="px-4 pb-3">
+            <Link
+              href="/scheduling"
+              data-testid="sidebar-scheduling"
+              onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-colors group ${location === "/scheduling" ? "bg-primary text-primary-foreground" : "hover:bg-sidebar-accent"}`}
+            >
+              <CalendarPlus className="w-4 h-4 flex-shrink-0" style={location !== "/scheduling" ? { color: GOLD } : {}} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold leading-tight">Scheduling</p>
+                <p className={`text-[10px] mt-0.5 ${location === "/scheduling" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Your booking page</p>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+            </Link>
+          </div>
 
           <div className="p-4 border-t border-sidebar-border space-y-2">
             <div className="flex items-center gap-3 px-2 py-1">
