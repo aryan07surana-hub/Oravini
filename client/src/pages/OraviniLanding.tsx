@@ -579,6 +579,39 @@ const PRICING_TIERS = [
   { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
 ];
 
+// ── Hero Background Video (3 plays then freeze) ───────────────────────────────
+function HeroVideo() {
+  const ref = useRef<HTMLVideoElement>(null);
+  const count = useRef(0);
+
+  const handleEnded = useCallback(() => {
+    count.current += 1;
+    if (count.current < 2 && ref.current) {
+      ref.current.currentTime = 0;
+      ref.current.play().catch(() => {});
+    }
+    // on 3rd end: stays paused on last frame
+  }, []);
+
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      muted
+      playsInline
+      onEnded={handleEnded}
+      style={{
+        position: "absolute", inset: 0,
+        width: "100%", height: "100%",
+        objectFit: "cover", zIndex: 0,
+        opacity: 0.38,
+      }}
+    >
+      <source src="/oravini-intro.mp4" type="video/mp4" />
+    </video>
+  );
+}
+
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -691,6 +724,12 @@ export default function OraviniLanding() {
 
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section ref={heroRef} style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", textAlign: "center", overflow: "hidden" }}>
+        {/* Background video — plays 3 times then freezes on last frame */}
+        <HeroVideo />
+        {/* Dark vignette to frame content */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none", background: "radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
+        {/* Edge fade to black */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none", background: "linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 18%, transparent 75%, rgba(0,0,0,0.7) 100%)" }} />
         <ParticleCanvas />
         {/* Radial glow */}
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(212,180,97,0.07) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 }} />
