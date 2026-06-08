@@ -133,6 +133,9 @@ import {
   webinarAttendeeScores,
   webinarStreamDestinations,
   webinarResources,
+  competitorWatchlist, competitorSnapshots, competitorAlerts,
+  type CompetitorWatchlistItem, type InsertCompetitorWatchlistItem,
+  type CompetitorSnapshot, type CompetitorAlert,
 } from "@shared/schema";
 
 export const pool = new Pool({
@@ -283,6 +286,18 @@ export interface IStorage {
   createCompetitorAnalysis(data: InsertCompetitorAnalysis): Promise<CompetitorAnalysis>;
   getCompetitorAnalyses(clientId: string): Promise<CompetitorAnalysis[]>;
   deleteCompetitorAnalysis(id: string): Promise<void>;
+  // Competitor Watchlist
+  getCompetitorWatchlist(userId: string): Promise<CompetitorWatchlistItem[]>;
+  getAllActiveWatchlistItems(): Promise<CompetitorWatchlistItem[]>;
+  addCompetitorToWatchlist(data: InsertCompetitorWatchlistItem): Promise<CompetitorWatchlistItem>;
+  updateWatchlistItem(id: string, data: Partial<CompetitorWatchlistItem>): Promise<CompetitorWatchlistItem>;
+  removeFromWatchlist(id: string): Promise<void>;
+  createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt'>): Promise<CompetitorSnapshot>;
+  getCompetitorSnapshots(watchlistId: string, limit?: number): Promise<CompetitorSnapshot[]>;
+  getLatestSnapshot(watchlistId: string): Promise<CompetitorSnapshot | null>;
+  createCompetitorAlert(data: Omit<CompetitorAlert, 'id' | 'createdAt'>): Promise<CompetitorAlert>;
+  getCompetitorAlerts(userId: string, unreadOnly?: boolean): Promise<CompetitorAlert[]>;
+  markAlertsRead(userId: string): Promise<void>;
   getAllInstagramPostsWithUrls(): Promise<any[]>;
   getAllYouTubePostsWithUrls(): Promise<any[]>;
   // DM Tracker
@@ -1069,6 +1084,74 @@ class DatabaseStorage implements IStorage {
 
   async deleteCompetitorAnalysis(id: string) {
     await db.delete(competitorAnalyses).where(eq(competitorAnalyses.id, id));
+  }
+
+  // ── Competitor Watchlist ──────────────────────────────────────────────────
+
+  async getCompetitorWatchlist(userId: string) {
+    return db.select().from(competitorWatchlist)
+      .where(eq(competitorWatchlist.userId, userId))
+      .orderBy(desc(competitorWatchlist.createdAt));
+  }
+
+  async getAllActiveWatchlistItems() {
+    return db.select().from(competitorWatchlist)
+      .where(eq(competitorWatchlist.isActive, true));
+  }
+
+  async addCompetitorToWatchlist(data: InsertCompetitorWatchlistItem) {
+    const [item] = await db.insert(competitorWatchlist).values(data).returning();
+    return item;
+  }
+
+  async updateWatchlistItem(id: string, data: Partial<CompetitorWatchlistItem>) {
+    const [item] = await db.update(competitorWatchlist).set(data).where(eq(competitorWatchlist.id, id)).returning();
+    return item;
+  }
+
+  async removeFromWatchlist(id: string) {
+    await db.delete(competitorWatchlist).where(eq(competitorWatchlist.id, id));
+  }
+
+  async createCompetitorSnapshot(data: Omit<CompetitorSnapshot, 'id' | 'scannedAt'>) {
+    const [snap] = await db.insert(competitorSnapshots).values(data as any).returning();
+    return snap;
+  }
+
+  async getCompetitorSnapshots(watchlistId: string, limit = 30) {
+    return db.select().from(competitorSnapshots)
+      .where(eq(competitorSnapshots.watchlistId, watchlistId))
+      .orderBy(desc(competitorSnapshots.scannedAt))
+      .limit(limit);
+  }
+
+  async getLatestSnapshot(watchlistId: string) {
+    const rows = await db.select().from(competitorSnapshots)
+      .where(eq(competitorSnapshots.watchlistId, watchlistId))
+      .orderBy(desc(competitorSnapshots.scannedAt))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async createCompetitorAlert(data: Omit<CompetitorAlert, 'id' | 'createdAt'>) {
+    const [alert] = await db.insert(competitorAlerts).values(data as any).returning();
+    return alert;
+  }
+
+  async getCompetitorAlerts(userId: string, unreadOnly = false) {
+    const conditions = unreadOnly
+      ? [eq(competitorAlerts.userId, userId), eq(competitorAlerts.isRead, false)]
+      : [eq(competitorAlerts.userId, userId)];
+    return db.select().from(competitorAlerts)
+      .where(and(...conditions as any))
+      .orderBy(desc(competitorAlerts.createdAt))
+      .limit(100);
+  }
+
+  async markAlertsRead(userId: string) {
+    await db.update(competitorAlerts)
+      .set({ isRead: true })
+      .where(eq(competitorAlerts.userId, userId));
   }
 
   async createNicheAnalysis(data: InsertNicheAnalysis) {

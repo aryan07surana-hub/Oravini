@@ -2729,3 +2729,50 @@ export const emSmtpConfigs = pgTable("em_smtp_configs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type EmSmtpConfig = typeof emSmtpConfigs.$inferSelect;
+// ── Competitor Watch List ────────────────────────────────────────────────────
+export const competitorWatchlist = pgTable("competitor_watchlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  competitorUrl: text("competitor_url").notNull(),
+  handle: varchar("handle").notNull(),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastScannedAt: timestamp("last_scanned_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCompetitorWatchlistSchema = createInsertSchema(competitorWatchlist).omit({ id: true, createdAt: true });
+export type CompetitorWatchlistItem = typeof competitorWatchlist.$inferSelect;
+export type InsertCompetitorWatchlistItem = z.infer<typeof insertCompetitorWatchlistSchema>;
+
+// ── Competitor Snapshots ─────────────────────────────────────────────────────
+export const competitorSnapshots = pgTable("competitor_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  watchlistId: varchar("watchlist_id").notNull().references(() => competitorWatchlist.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+  followerCount: integer("follower_count"),
+  followingCount: integer("following_count"),
+  postCount: integer("post_count"),
+  avgViews: real("avg_views"),
+  avgLikes: real("avg_likes"),
+  avgComments: real("avg_comments"),
+  avgEngagement: real("avg_engagement"),
+  bio: text("bio"),
+  recentPosts: jsonb("recent_posts"),
+});
+export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
+
+// ── Competitor Alerts ────────────────────────────────────────────────────────
+export const competitorAlerts = pgTable("competitor_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  watchlistId: varchar("watchlist_id").notNull().references(() => competitorWatchlist.id, { onDelete: "cascade" }),
+  alertType: text("alert_type").notNull(), // 'new_post' | 'bio_change' | 'follower_spike' | 'engagement_spike' | 'post_count_jump'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  data: jsonb("data"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CompetitorAlert = typeof competitorAlerts.$inferSelect;

@@ -534,9 +534,156 @@ export async function processScheduledInstagramPosts() {
   }
 }
 
+async function scanCompetitorWatchlist() {
+  log("Competitor watch: starting daily scan", "cron");
+  try {
+    const items = await storage.getAllActiveWatchlistItems();
+    if (items.length === 0) return;
+    log(`Competitor watch: scanning ${items.length} item(s)`, "cron");
+
+    for (const item of items) {
+      try {
+        const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+        if (!token) break;
+
+        const url = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=60`;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ usernames: [item.handle], proxy: { useApifyProxy: true } }),
+        });
+        if (!resp.ok) continue;
+
+        const profileItems: any[] = await resp.json();
+        if (!profileItems.length) continue;
+
+        const profile = profileItems[0];
+        const followerCount: number | null = profile.followersCount ?? null;
+        const followingCount: number | null = profile.followingCount ?? null;
+        const postCount: number | null = profile.postsCount ?? null;
+        const bio: string | null = profile.biography || null;
+        const avatarUrl: string | null = profile.profilePicUrl || item.avatarUrl || null;
+        const displayName: string | null = profile.fullName || item.displayName || null;
+
+        // Compute averages from latestPosts if available
+        const posts: any[] = profile.latestPosts || [];
+        let avgViews = 0, avgLikes = 0, avgComments = 0, avgEngagement = 0;
+        const recentPosts = posts.slice(0, 10).map((p: any) => ({
+          url: p.url || (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : ""),
+          thumbnail: p.displayUrl || null,
+          views: p.videoViewCount || 0,
+          likes: p.likesCount || 0,
+          comments: p.commentsCount || 0,
+          caption: (p.caption || "").slice(0, 150),
+          timestamp: p.timestamp || null,
+          type: p.videoViewCount ? "reel" : "image",
+        }));
+
+        if (posts.length > 0) {
+          avgViews = posts.reduce((s: number, p: any) => s + (p.videoViewCount || 0), 0) / posts.length;
+          avgLikes = posts.reduce((s: number, p: any) => s + (p.likesCount || 0), 0) / posts.length;
+          avgComments = posts.reduce((s: number, p: any) => s + (p.commentsCount || 0), 0) / posts.length;
+          avgEngagement = followerCount && followerCount > 0
+            ? ((avgLikes + avgComments) / followerCount) * 100
+            : 0;
+        }
+
+        const lastSnap = await storage.getLatestSnapshot(item.id);
+
+        await storage.createCompetitorSnapshot({
+          watchlistId: item.id,
+          userId: item.userId,
+          followerCount,
+          followingCount,
+          postCount,
+          avgViews,
+          avgLikes,
+          avgComments,
+          avgEngagement,
+          bio,
+          recentPosts,
+        });
+
+        await storage.updateWatchlistItem(item.id, {
+          lastScannedAt: new Date(),
+          displayName: displayName || item.displayName,
+          avatarUrl: avatarUrl || item.avatarUrl,
+        });
+
+        if (lastSnap) {
+          if (followerCount && lastSnap.followerCount && lastSnap.followerCount > 0) {
+            const pct = ((followerCount - lastSnap.followerCount) / lastSnap.followerCount) * 100;
+            if (Math.abs(pct) >= 5) {
+              await storage.createCompetitorAlert({
+                userId: item.userId,
+                watchlistId: item.id,
+                alertType: "follower_spike",
+                title: `@${item.handle} ${pct > 0 ? "gained" : "lost"} followers`,
+                description: `${Math.abs(Math.round(pct))}% ${pct > 0 ? "increase" : "decrease"} — from ${lastSnap.followerCount.toLocaleString()} to ${(followerCount ?? 0).toLocaleString()}`,
+                data: { from: lastSnap.followerCount, to: followerCount, pctChange: pct },
+                isRead: false,
+              });
+            }
+          }
+
+          if (bio && lastSnap.bio && bio !== lastSnap.bio) {
+            await storage.createCompetitorAlert({
+              userId: item.userId,
+              watchlistId: item.id,
+              alertType: "bio_change",
+              title: `@${item.handle} updated their bio`,
+              description: `New bio: "${bio.slice(0, 120)}"`,
+              data: { oldBio: lastSnap.bio, newBio: bio },
+              isRead: false,
+            });
+          }
+
+          if (postCount && lastSnap.postCount && postCount > lastSnap.postCount) {
+            const newPosts = postCount - lastSnap.postCount;
+            await storage.createCompetitorAlert({
+              userId: item.userId,
+              watchlistId: item.id,
+              alertType: "new_post",
+              title: `@${item.handle} posted ${newPosts} new ${newPosts === 1 ? "time" : "times"}`,
+              description: `Total posts: ${postCount}`,
+              data: { newPosts, totalPosts: postCount },
+              isRead: false,
+            });
+          }
+
+          if (avgEngagement > 0 && lastSnap.avgEngagement && lastSnap.avgEngagement > 0) {
+            const engPct = ((avgEngagement - lastSnap.avgEngagement) / lastSnap.avgEngagement) * 100;
+            if (engPct >= 20) {
+              await storage.createCompetitorAlert({
+                userId: item.userId,
+                watchlistId: item.id,
+                alertType: "engagement_spike",
+                title: `@${item.handle} engagement spiked +${Math.round(engPct)}%`,
+                description: `Avg engagement went from ${lastSnap.avgEngagement.toFixed(2)}% to ${avgEngagement.toFixed(2)}%`,
+                data: { from: lastSnap.avgEngagement, to: avgEngagement, pctChange: engPct },
+                isRead: false,
+              });
+            }
+          }
+        }
+
+        log(`Competitor watch: scanned @${item.handle}`, "cron");
+        // Rate limit: 3s between scans
+        await new Promise(r => setTimeout(r, 3000));
+      } catch (e: any) {
+        log(`Competitor watch: error scanning @${item.handle} — ${e.message}`, "cron");
+      }
+    }
+    log("Competitor watch: daily scan complete", "cron");
+  } catch (e: any) {
+    log(`Competitor watch: scan error — ${e.message}`, "cron");
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
+  cron.schedule("0 8 * * *", scanCompetitorWatchlist, { timezone: "UTC" });
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
@@ -544,5 +691,5 @@ export function startCronJobs() {
   cron.schedule("*/15 * * * *", sendBookingReminders);
   cron.schedule("0 * * * *", processEmailSequences);
   cron.schedule("*/2 * * * *", processSmsSequences);
-  log("Cron jobs scheduled — auto-sync daily 3AM UTC; IG tracker 6AM UTC; Twitter + LinkedIn + YouTube + Instagram schedulers every 5 minutes; booking reminders every 15 minutes; email sequences every hour; SMS sequences every 2 minutes", "cron");
+  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch 8AM; schedulers every 5 min; reminders every 15 min; email sequences hourly; SMS sequences every 2 min", "cron");
 }

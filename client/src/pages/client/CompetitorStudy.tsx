@@ -3,6 +3,7 @@ import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import ViralityTester from "@/pages/client/ViralityTester";
+import CompetitorWatchlist from "@/pages/client/CompetitorWatchlist";
 import ClientLayout from "@/components/layout/ClientLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,7 +30,7 @@ import {
   Lightbulb, BookOpen, Calendar, Flame, Shield, Trophy, Copy, Check,
   AlertCircle, Award, ArrowUpRight, ExternalLink, Play, ChevronDown, ChevronUp,
   TrendingUp as Trending, Sword, Crosshair, Layers, Search, Hash,
-  Wand2, Brain, Activity, FileText, Dna,
+  Wand2, Brain, Activity, FileText, Dna, Bell,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -3804,7 +3805,7 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
 
 export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | "virality" | null>(null);
+  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | "virality" | "watchlist" | null>(null);
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
@@ -3839,7 +3840,9 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                       ? "Use My Own Methodology"
                       : activeSection === "virality"
                         ? "Virality Tester"
-                        : "Competitor Study"}
+                        : activeSection === "watchlist"
+                          ? "Competitor Watch List"
+                          : "Competitor Study"}
               </h1>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -3851,13 +3854,15 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                     ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
                     : activeSection === "virality"
                       ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
-                      : "Choose a study mode below"}
+                      : activeSection === "watchlist"
+                        ? "Track 7 competitors · Daily auto-scan · Follower, bio & engagement alerts"
+                        : "Choose a study mode below"}
             </p>
           </div>
           <PageTourButton pageKey="competitor" className="ml-auto flex-shrink-0" />
         </div>
 
-        {/* Landing — four option cards */}
+        {/* Landing — five option cards */}
         {!activeSection && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Competitor Analysis card */}
@@ -3942,6 +3947,28 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 Open <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </button>
+
+            {/* Watch List card */}
+            <button
+              onClick={() => setActiveSection("watchlist")}
+              data-testid="tab-watchlist"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/25 flex items-center justify-center group-hover:bg-cyan-500/20 group-hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-all">
+                <Bell className="w-6 h-6 text-cyan-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Watch List</p>
+                  <span className="bg-cyan-500/20 border border-cyan-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-cyan-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Track 7 Instagram accounts continuously. Auto-scanned daily — get alerts when they post, change bio, gain followers, or spike in engagement.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-cyan-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
           </div>
         )}
 
@@ -3957,6 +3984,9 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
         )}
         {activeSection === "virality" && (
           <ViralityTester useAdmin={useAdmin} activeClientId={activeClientId} user={user} />
+        )}
+        {activeSection === "watchlist" && (
+          <CompetitorWatchlist useAdmin={useAdmin} activeClientId={activeClientId} />
         )}
 
       </div>
