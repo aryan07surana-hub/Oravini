@@ -330,7 +330,7 @@ function WebinarsTab() {
         </button>
       </div>
 
-      {webinarSubTab === "webinars" ? (
+      {webinarSubTab === "webinars" ? (<>
 
       {/* Cinematic stats row */}
       <div className="flex items-center gap-6 p-5 rounded-2xl" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}18` }}>
@@ -722,6 +722,7 @@ function WebinarsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>) : null}
     </div>
   );
 }
