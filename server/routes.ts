@@ -969,6 +969,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Save referral code into session BEFORE redirecting to Google — the callback
   // cannot read body/form data, so session is the only reliable carrier.
   app.get("/api/auth/google", (req, res, next) => {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.redirect("/login?error=google_failed&msg=Google+sign-in+not+configured");
+    }
     const refCode = (req.cookies as any)?.referral_code || (req.query.ref as string) || null;
     if (refCode) {
       // Explicitly save session BEFORE redirecting to Google so the referral code
