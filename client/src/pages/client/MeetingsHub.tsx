@@ -38,6 +38,8 @@ export default function MeetingsHub() {
 
   const { data: meetings = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/meetings"],
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const deleteMeeting = useMutation({
