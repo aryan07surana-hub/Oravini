@@ -1764,7 +1764,7 @@ const ReferralWidget = memo(function ReferralWidget({ stats }: { stats: any }) {
       `}</style>
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    SINCE JOINING ORAVANI
@@ -1867,7 +1867,7 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
       )}
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    MAIN DASHBOARD
