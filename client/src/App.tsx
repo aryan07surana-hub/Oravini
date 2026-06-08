@@ -62,6 +62,7 @@ import AIContentCoach from "@/pages/client/AIContentCoach";
 import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
 import DMAutomation from "@/pages/client/DMAutomation";
+import EmailMarketing from "@/pages/client/EmailMarketing";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -249,6 +250,7 @@ function Router() {
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
+      <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>

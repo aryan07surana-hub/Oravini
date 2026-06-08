@@ -2623,3 +2623,109 @@ export const crmApiKeys = pgTable("crm_api_keys", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type CrmApiKey = typeof crmApiKeys.$inferSelect;
+
+// ── EMAIL MARKETING PLATFORM ───────────────────────────────────────────────────
+
+export const emSequences = pgTable("em_sequences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("nurture"), // nurture|upsell|winback|welcome|launch|promo|post_purchase|feedback|referral|webinar|abandonment|milestone
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft|active|paused|archived
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  replyTo: text("reply_to"),
+  tags: text("tags").array(),
+  aiGenerated: boolean("ai_generated").notNull().default(false),
+  totalEnrolled: integer("total_enrolled").notNull().default(0),
+  totalSent: integer("total_sent").notNull().default(0),
+  totalOpened: integer("total_opened").notNull().default(0),
+  totalClicked: integer("total_clicked").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type EmSequence = typeof emSequences.$inferSelect;
+
+export const emSteps = pgTable("em_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => emSequences.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull().default(1),
+  delayDays: integer("delay_days").notNull().default(0),
+  delayHours: integer("delay_hours").notNull().default(0),
+  subject: text("subject").notNull(),
+  previewText: text("preview_text"),
+  bodyHtml: text("body_html").notNull(),
+  bodyText: text("body_text"),
+  sendTimeOptimized: boolean("send_time_optimized").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmStep = typeof emSteps.$inferSelect;
+
+export const emContacts = pgTable("em_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  phone: text("phone"),
+  tags: text("tags").array(),
+  customFields: jsonb("custom_fields").$type<Record<string, any>>(),
+  subscribed: boolean("subscribed").notNull().default(true),
+  unsubscribedAt: timestamp("unsubscribed_at"),
+  source: text("source"),
+  score: integer("score").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmContact = typeof emContacts.$inferSelect;
+
+export const emSends = pgTable("em_sends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stepId: varchar("step_id").notNull().references(() => emSteps.id, { onDelete: "cascade" }),
+  contactId: varchar("contact_id").notNull().references(() => emContacts.id, { onDelete: "cascade" }),
+  sequenceId: varchar("sequence_id").notNull().references(() => emSequences.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // pending|sent|delivered|opened|clicked|bounced|unsubscribed
+  trackingId: text("tracking_id").unique(),
+  sentAt: timestamp("sent_at"),
+  openedAt: timestamp("opened_at"),
+  clickedAt: timestamp("clicked_at"),
+  bouncedAt: timestamp("bounced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmSend = typeof emSends.$inferSelect;
+
+export const emWorkflows = pgTable("em_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft|active|paused
+  nodes: jsonb("nodes").$type<any[]>().notNull().default(sql`'[]'::jsonb`),
+  triggerType: text("trigger_type").notNull().default("manual"), // manual|contact_added|tag_applied|form_submitted|purchase|date_based
+  triggerValue: text("trigger_value"),
+  enrolledCount: integer("enrolled_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type EmWorkflow = typeof emWorkflows.$inferSelect;
+
+export const emSmtpConfigs = pgTable("em_smtp_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  provider: text("provider").notNull().default("custom"), // gmail|outlook|sendgrid|mailgun|ses|smtp2go|custom
+  host: text("host"),
+  port: integer("port").default(587),
+  secure: boolean("secure").default(false),
+  username: text("username"),
+  password: text("password"),
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  replyTo: text("reply_to"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  dailySendLimit: integer("daily_send_limit").notNull().default(500),
+  warmingEnabled: boolean("warming_enabled").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmSmtpConfig = typeof emSmtpConfigs.$inferSelect;

@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -14533,6 +14533,10 @@ Return ONLY valid JSON in this exact format:
   // ── CRM Public API (API key auth — landing pages POST contacts directly) ─────
   await bootstrapCrmPublicApi().catch(err => console.error("[crm-public-api] bootstrap failed:", err));
   registerCrmPublicApi(app, requireAdmin);
+
+  // ── Email Marketing Platform (Growth+ tier) ───────────────────────────────
+  await bootstrapEmailMarketing().catch(err => console.error("[email-marketing] bootstrap failed:", err));
+  registerEmailMarketingRoutes(app, requireAuth);
 
   return httpServer;
 }
