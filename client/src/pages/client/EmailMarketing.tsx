@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -11,6 +11,8 @@ import {
   Tag, Bell, ToggleLeft, ToggleRight, Server, Shield, Gauge,
   BookOpen, Target, Gift, Star, Repeat, ShoppingCart, MessageSquare,
   Rocket, Heart, Award, Calendar, X, ChevronLeft, Loader2,
+  Bot, MessageCircle, AtSign, Link2, Link2Off, SendHorizonal, CornerDownLeft,
+  PhoneCall, User,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -1445,6 +1447,16 @@ function SmtpSection() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/em/smtp"] }); setSaved(true); setTimeout(() => setSaved(false), 3000); },
   });
 
+  const { data: oauthStatus } = useQuery({
+    queryKey: ["/api/em/oauth/status"],
+    queryFn: () => apiFetch("/api/em/oauth/status"),
+  });
+
+  const disconnectOAuth = useMutation({
+    mutationFn: (provider: string) => apiFetch(`/api/em/oauth/${provider}/disconnect`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/oauth/status"] }),
+  });
+
   const handleProviderSelect = (p: typeof SMTP_PROVIDERS[0]) => {
     setForm(f => ({ ...f, provider: p.id, host: p.host, port: p.port }));
   };
@@ -1467,6 +1479,81 @@ function SmtpSection() {
 
   return (
     <div className="space-y-5 max-w-2xl">
+      {/* Connected Accounts (OAuth) */}
+      <div className="rounded-xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+        <div className="flex items-center gap-2">
+          <AtSign className="w-4 h-4" style={{ color: GOLD }} />
+          <p className="text-sm font-black text-white">Connected Accounts</p>
+        </div>
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          Send emails directly from your Gmail or Outlook — no SMTP credentials needed.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Gmail */}
+          {(() => {
+            const gmail = oauthStatus?.gmail;
+            return gmail?.connected ? (
+              <div className="rounded-xl p-3" style={{ background: "#22c55e0c", border: "1px solid #22c55e25" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-3.5 h-3.5 text-green-500" />
+                  <span className="text-xs font-bold text-green-500">Gmail Connected</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-3 truncate">{gmail.email}</p>
+                <button onClick={() => disconnectOAuth.mutate("gmail")}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:bg-white/5"
+                  style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <Link2Off className="w-3 h-3" /> Disconnect
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => { window.location.href = "/api/em/oauth/gmail/connect"; }}
+                className="rounded-xl p-3 text-left transition-all hover:scale-[1.01]"
+                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}15` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Mail className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  <span className="text-xs font-bold text-white">Gmail</span>
+                </div>
+                <p className="text-[11px] mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Connect Google account</p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: GOLD }}>
+                  Connect <ChevronRight className="w-3 h-3" />
+                </span>
+              </button>
+            );
+          })()}
+          {/* Outlook */}
+          {(() => {
+            const outlook = oauthStatus?.outlook;
+            return outlook?.connected ? (
+              <div className="rounded-xl p-3" style={{ background: "#22c55e0c", border: "1px solid #22c55e25" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-3.5 h-3.5 text-green-500" />
+                  <span className="text-xs font-bold text-green-500">Outlook Connected</span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mb-3 truncate">{outlook.email}</p>
+                <button onClick={() => disconnectOAuth.mutate("outlook")}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:bg-white/5"
+                  style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <Link2Off className="w-3 h-3" /> Disconnect
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => { window.location.href = "/api/em/oauth/outlook/connect"; }}
+                className="rounded-xl p-3 text-left transition-all hover:scale-[1.01]"
+                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}15` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageCircle className="w-3.5 h-3.5" style={{ color: "#0ea5e9" }} />
+                  <span className="text-xs font-bold text-white">Outlook</span>
+                </div>
+                <p className="text-[11px] mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Connect Microsoft account</p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "#0ea5e9" }}>
+                  Connect <ChevronRight className="w-3 h-3" />
+                </span>
+              </button>
+            );
+          })()}
+        </div>
+      </div>
+
       <div>
         <h2 className="text-base font-black text-white mb-1">SMTP & Email Delivery</h2>
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -1660,6 +1747,189 @@ function Loader({ state }: { state: string }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// AI CHAT BUBBLE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AIChatBubble() {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const qc = useQueryClient();
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: history = [], isLoading: histLoading } = useQuery<any[]>({
+    queryKey: ["/api/em/chat/history"],
+    queryFn: () => apiFetch("/api/em/chat/history"),
+    enabled: open,
+  });
+
+  const sendMsg = useMutation({
+    mutationFn: (message: string) => apiFetch("/api/em/chat", { method: "POST", body: JSON.stringify({ message }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/em/chat/history"] }); setInput(""); },
+  });
+
+  const clearHistory = useMutation({
+    mutationFn: () => apiFetch("/api/em/chat/history", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/chat/history"] }),
+  });
+
+  useEffect(() => {
+    if (open && bottomRef.current) bottomRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [history, open]);
+
+  const handleSend = () => {
+    if (!input.trim() || sendMsg.isPending) return;
+    sendMsg.mutate(input.trim());
+  };
+
+  const SUGGESTIONS = [
+    "Create a 5-email welcome sequence",
+    "Write a win-back email for cold leads",
+    "What's a good open rate for SaaS?",
+  ];
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all hover:scale-105 active:scale-95"
+        style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, boxShadow: `0 0 24px ${GOLD}40` }}>
+        {open ? <X className="w-5 h-5 text-black" /> : <Bot className="w-6 h-6 text-black" />}
+      </button>
+
+      {/* Chat panel */}
+      {open && (
+        <div
+          className="fixed bottom-24 right-6 z-50 w-80 rounded-2xl flex flex-col overflow-hidden"
+          style={{
+            background: "rgba(4,4,6,0.98)",
+            border: `1px solid ${GOLD}25`,
+            boxShadow: `0 0 40px rgba(0,0,0,0.8), 0 0 20px ${GOLD}15`,
+            height: "460px",
+            backdropFilter: "blur(20px)",
+          }}>
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${GOLD}15` }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}20` }}>
+              <Bot className="w-4 h-4" style={{ color: GOLD }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black text-white">Oravini AI</p>
+              <p className="text-[10px]" style={{ color: `${GOLD}70` }}>Email marketing assistant</p>
+            </div>
+            <button onClick={() => clearHistory.mutate()} title="Clear history"
+              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10"
+              style={{ color: "rgba(255,255,255,0.35)" }}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {histLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: GOLD }} />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="text-center py-5">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 opacity-30"
+                  style={{ background: `${GOLD}20` }}>
+                  <Bot className="w-6 h-6" style={{ color: GOLD }} />
+                </div>
+                <p className="text-xs font-black text-white mb-1">AI Email Assistant</p>
+                <p className="text-[11px] mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  Create sequences, improve subject lines, or ask any email marketing question.
+                </p>
+                <div className="space-y-1.5">
+                  {SUGGESTIONS.map(s => (
+                    <button key={s} onClick={() => setInput(s)}
+                      className="block w-full text-left text-[11px] px-3 py-2 rounded-lg transition-all hover:bg-white/5"
+                      style={{ color: `${GOLD}90`, border: `1px solid ${GOLD}15` }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              history.map((msg: any) => (
+                <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                  <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5"
+                    style={{ background: msg.role === "user" ? `${GOLD}25` : "rgba(255,255,255,0.08)" }}>
+                    {msg.role === "user"
+                      ? <User className="w-3 h-3" style={{ color: GOLD }} />
+                      : <Bot className="w-3 h-3" style={{ color: "rgba(255,255,255,0.6)" }} />}
+                  </div>
+                  <div
+                    className={`max-w-[82%] rounded-xl px-3 py-2 text-[12px] leading-relaxed ${msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"}`}
+                    style={{
+                      background: msg.role === "user" ? `${GOLD}18` : "rgba(255,255,255,0.05)",
+                      color: msg.role === "user" ? GOLD : "rgba(255,255,255,0.82)",
+                      border: `1px solid ${msg.role === "user" ? GOLD + "28" : "rgba(255,255,255,0.07)"}`,
+                    }}>
+                    {msg.content}
+                    {msg.metadata?.action && (
+                      <div className="mt-2 px-2 py-1 rounded-lg text-[10px] font-bold"
+                        style={{ background: `${GOLD}10`, color: GOLD, border: `1px solid ${GOLD}20` }}>
+                        <Zap className="w-3 h-3 inline mr-1" />
+                        Action: {String(msg.metadata.action).replace(/_/g, " ")}
+                      </div>
+                    )}
+                    {msg.metadata?.escalated && (
+                      <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px]"
+                        style={{ background: "#ef444412", color: "#ef4444", border: "1px solid #ef444430" }}>
+                        <PhoneCall className="w-3 h-3" /> Escalated to support team
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+            {sendMsg.isPending && (
+              <div className="flex gap-2">
+                <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center"
+                  style={{ background: "rgba(255,255,255,0.08)" }}>
+                  <Bot className="w-3 h-3" style={{ color: "rgba(255,255,255,0.6)" }} />
+                </div>
+                <div className="rounded-xl rounded-tl-sm px-3 py-2.5 flex gap-1 items-center"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                      style={{ background: GOLD, animationDelay: `${i * 150}ms` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: `1px solid ${GOLD}10` }}>
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Ask anything..."
+                className="flex-1 px-3 py-2.5 rounded-xl text-[12px] text-white"
+                style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}18`, outline: "none" }}
+              />
+              <button onClick={handleSend} disabled={!input.trim() || sendMsg.isPending}
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 disabled:opacity-40"
+                style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)` }}>
+                <SendHorizonal className="w-4 h-4 text-black" />
+              </button>
+            </div>
+            <p className="text-[10px] mt-1.5 text-center" style={{ color: "rgba(255,255,255,0.2)" }}>
+              <CornerDownLeft className="w-2.5 h-2.5 inline mr-0.5" />Enter to send · AI may escalate complex issues
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TIER GATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1813,6 +2083,8 @@ function EmailMarketingPlatform() {
           {renderSection()}
         </div>
       </main>
+
+      <AIChatBubble />
     </div>
   );
 }
