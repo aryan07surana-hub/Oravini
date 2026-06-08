@@ -74,7 +74,7 @@ function formatHour(h: number) {
 /* ─── Types ─────────────────────────────────────────────────── */
 type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean };
 export type CustomQuestion = { id: string; label: string; required: boolean };
-type TabType = "calendar" | "bookings" | "settings" | "availability";
+type TabType = "calendar" | "bookings" | "settings" | "availability" | "ta3" | "ta4" | "ta5";
 
 /* ─── Weekly Calendar View ──────────────────────────────────── */
 function WeeklyCalendar({ bookings, weekStart, onPrev, onNext, onBookingClick, onSlotClick }: {
@@ -402,85 +402,369 @@ function AvailRow({ rule, onChange }: { rule: AvailRule; onChange: (r: AvailRule
   );
 }
 
-/* ─── Google Calendar Widget ────────────────────────────────── */
-function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnecting }: {
-  calStatus?: { connected: boolean; email: string | null };
-  onConnect: () => void;
-  onDisconnect: () => void;
-  disconnecting: boolean;
-}) {
-  const [copiedCb, setCopiedCb] = useState(false);
-  const [showSetup, setShowSetup] = useState(false);
-  const callbackUrl = `${window.location.origin}/api/auth/google-calendar/callback`;
+/* ─── Calendar & Meeting Platform Integration ────────────────── */
+function CalendarIntegrationWidget({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { data: integrations } = useQuery<any>({
+    queryKey: ["/api/admin/calendar-integrations"],
+    staleTime: 30000,
+  });
 
-  function copyCallback() {
-    navigator.clipboard.writeText(callbackUrl);
-    setCopiedCb(true);
-    setTimeout(() => setCopiedCb(false), 2000);
-  }
+  const calendarProviders = [
+    { id: "google", name: "Google Calendar", icon: SiGoogle, color: "#4285F4", connected: integrations?.google?.connected || false, email: integrations?.google?.email },
+    { id: "outlook", name: "Outlook Calendar", icon: Calendar, color: "#0078D4", connected: integrations?.outlook?.connected || false, email: integrations?.outlook?.email },
+    { id: "apple", name: "Apple Calendar", icon: Calendar, color: "#000000", connected: integrations?.apple?.connected || false, email: integrations?.apple?.email },
+  ];
 
-  if (calStatus?.connected) {
-    return (
-      <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-5 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/15">
-          <SiGoogle className="w-4 h-4 text-emerald-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
-            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
-          </div>
-          <p className="text-xs text-zinc-500 mt-0.5">Auto-generates unique Google Meet links · <span className="text-emerald-400/70">{calStatus.email ?? ""}</span></p>
-        </div>
-        <Button variant="outline" size="sm" className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0" onClick={onDisconnect} disabled={disconnecting}>
-          <Unlink className="w-3.5 h-3.5" /> Disconnect
-        </Button>
-      </div>
-    );
-  }
+  const meetingPlatforms = [
+    { id: "google-meet", name: "Google Meet", icon: Video, color: "#00897B", connected: integrations?.googleMeet?.connected || false },
+    { id: "zoom", name: "Zoom", icon: Video, color: "#2D8CFF", connected: integrations?.zoom?.connected || false },
+    { id: "teams", name: "Microsoft Teams", icon: Users, color: "#505AC9", connected: integrations?.teams?.connected || false },
+  ];
+
+  const connectedCalendars = calendarProviders.filter(p => p.connected).length;
+  const connectedMeetings = meetingPlatforms.filter(p => p.connected).length;
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-      <div className="p-5 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-zinc-800">
-          <SiGoogle className="w-4 h-4 text-zinc-500" />
+      <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold text-white">Calendar & Meeting Integration</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{connectedCalendars} calendar{connectedCalendars !== 1 ? 's' : ''} · {connectedMeetings} meeting platform{connectedMeetings !== 1 ? 's' : ''} connected</p>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
-            <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
+        <Button size="sm" variant="outline" className="border-zinc-700 text-zinc-400 gap-1.5" onClick={onOpenSettings}>
+          <Settings2 className="w-3.5 h-3.5" /> Configure
+        </Button>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Calendar Providers */}
+        <div>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Calendar Providers</p>
+          <div className="grid gap-2">
+            {calendarProviders.map(provider => {
+              const Icon = provider.icon;
+              return (
+                <div
+                  key={provider.id}
+                  className="flex items-center justify-between p-3 rounded-xl transition-all"
+                  style={{
+                    background: provider.connected ? `${provider.color}12` : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${provider.connected ? `${provider.color}35` : "rgba(255,255,255,0.06)"}`,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${provider.color}20` }}>
+                      <Icon className="w-4 h-4" style={{ color: provider.color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{provider.name}</p>
+                      {provider.connected && provider.email && (
+                        <p className="text-xs text-zinc-500">{provider.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Badge className={provider.connected ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "border-zinc-700 text-zinc-500"} variant="outline">
+                    {provider.connected ? "Connected" : "Not connected"}
+                  </Badge>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-xs text-zinc-500 mt-0.5">Connect to auto-create Google Meet links for every booking</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" className="text-zinc-500 text-xs gap-1 h-8 px-3" onClick={() => setShowSetup(s => !s)}>
-            <HelpCircle className="w-3.5 h-3.5" /> {showSetup ? "Hide" : "Setup"}
-          </Button>
-          <Button size="sm" className="gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={onConnect}>
-            <SiGoogle className="w-3.5 h-3.5" /> Connect
-          </Button>
+
+        {/* Meeting Platforms */}
+        <div>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Meeting Platforms</p>
+          <div className="grid gap-2">
+            {meetingPlatforms.map(platform => {
+              const Icon = platform.icon;
+              return (
+                <div
+                  key={platform.id}
+                  className="flex items-center justify-between p-3 rounded-xl transition-all"
+                  style={{
+                    background: platform.connected ? `${platform.color}12` : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${platform.connected ? `${platform.color}35` : "rgba(255,255,255,0.06)"}`,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${platform.color}20` }}>
+                      <Icon className="w-4 h-4" style={{ color: platform.color }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{platform.name}</p>
+                      <p className="text-xs text-zinc-500">Auto-generates meeting links</p>
+                    </div>
+                  </div>
+                  <Badge className={platform.connected ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "border-zinc-700 text-zinc-500"} variant="outline">
+                    {platform.connected ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
-      {showSetup && (
-        <div className="border-t border-zinc-800 bg-zinc-950/60 px-5 py-4 space-y-3">
-          <p className="text-xs font-bold text-white uppercase tracking-wider">Setup Guide</p>
-          <ol className="space-y-2 text-xs text-zinc-400">
-            <li>1. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline text-zinc-300">Google Cloud Console</a></li>
-            <li>2. Add this redirect URI:</li>
-          </ol>
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2">
-            <code className="flex-1 text-[11px] text-amber-300 font-mono break-all">{callbackUrl}</code>
-            <button onClick={copyCallback} className="text-zinc-400 hover:text-white">
-              {copiedCb ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
-          <ol className="space-y-2 text-xs text-zinc-400" start={3}>
-            <li>3. Enable Google Calendar API</li>
-            <li>4. Click Connect above and authorize</li>
-          </ol>
-        </div>
-      )}
     </div>
+  );
+}
+
+/* ─── Integration Settings Dialog ────────────────────────────── */
+function IntegrationSettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const [activeProvider, setActiveProvider] = useState<"google" | "outlook" | "apple" | "zoom" | "teams">("google");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
+
+  const { data: integrations } = useQuery<any>({
+    queryKey: ["/api/admin/calendar-integrations"],
+    enabled: open,
+  });
+
+  const saveIntegration = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/admin/calendar-integrations/configure", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar-integrations"] });
+      toast({ title: "Integration saved!", description: "Your settings have been updated." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const disconnectIntegration = useMutation({
+    mutationFn: (provider: string) => apiRequest("DELETE", `/api/admin/calendar-integrations/${provider}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/calendar-integrations"] });
+      toast({ title: "Disconnected successfully" });
+    },
+  });
+
+  const providers = [
+    { id: "google" as const, name: "Google Calendar", icon: SiGoogle, color: "#4285F4", fields: ["clientId", "clientSecret"] },
+    { id: "outlook" as const, name: "Outlook", icon: Calendar, color: "#0078D4", fields: ["clientId", "clientSecret"] },
+    { id: "apple" as const, name: "Apple iCloud", icon: Calendar, color: "#000000", fields: ["apiKey", "webhookUrl"] },
+    { id: "zoom" as const, name: "Zoom", icon: Video, color: "#2D8CFF", fields: ["clientId", "clientSecret"] },
+    { id: "teams" as const, name: "Microsoft Teams", icon: Users, color: "#505AC9", fields: ["clientId", "clientSecret"] },
+  ];
+
+  const currentProvider = providers.find(p => p.id === activeProvider);
+  const isConnected = integrations?.[activeProvider]?.connected || false;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-zinc-950 border-zinc-800">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Settings2 className="w-5 h-5" style={{ color: GOLD }} />
+            Calendar & Meeting Integration
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-4 h-[600px]">
+          {/* Sidebar */}
+          <div className="w-56 border-r border-zinc-800 pr-4 space-y-1 overflow-y-auto">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2 px-2">Calendars</p>
+            {providers.filter(p => ["google", "outlook", "apple"].includes(p.id)).map(provider => {
+              const Icon = provider.icon;
+              const connected = integrations?.[provider.id]?.connected || false;
+              return (
+                <button
+                  key={provider.id}
+                  onClick={() => setActiveProvider(provider.id)}
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors"
+                  style={{
+                    background: activeProvider === provider.id ? "rgba(255,255,255,0.06)" : "transparent",
+                    color: activeProvider === provider.id ? "#fff" : "#a1a1aa",
+                  }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: provider.color }} />
+                  {provider.name}
+                  {connected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                </button>
+              );
+            })}
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2 px-2 mt-4">Meetings</p>
+            {providers.filter(p => ["zoom", "teams"].includes(p.id)).map(provider => {
+              const Icon = provider.icon;
+              const connected = integrations?.[provider.id]?.connected || false;
+              return (
+                <button
+                  key={provider.id}
+                  onClick={() => setActiveProvider(provider.id)}
+                  className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors"
+                  style={{
+                    background: activeProvider === provider.id ? "rgba(255,255,255,0.06)" : "transparent",
+                    color: activeProvider === provider.id ? "#fff" : "#a1a1aa",
+                  }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: provider.color }} />
+                  {provider.name}
+                  {connected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {currentProvider && (
+              <>
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${currentProvider.color}20` }}>
+                    <currentProvider.icon className="w-5 h-5" style={{ color: currentProvider.color }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-white">{currentProvider.name}</p>
+                    <p className="text-xs text-zinc-500">OAuth 2.0 Configuration</p>
+                  </div>
+                  {isConnected && (
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">Connected</Badge>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {currentProvider.fields.includes("clientId") && (
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">Client ID</label>
+                      <Input
+                        value={clientId}
+                        onChange={e => setClientId(e.target.value)}
+                        placeholder="Enter your client ID"
+                        className="bg-zinc-900 border-zinc-700 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {currentProvider.fields.includes("clientSecret") && (
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">Client Secret</label>
+                      <Input
+                        type="password"
+                        value={clientSecret}
+                        onChange={e => setClientSecret(e.target.value)}
+                        placeholder="Enter your client secret"
+                        className="bg-zinc-900 border-zinc-700 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {currentProvider.fields.includes("apiKey") && (
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">API Key</label>
+                      <Input
+                        value={apiKey}
+                        onChange={e => setApiKey(e.target.value)}
+                        placeholder="Enter your API key"
+                        className="bg-zinc-900 border-zinc-700 text-white"
+                      />
+                    </div>
+                  )}
+
+                  {currentProvider.fields.includes("webhookUrl") && (
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">Webhook URL</label>
+                      <Input
+                        value={webhookUrl}
+                        onChange={e => setWebhookUrl(e.target.value)}
+                        placeholder="Enter webhook URL"
+                        className="bg-zinc-900 border-zinc-700 text-white"
+                      />
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Redirect URI</p>
+                    <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2">
+                      <code className="flex-1 text-xs text-amber-300 font-mono break-all">
+                        {window.location.origin}/api/auth/{activeProvider}/callback
+                      </code>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/api/auth/${activeProvider}/callback`);
+                        toast({ title: "Copied to clipboard" });
+                      }}>
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 mt-2">Add this URL to your OAuth app's authorized redirect URIs</p>
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Setup Instructions</p>
+                    <ol className="space-y-2 text-xs text-zinc-400">
+                      {activeProvider === "google" && (
+                        <>
+                          <li>1. Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline text-zinc-300">Google Cloud Console</a></li>
+                          <li>2. Create OAuth 2.0 credentials</li>
+                          <li>3. Enable Google Calendar API</li>
+                          <li>4. Add the redirect URI above</li>
+                          <li>5. Enter your Client ID and Secret</li>
+                        </>
+                      )}
+                      {activeProvider === "outlook" && (
+                        <>
+                          <li>1. Go to <a href="https://portal.azure.com" target="_blank" rel="noreferrer" className="underline text-zinc-300">Azure Portal</a></li>
+                          <li>2. Register a new application</li>
+                          <li>3. Add Calendar.ReadWrite permissions</li>
+                          <li>4. Add the redirect URI above</li>
+                          <li>5. Enter your Client ID and Secret</li>
+                        </>
+                      )}
+                      {activeProvider === "zoom" && (
+                        <>
+                          <li>1. Go to <a href="https://marketplace.zoom.us" target="_blank" rel="noreferrer" className="underline text-zinc-300">Zoom Marketplace</a></li>
+                          <li>2. Create an OAuth app</li>
+                          <li>3. Add meeting:write scopes</li>
+                          <li>4. Add the redirect URI above</li>
+                          <li>5. Enter your Client ID and Secret</li>
+                        </>
+                      )}
+                      {activeProvider === "teams" && (
+                        <>
+                          <li>1. Go to <a href="https://portal.azure.com" target="_blank" rel="noreferrer" className="underline text-zinc-300">Azure Portal</a></li>
+                          <li>2. Register a new application</li>
+                          <li>3. Add OnlineMeetings.ReadWrite permissions</li>
+                          <li>4. Add the redirect URI above</li>
+                          <li>5. Enter your Client ID and Secret</li>
+                        </>
+                      )}
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  {isConnected ? (
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-red-700/40 text-red-400"
+                      onClick={() => disconnectIntegration.mutate(activeProvider)}
+                      disabled={disconnectIntegration.isPending}
+                    >
+                      {disconnectIntegration.isPending ? "Disconnecting..." : "Disconnect"}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="flex-1 font-bold"
+                      style={{ background: GOLD, color: "#000" }}
+                      onClick={() => saveIntegration.mutate({
+                        provider: activeProvider,
+                        clientId,
+                        clientSecret,
+                        apiKey,
+                        webhookUrl,
+                      })}
+                      disabled={saveIntegration.isPending || (!clientId && !apiKey)}
+                    >
+                      {saveIntegration.isPending ? "Saving..." : "Save & Connect"}
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -493,6 +777,7 @@ export default function AdminScheduling() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [availOpen, setAvailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [integrationSettingsOpen, setIntegrationSettingsOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [bookingFilter, setBookingFilter] = useState<"upcoming" | "all">("upcoming");
   const [prefillDate, setPrefillDate] = useState<Date | undefined>();
@@ -692,10 +977,13 @@ export default function AdminScheduling() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit overflow-x-auto">
           {([
             { id: "calendar" as TabType, label: "Calendar", icon: Calendar },
             { id: "bookings" as TabType, label: "Bookings", icon: Users },
+            { id: "ta3" as TabType, label: "TA3", icon: TrendingUp },
+            { id: "ta4" as TabType, label: "TA4", icon: TrendingUp },
+            { id: "ta5" as TabType, label: "TA5", icon: TrendingUp },
             { id: "availability" as TabType, label: "Availability", icon: CalendarDays },
             { id: "settings" as TabType, label: "Settings", icon: Settings2 },
           ]).map(tab => (
@@ -1053,6 +1341,324 @@ export default function AdminScheduling() {
           prefillDate={prefillDate}
           prefillHour={prefillHour}
         />
+
+        {/* ═══ TA3 TAB ═══ */}
+        {activeTab === "ta3" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
+                  <TrendingUp className="w-5 h-5" style={{ color: GOLD }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Tier 3 Scheduling</h3>
+                  <p className="text-sm text-zinc-500">Flexible scheduling for growing businesses</p>
+                </div>
+              </div>
+
+              {/* Google Calendar Integration */}
+              <div className="mb-6">
+                <GoogleCalendarWidget 
+                  calStatus={calStatus} 
+                  onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} 
+                  onDisconnect={() => disconnectCalMutation.mutate()} 
+                  disconnecting={disconnectCalMutation.isPending} 
+                />
+              </div>
+
+              {/* TA3 Settings */}
+              <div className="space-y-4">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">TA3 Call Configuration</p>
+                  <div className="grid gap-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Scheduling Type</p>
+                        <p className="text-xs text-zinc-500">Flexible scheduling available</p>
+                      </div>
+                      <Badge className="bg-zinc-800 text-white border-zinc-700">Flexible</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Auto Meeting Links</p>
+                        <p className="text-xs text-zinc-500">Google Meet links generated automatically</p>
+                      </div>
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        {calStatus?.connected ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Quick Actions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Plus className="w-4 h-4" />
+                      Create TA3 Booking
+                    </Button>
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Link2 className="w-4 h-4" />
+                      Get Booking Link
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Integration Status */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-xs font-semibold text-white uppercase tracking-wider">Integration Status</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Calendar</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Connected" : "○ Not Connected"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Meet</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Active" : "○ Inactive"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Email Reminders</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TA4 TAB ═══ */}
+        {activeTab === "ta4" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
+                  <TrendingUp className="w-5 h-5" style={{ color: GOLD }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Tier 4 Scheduling</h3>
+                  <p className="text-sm text-zinc-500">Premium scheduling for scaling businesses</p>
+                </div>
+              </div>
+
+              {/* Google Calendar Integration */}
+              <div className="mb-6">
+                <GoogleCalendarWidget 
+                  calStatus={calStatus} 
+                  onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} 
+                  onDisconnect={() => disconnectCalMutation.mutate()} 
+                  disconnecting={disconnectCalMutation.isPending} 
+                />
+              </div>
+
+              {/* TA4 Settings */}
+              <div className="space-y-4">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">TA4 Call Configuration</p>
+                  <div className="grid gap-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Scheduling Type</p>
+                        <p className="text-xs text-zinc-500">Premium flexible scheduling</p>
+                      </div>
+                      <Badge className="bg-zinc-800 text-white border-zinc-700">Flexible</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Auto Meeting Links</p>
+                        <p className="text-xs text-zinc-500">Google Meet links generated automatically</p>
+                      </div>
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        {calStatus?.connected ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Priority Booking</p>
+                        <p className="text-xs text-zinc-500">Enhanced scheduling options</p>
+                      </div>
+                      <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30">Enabled</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Quick Actions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Plus className="w-4 h-4" />
+                      Create TA4 Booking
+                    </Button>
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Link2 className="w-4 h-4" />
+                      Get Booking Link
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Integration Status */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-xs font-semibold text-white uppercase tracking-wider">Integration Status</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Calendar</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Connected" : "○ Not Connected"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Meet + Recording</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Active" : "○ Inactive"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Priority Scheduling</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Email Reminders</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ TA5 TAB ═══ */}
+        {activeTab === "ta5" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}18` }}>
+                  <TrendingUp className="w-5 h-5" style={{ color: GOLD }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Tier 5 Scheduling</h3>
+                  <p className="text-sm text-zinc-500">VIP white-glove service for elite clients</p>
+                </div>
+              </div>
+
+              {/* Google Calendar Integration */}
+              <div className="mb-6">
+                <GoogleCalendarWidget 
+                  calStatus={calStatus} 
+                  onConnect={() => { window.location.href = "/api/auth/google-calendar"; }} 
+                  onDisconnect={() => disconnectCalMutation.mutate()} 
+                  disconnecting={disconnectCalMutation.isPending} 
+                />
+              </div>
+
+              {/* TA5 Settings */}
+              <div className="space-y-4">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">TA5 Call Configuration</p>
+                  <div className="grid gap-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Scheduling Type</p>
+                        <p className="text-xs text-zinc-500">VIP unlimited scheduling</p>
+                      </div>
+                      <Badge className="bg-zinc-800 text-white border-zinc-700">Unlimited</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Auto Meeting Links</p>
+                        <p className="text-xs text-zinc-500">Google Meet links generated automatically</p>
+                      </div>
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        {calStatus?.connected ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">VIP Scheduling</p>
+                        <p className="text-xs text-zinc-500">Exclusive access to all time slots</p>
+                      </div>
+                      <Badge style={{ background: `${GOLD}18`, color: GOLD, borderColor: `${GOLD}40` }}>VIP</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Concierge Service</p>
+                        <p className="text-xs text-zinc-500">Dedicated booking coordinator</p>
+                      </div>
+                      <Badge style={{ background: `${GOLD}18`, color: GOLD, borderColor: `${GOLD}40` }}>Active</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Quick Actions</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Plus className="w-4 h-4" />
+                      Create TA5 Booking
+                    </Button>
+                    <Button variant="outline" className="border-zinc-700 text-white gap-2 justify-start">
+                      <Link2 className="w-4 h-4" />
+                      Get VIP Link
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Integration Status */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-xs font-semibold text-white uppercase tracking-wider">Integration Status</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Calendar</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Connected" : "○ Not Connected"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Google Meet + Recording</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Active" : "○ Inactive"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Auto Transcription</span>
+                      <span className={calStatus?.connected ? "text-emerald-400" : "text-zinc-600"}>
+                        {calStatus?.connected ? "✓ Active" : "○ Inactive"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">VIP Priority Scheduling</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Concierge Support</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400">Email Reminders</span>
+                      <span className="text-emerald-400">✓ Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </AdminLayout>
