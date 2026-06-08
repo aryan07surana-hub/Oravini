@@ -464,10 +464,197 @@ function EmailStepCard({ step, index, onEdit, onDelete }: { step: any; index: nu
   );
 }
 
+function LaunchSequenceModal({ seq, onClose, onLaunched }: { seq: any; onClose: () => void; onLaunched: () => void }) {
+  const [segment, setSegment] = useState("all");
+  const [tagName, setTagName] = useState("");
+  const [fromName, setFromName] = useState(seq.from_name || "");
+  const [launching, setLaunching] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState("");
+
+  const { data: contacts = [] } = useQuery<any[]>({
+    queryKey: ["/api/em/contacts"],
+    queryFn: () => apiFetch("/api/em/contacts"),
+  });
+
+  const { data: oauthStatus } = useQuery<any>({
+    queryKey: ["/api/em/oauth/status"],
+    queryFn: () => apiFetch("/api/em/oauth/status"),
+  });
+
+  const subscribedCount = (contacts as any[]).filter((c: any) => c.subscribed).length;
+  const tagCount = segment === "tag" && tagName
+    ? (contacts as any[]).filter((c: any) => c.subscribed && c.tags?.includes(tagName)).length
+    : 0;
+  const reachCount = segment === "all" ? subscribedCount : segment === "tag" ? tagCount : 0;
+
+  const senderEmail = oauthStatus?.gmail?.connected ? oauthStatus.gmail.email
+    : oauthStatus?.outlook?.connected ? oauthStatus.outlook.email
+    : "SMTP";
+
+  const launch = async () => {
+    if (!seq.steps?.length && seq.steps !== undefined) {
+      setError("Add at least one email to this sequence before launching");
+      return;
+    }
+    setLaunching(true);
+    setError("");
+    try {
+      const r = await apiFetch(`/api/em/sequences/${seq.id}/launch`, {
+        method: "POST",
+        body: JSON.stringify({ segment, tagName: segment === "tag" ? tagName : undefined, fromName: fromName || undefined }),
+      });
+      setResult(r);
+      setTimeout(() => { onLaunched(); onClose(); }, 3000);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLaunching(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
+      <div className="w-full max-w-lg rounded-2xl overflow-hidden" style={{ background: "#0a0a0e", border: `1px solid ${GOLD}30` }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${GOLD}15` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}22` }}>
+              <SendHorizonal className="w-4 h-4" style={{ color: GOLD }} />
+            </div>
+            <div>
+              <p className="font-black text-white">Launch Sequence</p>
+              <p className="text-[10px]" style={{ color: `${GOLD}80` }}>{seq.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose}><X className="w-5 h-5 text-zinc-500" /></button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {result ? (
+            <div className="text-center py-6">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: "#22c55e18" }}>
+                <CheckCircle className="w-7 h-7 text-green-500" />
+              </div>
+              <p className="text-lg font-black text-white mb-1">Sequence Launched!</p>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+                {result.enrolled} contacts enrolled · first emails sending now
+              </p>
+              {result.skipped > 0 && (
+                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {result.skipped} already enrolled (skipped)
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Sender info */}
+              <div className="rounded-xl p-4" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20` }}>
+                <p className="text-xs font-bold mb-2" style={{ color: `${GOLD}90` }}>Sending from</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}20` }}>
+                    <Mail className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                  </div>
+                  <span className="text-sm font-bold text-white">{senderEmail}</span>
+                  {oauthStatus?.gmail?.connected && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#22c55e15", color: "#22c55e" }}>Gmail Connected</span>
+                  )}
+                </div>
+              </div>
+
+              {/* From name */}
+              <div>
+                <label className="block text-xs font-bold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  From Name (how recipients see your name)
+                </label>
+                <input
+                  value={fromName}
+                  onChange={e => setFromName(e.target.value)}
+                  placeholder="Your name or brand name"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm text-white"
+                  style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}20`, outline: "none" }}
+                />
+              </div>
+
+              {/* Segment */}
+              <div>
+                <label className="block text-xs font-bold mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Send to</label>
+                <div className="space-y-2">
+                  {[
+                    { id: "all", label: "All subscribed contacts", count: subscribedCount },
+                    { id: "tag", label: "Contacts with tag", count: tagCount },
+                  ].map(s => (
+                    <button key={s.id} onClick={() => setSegment(s.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all"
+                      style={{
+                        background: segment === s.id ? `${GOLD}12` : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${segment === s.id ? GOLD + "40" : "rgba(255,255,255,0.08)"}`,
+                      }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
+                          style={{ borderColor: segment === s.id ? GOLD : "rgba(255,255,255,0.2)" }}>
+                          {segment === s.id && <div className="w-2 h-2 rounded-full" style={{ background: GOLD }} />}
+                        </div>
+                        <span className="text-sm font-bold" style={{ color: segment === s.id ? GOLD : "rgba(255,255,255,0.6)" }}>{s.label}</span>
+                      </div>
+                      {s.id !== "tag" && (
+                        <span className="text-xs font-black" style={{ color: segment === s.id ? GOLD : "rgba(255,255,255,0.3)" }}>
+                          {s.count} contacts
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {segment === "tag" && (
+                  <div className="mt-2">
+                    <input
+                      value={tagName}
+                      onChange={e => setTagName(e.target.value)}
+                      placeholder="Tag name (e.g. lead, customer, vip)"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm text-white mt-1"
+                      style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${GOLD}20`, outline: "none" }}
+                    />
+                    {tagName && <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>{tagCount} contacts with this tag</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Warmup notice */}
+              <div className="rounded-xl px-4 py-3 flex items-start gap-2"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <Gauge className="w-4 h-4 flex-shrink-0 mt-0.5 text-zinc-500" />
+                <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <span className="font-bold text-white">Smart warmup active.</span> Emails send in batches (50 → 100 → 200/day) to protect deliverability.
+                  First emails go out within 5 minutes.
+                </div>
+              </div>
+
+              {error && (
+                <div className="px-3 py-2.5 rounded-xl text-sm text-red-400" style={{ background: "#ef444418", border: "1px solid #ef444430" }}>
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={launch}
+                disabled={launching || (segment === "all" && subscribedCount === 0) || (segment === "tag" && tagCount === 0)}
+                className="w-full py-3 rounded-xl font-black text-sm text-black flex items-center justify-center gap-2 transition-all hover:scale-[1.01] disabled:opacity-40"
+                style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)` }}>
+                {launching
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Launching...</>
+                  : <><Rocket className="w-4 h-4" /> Launch to {segment === "all" ? subscribedCount : tagCount} contacts</>}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SequencesSection() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [launchingSeq, setLaunchingSeq] = useState<any>(null);
   const [filter, setFilter] = useState("all");
 
   const { data: sequences = [], isLoading } = useQuery({
@@ -481,10 +668,10 @@ function SequencesSection() {
     enabled: !!selectedId,
   });
 
-  const toggleStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiFetch(`/api/em/sequences/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/sequences"] }),
+  const { data: enrollments = [] } = useQuery({
+    queryKey: ["/api/em/sequences", selectedId, "enrollments"],
+    queryFn: () => apiFetch(`/api/em/sequences/${selectedId}/enrollments`),
+    enabled: !!selectedId,
   });
 
   const deleteSeq = useMutation({
@@ -498,12 +685,31 @@ function SequencesSection() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/sequences", selectedId] }),
   });
 
-  const filtered = sequences.filter((s: any) => filter === "all" || s.status === filter);
+  const pauseSeq = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/em/sequences/${id}/pause`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/sequences"] }),
+  });
+
+  const filtered = (sequences as any[]).filter((s: any) => filter === "all" || s.status === filter);
 
   if (selectedId && selected) {
     const typeConfig = SEQ_TYPES.find(t => t.id === selected.type);
+    const activeEnrollments = (enrollments as any[]).filter((e: any) => e.status === "active").length;
+    const completedEnrollments = (enrollments as any[]).filter((e: any) => e.status === "completed").length;
+
     return (
       <div className="space-y-4">
+        {launchingSeq && (
+          <LaunchSequenceModal
+            seq={launchingSeq}
+            onClose={() => setLaunchingSeq(null)}
+            onLaunched={() => {
+              qc.invalidateQueries({ queryKey: ["/api/em/sequences"] });
+              qc.invalidateQueries({ queryKey: ["/api/em/sequences", selectedId, "enrollments"] });
+            }}
+          />
+        )}
+
         <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-sm" style={{ color: GOLD }}>
           <ChevronLeft className="w-4 h-4" /> All Sequences
         </button>
@@ -526,15 +732,19 @@ function SequencesSection() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => toggleStatus.mutate({ id: selected.id, status: selected.status === "active" ? "paused" : "active" })}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
-              style={{
-                background: selected.status === "active" ? "#f9731618" : `${GOLD}18`,
-                border: `1px solid ${selected.status === "active" ? "#f97316" : GOLD}40`,
-                color: selected.status === "active" ? "#f97316" : GOLD,
-              }}>
-              {selected.status === "active" ? <><Pause className="w-3.5 h-3.5" /> Pause</> : <><Play className="w-3.5 h-3.5" /> Activate</>}
+              onClick={() => setLaunchingSeq(selected)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105"
+              style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}>
+              <Rocket className="w-3.5 h-3.5" /> Launch
             </button>
+            {selected.status === "active" && (
+              <button
+                onClick={() => pauseSeq.mutate(selected.id)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
+                style={{ background: "#f9731618", border: "1px solid #f9731640", color: "#f97316" }}>
+                <Pause className="w-3.5 h-3.5" /> Pause All
+              </button>
+            )}
             <button onClick={() => deleteSeq.mutate(selected.id)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
               style={{ background: "#ef444418", border: "1px solid #ef444440", color: "#ef4444" }}>
@@ -542,6 +752,24 @@ function SequencesSection() {
             </button>
           </div>
         </div>
+
+        {/* Enrollment stats */}
+        {(enrollments as any[]).length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl p-3 text-center" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}15` }}>
+              <p className="text-xl font-black" style={{ color: GOLD }}>{(enrollments as any[]).length}</p>
+              <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Total Enrolled</p>
+            </div>
+            <div className="rounded-xl p-3 text-center" style={{ background: "#22c55e08", border: "1px solid #22c55e20" }}>
+              <p className="text-xl font-black text-green-400">{activeEnrollments}</p>
+              <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Active</p>
+            </div>
+            <div className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <p className="text-xl font-black text-zinc-300">{completedEnrollments}</p>
+              <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Completed</p>
+            </div>
+          </div>
+        )}
 
         {selected.description && (
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>{selected.description}</p>
@@ -560,17 +788,21 @@ function SequencesSection() {
         {loadingSelected ? <Loader state="Loading emails..." /> : (
           <div className="space-y-2">
             {selected.steps?.map((step: any, i: number) => (
-              <div key={step.id} className="flex items-center gap-2">
-                {i > 0 && (
-                  <div className="absolute left-[22px] -mt-3 mb-3 w-px h-4" style={{ background: `${GOLD}20` }} />
+              <div key={step.id} className="flex-1">
+                <EmailStepCard
+                  step={step} index={i}
+                  onEdit={() => {}}
+                  onDelete={() => deleteStep.mutate({ seqId: selected.id, stepId: step.id })}
+                />
+                {i < selected.steps.length - 1 && (
+                  <div className="flex items-center justify-center my-1 gap-2">
+                    <div className="h-px flex-1" style={{ background: `${GOLD}15` }} />
+                    <span className="text-[10px] font-bold px-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+                      +{selected.steps[i + 1]?.delay_days || 0}d {selected.steps[i + 1]?.delay_hours || 0}h
+                    </span>
+                    <div className="h-px flex-1" style={{ background: `${GOLD}15` }} />
+                  </div>
                 )}
-                <div className="flex-1">
-                  <EmailStepCard
-                    step={step} index={i}
-                    onEdit={() => {}}
-                    onDelete={() => deleteStep.mutate({ seqId: selected.id, stepId: step.id })}
-                  />
-                </div>
               </div>
             ))}
             {(!selected.steps || selected.steps.length === 0) && (
@@ -591,6 +823,13 @@ function SequencesSection() {
         <AIGenerateModal
           onClose={() => setShowCreate(false)}
           onCreated={(seq) => { qc.invalidateQueries({ queryKey: ["/api/em/sequences"] }); setSelectedId(seq.id); }}
+        />
+      )}
+      {launchingSeq && (
+        <LaunchSequenceModal
+          seq={launchingSeq}
+          onClose={() => setLaunchingSeq(null)}
+          onLaunched={() => qc.invalidateQueries({ queryKey: ["/api/em/sequences"] })}
         />
       )}
 
@@ -632,9 +871,9 @@ function SequencesSection() {
             const typeConfig = SEQ_TYPES.find(t => t.id === seq.type);
             return (
               <div key={seq.id}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl cursor-pointer transition-all hover:scale-[1.005]"
-                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}12` }}
-                onClick={() => setSelectedId(seq.id)}>
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all hover:scale-[1.005]"
+                style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}12` }}>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedId(seq.id)}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: `${typeConfig?.color || GOLD}18` }}>
                   {typeConfig && <typeConfig.icon className="w-4 h-4" style={{ color: typeConfig.color || GOLD }} />}

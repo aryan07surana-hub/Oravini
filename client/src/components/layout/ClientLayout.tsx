@@ -202,6 +202,7 @@ const topNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/documents", label: "Documents", icon: FileText },
   { href: "/community", label: "Community", icon: Users2 },
+  { href: "/scheduling", label: "Scheduling", icon: CalendarPlus },
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
@@ -278,6 +279,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               {[
                 ...topNavItems.filter(item => {
                   if (item.href === "/documents") return (user as any)?.plan === "elite";
+                  if (item.href === "/scheduling") return ["growth", "pro", "elite"].includes((user as any)?.plan);
                   return true;
                 }),
                 ...(["growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/email-marketing", label: "Email & Workflows", icon: Mail }] : []),

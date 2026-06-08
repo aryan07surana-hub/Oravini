@@ -11471,6 +11471,26 @@ Rules:
     res.json(bookings);
   });
 
+  // GET /api/scheduling/config — get user's scheduling config (reminders + email templates)
+  app.get("/api/scheduling/config", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const mt = await storage.getMeetingTypeByUserId(userId);
+    if (!mt) return res.json(null);
+    try {
+      const cfg = mt.schedulingConfig ? JSON.parse(mt.schedulingConfig) : {};
+      res.json(cfg);
+    } catch { res.json({}); }
+  });
+
+  // PUT /api/scheduling/config — save user's scheduling config
+  app.put("/api/scheduling/config", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const mt = await storage.getMeetingTypeByUserId(userId);
+    if (!mt) return res.status(400).json({ message: "Set up your meeting type first" });
+    const updated = await storage.updateMeetingType(mt.id, { schedulingConfig: JSON.stringify(req.body) });
+    res.json(updated);
+  });
+
   // PATCH /api/scheduling/bookings/:id — update booking status
   app.patch("/api/scheduling/bookings/:id", requireAuth, async (req: any, res) => {
     const userId = (req.user as any).id;
@@ -12034,11 +12054,25 @@ Rules:
 
       const effectiveLocation = meetLink ?? mt.location ?? null;
 
-      // Send confirmation emails
-      const html = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, meetLink: meetLink ?? undefined });
-      sendBookingEmail(clientEmail, `Booking Confirmed: ${mt.title}`, html);
-      const adminEmail = process.env.EMAIL_USER;
-      if (adminEmail) sendBookingEmail(adminEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, isAdmin: true, meetLink: meetLink ?? undefined }));
+      // Parse custom email template from schedulingConfig
+      let scfg: any = {};
+      try { scfg = mt.schedulingConfig ? JSON.parse((mt as any).schedulingConfig ?? "{}") : {}; } catch { scfg = {}; }
+      const emailCfg = scfg.emails ?? {};
+
+      // Build confirmation email (client)
+      const defaultConfirmHtml = bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, meetLink: meetLink ?? undefined });
+      const confirmSubject = emailCfg.confirmationSubject?.replace(/\{\{title\}\}/g, mt.title).replace(/\{\{name\}\}/g, clientName) || `Booking Confirmed: ${mt.title}`;
+      const confirmHtml = emailCfg.confirmationBody
+        ? emailCfg.confirmationBody.replace(/\{\{name\}\}/g, clientName).replace(/\{\{title\}\}/g, mt.title).replace(/\{\{time\}\}/g, start.toLocaleString()).replace(/\{\{duration\}\}/g, String(mt.duration)).replace(/\{\{link\}\}/g, effectiveLocation ?? "")
+        : defaultConfirmHtml;
+      sendBookingEmail(clientEmail, confirmSubject, confirmHtml);
+
+      // Notify meeting type owner — prefer the user who owns the meeting type, fallback to admin
+      const ownerNotifyEmail = mt.userId
+        ? await storage.getUser(mt.userId).then(u => u?.email ?? null).catch(() => null)
+        : null;
+      const hostEmail = ownerNotifyEmail ?? process.env.EMAIL_USER ?? null;
+      if (hostEmail) sendBookingEmail(hostEmail, `New Booking: ${mt.title} with ${clientName}`, bookingEmailHtml({ title: mt.title, clientName, startTime: start, endTime: end, location: effectiveLocation, notes: fullNotes, isAdmin: true, meetLink: meetLink ?? undefined }));
 
       res.json({ ...booking, meetLink });
     } catch (e: any) { res.status(500).json({ message: e.message }); }

@@ -705,6 +705,7 @@ export const meetingTypes = pgTable("meeting_types", {
   bufferTime: integer("buffer_time").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   customQuestions: text("custom_questions").default("[]"),
+  schedulingConfig: text("scheduling_config"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertMeetingTypeSchema = createInsertSchema(meetingTypes).omit({ id: true, createdAt: true });
@@ -3000,3 +3001,29 @@ export const dialerTimelineEvents = pgTable("dialer_timeline_events", {
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   occurredAt: timestamp("occurred_at").defaultNow(),
 });
+
+export const aiFeedback = pgTable("ai_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  responseId: text("response_id"),
+  responseType: text("response_type"),
+  rating: boolean("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertAiFeedbackSchema = createInsertSchema(aiFeedback).omit({ id: true, createdAt: true });
+export type InsertAiFeedback = z.infer<typeof insertAiFeedbackSchema>;
+export type AiFeedback = typeof aiFeedback.$inferSelect;
+
+export const aiMemory = pgTable("ai_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  value: jsonb("value").$type<any>().notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertAiMemorySchema = createInsertSchema(aiMemory).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiMemory = z.infer<typeof insertAiMemorySchema>;
+export type AiMemory = typeof aiMemory.$inferSelect;

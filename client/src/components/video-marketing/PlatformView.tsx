@@ -184,6 +184,7 @@ function WebinarsTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(defaultWebinarForm());
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [webinarSubTab, setWebinarSubTab] = useState<"webinars" | "dialers">("webinars");
 
   const { data: _webinars, isLoading } = useQuery<any[]>({
     queryKey: ["/api/webinars"],
@@ -304,6 +305,32 @@ function WebinarsTab() {
         }}>Webinars</h1>
         <div className="h-px w-32" style={{ background: `linear-gradient(90deg, ${GOLD}, transparent)` }} />
       </div>
+
+      {/* Sub-tabs: Webinars | Dialers */}
+      <div className="flex items-center gap-2 border-b" style={{ borderColor: `${GOLD}12` }}>
+        <button
+          onClick={() => setWebinarSubTab("webinars")}
+          className="px-4 py-2.5 text-sm font-bold transition-colors"
+          style={{
+            color: webinarSubTab === "webinars" ? GOLD : "rgba(255,255,255,0.4)",
+            borderBottom: webinarSubTab === "webinars" ? `2px solid ${GOLD}` : "2px solid transparent",
+          }}
+        >
+          Webinars
+        </button>
+        <button
+          onClick={() => setWebinarSubTab("dialers")}
+          className="px-4 py-2.5 text-sm font-bold transition-colors"
+          style={{
+            color: webinarSubTab === "dialers" ? GOLD : "rgba(255,255,255,0.4)",
+            borderBottom: webinarSubTab === "dialers" ? `2px solid ${GOLD}` : "2px solid transparent",
+          }}
+        >
+          📞 Dialers
+        </button>
+      </div>
+
+      {webinarSubTab === "webinars" ? (<>
 
       {/* Cinematic stats row */}
       <div className="flex items-center gap-6 p-5 rounded-2xl" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}18` }}>
@@ -695,6 +722,7 @@ function WebinarsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>) : null}
     </div>
   );
 }

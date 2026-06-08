@@ -274,6 +274,255 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] community tables skipped:", e.message);
   }
+
+  // ── Video Marketing platform: video_events extended columns (Wistia-style features) ──
+  try {
+    await pool.query(`
+      ALTER TABLE video_events
+        ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending',
+        ADD COLUMN IF NOT EXISTS animated_thumbnail_url TEXT,
+        ADD COLUMN IF NOT EXISTS seo_title TEXT,
+        ADD COLUMN IF NOT EXISTS seo_description TEXT,
+        ADD COLUMN IF NOT EXISTS edit_metadata TEXT
+    `);
+    console.log("[migration] video_events Wistia-style columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] video_events extended columns skipped:", e.message);
+  }
+
+  // ── Video Marketing: feature tables (templates, interactive elements, A/B, channels, dubbing, collab) ──
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webinar_templates (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        config JSONB NOT NULL,
+        thumbnail_url TEXT,
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_webinar_templates_user ON webinar_templates(user_id);
+
+      CREATE TABLE IF NOT EXISTS video_interactive_elements (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        video_event_id VARCHAR NOT NULL REFERENCES video_events(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        end_timestamp INTEGER,
+        text TEXT,
+        url TEXT,
+        require_email BOOLEAN DEFAULT TRUE,
+        require_name BOOLEAN DEFAULT FALSE,
+        skip_allowed BOOLEAN DEFAULT FALSE,
+        cta_type TEXT,
+        cta_text TEXT,
+        cta_button_text TEXT,
+        cta_button_url TEXT,
+        cta_image_url TEXT,
+        cta_html TEXT,
+        cta_position TEXT DEFAULT 'center',
+        impressions INTEGER NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_video_interactive_video ON video_interactive_elements(video_event_id);
+
+      CREATE TABLE IF NOT EXISTS video_ab_tests (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        test_type TEXT NOT NULL DEFAULT 'video',
+        video_a_id VARCHAR REFERENCES video_events(id) ON DELETE CASCADE,
+        video_b_id VARCHAR REFERENCES video_events(id) ON DELETE CASCADE,
+        variant_a_config TEXT,
+        variant_b_config TEXT,
+        split_ratio INTEGER NOT NULL DEFAULT 50,
+        status TEXT NOT NULL DEFAULT 'running',
+        plays_a INTEGER NOT NULL DEFAULT 0,
+        plays_b INTEGER NOT NULL DEFAULT 0,
+        conversions_a INTEGER NOT NULL DEFAULT 0,
+        conversions_b INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        ended_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_video_ab_user ON video_ab_tests(user_id);
+
+      CREATE TABLE IF NOT EXISTS video_channels (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        slug TEXT UNIQUE,
+        theme TEXT NOT NULL DEFAULT 'dark',
+        accent_color TEXT DEFAULT '#d4b461',
+        cover_url TEXT,
+        logo_url TEXT,
+        subscribable BOOLEAN NOT NULL DEFAULT TRUE,
+        subscriber_count INTEGER NOT NULL DEFAULT 0,
+        is_public BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      ALTER TABLE video_channels
+        ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT TRUE;
+      CREATE INDEX IF NOT EXISTS idx_video_channels_user ON video_channels(user_id);
+
+      CREATE TABLE IF NOT EXISTS video_channel_episodes (
+        id SERIAL PRIMARY KEY,
+        channel_id VARCHAR NOT NULL REFERENCES video_channels(id) ON DELETE CASCADE,
+        video_event_id VARCHAR NOT NULL REFERENCES video_events(id) ON DELETE CASCADE,
+        section TEXT DEFAULT 'Episodes',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_video_channel_episodes_channel ON video_channel_episodes(channel_id);
+
+      CREATE TABLE IF NOT EXISTS video_channel_subscribers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        channel_id VARCHAR NOT NULL REFERENCES video_channels(id) ON DELETE CASCADE,
+        email TEXT NOT NULL,
+        name TEXT,
+        subscribed_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(channel_id, email)
+      );
+
+      CREATE TABLE IF NOT EXISTS video_dubbing_jobs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        video_event_id VARCHAR NOT NULL REFERENCES video_events(id) ON DELETE CASCADE,
+        job_type TEXT NOT NULL,
+        target_language TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        output_url TEXT,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        completed_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_video_dubbing_jobs_video ON video_dubbing_jobs(video_event_id);
+
+      CREATE TABLE IF NOT EXISTS video_collab_comments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        video_event_id VARCHAR NOT NULL REFERENCES video_events(id) ON DELETE CASCADE,
+        user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        author_name TEXT NOT NULL,
+        text TEXT NOT NULL,
+        timestamp INTEGER NOT NULL DEFAULT 0,
+        resolved BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_video_collab_comments_video ON video_collab_comments(video_event_id);
+    `);
+    console.log("[migration] video marketing feature tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] video marketing feature tables skipped:", e.message);
+  }
+
+  // ── SMS Marketing tables (sequences, enrollments, logs, templates, tags) ──
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sms_sequences (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        description TEXT,
+        trigger TEXT NOT NULL DEFAULT 'manual',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      ALTER TABLE sms_sequences
+        ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+
+      CREATE TABLE IF NOT EXISTS sms_sequence_steps (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        sequence_id VARCHAR NOT NULL REFERENCES sms_sequences(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        delay_minutes INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_enrollments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone TEXT NOT NULL,
+        sequence_id VARCHAR NOT NULL REFERENCES sms_sequences(id) ON DELETE CASCADE,
+        current_step INTEGER NOT NULL DEFAULT 0,
+        completed BOOLEAN NOT NULL DEFAULT FALSE,
+        unsubscribed BOOLEAN NOT NULL DEFAULT FALSE,
+        enrolled_at TIMESTAMP DEFAULT NOW(),
+        next_send_at TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_sms_enrollments_phone ON sms_enrollments(phone);
+      CREATE INDEX IF NOT EXISTS idx_sms_enrollments_next ON sms_enrollments(next_send_at) WHERE NOT completed AND NOT unsubscribed;
+
+      CREATE TABLE IF NOT EXISTS sms_logs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        to_phone TEXT NOT NULL,
+        message TEXT NOT NULL,
+        sequence_step_id VARCHAR,
+        broadcast_id VARCHAR,
+        sent_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_broadcasts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        segment TEXT NOT NULL DEFAULT 'all',
+        recipients_count INTEGER,
+        sent_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_unsubscribes (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone TEXT NOT NULL UNIQUE,
+        unsubscribed_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_templates (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'general',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_contact_tags (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL UNIQUE,
+        color TEXT NOT NULL DEFAULT '#d4b461',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_contact_tag_assignments (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone TEXT NOT NULL,
+        tag_id VARCHAR NOT NULL REFERENCES sms_contact_tags(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_step_variants (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        step_id VARCHAR NOT NULL REFERENCES sms_sequence_steps(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        is_control BOOLEAN NOT NULL DEFAULT FALSE,
+        opens INTEGER NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sms_carrier_gateways (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone TEXT NOT NULL UNIQUE,
+        carrier_name TEXT NOT NULL DEFAULT 'unknown',
+        gateway_domain TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log("[migration] SMS marketing tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] SMS marketing tables skipped:", e.message);
+  }
 }
 
 (async () => {

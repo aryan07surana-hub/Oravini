@@ -25,8 +25,9 @@ import { TourButton } from "@/components/ui/TourGuide";
 import { format, isAfter } from "date-fns";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from "react";
 import { useTimezone } from "@/hooks/use-timezone";
+import { LoadingSkeleton } from "@/components/ui/loading";
 
 const GOLD = "#d4b461";
 
@@ -804,7 +805,7 @@ function ConnectedPlatforms() {
 /* ─────────────────────────────────────────────
    COMMUNITY PULSE
 ───────────────────────────────────────────── */
-function CommunityPulse() {
+const CommunityPulse = memo(function CommunityPulse() {
   const { data: posts, isLoading } = useQuery<any[]>({
     queryKey: ["/api/community/posts"],
     staleTime: 2 * 60 * 1000,
@@ -872,7 +873,7 @@ function CommunityPulse() {
       </div>
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    WORLD CLOCK
@@ -1543,7 +1544,7 @@ function ActivityHeatmap({ weekHistory }: { weekHistory: { date: string; credits
   );
 }
 
-function ReferralWidget({ stats }: { stats: any }) {
+const ReferralWidget = memo(function ReferralWidget({ stats }: { stats: any }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -1763,12 +1764,12 @@ function ReferralWidget({ stats }: { stats: any }) {
       `}</style>
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    SINCE JOINING ORAVANI
 ───────────────────────────────────────────── */
-function SinceJoiningOravani({
+const SinceJoiningOravani = memo(function SinceJoiningOravani({
   joinDate,
   totalViews,
   totalFollowers,
@@ -1866,7 +1867,7 @@ function SinceJoiningOravani({
       )}
     </div>
   );
-}
+});
 
 /* ─────────────────────────────────────────────
    MAIN DASHBOARD
@@ -2576,9 +2577,11 @@ export default function ClientDashboard() {
           )}
 
           {/* ── COURSE MODULES ── */}
-          <div className="rounded-2xl border border-zinc-800 p-5">
-            <ContentMasteryModule />
-          </div>
+          <Suspense fallback={<LoadingSkeleton count={2} height="h-32" />}>
+            <div className="rounded-2xl border border-zinc-800 p-5">
+              <ContentMasteryModule />
+            </div>
+          </Suspense>
 
           {/* ── FEEDBACK BANNER ── */}
           <div className="rounded-2xl border border-zinc-800 bg-gradient-to-r from-zinc-900 to-zinc-900/60 p-5 flex items-center justify-between gap-4 flex-wrap">
