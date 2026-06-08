@@ -12,3 +12,5 @@ export { registerWebinarAdvancedRoutes } from "./webinar-advanced";
 export { registerCrmRoutes } from "./crm";
 export { registerCrmSuiteRoutes, bootstrapCrmSuite } from "./crm-suite";
 export { registerCrmPublicApi, bootstrapCrmPublicApi } from "./crm-public-api";
+export { registerEmailMarketingRoutes, bootstrapEmailMarketing } from "./email-marketing";
+export { registerDialerRoutes } from "./dialer";

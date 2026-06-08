@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -18,6 +18,7 @@ import { seedDatabase } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
+import contentWorkflowRoutes from "./contentWorkflowRoutes";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -969,6 +970,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Save referral code into session BEFORE redirecting to Google — the callback
   // cannot read body/form data, so session is the only reliable carrier.
   app.get("/api/auth/google", (req, res, next) => {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.redirect("/login?error=google_failed&msg=Google+sign-in+not+configured");
+    }
     const refCode = (req.cookies as any)?.referral_code || (req.query.ref as string) || null;
     if (refCode) {
       // Explicitly save session BEFORE redirecting to Google so the referral code
@@ -4829,6 +4833,294 @@ Make contentPlan have all 30 days. Make hookSystem have 20 hooks. Make reelIdeas
   app.delete("/api/competitor/analyses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
       await storage.deleteCompetitorAnalysis(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Competitor Watchlist ───────────────────────────────────────────────────
+
+  app.get("/api/competitor/watchlist", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const items = await storage.getCompetitorWatchlist(u.id);
+      return res.json(items);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/competitor/watchlist", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const { competitorUrl } = req.body;
+      if (!competitorUrl) return res.status(400).json({ message: "competitorUrl required" });
+
+      const existing = await storage.getCompetitorWatchlist(u.id);
+      if (existing.length >= 7) return res.status(400).json({ message: "Max 7 competitors in watchlist" });
+
+      const normalized = normalizeInstagramUrl(competitorUrl);
+      if (!normalized) return res.status(400).json({ message: "Invalid Instagram URL" });
+
+      // Extract handle from URL
+      const handle = normalized.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").split("/")[0];
+      if (!handle) return res.status(400).json({ message: "Could not extract handle from URL" });
+
+      // Scrape initial profile data
+      let displayName: string | null = null;
+      let avatarUrl: string | null = null;
+      let followerCount: number | null = null;
+      let followingCount: number | null = null;
+      let postCount: number | null = null;
+      let bio: string | null = null;
+      let avgViews = 0, avgLikes = 0, avgComments = 0, avgEngagement = 0;
+      let recentPosts: any[] = [];
+
+      try {
+        const profileItems = await apifyInstagram(
+          { directUrls: [normalized], resultsType: "posts", resultsLimit: 12 },
+          { timeoutMs: 30000, endpoint: "profile-scraper" }
+        );
+        if (profileItems.length > 0) {
+          const first = profileItems[0];
+          displayName = first.ownerFullName || first.fullName || handle;
+          avatarUrl = first.ownerProfilePicUrl || first.profilePicUrl || null;
+          followerCount = first.followersCount ?? null;
+          followingCount = first.followingCount ?? null;
+          postCount = first.postsCount ?? profileItems.length;
+          bio = first.biography || first.bio || null;
+
+          const posts = profileItems.filter((p: any) => p.url || p.shortCode);
+          recentPosts = posts.slice(0, 10).map((p: any) => ({
+            url: p.url || (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : ""),
+            thumbnail: p.displayUrl || p.thumbnailUrl || null,
+            views: p.videoViewCount || p.viewsCount || 0,
+            likes: p.likesCount || p.likes || 0,
+            comments: p.commentsCount || p.comments || 0,
+            caption: (p.caption || "").slice(0, 150),
+            timestamp: p.timestamp || p.takenAtTimestamp || null,
+            type: p.type || (p.videoViewCount ? "reel" : "image"),
+          }));
+
+          if (posts.length > 0) {
+            avgViews = posts.reduce((s: number, p: any) => s + (p.videoViewCount || 0), 0) / posts.length;
+            avgLikes = posts.reduce((s: number, p: any) => s + (p.likesCount || 0), 0) / posts.length;
+            avgComments = posts.reduce((s: number, p: any) => s + (p.commentsCount || 0), 0) / posts.length;
+            avgEngagement = followerCount && followerCount > 0
+              ? ((avgLikes + avgComments) / followerCount) * 100
+              : 0;
+          }
+        }
+      } catch (_) { /* proceed without initial scan data */ }
+
+      const item = await storage.addCompetitorToWatchlist({
+        userId: u.id,
+        competitorUrl: normalized,
+        handle,
+        displayName,
+        avatarUrl,
+        isActive: true,
+        lastScannedAt: new Date(),
+      });
+
+      // Store initial snapshot
+      if (followerCount !== null || recentPosts.length > 0) {
+        await storage.createCompetitorSnapshot({
+          watchlistId: item.id,
+          userId: u.id,
+          followerCount,
+          followingCount,
+          postCount,
+          avgViews,
+          avgLikes,
+          avgComments,
+          avgEngagement,
+          bio,
+          recentPosts,
+        });
+      }
+
+      return res.json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/competitor/watchlist/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.removeFromWatchlist(p(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/competitor/watchlist/:id/snapshots", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const snapshots = await storage.getCompetitorSnapshots(p(req.params.id));
+      return res.json(snapshots);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/competitor/watchlist/:id/scan", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const items = await storage.getCompetitorWatchlist(u.id);
+      const item = items.find(i => i.id === p(req.params.id));
+      if (!item) return res.status(404).json({ message: "Watchlist item not found" });
+
+      const lastSnap = await storage.getLatestSnapshot(item.id);
+      let followerCount: number | null = null;
+      let followingCount: number | null = null;
+      let postCount: number | null = null;
+      let avgViews = 0, avgLikes = 0, avgComments = 0, avgEngagement = 0;
+      let bio: string | null = null;
+      let displayName: string | null = item.displayName;
+      let avatarUrl: string | null = item.avatarUrl;
+      let recentPosts: any[] = [];
+
+      const profileItems = await apifyInstagram(
+        { directUrls: [item.competitorUrl], resultsType: "posts", resultsLimit: 12 },
+        { timeoutMs: 30000, endpoint: "profile-scraper" }
+      );
+
+      if (profileItems.length > 0) {
+        const first = profileItems[0];
+        displayName = first.ownerFullName || first.fullName || item.handle;
+        avatarUrl = first.ownerProfilePicUrl || first.profilePicUrl || item.avatarUrl || null;
+        followerCount = first.followersCount ?? null;
+        followingCount = first.followingCount ?? null;
+        postCount = first.postsCount ?? profileItems.length;
+        bio = first.biography || first.bio || null;
+
+        const posts = profileItems.filter((p: any) => p.url || p.shortCode);
+        recentPosts = posts.slice(0, 10).map((p: any) => ({
+          url: p.url || (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : ""),
+          thumbnail: p.displayUrl || p.thumbnailUrl || null,
+          views: p.videoViewCount || p.viewsCount || 0,
+          likes: p.likesCount || p.likes || 0,
+          comments: p.commentsCount || p.comments || 0,
+          caption: (p.caption || "").slice(0, 150),
+          timestamp: p.timestamp || p.takenAtTimestamp || null,
+          type: p.type || (p.videoViewCount ? "reel" : "image"),
+        }));
+
+        if (posts.length > 0) {
+          avgViews = posts.reduce((s: number, p: any) => s + (p.videoViewCount || 0), 0) / posts.length;
+          avgLikes = posts.reduce((s: number, p: any) => s + (p.likesCount || 0), 0) / posts.length;
+          avgComments = posts.reduce((s: number, p: any) => s + (p.commentsCount || 0), 0) / posts.length;
+          avgEngagement = followerCount && followerCount > 0
+            ? ((avgLikes + avgComments) / followerCount) * 100
+            : 0;
+        }
+      }
+
+      const snap = await storage.createCompetitorSnapshot({
+        watchlistId: item.id,
+        userId: u.id,
+        followerCount,
+        followingCount,
+        postCount,
+        avgViews,
+        avgLikes,
+        avgComments,
+        avgEngagement,
+        bio,
+        recentPosts,
+      });
+
+      await storage.updateWatchlistItem(item.id, {
+        lastScannedAt: new Date(),
+        displayName: displayName || item.displayName,
+        avatarUrl: avatarUrl || item.avatarUrl,
+      });
+
+      // Detect changes vs last snapshot and create alerts
+      if (lastSnap) {
+        // Follower spike (>5% change)
+        if (followerCount && lastSnap.followerCount && followerCount > 0 && lastSnap.followerCount > 0) {
+          const pctChange = ((followerCount - lastSnap.followerCount) / lastSnap.followerCount) * 100;
+          if (Math.abs(pctChange) >= 5) {
+            await storage.createCompetitorAlert({
+              userId: u.id,
+              watchlistId: item.id,
+              alertType: "follower_spike",
+              title: `@${item.handle} ${pctChange > 0 ? "gained" : "lost"} followers`,
+              description: `${Math.abs(Math.round(pctChange))}% ${pctChange > 0 ? "increase" : "decrease"} — from ${lastSnap.followerCount.toLocaleString()} to ${followerCount.toLocaleString()}`,
+              data: { from: lastSnap.followerCount, to: followerCount, pctChange },
+              isRead: false,
+            });
+          }
+        }
+
+        // Bio changed
+        if (bio && lastSnap.bio && bio !== lastSnap.bio) {
+          await storage.createCompetitorAlert({
+            userId: u.id,
+            watchlistId: item.id,
+            alertType: "bio_change",
+            title: `@${item.handle} updated their bio`,
+            description: `New bio: "${bio.slice(0, 120)}"`,
+            data: { oldBio: lastSnap.bio, newBio: bio },
+            isRead: false,
+          });
+        }
+
+        // New posts (postCount jumped)
+        if (postCount && lastSnap.postCount && postCount > lastSnap.postCount) {
+          const newPosts = postCount - lastSnap.postCount;
+          await storage.createCompetitorAlert({
+            userId: u.id,
+            watchlistId: item.id,
+            alertType: "new_post",
+            title: `@${item.handle} posted ${newPosts} new ${newPosts === 1 ? "time" : "times"}`,
+            description: `Total posts: ${postCount}`,
+            data: { newPosts, totalPosts: postCount },
+            isRead: false,
+          });
+        }
+
+        // Engagement spike (>20% change)
+        if (avgEngagement > 0 && lastSnap.avgEngagement && lastSnap.avgEngagement > 0) {
+          const engPct = ((avgEngagement - lastSnap.avgEngagement) / lastSnap.avgEngagement) * 100;
+          if (engPct >= 20) {
+            await storage.createCompetitorAlert({
+              userId: u.id,
+              watchlistId: item.id,
+              alertType: "engagement_spike",
+              title: `@${item.handle} engagement spiked +${Math.round(engPct)}%`,
+              description: `Avg engagement went from ${lastSnap.avgEngagement.toFixed(2)}% to ${avgEngagement.toFixed(2)}%`,
+              data: { from: lastSnap.avgEngagement, to: avgEngagement, pctChange: engPct },
+              isRead: false,
+            });
+          }
+        }
+      }
+
+      return res.json({ snapshot: snap, alerts: "processed" });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/competitor/alerts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      const unreadOnly = req.query.unreadOnly === "true";
+      const alerts = await storage.getCompetitorAlerts(u.id, unreadOnly);
+      return res.json(alerts);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/competitor/alerts/mark-read", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const u = req.user as any;
+      await storage.markAlertsRead(u.id);
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -11120,6 +11412,76 @@ Rules:
       </div>`;
   }
 
+  // ── Client Scheduling (per-user, not admin-only) ──────────────────────────
+
+  // GET /api/scheduling/me — get or auto-create user's meeting type
+  app.get("/api/scheduling/me", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    let mt = await storage.getMeetingTypeByUserId(userId);
+    res.json(mt || null);
+  });
+
+  // POST /api/scheduling/setup — upsert user's meeting type
+  app.post("/api/scheduling/setup", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const { title, duration, description, location, timezone, isActive } = req.body;
+    if (!title || !duration) return res.status(400).json({ message: "title and duration required" });
+
+    const existing = await storage.getMeetingTypeByUserId(userId);
+    const baseSlug = (user.name || user.email || userId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = existing?.slug ?? `${baseSlug}-${Date.now().toString(36)}`;
+
+    let mt;
+    if (existing) {
+      mt = await storage.updateMeetingType(existing.id, { title, duration, description, location, timezone: timezone || "UTC", isActive: isActive ?? true });
+    } else {
+      mt = await storage.createMeetingType({ userId, slug, title, duration, description, location, timezone: timezone || "UTC", isActive: isActive ?? true });
+    }
+    res.json(mt);
+  });
+
+  // GET /api/scheduling/availability — get user's availability rules
+  app.get("/api/scheduling/availability", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const mt = await storage.getMeetingTypeByUserId(userId);
+    if (!mt) return res.json([]);
+    const rules = await storage.getAvailabilityRules(mt.id);
+    res.json(rules);
+  });
+
+  // PUT /api/scheduling/availability — save user's availability rules
+  app.put("/api/scheduling/availability", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const mt = await storage.getMeetingTypeByUserId(userId);
+    if (!mt) return res.status(400).json({ message: "Set up your meeting type first" });
+    const rules = Array.isArray(req.body) ? req.body : [];
+    const saved = await storage.upsertAvailabilityRules(mt.id, rules.map(({ dayOfWeek, startTime, endTime, isEnabled }: any) => ({ dayOfWeek, startTime, endTime, isEnabled })));
+    res.json(saved);
+  });
+
+  // GET /api/scheduling/bookings — get user's incoming bookings
+  app.get("/api/scheduling/bookings", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const mt = await storage.getMeetingTypeByUserId(userId);
+    if (!mt) return res.json([]);
+    const bookings = await storage.getScheduledBookingsByMeetingType(mt.id);
+    res.json(bookings);
+  });
+
+  // PATCH /api/scheduling/bookings/:id — update booking status
+  app.patch("/api/scheduling/bookings/:id", requireAuth, async (req: any, res) => {
+    const userId = (req.user as any).id;
+    const booking = await storage.getScheduledBooking(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Not found" });
+    const mt = await storage.getMeetingType(booking.meetingTypeId);
+    if (!mt || mt.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+    const updated = await storage.updateScheduledBooking(req.params.id, { status: req.body.status });
+    res.json(updated);
+  });
+
   // Admin CRUD — Meeting Types
   app.get("/api/admin/meeting-types", requireAdmin, async (_req, res) => {
     const types = await storage.getMeetingTypes();
@@ -14519,17 +14881,24 @@ Return ONLY valid JSON in this exact format:
   registerWebinarAdvancedRoutes(app, requireAuth);
 
   // ── CRM (GoHighLevel bridge) ──────────────────────────────────────────────
-  // Public lead-capture endpoint used by the Brandverse landing page.
-  // Configure with GHL_API_KEY (+ optional GHL_LOCATION_ID, GHL_PIPELINE_ID, GHL_STAGE_ID).
   registerCrmRoutes(app);
 
-  // ── CRM Suite (native, GHL-style — Contacts · Pipelines · Activities · Tasks) ─
+  // ── CRM Suite ─────────────────────────────────────────────────────────────
   await bootstrapCrmSuite().catch(err => console.error("[crm-suite] bootstrap failed:", err));
   registerCrmSuiteRoutes(app, requireAuth);
 
-  // ── CRM Public API (API key auth — landing pages POST contacts directly) ─────
+  // ── CRM Public API ────────────────────────────────────────────────────────
   await bootstrapCrmPublicApi().catch(err => console.error("[crm-public-api] bootstrap failed:", err));
   registerCrmPublicApi(app, requireAdmin);
+
+  // ── Email Marketing Platform ──────────────────────────────────────────────
+  await bootstrapEmailMarketing().catch(err => console.error("[email-marketing] bootstrap failed:", err));
+  registerEmailMarketingRoutes(app, requireAuth);
+
+  // ── Dialer (Twilio + AI calling) ──────────────────────────────────────────
+  registerDialerRoutes(app, requireAuth);
+
+  app.use(contentWorkflowRoutes);
 
   return httpServer;
 }

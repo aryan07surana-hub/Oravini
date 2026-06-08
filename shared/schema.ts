@@ -694,6 +694,7 @@ export type InsertIgFollowerSnapshot = z.infer<typeof insertIgFollowerSnapshotSc
 // ── Scheduling System ──────────────────────────────────────────────────────
 export const meetingTypes = pgTable("meeting_types", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
@@ -2623,3 +2624,379 @@ export const crmApiKeys = pgTable("crm_api_keys", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type CrmApiKey = typeof crmApiKeys.$inferSelect;
+
+// ── EMAIL MARKETING PLATFORM ───────────────────────────────────────────────────
+
+export const emSequences = pgTable("em_sequences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("nurture"), // nurture|upsell|winback|welcome|launch|promo|post_purchase|feedback|referral|webinar|abandonment|milestone
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft|active|paused|archived
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  replyTo: text("reply_to"),
+  tags: text("tags").array(),
+  aiGenerated: boolean("ai_generated").notNull().default(false),
+  totalEnrolled: integer("total_enrolled").notNull().default(0),
+  totalSent: integer("total_sent").notNull().default(0),
+  totalOpened: integer("total_opened").notNull().default(0),
+  totalClicked: integer("total_clicked").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type EmSequence = typeof emSequences.$inferSelect;
+
+export const emSteps = pgTable("em_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sequenceId: varchar("sequence_id").notNull().references(() => emSequences.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull().default(1),
+  delayDays: integer("delay_days").notNull().default(0),
+  delayHours: integer("delay_hours").notNull().default(0),
+  subject: text("subject").notNull(),
+  previewText: text("preview_text"),
+  bodyHtml: text("body_html").notNull(),
+  bodyText: text("body_text"),
+  sendTimeOptimized: boolean("send_time_optimized").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmStep = typeof emSteps.$inferSelect;
+
+export const emContacts = pgTable("em_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  phone: text("phone"),
+  tags: text("tags").array(),
+  customFields: jsonb("custom_fields").$type<Record<string, any>>(),
+  subscribed: boolean("subscribed").notNull().default(true),
+  unsubscribedAt: timestamp("unsubscribed_at"),
+  source: text("source"),
+  score: integer("score").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmContact = typeof emContacts.$inferSelect;
+
+export const emSends = pgTable("em_sends", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  stepId: varchar("step_id").notNull().references(() => emSteps.id, { onDelete: "cascade" }),
+  contactId: varchar("contact_id").notNull().references(() => emContacts.id, { onDelete: "cascade" }),
+  sequenceId: varchar("sequence_id").notNull().references(() => emSequences.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // pending|sent|delivered|opened|clicked|bounced|unsubscribed
+  trackingId: text("tracking_id").unique(),
+  sentAt: timestamp("sent_at"),
+  openedAt: timestamp("opened_at"),
+  clickedAt: timestamp("clicked_at"),
+  bouncedAt: timestamp("bounced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmSend = typeof emSends.$inferSelect;
+
+export const emWorkflows = pgTable("em_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("draft"), // draft|active|paused
+  nodes: jsonb("nodes").$type<any[]>().notNull().default(sql`'[]'::jsonb`),
+  triggerType: text("trigger_type").notNull().default("manual"), // manual|contact_added|tag_applied|form_submitted|purchase|date_based
+  triggerValue: text("trigger_value"),
+  enrolledCount: integer("enrolled_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type EmWorkflow = typeof emWorkflows.$inferSelect;
+
+export const emSmtpConfigs = pgTable("em_smtp_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  provider: text("provider").notNull().default("custom"), // gmail|outlook|sendgrid|mailgun|ses|smtp2go|custom
+  host: text("host"),
+  port: integer("port").default(587),
+  secure: boolean("secure").default(false),
+  username: text("username"),
+  password: text("password"),
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  replyTo: text("reply_to"),
+  isVerified: boolean("is_verified").notNull().default(false),
+  dailySendLimit: integer("daily_send_limit").notNull().default(500),
+  warmingEnabled: boolean("warming_enabled").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EmSmtpConfig = typeof emSmtpConfigs.$inferSelect;
+// ── Competitor Watch List ────────────────────────────────────────────────────
+export const competitorWatchlist = pgTable("competitor_watchlist", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  competitorUrl: text("competitor_url").notNull(),
+  handle: varchar("handle").notNull(),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastScannedAt: timestamp("last_scanned_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCompetitorWatchlistSchema = createInsertSchema(competitorWatchlist).omit({ id: true, createdAt: true });
+export type CompetitorWatchlistItem = typeof competitorWatchlist.$inferSelect;
+export type InsertCompetitorWatchlistItem = z.infer<typeof insertCompetitorWatchlistSchema>;
+
+// ── Competitor Snapshots ─────────────────────────────────────────────────────
+export const competitorSnapshots = pgTable("competitor_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  watchlistId: varchar("watchlist_id").notNull().references(() => competitorWatchlist.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scannedAt: timestamp("scanned_at").defaultNow(),
+  followerCount: integer("follower_count"),
+  followingCount: integer("following_count"),
+  postCount: integer("post_count"),
+  avgViews: real("avg_views"),
+  avgLikes: real("avg_likes"),
+  avgComments: real("avg_comments"),
+  avgEngagement: real("avg_engagement"),
+  bio: text("bio"),
+  recentPosts: jsonb("recent_posts"),
+});
+export type CompetitorSnapshot = typeof competitorSnapshots.$inferSelect;
+
+// ── Competitor Alerts ────────────────────────────────────────────────────────
+export const competitorAlerts = pgTable("competitor_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  watchlistId: varchar("watchlist_id").notNull().references(() => competitorWatchlist.id, { onDelete: "cascade" }),
+  alertType: text("alert_type").notNull(), // 'new_post' | 'bio_change' | 'follower_spike' | 'engagement_spike' | 'post_count_jump'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  data: jsonb("data"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CompetitorAlert = typeof competitorAlerts.$inferSelect;
+
+// ── DIALER ────────────────────────────────────────────────────────────────────
+
+export const dialerSettings = pgTable("dialer_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthToken: text("twilio_auth_token"),
+  twilioPhoneNumber: text("twilio_phone_number"),
+  twilioTwimlAppSid: text("twilio_twiml_app_sid"),
+  defaultScript: text("default_script"),
+  smsTemplate: text("sms_template"),
+  recordCalls: boolean("record_calls").notNull().default(true),
+  aiProvider: text("ai_provider").notNull().default("vapi"),
+  vapiApiKey: text("vapi_api_key"),
+  vapiAssistantId: text("vapi_assistant_id"),
+  blandApiKey: text("bland_api_key"),
+  blandVoiceId: text("bland_voice_id"),
+  aiSystemPrompt: text("ai_system_prompt"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dialerLeads = pgTable("dialer_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"),
+  company: text("company"),
+  notes: text("notes"),
+  tags: jsonb("tags").$type<string[]>().default(sql`'[]'::jsonb`),
+  sourceType: text("source_type").notNull().default("manual"),
+  sourceWebinarId: varchar("source_webinar_id"),
+  sourceWebinarTitle: text("source_webinar_title"),
+  engagementScore: integer("engagement_score").notNull().default(0),
+  priority: text("priority").notNull().default("normal"),
+  webinarBehavior: jsonb("webinar_behavior").$type<Record<string, any>>(),
+  status: text("status").notNull().default("pending"),
+  lastCallAt: timestamp("last_call_at"),
+  callCount: integer("call_count").notNull().default(0),
+  nextCallAt: timestamp("next_call_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dialerCallLogs = pgTable("dialer_call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id"),
+  leadName: text("lead_name").notNull(),
+  leadPhone: text("lead_phone").notNull(),
+  twilioCallSid: text("twilio_call_sid"),
+  durationSeconds: integer("duration_seconds").notNull().default(0),
+  outcome: text("outcome").notNull().default("no_answer"),
+  notes: text("notes"),
+  scriptUsed: text("script_used"),
+  recordingUrl: text("recording_url"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export const dialerAiCampaigns = pgTable("dialer_ai_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  provider: text("provider").notNull().default("vapi"),
+  systemPrompt: text("system_prompt"),
+  firstMessage: text("first_message"),
+  objective: text("objective").notNull().default("book_meeting"),
+  sourceWebinarId: varchar("source_webinar_id"),
+  sourceWebinarTitle: text("source_webinar_title"),
+  maxCallsPerHour: integer("max_calls_per_hour").notNull().default(10),
+  concurrentCalls: integer("concurrent_calls").notNull().default(1),
+  status: text("status").notNull().default("draft"),
+  totalLeads: integer("total_leads").notNull().default(0),
+  calledCount: integer("called_count").notNull().default(0),
+  answeredCount: integer("answered_count").notNull().default(0),
+  bookedCount: integer("booked_count").notNull().default(0),
+  notInterestedCount: integer("not_interested_count").notNull().default(0),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dialerAiCallResults = pgTable("dialer_ai_call_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  campaignId: varchar("campaign_id"),
+  leadId: varchar("lead_id"),
+  leadName: text("lead_name").notNull(),
+  leadPhone: text("lead_phone").notNull(),
+  provider: text("provider").notNull(),
+  providerCallId: text("provider_call_id"),
+  status: text("status").notNull().default("initiated"),
+  outcome: text("outcome"),
+  durationSeconds: integer("duration_seconds"),
+  transcript: text("transcript"),
+  summary: text("summary"),
+  sentiment: text("sentiment"),
+  appointmentBooked: boolean("appointment_booked").notNull().default(false),
+  appointmentTime: text("appointment_time"),
+  hotLead: boolean("hot_lead").notNull().default(false),
+  needsHumanFollowup: boolean("needs_human_followup").notNull().default(false),
+  recordingUrl: text("recording_url"),
+  keyPoints: jsonb("key_points").$type<string[]>().default(sql`'[]'::jsonb`),
+  objections: jsonb("objections").$type<string[]>().default(sql`'[]'::jsonb`),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+});
+
+export const dialerVoicemails = pgTable("dialer_voicemails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  recordingUrl: text("recording_url").notNull(),
+  durationSeconds: integer("duration_seconds").notNull().default(0),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dialerLocalNumbers = pgTable("dialer_local_numbers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  phoneNumber: text("phone_number").notNull(),
+  areaCode: text("area_code").notNull(),
+  state: text("state"),
+  city: text("city"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dialerSmsConversations = pgTable("dialer_sms_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id"),
+  leadName: text("lead_name").notNull(),
+  leadPhone: text("lead_phone").notNull(),
+  lastMessage: text("last_message"),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  unreadCount: integer("unread_count").notNull().default(0),
+});
+
+export const dialerSmsMessages = pgTable("dialer_sms_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => dialerSmsConversations.id, { onDelete: "cascade" }),
+  direction: text("direction").notNull(),
+  body: text("body").notNull(),
+  twilioSid: text("twilio_sid"),
+  status: text("status").notNull().default("sent"),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+
+export const dialerCadences = pgTable("dialer_cadences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  triggerOutcome: text("trigger_outcome").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dialerCadenceSteps = pgTable("dialer_cadence_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cadenceId: varchar("cadence_id").notNull().references(() => dialerCadences.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull().default(0),
+  delayHours: integer("delay_hours").notNull().default(0),
+  action: text("action").notNull(),
+  template: text("template"),
+});
+
+export const dialerCadenceEnrollments = pgTable("dialer_cadence_enrollments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cadenceId: varchar("cadence_id").notNull().references(() => dialerCadences.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  nextRunAt: timestamp("next_run_at"),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+});
+
+export const dialerCallbacks = pgTable("dialer_callbacks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id"),
+  leadName: text("lead_name").notNull(),
+  leadPhone: text("lead_phone").notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  notes: text("notes"),
+  status: text("status").notNull().default("pending"),
+});
+
+export const dialerGoals = pgTable("dialer_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  dailyCallTarget: integer("daily_call_target").notNull().default(50),
+  dailySmsTarget: integer("daily_sms_target").notNull().default(20),
+  dailyBookingTarget: integer("daily_booking_target").notNull().default(5),
+  weeklyCallTarget: integer("weekly_call_target").notNull().default(250),
+  streakDays: integer("streak_days").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const dialerObjections = pgTable("dialer_objections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  objection: text("objection").notNull(),
+  response: text("response"),
+  category: text("category").notNull().default("other"),
+  occurrenceCount: integer("occurrence_count").notNull().default(1),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dialerTimelineEvents = pgTable("dialer_timeline_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  leadId: varchar("lead_id").notNull(),
+  eventType: text("event_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+});

@@ -5197,6 +5197,410 @@ function PlayerSettingsTab() {
   );
 }
 
+// ── DIALER TAB ────────────────────────────────────────────────────────────────
+
+type DialerSubTab = "leads" | "calls" | "ai-campaigns" | "sms" | "settings";
+
+function DialerTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [subTab, setSubTab] = useState<DialerSubTab>("leads");
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [leadForm, setLeadForm] = useState({ name: "", phone: "", email: "", company: "", notes: "" });
+  const [settingsForm, setSettingsForm] = useState<any>({});
+  const [dialingLead, setDialingLead] = useState<string | null>(null);
+  const [selectedWebinarId, setSelectedWebinarId] = useState("");
+
+  const { data: stats } = useQuery<any>({ queryKey: ["/api/dialer/stats"], staleTime: 30000 });
+  const { data: leads = [], isLoading: leadsLoading } = useQuery<any[]>({ queryKey: ["/api/dialer/leads"], staleTime: 15000 });
+  const { data: calls = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/calls"], staleTime: 15000 });
+  const { data: campaigns = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/ai/campaigns"], staleTime: 15000 });
+  const { data: smsConvs = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/sms/conversations"], staleTime: 15000 });
+  const { data: dialerSettings } = useQuery<any>({ queryKey: ["/api/dialer/settings"] });
+  const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"], staleTime: 60000 });
+
+  useEffect(() => {
+    if (dialerSettings) setSettingsForm(dialerSettings);
+  }, [dialerSettings]);
+
+  const addLead = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dialer/leads", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dialer/leads"] });
+      setShowAddLead(false);
+      setLeadForm({ name: "", phone: "", email: "", company: "", notes: "" });
+      toast({ title: "Lead added" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteLead = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dialer/leads/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/dialer/leads"] }); toast({ title: "Lead deleted" }); },
+  });
+
+  const importFromWebinar = useMutation({
+    mutationFn: (wid: string) => apiRequest("POST", `/api/dialer/leads/import-webinar/${wid}`),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/dialer/leads"] });
+      toast({ title: `Imported ${data.imported} leads (${data.skipped} skipped)` });
+      setSelectedWebinarId("");
+    },
+    onError: (e: any) => toast({ title: "Import failed", description: e.message, variant: "destructive" }),
+  });
+
+  const aiCall = useMutation({
+    mutationFn: (leadId: string) => apiRequest("POST", "/api/dialer/ai/call", { leadId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/dialer/leads"] });
+      setDialingLead(null);
+      toast({ title: "AI call initiated" });
+    },
+    onError: (e: any) => { setDialingLead(null); toast({ title: "Call failed", description: e.message, variant: "destructive" }); },
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: (data: any) => apiRequest("PUT", "/api/dialer/settings", data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/dialer/settings"] }); toast({ title: "Settings saved" }); setShowSettings(false); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const priorityColor = (p: string) => p === "hot" ? "#ef4444" : p === "warm" ? "#f59e0b" : p === "cold" ? "#60a5fa" : GOLD;
+  const statusColor  = (s: string) => s === "booked" ? "#34d399" : s === "not_interested" ? "#ef4444" : s === "called" ? GOLD : "rgba(255,255,255,0.3)";
+  const outcomeLabel = (o: string) => ({ booked: "Booked", answered: "Answered", no_answer: "No Answer", voicemail: "Voicemail", not_interested: "Not Interested", sms_sent: "SMS Sent" }[o] ?? o);
+
+  const subTabs: { id: DialerSubTab; label: string }[] = [
+    { id: "leads", label: "Leads" },
+    { id: "calls", label: "Call Log" },
+    { id: "ai-campaigns", label: "AI Campaigns" },
+    { id: "sms", label: "SMS Inbox" },
+    { id: "settings", label: "Settings" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${GOLD}18` }}>
+              <Phone className="w-4 h-4" style={{ color: GOLD }} />
+            </div>
+            <h2 className="text-xl font-black text-white">Dialer</h2>
+          </div>
+          <p className="text-zinc-500 text-xs">Close-style power dialer + AI calling for webinar follow-ups</p>
+        </div>
+        <button onClick={() => setShowSettings(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
+          style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+          <Settings2 className="w-3 h-3" /> Setup
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: "Calls Today", value: stats?.callsToday ?? 0 },
+          { label: "Connected",   value: stats?.connected ?? 0 },
+          { label: "Booked",      value: stats?.booked ?? 0 },
+          { label: "Hot Leads",   value: stats?.hotLeads ?? 0 },
+        ].map(s => (
+          <div key={s.label} className="rounded-xl p-4" style={{ background: `${GOLD}06`, border: `1px solid ${GOLD}18` }}>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{s.label}</p>
+            <p className="text-2xl font-black" style={{ color: GOLD }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-0 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        {subTabs.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            className="px-4 py-2 text-xs font-bold transition-colors"
+            style={{
+              color: subTab === t.id ? GOLD : "rgba(255,255,255,0.35)",
+              borderBottom: subTab === t.id ? `2px solid ${GOLD}` : "2px solid transparent",
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* LEADS TAB */}
+      {subTab === "leads" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddLead(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{ background: GOLD, color: "#000" }}>
+              <Plus className="w-3 h-3" /> Add Lead
+            </button>
+            {webinars.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedWebinarId}
+                  onChange={e => setSelectedWebinarId(e.target.value)}
+                  className="text-xs rounded-lg px-2 py-1.5 text-zinc-300"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <option value="">Import from webinar…</option>
+                  {(webinars as any[]).map((w: any) => (
+                    <option key={w.id} value={w.id}>{w.title}</option>
+                  ))}
+                </select>
+                {selectedWebinarId && (
+                  <button onClick={() => importFromWebinar.mutate(selectedWebinarId)}
+                    disabled={importFromWebinar.isPending}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}25` }}>
+                    {importFromWebinar.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    Import
+                  </button>
+                )}
+              </div>
+            )}
+            <span className="text-xs text-zinc-600 ml-auto">{(leads as any[]).length} leads</span>
+          </div>
+
+          {leadsLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 rounded-xl bg-zinc-800/60" />)}</div>
+          ) : (leads as any[]).length === 0 ? (
+            <div className="text-center py-16 text-zinc-600">
+              <Phone className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No leads yet. Import from a webinar or add manually.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(leads as any[]).map((lead: any) => (
+                <div key={lead.id} className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: priorityColor(lead.priority) }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{lead.name}</p>
+                    <p className="text-[11px] text-zinc-500">{lead.phone}{lead.company ? ` · ${lead.company}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${statusColor(lead.status)}18`, color: statusColor(lead.status) }}>
+                      {lead.status}
+                    </span>
+                    {lead.engagementScore > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>
+                        {lead.engagementScore}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => { setDialingLead(lead.id); aiCall.mutate(lead.id); }}
+                      disabled={dialingLead === lead.id || aiCall.isPending}
+                      className="ml-2 w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-105"
+                      style={{ background: "#22c55e18", border: "1px solid #22c55e30" }}
+                      title="AI Call">
+                      {dialingLead === lead.id ? <Loader2 className="w-3 h-3 animate-spin text-green-400" /> : <Phone className="w-3 h-3 text-green-400" />}
+                    </button>
+                    <button onClick={() => deleteLead.mutate(lead.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-600 hover:text-red-400 transition-all">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CALL LOG TAB */}
+      {subTab === "calls" && (
+        <div className="space-y-2">
+          {(calls as any[]).length === 0 ? (
+            <div className="text-center py-16 text-zinc-600">
+              <Activity className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No calls logged yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(calls as any[]).map((c: any) => (
+                <div key={c.id} className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: c.outcome === "booked" ? "#22c55e18" : c.outcome === "answered" ? `${GOLD}18` : "rgba(255,255,255,0.05)" }}>
+                    <Phone className="w-3.5 h-3.5" style={{ color: c.outcome === "booked" ? "#22c55e" : c.outcome === "answered" ? GOLD : "#52525b" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white">{c.leadName}</p>
+                    <p className="text-[11px] text-zinc-500">{c.leadPhone} · {c.startedAt ? format(new Date(c.startedAt), "MMM d, h:mm a") : ""}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs font-bold" style={{ color: statusColor(c.outcome) }}>{outcomeLabel(c.outcome)}</p>
+                    {c.durationSeconds > 0 && <p className="text-[10px] text-zinc-600">{Math.floor(c.durationSeconds / 60)}m {c.durationSeconds % 60}s</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI CAMPAIGNS TAB */}
+      {subTab === "ai-campaigns" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-zinc-400">AI-powered campaigns call your leads automatically using Vapi or Bland AI.</p>
+          </div>
+          {(campaigns as any[]).length === 0 ? (
+            <div className="text-center py-16 text-zinc-600">
+              <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No campaigns yet. Configure Vapi/Bland API key in Settings first.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(campaigns as any[]).map((c: any) => (
+                <div key={c.id} className="px-4 py-3 rounded-xl"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-bold text-white">{c.name}</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: c.status === "running" ? "#22c55e18" : `${GOLD}10`, color: c.status === "running" ? "#22c55e" : GOLD }}>
+                      {c.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-[11px] text-zinc-500">
+                    <span>{c.calledCount}/{c.totalLeads} called</span>
+                    <span style={{ color: "#22c55e" }}>{c.bookedCount} booked</span>
+                    <span style={{ color: "#f87171" }}>{c.notInterestedCount} declined</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SMS INBOX TAB */}
+      {subTab === "sms" && (
+        <div className="space-y-2">
+          {(smsConvs as any[]).length === 0 ? (
+            <div className="text-center py-16 text-zinc-600">
+              <Smartphone className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No SMS conversations yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(smsConvs as any[]).map((conv: any) => (
+                <div key={conv.id} className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
+                  style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}18` }}>
+                    <span className="text-xs font-bold" style={{ color: GOLD }}>{conv.leadName?.[0]?.toUpperCase() ?? "?"}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white">{conv.leadName}</p>
+                    <p className="text-[11px] text-zinc-500 truncate">{conv.lastMessage ?? "No messages"}</p>
+                  </div>
+                  {conv.unreadCount > 0 && (
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                      style={{ background: GOLD, color: "#000" }}>{conv.unreadCount}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SETTINGS TAB */}
+      {subTab === "settings" && (
+        <div className="space-y-5 max-w-lg">
+          <p className="text-xs text-zinc-500">Configure Twilio for click-to-call and AI providers for automated outreach.</p>
+          {[
+            { key: "twilioAccountSid",  label: "Twilio Account SID",   type: "text",     placeholder: "ACxxxxxxxx" },
+            { key: "twilioAuthToken",   label: "Twilio Auth Token",     type: "password", placeholder: "••••••••" },
+            { key: "twilioPhoneNumber", label: "Twilio Phone Number",   type: "text",     placeholder: "+12135550100" },
+            { key: "twilioTwimlAppSid", label: "Twilio TwiML App SID",  type: "text",     placeholder: "APxxxxxxxx" },
+            { key: "vapiApiKey",        label: "Vapi API Key",          type: "password", placeholder: "For AI outbound calls" },
+            { key: "vapiAssistantId",   label: "Vapi Assistant ID",     type: "text",     placeholder: "Optional — uses default if blank" },
+            { key: "blandApiKey",       label: "Bland AI API Key",      type: "password", placeholder: "Alternative AI provider" },
+          ].map(f => (
+            <div key={f.key}>
+              <label className="text-xs text-zinc-400 mb-1.5 block">{f.label}</label>
+              <Input
+                type={f.type}
+                placeholder={f.placeholder}
+                value={settingsForm[f.key] ?? ""}
+                onChange={e => setSettingsForm((s: any) => ({ ...s, [f.key]: e.target.value }))}
+                className="bg-zinc-900 border-zinc-700 text-white text-sm"
+              />
+            </div>
+          ))}
+          <div>
+            <label className="text-xs text-zinc-400 mb-1.5 block">AI Provider</label>
+            <div className="flex gap-2">
+              {["vapi", "bland"].map(p => (
+                <button key={p} onClick={() => setSettingsForm((s: any) => ({ ...s, aiProvider: p }))}
+                  className="px-4 py-2 rounded-lg text-sm font-bold transition-all capitalize"
+                  style={{
+                    background: settingsForm.aiProvider === p ? `${GOLD}18` : "transparent",
+                    border: `1px solid ${settingsForm.aiProvider === p ? GOLD + "40" : "rgba(255,255,255,0.08)"}`,
+                    color: settingsForm.aiProvider === p ? GOLD : "#71717a",
+                  }}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-zinc-400 mb-1.5 block">Default AI Script</label>
+            <Textarea
+              placeholder="You are a friendly sales rep for Oravini. Your goal is to qualify leads and book meetings…"
+              value={settingsForm.aiSystemPrompt ?? ""}
+              onChange={e => setSettingsForm((s: any) => ({ ...s, aiSystemPrompt: e.target.value }))}
+              className="bg-zinc-900 border-zinc-700 text-white text-sm resize-none"
+              rows={4}
+            />
+          </div>
+          <button onClick={() => saveSettings.mutate(settingsForm)}
+            disabled={saveSettings.isPending}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
+            style={{ background: GOLD, color: "#000" }}>
+            {saveSettings.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Save Settings
+          </button>
+        </div>
+      )}
+
+      {/* Add Lead Dialog */}
+      <Dialog open={showAddLead} onOpenChange={setShowAddLead}>
+        <DialogContent style={{ background: "#0c0c10", border: `1px solid ${GOLD}20` }}>
+          <DialogHeader><DialogTitle className="text-white">Add Lead</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            {[
+              { key: "name",    label: "Name *",    placeholder: "Full name" },
+              { key: "phone",   label: "Phone *",   placeholder: "+1 555 0100" },
+              { key: "email",   label: "Email",     placeholder: "email@example.com" },
+              { key: "company", label: "Company",   placeholder: "Company name" },
+            ].map(f => (
+              <div key={f.key}>
+                <label className="text-xs text-zinc-400 mb-1 block">{f.label}</label>
+                <Input
+                  placeholder={f.placeholder}
+                  value={(leadForm as any)[f.key]}
+                  onChange={e => setLeadForm(s => ({ ...s, [f.key]: e.target.value }))}
+                  className="bg-zinc-800 border-zinc-700 text-white"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowAddLead(false)}>Cancel</Button>
+            <Button onClick={() => addLead.mutate(leadForm)} disabled={!leadForm.name || !leadForm.phone || addLead.isPending}
+              style={{ background: GOLD, color: "#000" }}>
+              {addLead.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Lead"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── MAIN PLATFORM VIEW ────────────────────────────────────────────────────────
 
 type NavItem = { id: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -5207,6 +5611,7 @@ const WEBINAR_NAV: NavItem[] = [
   { id: "landing-pages",    label: "Landing Pages",   icon: LayoutTemplate },
   { id: "crm",              label: "CRM",             icon: Users },
   { id: "recordings",       label: "Recordings",      icon: Mic },
+  { id: "dialer",           label: "Dialer",          icon: Phone },
   { id: "email-sequences",  label: "Email Sequences", icon: Mail },
   { id: "sms-marketing",    label: "SMS Marketing",   icon: Smartphone },
   { id: "analytics",        label: "Analytics",       icon: BarChart3 },
@@ -5354,6 +5759,7 @@ export default function PlatformView() {
           {activeId === "landing-pages"     && <LandingPagesTab />}
           {activeId === "crm"               && <CRMTab />}
           {activeId === "recordings"        && <RecordingsTab />}
+          {activeId === "dialer"            && <DialerTab />}
           {activeId === "email-sequences"   && <EmailSequencesTab />}
           {activeId === "sms-marketing"     && <SmsMarketingTab />}
           {activeId === "analytics"         && <AnalyticsTab />}
