@@ -1328,7 +1328,7 @@ export default function ScreenRecorder() {
   const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const screenVideoElRef = useRef<HTMLVideoElement | null>(null);
   const camVideoElRef = useRef<HTMLVideoElement | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const animFrameRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cursorPosRef = useRef<{ x: number; y: number } | null>(null);
   const cursorClicksRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
   // Live refs for state used inside animation loop
@@ -1819,9 +1819,9 @@ export default function ScreenRecorder() {
           }
         }
 
-        animFrameRef.current = requestAnimationFrame(renderFrame);
       };
-      renderFrame();
+      // setInterval keeps running when tab is hidden; requestAnimationFrame pauses and kills the cam bubble
+      animFrameRef.current = setInterval(renderFrame, Math.round(1000 / frameRate));
 
       // Capture canvas as video stream at desired frame rate
       const canvasStream = (compCanvas as any).captureStream(frameRate) as MediaStream;
@@ -1927,6 +1927,7 @@ export default function ScreenRecorder() {
   }, [isPaused]);
 
   const cleanupStreams = () => {
+    if (animFrameRef.current) { clearInterval(animFrameRef.current); animFrameRef.current = null; }
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     audioStreamRef.current?.getTracks().forEach((t) => t.stop());
     camStreamRef.current?.getTracks().forEach((t) => t.stop());

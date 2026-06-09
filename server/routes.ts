@@ -6837,10 +6837,24 @@ Return ONLY valid JSON:
   }
 
   // ── YouTube transcript via Apify actor (reliable, no bot detection) ─────────
+  async function fetchYouTubeTitle(videoId: string): Promise<string> {
+    try {
+      const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        const d: any = await r.json();
+        if (d?.title) return d.title;
+      }
+    } catch { /* ignore — title is cosmetic */ }
+    return "YouTube Video";
+  }
+
   async function fetchYouTubeTranscript(videoId: string): Promise<{ title: string; segments: { start: number; duration: number; text: string }[] }> {
     try {
       const { YoutubeTranscript } = await import("youtube-transcript");
-      const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+      const [transcriptItems, title] = await Promise.all([
+        YoutubeTranscript.fetchTranscript(videoId),
+        fetchYouTubeTitle(videoId),
+      ]);
       if (!transcriptItems || transcriptItems.length === 0) {
         const err: any = new Error("NO_TRANSCRIPT");
         err.noTranscript = true;
@@ -6851,7 +6865,7 @@ Return ONLY valid JSON:
         duration: parseFloat(s.duration) / 1000 || 3,
         text: (s.text || "").replace(/\n/g, " ").trim(),
       })).filter((s: any) => s.text.length > 1);
-      return { title: "YouTube Video", segments };
+      return { title, segments };
     } catch (e: any) {
       if (e.noTranscript) throw e;
       // fallback to Apify
@@ -6869,7 +6883,8 @@ Return ONLY valid JSON:
       const rawSegments: any[] = item.transcript || [];
       if (!rawSegments.length) { const err: any = new Error("NO_TRANSCRIPT"); err.noTranscript = true; throw err; }
       const segments = rawSegments.map((s: any) => ({ start: parseFloat(s.start) || 0, duration: parseFloat(s.duration) || 3, text: (s.text || "").replace(/\n/g, " ").trim() })).filter((s) => s.text.length > 1);
-      return { title: item.title || "YouTube Video", segments };
+      const fallbackTitle = item.title || await fetchYouTubeTitle(videoId);
+      return { title: fallbackTitle, segments };
     }
   }
 
