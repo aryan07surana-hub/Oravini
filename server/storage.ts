@@ -396,6 +396,7 @@ export interface IStorage {
   updateScheduledBooking(id: string, data: Partial<ScheduledBooking>): Promise<ScheduledBooking | undefined>;
   deleteScheduledBooking(id: string): Promise<void>;
   getUpcomingBookingsForReminders(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
+  getCompletedBookingsForFollowUp(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]>;
   getAvailabilityOverrides(meetingTypeId: string): Promise<AvailabilityOverride[]>;
   getAvailabilityOverridesByDate(meetingTypeId: string, date: string): Promise<AvailabilityOverride | undefined>;
   createAvailabilityOverride(data: InsertAvailabilityOverride): Promise<AvailabilityOverride>;
@@ -1981,6 +1982,17 @@ class DatabaseStorage implements IStorage {
         eq(scheduledBookings.status, "scheduled"),
         gte(scheduledBookings.startTime, now),
         lte(scheduledBookings.startTime, in25Hours)
+      )
+    );
+    const types = await db.select().from(meetingTypes);
+    return bookings.map(b => ({ ...b, meetingType: types.find(t => t.id === b.meetingTypeId) || null }));
+  }
+
+  async getCompletedBookingsForFollowUp(): Promise<(ScheduledBooking & { meetingType: MeetingType | null })[]> {
+    const bookings = await db.select().from(scheduledBookings).where(
+      and(
+        eq(scheduledBookings.status, "completed"),
+        eq(scheduledBookings.followUpSent, false)
       )
     );
     const types = await db.select().from(meetingTypes);

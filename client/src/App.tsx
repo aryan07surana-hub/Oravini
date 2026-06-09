@@ -96,7 +96,6 @@ import FormResponses from "@/pages/client/FormResponses";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
-import ClientScheduling from "@/pages/client/ClientScheduling";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
 import ScreenRecorder from "@/pages/client/ScreenRecorder";
 import WebinarStudio from "@/pages/client/WebinarStudio";
@@ -288,7 +287,6 @@ function Router() {
       <Route path="/meetings/new">{() => <Guard component={NewMeeting} />}</Route>
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
-      <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
       <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>

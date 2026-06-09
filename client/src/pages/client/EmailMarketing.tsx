@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import {
   LayoutDashboard, Mail, GitBranch, Users, Wand2, BarChart3, Settings2,
@@ -873,21 +874,25 @@ function SequencesSection() {
               <div key={seq.id}
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all hover:scale-[1.005]"
                 style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}12` }}>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedId(seq.id)}>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{ background: `${typeConfig?.color || GOLD}18` }}>
                   {typeConfig && <typeConfig.icon className="w-4 h-4" style={{ color: typeConfig.color || GOLD }} />}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedId(seq.id)}>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold text-white truncate">{seq.name}</p>
                     {seq.ai_generated && <Sparkles className="w-3 h-3 flex-shrink-0" style={{ color: GOLD }} />}
                   </div>
                   <p className="text-[10px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-                    {typeConfig?.label} · {seq.total_sent || 0} sent
+                    {typeConfig?.label} · {seq.total_sent || 0} sent · {seq.total_enrolled || 0} enrolled
                   </p>
                 </div>
                 <StatusBadge status={seq.status} />
+                <button onClick={(e) => { e.stopPropagation(); setLaunchingSeq(seq); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-105 flex-shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)`, color: "#000" }}>
+                  <Rocket className="w-3 h-3" /> Launch
+                </button>
                 <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
               </div>
             );
@@ -2372,7 +2377,23 @@ function EmailTierGate({ plan }: { plan: string }) {
 function EmailMarketingPlatform() {
   const [activeId, setActiveId] = useState("overview");
   const [skippedSetup, setSkippedSetup] = useState(false);
-  const [, nav] = useLocation();
+  const [location, nav] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("gmail_connected") === "1") {
+        toast({ title: "Gmail connected!", description: "Your Gmail account is now linked for sending emails." });
+        qc.invalidateQueries({ queryKey: ["/api/em/oauth/status"] });
+        window.history.replaceState({}, "", "/email-marketing");
+      } else if (params.get("gmail_error")) {
+        toast({ title: "Gmail connection failed", description: params.get("gmail_error") || "Unknown error", variant: "destructive" });
+        window.history.replaceState({}, "", "/email-marketing");
+      }
+    }
+  }, []);
 
   const { data: oauthStatus, isLoading: oauthLoading } = useQuery({
     queryKey: ["/api/em/oauth/status"],

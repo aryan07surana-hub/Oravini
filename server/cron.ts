@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { storage } from "./storage";
 import { log } from "./index";
+import { processEmSendQueue } from "./routes/email-marketing";
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 
@@ -352,32 +353,43 @@ async function sendBookingReminders() {
       const hoursUntil = (new Date(booking.startTime).getTime() - now.getTime()) / (1000 * 60 * 60);
       const mt = booking.meetingType;
       if (!mt) continue;
-      const html = (hoursLabel: string) => `
+      // Parse scheduling config for per-user reminder preferences
+      let cfg: any = {};
+      try { cfg = mt.schedulingConfig ? JSON.parse((mt as any).schedulingConfig) : {}; } catch { cfg = {}; }
+      const rem = cfg.reminders ?? {};
+      const r24Enabled = rem.reminder24h !== false; // default on
+      const r1Enabled = rem.reminder1h !== false;   // default on
+      const customMsg = rem.customMessage ? `<p style="color:#ccc;margin-top:16px">${rem.customMessage}</p>` : "";
+
+      const buildHtml = (hoursLabel: string) => `
         <div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto">
           <h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2>
-          <p style="color:#aaa;margin-bottom:24px;font-size:13px">Reminder</p>
+          <p style="color:#aaa;margin-bottom:24px;font-size:13px">Meeting Reminder</p>
           <h3 style="color:#fff;margin-bottom:16px">Your meeting starts in ${hoursLabel}</h3>
           <div style="background:#222;border:1px solid #333;border-radius:8px;padding:20px">
             <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">Meeting:</strong> ${mt.title}</p>
             <p style="margin:0 0 8px;color:#ccc"><strong style="color:#d4b461">When:</strong> ${fmt(new Date(booking.startTime))}</p>
             ${mt.location ? `<p style="margin:0;color:#ccc"><strong style="color:#d4b461">Location:</strong> ${mt.location}</p>` : ""}
           </div>
+          ${booking.meetLink ? `<div style="text-align:center;margin-top:20px"><a href="${booking.meetLink}" style="display:inline-block;background:#d4b461;color:#000;font-weight:700;font-size:15px;padding:12px 28px;border-radius:8px;text-decoration:none">🎥 Join Meeting</a></div>` : ""}
+          ${customMsg}
         </div>`;
-      // 24h reminder: send between 23h and 25h before meeting (±1h window around 24h, cron runs every 15min)
-      if (hoursUntil <= 25 && hoursUntil >= 23 && !booking.reminder24Sent) {
+
+      // 24h reminder: send between 23h and 25h before meeting
+      if (r24Enabled && hoursUntil <= 25 && hoursUntil >= 23 && !booking.reminder24Sent) {
         try {
           if (process.env.EMAIL_USER) {
-            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 24 hours`, html: html("24 hours") });
+            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} tomorrow`, html: buildHtml("24 hours") });
           }
           await storage.updateScheduledBooking(booking.id, { reminder24Sent: true });
           log(`Booking reminder 24h sent to ${booking.clientEmail}`, "cron");
         } catch (e: any) { log(`Reminder 24h failed: ${e.message}`, "cron"); }
       }
-      // 1h reminder: send between 0 and 1h15m before meeting (±15min window around 1h)
-      if (hoursUntil <= 1.25 && hoursUntil > 0 && !booking.reminder1Sent) {
+      // 1h reminder: send between 0 and 1h15m before meeting
+      if (r1Enabled && hoursUntil <= 1.25 && hoursUntil > 0 && !booking.reminder1Sent) {
         try {
           if (process.env.EMAIL_USER) {
-            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 1 hour`, html: html("1 hour") });
+            await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject: `Reminder: ${mt.title} in 1 hour`, html: buildHtml("1 hour") });
           }
           await storage.updateScheduledBooking(booking.id, { reminder1Sent: true });
           log(`Booking reminder 1h sent to ${booking.clientEmail}`, "cron");
@@ -386,6 +398,54 @@ async function sendBookingReminders() {
     }
   } catch (e: any) {
     log(`Booking reminders error: ${e.message}`, "cron");
+  }
+}
+
+async function sendFollowUpEmails() {
+  try {
+    const completed = await storage.getCompletedBookingsForFollowUp();
+    if (completed.length === 0) return;
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.default.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+    const now = new Date();
+    for (const booking of completed) {
+      const mt = booking.meetingType;
+      if (!mt) continue;
+      let cfg: any = {};
+      try { cfg = mt.schedulingConfig ? JSON.parse((mt as any).schedulingConfig) : {}; } catch { cfg = {}; }
+      const emails = cfg.emails ?? {};
+      if (!emails.followUpEnabled) continue;
+      const delayHours = Number(emails.followUpDelayHours ?? 24);
+      const sendAfter = new Date(new Date(booking.endTime).getTime() + delayHours * 60 * 60 * 1000);
+      if (now < sendAfter) continue;
+
+      const vars: Record<string, string> = {
+        name: booking.clientName,
+        title: mt.title,
+        time: new Date(booking.startTime).toLocaleString("en-US", { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }),
+        duration: String(mt.duration ?? 30),
+        link: mt.location ?? "",
+      };
+      const fill = (t: string) => t.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+      const subject = fill(emails.followUpSubject || `How was your session with ${mt.title}?`);
+      const bodyText = fill(emails.followUpBody || `Hi {{name}},\n\nThank you for meeting with us! We hope the session was valuable.\n\nFeel free to book another call whenever you're ready.`);
+      const bodyHtml = `<div style="background:#111;color:#fff;font-family:sans-serif;padding:40px;border-radius:12px;max-width:520px;margin:auto"><h2 style="color:#d4b461;margin-bottom:4px">Oravini</h2><p style="color:#aaa;margin-bottom:24px;font-size:13px">Follow-up</p>${bodyText.split("\n").map(l => `<p style="color:#ccc;margin:0 0 12px">${l}</p>`).join("")}</div>`;
+
+      try {
+        if (process.env.EMAIL_USER) {
+          await transporter.sendMail({ from: `"Oravini" <support@oravini.com>`, to: booking.clientEmail, subject, html: bodyHtml });
+        }
+        await storage.updateScheduledBooking(booking.id, { followUpSent: true } as any);
+        log(`Follow-up email sent to ${booking.clientEmail} for booking ${booking.id}`, "cron");
+      } catch (e: any) {
+        log(`Follow-up email failed for booking ${booking.id}: ${e.message}`, "cron");
+      }
+    }
+  } catch (e: any) {
+    log(`sendFollowUpEmails error: ${e.message}`, "cron");
   }
 }
 
@@ -689,7 +749,9 @@ export function startCronJobs() {
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
   cron.schedule("*/5 * * * *", processScheduledInstagramPosts);
   cron.schedule("*/15 * * * *", sendBookingReminders);
+  cron.schedule("*/15 * * * *", sendFollowUpEmails);
   cron.schedule("0 * * * *", processEmailSequences);
   cron.schedule("*/2 * * * *", processSmsSequences);
-  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch 8AM; schedulers every 5 min; reminders every 15 min; email sequences hourly; SMS sequences every 2 min", "cron");
+  cron.schedule("*/5 * * * *", processEmSendQueue);
+  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch 8AM; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
 }

@@ -177,11 +177,65 @@ async function doBootstrap() {
     );
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_oauth_tokens (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL DEFAULT 'gmail',
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      token_expires_at TIMESTAMPTZ,
+      email TEXT,
+      display_name TEXT,
+      warmup_start_date TIMESTAMPTZ DEFAULT NOW(),
+      today_sent INTEGER NOT NULL DEFAULT 0,
+      last_send_date DATE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, provider)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_enrollments (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      sequence_id TEXT NOT NULL REFERENCES em_sequences(id) ON DELETE CASCADE,
+      contact_id TEXT NOT NULL REFERENCES em_contacts(id) ON DELETE CASCADE,
+      current_step INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      next_send_at TIMESTAMPTZ DEFAULT NOW(),
+      enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      UNIQUE(sequence_id, contact_id)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_chat_history (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      metadata JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`ALTER TABLE em_contacts ADD COLUMN IF NOT EXISTS unsubscribe_token TEXT;`);
+  await pool.query(`UPDATE em_contacts SET unsubscribe_token = gen_random_uuid()::text WHERE unsubscribe_token IS NULL;`);
+  await pool.query(`ALTER TABLE em_smtp_configs ADD COLUMN IF NOT EXISTS warmup_start_date TIMESTAMPTZ DEFAULT NOW();`);
+  await pool.query(`ALTER TABLE em_smtp_configs ADD COLUMN IF NOT EXISTS today_sent INTEGER NOT NULL DEFAULT 0;`);
+  await pool.query(`ALTER TABLE em_smtp_configs ADD COLUMN IF NOT EXISTS last_send_date DATE;`);
+  await pool.query(`ALTER TABLE em_sequences ADD COLUMN IF NOT EXISTS total_enrolled INTEGER NOT NULL DEFAULT 0;`);
+
   await pool.query(`CREATE INDEX IF NOT EXISTS em_sequences_user_idx ON em_sequences(user_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_steps_seq_idx ON em_steps(sequence_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_contacts_user_idx ON em_contacts(user_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_sends_seq_idx ON em_sends(sequence_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_workflows_user_idx ON em_workflows(user_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS em_enrollments_due_idx ON em_enrollments(next_send_at) WHERE status = 'active';`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS em_oauth_user_idx ON em_oauth_tokens(user_id);`);
 }
 
 // ── Route Registration ────────────────────────────────────────────────────────
@@ -673,13 +727,730 @@ Create a clear step-by-step workflow. Return JSON:
 
   app.post("/api/em/smtp/test", async (req: Request, res: Response) => {
     if (!requirePlan(req, res)) return;
-    // Basic SMTP connectivity check (nodemailer would be ideal but keep it dep-free)
     const { host, port } = req.body;
     if (!host) return void res.status(400).json({ ok: false, message: "host required" });
-    // Mark as verified on save — real verification needs nodemailer
-    await db.update(emSmtpConfigs)
-      .set({ isVerified: true })
-      .where(eq(emSmtpConfigs.userId, uid(req)));
-    res.json({ ok: true, message: "SMTP config saved and marked as verified. Send a test email to confirm delivery." });
+    try {
+      const nodemailer = await import("nodemailer");
+      const [cfg] = await db.select().from(emSmtpConfigs).where(eq(emSmtpConfigs.userId, uid(req)));
+      if (!cfg?.username || !cfg?.password) throw new Error("Username/password not saved yet");
+      const transporter = nodemailer.default.createTransport({
+        host: cfg.host || host, port: cfg.port || port || 587,
+        secure: cfg.secure || false,
+        auth: { user: cfg.username, pass: cfg.password },
+        connectionTimeout: 8000, greetingTimeout: 5000,
+      });
+      await transporter.verify();
+      await db.update(emSmtpConfigs).set({ isVerified: true }).where(eq(emSmtpConfigs.userId, uid(req)));
+      res.json({ ok: true, message: "SMTP connected — ready to send" });
+    } catch (e: any) {
+      res.status(400).json({ ok: false, message: `SMTP connection failed: ${e.message}` });
+    }
   });
+
+  // ── GMAIL OAUTH ────────────────────────────────────────────────────────────
+
+  function getAppBase(): string {
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+    return `http://localhost:${process.env.PORT || "5000"}`;
+  }
+
+  async function getGmailOAuth2Client() {
+    const { google } = await import("googleapis");
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${getAppBase()}/api/em/oauth/gmail/callback`,
+    );
+  }
+
+  app.get("/api/em/oauth/status", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const [gmail] = await pool.query(
+      `SELECT email, display_name FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`,
+      [userId],
+    ).then(r => r.rows);
+    const [outlook] = await pool.query(
+      `SELECT email, display_name FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'outlook'`,
+      [userId],
+    ).then(r => r.rows);
+    res.json({
+      gmail: gmail ? { connected: true, email: gmail.email } : { connected: false },
+      outlook: outlook ? { connected: true, email: outlook.email } : { connected: false },
+    });
+  });
+
+  app.get("/api/em/oauth/gmail/connect", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return void res.status(500).json({ message: "Google credentials not configured" });
+    }
+    const client = await getGmailOAuth2Client();
+    const url = client.generateAuthUrl({
+      access_type: "offline",
+      scope: [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+      ],
+      prompt: "consent",
+      state: uid(req),
+    });
+    res.redirect(url);
+  });
+
+  app.get("/api/em/oauth/gmail/callback", async (req: Request, res: Response) => {
+    const base = getAppBase();
+    try {
+      const { code, state: userId, error } = req.query as { code?: string; state?: string; error?: string };
+      if (error) return res.redirect(`${base}/email-marketing?gmail_error=${encodeURIComponent(error)}`);
+      if (!code || !userId) return res.redirect(`${base}/email-marketing?gmail_error=missing_code`);
+
+      const client = await getGmailOAuth2Client();
+      const { tokens } = await client.getToken(code as string);
+      if (!tokens.access_token) throw new Error("No access token");
+
+      client.setCredentials(tokens);
+      const { google } = await import("googleapis");
+      const oauth2 = google.oauth2({ version: "v2", auth: client });
+      const info = await oauth2.userinfo.get();
+      const email = info.data.email ?? null;
+      const name = info.data.name ?? null;
+
+      await pool.query(`
+        INSERT INTO em_oauth_tokens (user_id, provider, access_token, refresh_token, token_expires_at, email, display_name, warmup_start_date)
+        VALUES ($1, 'gmail', $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (user_id, provider) DO UPDATE SET
+          access_token = EXCLUDED.access_token,
+          refresh_token = COALESCE(EXCLUDED.refresh_token, em_oauth_tokens.refresh_token),
+          token_expires_at = EXCLUDED.token_expires_at,
+          email = EXCLUDED.email,
+          display_name = EXCLUDED.display_name,
+          updated_at = NOW()
+      `, [userId, tokens.access_token, tokens.refresh_token ?? null,
+          tokens.expiry_date ? new Date(tokens.expiry_date) : null, email, name]);
+
+      return res.redirect(`${base}/email-marketing?gmail_connected=1`);
+    } catch (e: any) {
+      console.error("[em/gmail] callback error:", e.message);
+      return res.redirect(`${base}/email-marketing?gmail_error=${encodeURIComponent(e.message)}`);
+    }
+  });
+
+  app.delete("/api/em/oauth/gmail/disconnect", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(
+      `DELETE FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`,
+      [uid(req)],
+    );
+    res.json({ ok: true });
+  });
+
+  // Outlook stubs (OAuth flow same pattern — add MICROSOFT_CLIENT_ID/SECRET when ready)
+  app.get("/api/em/oauth/outlook/connect", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    res.json({ ok: false, message: "Outlook OAuth coming soon. Use SMTP with Outlook for now." });
+  });
+
+  app.delete("/api/em/oauth/outlook/disconnect", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(`DELETE FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'outlook'`, [uid(req)]);
+    res.json({ ok: true });
+  });
+
+  // ── SEQUENCE LAUNCH ────────────────────────────────────────────────────────
+
+  app.post("/api/em/sequences/:id/launch", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const { segment = "all", tagName, contactIds, fromName, replyTo } = req.body;
+
+    // Verify sequence exists and belongs to user
+    const [seq] = await db.select().from(emSequences)
+      .where(and(eq(emSequences.id, req.params.id), eq(emSequences.userId, userId)));
+    if (!seq) return void res.status(404).json({ ok: false, message: "Sequence not found" });
+
+    // Check sending account configured
+    const [gmailToken] = await pool.query(
+      `SELECT email FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+    ).then(r => r.rows);
+    const [smtpCfg] = await db.select().from(emSmtpConfigs).where(and(eq(emSmtpConfigs.userId, userId), eq(emSmtpConfigs.isVerified, true)));
+
+    if (!gmailToken && !smtpCfg) {
+      return void res.status(400).json({ ok: false, message: "Connect Gmail or configure SMTP before launching" });
+    }
+
+    // Resolve contacts
+    let contacts: any[] = [];
+    if (segment === "ids" && contactIds?.length) {
+      contacts = await pool.query(
+        `SELECT * FROM em_contacts WHERE user_id = $1 AND id = ANY($2) AND subscribed = true`,
+        [userId, contactIds]
+      ).then(r => r.rows);
+    } else if (segment === "tag" && tagName) {
+      contacts = await pool.query(
+        `SELECT * FROM em_contacts WHERE user_id = $1 AND $2 = ANY(tags) AND subscribed = true`,
+        [userId, tagName]
+      ).then(r => r.rows);
+    } else {
+      contacts = await pool.query(
+        `SELECT * FROM em_contacts WHERE user_id = $1 AND subscribed = true`,
+        [userId]
+      ).then(r => r.rows);
+    }
+
+    if (!contacts.length) {
+      return void res.status(400).json({ ok: false, message: "No subscribed contacts found for this segment" });
+    }
+
+    // Activate sequence
+    await db.update(emSequences)
+      .set({ status: "active", ...(fromName ? { fromName } : {}), ...(replyTo ? { replyTo } : {}), updatedAt: new Date() })
+      .where(eq(emSequences.id, seq.id));
+
+    // Enroll contacts (skip already enrolled)
+    let enrolled = 0;
+    let skipped = 0;
+    for (const contact of contacts) {
+      try {
+        await pool.query(`
+          INSERT INTO em_enrollments (user_id, sequence_id, contact_id, current_step, status, next_send_at)
+          VALUES ($1, $2, $3, 0, 'active', NOW())
+          ON CONFLICT (sequence_id, contact_id) DO NOTHING
+        `, [userId, seq.id, contact.id]);
+        enrolled++;
+      } catch { skipped++; }
+    }
+
+    // Update total_enrolled on sequence
+    await db.update(emSequences)
+      .set({ totalEnrolled: seq.totalEnrolled + enrolled, updatedAt: new Date() })
+      .where(eq(emSequences.id, seq.id));
+
+    res.json({ ok: true, enrolled, skipped, total: contacts.length });
+  });
+
+  app.get("/api/em/sequences/:id/enrollments", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const rows = await pool.query(`
+      SELECT e.id, e.current_step, e.status, e.next_send_at, e.enrolled_at, e.completed_at,
+             c.email, c.first_name, c.last_name
+      FROM em_enrollments e
+      JOIN em_contacts c ON c.id = e.contact_id
+      WHERE e.sequence_id = $1 AND e.user_id = $2
+      ORDER BY e.enrolled_at DESC
+      LIMIT 100
+    `, [req.params.id, uid(req)]).then(r => r.rows);
+    res.json(rows);
+  });
+
+  app.post("/api/em/sequences/:id/pause", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(
+      `UPDATE em_enrollments SET status = 'paused' WHERE sequence_id = $1 AND user_id = $2 AND status = 'active'`,
+      [req.params.id, uid(req)]
+    );
+    await db.update(emSequences).set({ status: "paused", updatedAt: new Date() })
+      .where(and(eq(emSequences.id, req.params.id), eq(emSequences.userId, uid(req))));
+    res.json({ ok: true });
+  });
+
+  // ── UNSUBSCRIBE (public, no auth) ──────────────────────────────────────────
+
+  app.get("/api/em/unsubscribe/:token", async (req: Request, res: Response) => {
+    try {
+      const result = await pool.query(
+        `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW() WHERE unsubscribe_token = $1 RETURNING email`,
+        [req.params.token],
+      );
+      if (result.rows.length > 0) {
+        await pool.query(
+          `UPDATE em_enrollments SET status = 'unsubscribed' WHERE contact_id IN (SELECT id FROM em_contacts WHERE unsubscribe_token = $1)`,
+          [req.params.token],
+        );
+      }
+      res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Unsubscribed</title></head><body style="font-family:sans-serif;text-align:center;padding:80px 20px;background:#fff;color:#333;"><h2>You've been unsubscribed</h2><p>You won't receive any more emails from this sender.<br>If this was a mistake, please reply to one of our emails.</p></body></html>`);
+    } catch {
+      res.status(500).send("Error processing unsubscribe");
+    }
+  });
+
+  // ── AI WORKFLOW GENERATE ─────────────────────────────────────────────────
+  // (chat kept as existing)
+
+  // ── AI CHAT ────────────────────────────────────────────────────────────────
+
+  app.post("/api/em/chat", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const { message } = req.body;
+    if (!message) return void res.status(400).json({ ok: false, message: "message required" });
+
+    const systemPrompt = `You are an expert email marketing assistant for Oravini, an AI-powered marketing platform.
+You help users write better emails, improve their sequences, and optimize deliverability.
+Your expertise covers: subject line optimization, copywriting, email design, list management, A/B testing, deliverability, warmup, and marketing automation.
+When asked to generate content, be specific and actionable. Keep responses concise (under 200 words unless writing copy).
+If the user asks to create something (sequence, email, etc.), guide them to use the AI generation features.`;
+
+    try {
+      const userId = uid(req);
+      const history = await pool.query(
+        `SELECT role, content FROM em_chat_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
+        [userId]
+      ).then(r => r.rows.reverse()).catch(() => []);
+
+      const messages = [
+        { role: "system", content: systemPrompt },
+        ...history.map((h: any) => ({ role: h.role, content: h.content })),
+        { role: "user", content: message },
+      ];
+
+      const reply = await callAI(messages);
+
+      // Save to history
+      await pool.query(
+        `INSERT INTO em_chat_history (user_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)
+         ON CONFLICT DO NOTHING`,
+        [userId, message, reply]
+      ).catch(() => {});
+
+      // Check if AI decided to take an action (simple heuristic)
+      const lower = message.toLowerCase();
+      const action = lower.includes("generate") || lower.includes("create") || lower.includes("write") ? "generate_content" : null;
+
+      await pool.query(
+        `INSERT INTO em_chat_history (user_id, role, content, metadata) VALUES ($1, 'assistant', $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [userId, reply, action ? JSON.stringify({ action }) : null]
+      ).catch(() => {});
+
+      res.json({ id: randomUUID(), role: "assistant", content: reply, metadata: action ? { action } : null });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
+  app.get("/api/em/chat/history", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const rows = await pool.query(
+      `SELECT id, role, content, metadata, created_at FROM em_chat_history WHERE user_id = $1 ORDER BY created_at ASC LIMIT 100`,
+      [uid(req)]
+    ).then(r => r.rows).catch(() => []);
+    res.json(rows);
+  });
+
+  app.delete("/api/em/chat/history", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(`DELETE FROM em_chat_history WHERE user_id = $1`, [uid(req)]).catch(() => {});
+    res.json({ ok: true });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EMAIL SENDING ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getWarmupDailyLimit(warmupStartDate: Date, configuredLimit: number): number {
+  const days = Math.floor((Date.now() - warmupStartDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 3)  return 50;
+  if (days < 7)  return 100;
+  if (days < 14) return 200;
+  if (days < 21) return 350;
+  if (days < 28) return 500;
+  return Math.min(configuredLimit || 500, 2000);
+}
+
+function buildEmailHtml(opts: {
+  bodyHtml: string;
+  previewText?: string;
+  fromName: string;
+  contactFirstName: string;
+  trackingId: string;
+  unsubscribeUrl: string;
+  appBase: string;
+}): string {
+  // Personalize
+  const personalized = opts.bodyHtml
+    .replace(/\{\{first_name\}\}/gi, opts.contactFirstName || "there")
+    .replace(/\{\{name\}\}/gi, opts.contactFirstName || "there")
+    .replace(/\{\{firstname\}\}/gi, opts.contactFirstName || "there");
+
+  // Wrap links in click tracker
+  const tracked = personalized.replace(
+    /<a(\s[^>]*?)href="(https?:\/\/[^"]+)"([^>]*?)>/gi,
+    (_m, before, url, after) => {
+      const trackUrl = `${opts.appBase}/api/em/track/click/${opts.trackingId}?url=${encodeURIComponent(url)}`;
+      return `<a${before}href="${trackUrl}"${after}>`;
+    }
+  );
+
+  const openPixel = `<img src="${opts.appBase}/api/em/track/open/${opts.trackingId}.gif" width="1" height="1" style="display:none;border:0" alt="" />`;
+
+  // Preview text hack — renders in email preview pane but not in body
+  const preview = opts.previewText
+    ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#fff;opacity:0;">${opts.previewText}${"&zwnj;&nbsp;".repeat(40)}</div>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title></title>
+</head>
+<body style="margin:0;padding:0;background-color:#ffffff;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+${preview}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+  <tr>
+    <td align="center" style="padding:40px 16px 20px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
+        <!-- From line -->
+        <tr>
+          <td style="padding-bottom:20px;border-bottom:1px solid #eeeeee;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:#aaaaaa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">${opts.fromName}</span>
+          </td>
+        </tr>
+        <!-- Body content -->
+        <tr>
+          <td style="padding-top:28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.75;color:#1a1a1a;">
+            ${tracked}
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding-top:40px;padding-bottom:32px;border-top:1px solid #eeeeee;margin-top:40px;">
+            <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#aaaaaa;margin:0;">
+              You're receiving this email because you subscribed to updates from ${opts.fromName}.<br>
+              <a href="${opts.unsubscribeUrl}" style="color:#aaaaaa;text-decoration:underline;">Unsubscribe</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="${opts.unsubscribeUrl}" style="color:#aaaaaa;text-decoration:underline;">Manage preferences</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+${openPixel}
+</body>
+</html>`;
+}
+
+function buildEmailText(opts: {
+  bodyHtml: string;
+  fromName: string;
+  contactFirstName: string;
+  unsubscribeUrl: string;
+}): string {
+  const text = opts.bodyHtml
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi, "$2 ($1)")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\{\{first_name\}\}/gi, opts.contactFirstName || "there")
+    .replace(/\{\{name\}\}/gi, opts.contactFirstName || "there")
+    .trim();
+
+  return `${text}\n\n---\nYou're receiving this because you subscribed to updates from ${opts.fromName}.\nUnsubscribe: ${opts.unsubscribeUrl}`;
+}
+
+async function getOrRefreshGmailToken(userId: string): Promise<{ accessToken: string; email: string; displayName: string } | null> {
+  const [token] = await pool.query(
+    `SELECT * FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+  ).then(r => r.rows);
+  if (!token) return null;
+
+  // Refresh if expired or will expire in 5 minutes
+  const expiresAt = token.token_expires_at ? new Date(token.token_expires_at) : null;
+  if (expiresAt && expiresAt.getTime() - Date.now() < 5 * 60 * 1000) {
+    try {
+      const { google } = await import("googleapis");
+      const oauth2 = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+      );
+      oauth2.setCredentials({ refresh_token: token.refresh_token });
+      const { credentials } = await oauth2.refreshAccessToken();
+      await pool.query(
+        `UPDATE em_oauth_tokens SET access_token = $1, token_expires_at = $2, updated_at = NOW() WHERE user_id = $3 AND provider = 'gmail'`,
+        [credentials.access_token, credentials.expiry_date ? new Date(credentials.expiry_date) : null, userId]
+      );
+      return { accessToken: credentials.access_token!, email: token.email, displayName: token.display_name };
+    } catch { return null; }
+  }
+
+  return { accessToken: token.access_token, email: token.email, displayName: token.display_name };
+}
+
+async function canSendToday(userId: string): Promise<{ canSend: boolean; limit: number; sent: number; provider: string }> {
+  // Check Gmail token first
+  const [gmailToken] = await pool.query(
+    `SELECT today_sent, last_send_date, warmup_start_date FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+  ).then(r => r.rows);
+
+  if (gmailToken) {
+    const today = new Date().toISOString().split("T")[0];
+    const todaySent = gmailToken.last_send_date?.toISOString?.()?.split("T")[0] === today ? (gmailToken.today_sent || 0) : 0;
+    const limit = getWarmupDailyLimit(new Date(gmailToken.warmup_start_date || Date.now()), 500);
+    return { canSend: todaySent < limit, limit, sent: todaySent, provider: "gmail" };
+  }
+
+  // Fall back to SMTP config
+  const [smtp] = await pool.query(
+    `SELECT today_sent, last_send_date, warmup_start_date, daily_send_limit, warming_enabled FROM em_smtp_configs WHERE user_id = $1 AND is_verified = true`, [userId]
+  ).then(r => r.rows);
+
+  if (smtp) {
+    const today = new Date().toISOString().split("T")[0];
+    const todaySent = smtp.last_send_date?.toISOString?.()?.split("T")[0] === today ? (smtp.today_sent || 0) : 0;
+    const limit = smtp.warming_enabled
+      ? getWarmupDailyLimit(new Date(smtp.warmup_start_date || Date.now()), smtp.daily_send_limit || 500)
+      : (smtp.daily_send_limit || 500);
+    return { canSend: todaySent < limit, limit, sent: todaySent, provider: "smtp" };
+  }
+
+  return { canSend: false, limit: 0, sent: 0, provider: "none" };
+}
+
+async function incrementSendCount(userId: string, provider: "gmail" | "smtp") {
+  const today = new Date().toISOString().split("T")[0];
+  if (provider === "gmail") {
+    await pool.query(`
+      UPDATE em_oauth_tokens
+      SET today_sent = CASE WHEN last_send_date::date = CURRENT_DATE THEN today_sent + 1 ELSE 1 END,
+          last_send_date = CURRENT_DATE,
+          updated_at = NOW()
+      WHERE user_id = $1 AND provider = 'gmail'
+    `, [userId]);
+  } else {
+    await pool.query(`
+      UPDATE em_smtp_configs
+      SET today_sent = CASE WHEN last_send_date::date = CURRENT_DATE THEN today_sent + 1 ELSE 1 END,
+          last_send_date = CURRENT_DATE
+      WHERE user_id = $1
+    `, [userId]);
+  }
+}
+
+export async function processEmSendQueue() {
+  try {
+    const appBase = process.env.APP_URL?.replace(/\/$/, "") || `http://localhost:${process.env.PORT || "5000"}`;
+
+    // Get due enrollments
+    const due = await pool.query(`
+      SELECT e.id AS enrollment_id, e.user_id, e.sequence_id, e.contact_id, e.current_step,
+             s.name AS seq_name, s.from_name, s.reply_to, s.status AS seq_status,
+             c.email AS contact_email, c.first_name, c.unsubscribe_token,
+             st.id AS step_id, st.subject, st.preview_text, st.body_html, st.body_text,
+             st.delay_days, st.delay_hours, st.step_number,
+             (SELECT COUNT(*) FROM em_steps WHERE sequence_id = e.sequence_id)::int AS total_steps
+      FROM em_enrollments e
+      JOIN em_sequences s ON s.id = e.sequence_id
+      JOIN em_contacts c ON c.id = e.contact_id
+      JOIN em_steps st ON st.sequence_id = e.sequence_id AND st.step_number = e.current_step + 1
+      WHERE e.status = 'active'
+        AND e.next_send_at <= NOW()
+        AND s.status = 'active'
+        AND c.subscribed = true
+      ORDER BY e.next_send_at ASC
+      LIMIT 50
+    `).then(r => r.rows);
+
+    if (!due.length) return;
+
+    // Group by user to respect per-user limits
+    const byUser: Record<string, typeof due> = {};
+    for (const row of due) {
+      if (!byUser[row.user_id]) byUser[row.user_id] = [];
+      byUser[row.user_id].push(row);
+    }
+
+    for (const [userId, enrollments] of Object.entries(byUser)) {
+      const sendStatus = await canSendToday(userId);
+      let sent = sendStatus.sent;
+
+      for (const e of enrollments) {
+        if (sent >= sendStatus.limit) {
+          console.log(`[em] Daily limit reached for user ${userId}: ${sent}/${sendStatus.limit}`);
+          break;
+        }
+
+        try {
+          // Build tracking ID
+          const trackingId = randomUUID();
+          const unsubToken = e.unsubscribe_token || randomUUID();
+          if (!e.unsubscribe_token) {
+            await pool.query(`UPDATE em_contacts SET unsubscribe_token = $1 WHERE id = $2`, [unsubToken, e.contact_id]);
+          }
+
+          const unsubscribeUrl = `${appBase}/api/em/unsubscribe/${unsubToken}`;
+          const fromName = e.from_name || "The Team";
+
+          const html = buildEmailHtml({
+            bodyHtml: e.body_html,
+            previewText: e.preview_text,
+            fromName,
+            contactFirstName: e.first_name || "",
+            trackingId,
+            unsubscribeUrl,
+            appBase,
+          });
+
+          const text = buildEmailText({
+            bodyHtml: e.body_html,
+            fromName,
+            contactFirstName: e.first_name || "",
+            unsubscribeUrl,
+          });
+
+          const subject = (e.subject || "")
+            .replace(/\{\{first_name\}\}/gi, e.first_name || "there")
+            .replace(/\{\{name\}\}/gi, e.first_name || "there");
+
+          // Send via Gmail OAuth or SMTP
+          let sendOk = false;
+          let sendError = "";
+
+          if (sendStatus.provider === "gmail") {
+            const token = await getOrRefreshGmailToken(userId);
+            if (token) {
+              try {
+                const nodemailer = await import("nodemailer");
+                const transporter = nodemailer.default.createTransport({
+                  service: "gmail",
+                  auth: {
+                    type: "OAuth2",
+                    user: token.email,
+                    clientId: process.env.GOOGLE_CLIENT_ID,
+                    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                    refreshToken: (await pool.query(
+                      `SELECT refresh_token FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+                    ).then(r => r.rows[0]?.refresh_token)),
+                    accessToken: token.accessToken,
+                  },
+                } as any);
+
+                const replyToAddr = e.reply_to || token.email;
+                const fromLabel = e.from_name || token.displayName || token.email;
+
+                await transporter.sendMail({
+                  from: `"${fromLabel}" <${token.email}>`,
+                  to: e.contact_email,
+                  subject,
+                  html,
+                  text,
+                  replyTo: replyToAddr,
+                  headers: {
+                    "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                  },
+                });
+                sendOk = true;
+              } catch (err: any) { sendError = err.message; }
+            }
+          } else if (sendStatus.provider === "smtp") {
+            const [smtp] = await pool.query(
+              `SELECT * FROM em_smtp_configs WHERE user_id = $1`, [userId]
+            ).then(r => r.rows);
+            if (smtp?.username && smtp?.password) {
+              try {
+                const nodemailer = await import("nodemailer");
+                const transporter = nodemailer.default.createTransport({
+                  host: smtp.host, port: smtp.port || 587,
+                  secure: smtp.secure || false,
+                  auth: { user: smtp.username, pass: smtp.password },
+                });
+                await transporter.sendMail({
+                  from: smtp.from_name ? `"${smtp.from_name}" <${smtp.from_email || smtp.username}>` : (smtp.from_email || smtp.username),
+                  to: e.contact_email,
+                  subject,
+                  html,
+                  text,
+                  replyTo: smtp.reply_to || smtp.from_email || smtp.username,
+                  headers: {
+                    "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                  },
+                });
+                sendOk = true;
+              } catch (err: any) { sendError = err.message; }
+            }
+          }
+
+          if (!sendOk) {
+            console.error(`[em] Send failed for enrollment ${e.enrollment_id}: ${sendError}`);
+            await pool.query(
+              `UPDATE em_enrollments SET status = 'failed', completed_at = NOW() WHERE id = $1`,
+              [e.enrollment_id]
+            );
+            continue;
+          }
+
+          // Log the send
+          await pool.query(`
+            INSERT INTO em_sends (user_id, step_id, contact_id, sequence_id, status, tracking_id, sent_at)
+            VALUES ($1, $2, $3, $4, 'sent', $5, NOW())
+          `, [userId, e.step_id, e.contact_id, e.sequence_id, trackingId]);
+
+          // Update sequence stats
+          await pool.query(`UPDATE em_sequences SET total_sent = total_sent + 1 WHERE id = $1`, [e.sequence_id]);
+
+          // Advance enrollment
+          const isLast = e.current_step + 1 >= e.total_steps;
+
+          // Determine next step and its delay
+          if (isLast) {
+            await pool.query(
+              `UPDATE em_enrollments SET current_step = $1, status = 'completed', completed_at = NOW(), next_send_at = NULL WHERE id = $2`,
+              [e.current_step + 1, e.enrollment_id]
+            );
+          } else {
+            // Get next step delay
+            const [nextStep] = await pool.query(`
+              SELECT delay_days, delay_hours FROM em_steps
+              WHERE sequence_id = $1 AND step_number = $2
+            `, [e.sequence_id, e.current_step + 2]).then(r => r.rows);
+
+            const delayMs = ((nextStep?.delay_days || 0) * 24 * 60 * 60 * 1000) +
+                            ((nextStep?.delay_hours || 1) * 60 * 60 * 1000);
+
+            // Optimize send time: push to next 9am-11am UTC window
+            let nextSendAt = new Date(Date.now() + delayMs);
+            const h = nextSendAt.getUTCHours();
+            if (h < 9 || h >= 17) {
+              // Schedule for 9am UTC next day
+              nextSendAt.setUTCHours(9, 0, 0, 0);
+              if (h >= 17) nextSendAt.setUTCDate(nextSendAt.getUTCDate() + 1);
+            }
+
+            await pool.query(
+              `UPDATE em_enrollments SET current_step = $1, next_send_at = $2 WHERE id = $3`,
+              [e.current_step + 1, nextSendAt, e.enrollment_id]
+            );
+          }
+
+          await incrementSendCount(userId, sendStatus.provider as "gmail" | "smtp");
+          sent++;
+
+          console.log(`[em] Sent step ${e.current_step + 1} to ${e.contact_email} (sequence: ${e.seq_name})`);
+
+          // Small delay between sends to avoid rate limits
+          await new Promise(r => setTimeout(r, 300));
+
+        } catch (err: any) {
+          console.error(`[em] Error processing enrollment ${e.enrollment_id}: ${err.message}`);
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error(`[em] processEmSendQueue error: ${e.message}`);
+  }
 }

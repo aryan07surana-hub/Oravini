@@ -736,6 +736,7 @@ export const scheduledBookings = pgTable("scheduled_bookings", {
   meetLink: text("meet_link"),
   reminder24Sent: boolean("reminder_24_sent").notNull().default(false),
   reminder1Sent: boolean("reminder_1_sent").notNull().default(false),
+  followUpSent: boolean("follow_up_sent").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
