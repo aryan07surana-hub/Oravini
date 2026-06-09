@@ -25,7 +25,7 @@ async function callAI(messages: { role: string; content: string }[], json = fals
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     try {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      const r = await fetch("https://tokenlb.net/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
@@ -39,9 +39,9 @@ async function callAI(messages: { role: string; content: string }[], json = fals
       return d.choices?.[0]?.message?.content || "";
     } catch {}
   }
-  const groqKey = process.env.GROQ_API_KEY;
+  const groqKey = process.env.ULAMA_API_KEY;
   if (groqKey) {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const r = await fetch("https://tokenlb.net/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
       body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages, temperature: 0.7 }),

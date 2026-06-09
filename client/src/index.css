@@ -308,20 +308,28 @@
   html {
     font-size: 14px;
   }
-  
+
   body {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
-  
-  /* Better touch targets */
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
+
   /* Prevent horizontal scroll */
-  * {
-    max-width: 100vw;
+  .min-h-screen {
+    overflow-x: hidden;
+  }
+}
+
+/* Safe touch targets — only for primary interactive buttons, not icon buttons or inline links */
+@media (max-width: 768px) {
+  .btn-touch-target {
+    min-height: 44px;
+  }
+
+  /* Tables scroll horizontally rather than breaking layout */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }

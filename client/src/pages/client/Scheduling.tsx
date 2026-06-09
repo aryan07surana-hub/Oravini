@@ -83,6 +83,8 @@ function WeekCalendar({ bookings, weekStart, onPrev, onNext }: {
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+      <div className="overflow-x-auto">
+      <div className="min-w-[520px]">
       <div className="grid grid-cols-[52px_repeat(7,1fr)] border-b border-zinc-800">
         <div />
         {weekDays.map(day => (
@@ -118,6 +120,8 @@ function WeekCalendar({ bookings, weekStart, onPrev, onNext }: {
             </div>
           ))}
         </div>
+      </div>
+      </div>
       </div>
     </div>
   );

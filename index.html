@@ -16,7 +16,9 @@
   --easing:cubic-bezier(0.16,1,0.3,1);
 }
 html{scroll-behavior:smooth;overflow-x:hidden}
-body{font-family:'Poppins',sans-serif;background:var(--black);color:var(--white);overflow-x:hidden;cursor:none}
+body{font-family:'Poppins',sans-serif;background:var(--black);color:var(--white);overflow-x:hidden}
+@media(hover:hover) and (pointer:fine){body{cursor:none}}
+@media(hover:none),(pointer:coarse){#cur-dot,#cur-ring,#trail-canvas{display:none!important}}
 
 /* ================================================================
    GLOBAL PARTICLE CANVAS (covers full page)
@@ -535,6 +537,47 @@ footer{position:relative;z-index:1;padding:60px 48px 40px;border-top:1px solid r
   .tools-grid{grid-template-columns:1fr}
   .nav-actions .btn-member{display:none}
 }
+
+/* ================================================================
+   MOBILE NAV HAMBURGER
+================================================================ */
+.nav-ham{
+  display:none;background:none;border:none;color:var(--gold);
+  font-size:1.4rem;cursor:pointer;padding:4px 8px;
+  line-height:1;flex-shrink:0;
+}
+@media(max-width:900px){.nav-ham{display:block}}
+
+.nav-mob{
+  position:fixed;inset:0;background:rgba(6,6,10,.97);
+  backdrop-filter:blur(24px);z-index:1002;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:32px;opacity:0;visibility:hidden;
+  transition:opacity .3s ease,visibility .3s ease;
+}
+.nav-mob.open{opacity:1;visibility:visible}
+.nav-mob ul{list-style:none;text-align:center;display:flex;flex-direction:column;gap:26px;padding:0}
+.nav-mob ul a{
+  font-size:1.25rem;font-weight:600;
+  color:rgba(255,255,255,.7);text-decoration:none;transition:color .3s;
+  letter-spacing:.04em;
+}
+.nav-mob ul a:hover{color:var(--gold)}
+.nav-mob-close{
+  position:absolute;top:22px;right:22px;
+  background:none;border:none;color:rgba(255,255,255,.4);
+  font-size:1.8rem;cursor:pointer;line-height:1;
+  transition:color .2s;
+}
+.nav-mob-close:hover{color:var(--gold)}
+.nav-mob-actions{
+  display:flex;flex-direction:column;gap:12px;
+  width:100%;max-width:260px;
+}
+.nav-mob-actions .btn-member,
+.nav-mob-actions .btn-nav-cta{
+  width:100%;text-align:center;
+}
 </style>
 </head>
 <body>
@@ -565,7 +608,23 @@ footer{position:relative;z-index:1;padding:60px 48px 40px;border-top:1px solid r
     <a href="#dashboard" class="btn-member" onclick="smoothTo('dashboard');return false;">Sign In</a>
     <button class="btn-nav-cta" onclick="smoothTo('pricing')">Get Early Access</button>
   </div>
+  <button class="nav-ham" id="nav-ham" onclick="toggleMobileNav()" aria-label="Open menu">&#9776;</button>
 </nav>
+
+<!-- Mobile nav overlay -->
+<div id="nav-mob" class="nav-mob">
+  <button class="nav-mob-close" onclick="toggleMobileNav()" aria-label="Close menu">&#10005;</button>
+  <ul>
+    <li><a href="#hook" onclick="toggleMobileNav();smoothTo('hook');return false;">Why Oravani</a></li>
+    <li><a href="#tools" onclick="toggleMobileNav();smoothTo('tools');return false;">Tools</a></li>
+    <li><a href="#hiw" onclick="toggleMobileNav();smoothTo('hiw');return false;">How it Works</a></li>
+    <li><a href="#pricing" onclick="toggleMobileNav();smoothTo('pricing');return false;">Pricing</a></li>
+  </ul>
+  <div class="nav-mob-actions">
+    <a href="#dashboard" class="btn-member" onclick="toggleMobileNav();smoothTo('dashboard');return false;">Sign In</a>
+    <button class="btn-nav-cta" onclick="toggleMobileNav();smoothTo('pricing')">Get Early Access</button>
+  </div>
+</div>
 
 <!-- ============================================================ HERO -->
 <section id="hero">
@@ -1191,6 +1250,11 @@ document.querySelectorAll('a,button,.quiz-opt,.tool-card,.price-card,.ig-post,.a
 
   requestAnimationFrame(render);
 })();
+
+/* ─── MOBILE NAV ─── */
+function toggleMobileNav(){
+  document.getElementById('nav-mob').classList.toggle('open');
+}
 
 /* ─── NAVBAR ─── */
 window.addEventListener('scroll',()=>{

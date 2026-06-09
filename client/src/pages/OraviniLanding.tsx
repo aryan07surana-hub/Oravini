@@ -734,36 +734,38 @@ export default function OraviniLanding() {
         {/* Radial glow */}
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(212,180,97,0.07) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 }} />
 
+        {/* Welcome to — pinned near top */}
+        <div className="hero-title" style={{ position: "absolute", top: 110, left: 0, right: 0, textAlign: "center", zIndex: 2, fontSize: "clamp(13px, 2vw, 15px)", letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", fontWeight: 600 }}>
+          Welcome to
+        </div>
+
+        {/* Centered content — Powered by Brandverse only */}
         <div style={{ position: "relative", zIndex: 2, padding: "0 24px" }}>
-          <div className="hero-title" style={{ fontSize: "clamp(13px, 2vw, 15px)", letterSpacing: "0.35em", color: GOLD, textTransform: "uppercase", marginBottom: 20, fontWeight: 600 }}>
-            Welcome to
-          </div>
-          <div className="hero-sub" style={{ fontSize: "clamp(56px, 10vw, 120px)", fontWeight: 900, letterSpacing: "0.08em", lineHeight: 0.9, textTransform: "uppercase", background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, ${GOLD} 45%, #b8962e 80%, ${GOLD} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 20, filter: "drop-shadow(0 0 60px rgba(212,180,97,0.25))" }}>
-            ORAVINI
-          </div>
-          <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase", marginBottom: 48 }}>
+          <div className="hero-powered" style={{ fontSize: "clamp(12px, 1.5vw, 14px)", letterSpacing: "0.28em", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" }}>
             Powered by Brandverse
           </div>
-          <div className="hero-cta" style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-            <button onClick={handleAuditClick}
-              style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "16px 36px", cursor: "pointer", animation: "pulse-ring 2.5s ease 2s infinite" }}
-              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")}
-              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>
-              Get My Free Audit →
-            </button>
-            <button onClick={() => document.getElementById("features-section")?.scrollIntoView({ behavior: "smooth" })}
-              style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
-              onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = `${GOLD}55`; b.style.color = GOLD; }}
-              onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
-              See What's Inside
-            </button>
-            <button onClick={() => window.location.href = "/preview"}
-              style={{ background: `rgba(212,180,97,0.07)`, color: GOLD, fontWeight: 600, fontSize: 15, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
-              onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.12)`; b.style.borderColor = `${GOLD}88`; }}
-              onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.07)`; b.style.borderColor = `${GOLD}44`; }}>
-              Get a Live Preview →
-            </button>
-          </div>
+        </div>
+
+        {/* CTA buttons — pinned just above scroll cue */}
+        <div className="hero-cta" style={{ position: "absolute", bottom: 120, left: 0, right: 0, zIndex: 2, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", padding: "0 24px" }}>
+          <button onClick={handleAuditClick}
+            style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontWeight: 800, fontSize: 15, border: "none", borderRadius: 12, padding: "16px 36px", cursor: "pointer", animation: "pulse-ring 2.5s ease 2s infinite" }}
+            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "0.88")}
+            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.opacity = "1")}>
+            Get My Free Audit →
+          </button>
+          <button onClick={() => document.getElementById("features-section")?.scrollIntoView({ behavior: "smooth" })}
+            style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 15, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
+            onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = `${GOLD}55`; b.style.color = GOLD; }}
+            onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = "rgba(255,255,255,0.12)"; b.style.color = "rgba(255,255,255,0.7)"; }}>
+            See What's Inside
+          </button>
+          <button onClick={() => window.location.href = "/preview"}
+            style={{ background: `rgba(212,180,97,0.07)`, color: GOLD, fontWeight: 600, fontSize: 15, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "16px 32px", cursor: "pointer" }}
+            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.12)`; b.style.borderColor = `${GOLD}88`; }}
+            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = `rgba(212,180,97,0.07)`; b.style.borderColor = `${GOLD}44`; }}>
+            Get a Live Preview →
+          </button>
         </div>
 
         {/* Scroll cue */}

@@ -902,14 +902,14 @@ function CityClockCard({ city, timezone, flag, color }: { city: string; timezone
   const isDaytime = hour24 >= 6 && hour24 < 20;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all" style={{ background: `${color}09`, border: `1px solid ${color}20` }}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-lg">{flag}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{city}</span>
-        <span className="text-[10px]">{isDaytime ? "☀️" : "🌙"}</span>
+    <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 rounded-2xl transition-all" style={{ background: `${color}09`, border: `1px solid ${color}20` }}>
+      <div className="flex items-center gap-1 mb-1.5">
+        <span className="text-base">{flag}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest truncate max-w-[60px]" style={{ color }}>{city}</span>
+        <span className="text-[9px]">{isDaytime ? "☀️" : "🌙"}</span>
       </div>
-      <p className="text-xl font-bold font-mono tabular-nums text-foreground">{time || "--:--:--"}</p>
-      <p className="text-[10px] text-zinc-500 mt-1">{date}</p>
+      <p className="text-sm sm:text-base md:text-lg font-bold font-mono tabular-nums text-foreground leading-tight">{time || "--:--:--"}</p>
+      <p className="text-[8px] sm:text-[10px] text-zinc-500 mt-1 text-center">{date}</p>
     </div>
   );
 }
@@ -1444,7 +1444,7 @@ function NextTierBenefits({ plan }: { plan: string }) {
 
       {/* Footer CTA */}
       <div
-        className="relative px-6 pb-6 flex items-center justify-between gap-4"
+        className="relative px-6 pb-6 flex items-center justify-between flex-wrap gap-4"
         style={{ borderTop: `1px solid ${info.color}15` }}
       >
         {/* Dot indicators */}
@@ -1597,33 +1597,34 @@ const ReferralWidget = memo(function ReferralWidget({ stats }: { stats: any }) {
       {/* Header */}
       <div
         style={{
-          display: "flex", alignItems: "center", gap: 10,
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
           padding: "14px 20px", borderBottom: `1px solid ${GOLD}18`,
           background: `linear-gradient(90deg, ${GOLD}0a 0%, transparent 100%)`,
         }}
       >
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${GOLD}20`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${GOLD}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Gift className="w-4 h-4" style={{ color: GOLD }} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <p className="text-sm font-bold text-foreground">Refer &amp; Earn</p>
           <p className="text-[10px] text-zinc-500">Invite friends, grow your credits</p>
         </div>
         <div
-          className="ml-auto text-xs font-bold px-3 py-1 rounded-full"
+          className="text-[10px] font-bold px-2.5 py-1 rounded-full"
           style={{
             background: `${GOLD}18`, color: GOLD,
             border: `1px solid ${GOLD}30`,
             animation: "subtlePulse 3s ease-in-out infinite",
+            whiteSpace: "nowrap",
           }}
         >
-          +25 credits on signup · +100 when they upgrade
+          +25 on signup · +100 on upgrade
         </div>
       </div>
 
       <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Stat cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))", gap: 10 }}>
           {statItems.map(({ icon: Icon, label, value, color }, i) => (
             <div
               key={label}
@@ -1835,7 +1836,7 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 divide-x divide-y divide-zinc-800/50">
+      <div className="grid grid-cols-2 lg:grid-cols-3 divide-y divide-zinc-800/50 lg:divide-x">
         {stats.map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="flex items-center gap-3 px-5 py-4">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: bg }}>
@@ -2219,7 +2220,7 @@ export default function ClientDashboard() {
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
             </div>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
               {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
                 <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />
@@ -2358,7 +2359,7 @@ export default function ClientDashboard() {
                   Full tracker <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y divide-zinc-800/60 lg:divide-y-0">
+              <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-zinc-800/60 lg:divide-y-0 lg:divide-x">
                 {[
                   { label: "Total Posts",  value: (contentPosts || []).length,                                                                      icon: FileText,   color: "#a78bfa" },
                   { label: "Total Views",  value: totalContentViews.toLocaleString(),                                                               icon: Eye,        color: "#60a5fa" },

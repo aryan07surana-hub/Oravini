@@ -1,7 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./storage";
 import { eq, desc, and, lte } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
 import {
   contactCustomFieldDefs, contactCustomFieldValues,
   welcomeDmConfigs, outboundWebhooks,
@@ -136,15 +135,16 @@ export function registerDMAdvancedRoutes(app: Express) {
     try {
       const [lead] = await db.select().from(dmLeads).where(eq(dmLeads.id, String(req.params.id)));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
-      const apiKey = process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       if (!apiKey) return res.status(400).json({ message: "AI not configured" });
-      const client = new Anthropic({ apiKey });
       const ctx = `Name: ${lead.name}, Instagram: @${lead.instagramHandle || "?"}, Status: ${lead.status}, Source: ${lead.source || "?"}, Notes: ${lead.notes || "none"}`;
-      const response = await client.messages.create({
-        model: "claude-haiku-4-5-20251001", max_tokens: 100,
-        messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }],
+      const aiRes = await fetch("https://tokenlb.net/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 100, messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }] }),
       });
-      const text = (response.content[0] as any).text;
+      const aiData: any = await aiRes.json();
+      const text = aiData?.choices?.[0]?.message?.content ?? "";
       let score = 5, reason = "Unable to score";
       try { const p = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "{}"); score = p.score || 5; reason = p.reason || ""; } catch {}
       const [updated] = await db.update(dmLeads).set({ leadScore: score, leadScoreReason: reason }).where(eq(dmLeads.id, String(req.params.id))).returning();
@@ -400,14 +400,15 @@ export function registerDMAdvancedRoutes(app: Express) {
   app.post("/api/dm/analyze-sentiment", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message } = req.body;
-      const apiKey = process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       if (!apiKey) return res.json({ sentiment: "neutral", action: "continue" });
-      const client = new Anthropic({ apiKey });
-      const response = await client.messages.create({
-        model: "claude-haiku-4-5-20251001", max_tokens: 60,
-        messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }],
+      const aiRes = await fetch("https://tokenlb.net/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 60, messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }] }),
       });
-      const text = (response.content[0] as any).text;
+      const aiData: any = await aiRes.json();
+      const text = aiData?.choices?.[0]?.message?.content ?? "";
       let result = { sentiment: "neutral", action: "continue" };
       try { result = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "{}"); } catch {}
       res.json(result);

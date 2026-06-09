@@ -1511,11 +1511,11 @@ Rules:
 
       const userPrompt = `Business / sales process: ${description.trim()}\n${name ? `Pipeline name: ${name}` : ""}`;
 
-      const apiKey = process.env.GROQ_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       let parsed: any = null;
       if (apiKey) {
         try {
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          const groqRes = await fetch("https://tokenlb.net/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1610,7 +1610,7 @@ Rules:
       const { description } = req.body as { description?: string };
       if (!description?.trim()) return res.status(400).json({ message: "description required" });
 
-      const apiKey = process.env.GROQ_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
 
       const systemPrompt = `You are a CRM data assistant. Extract structured contact details from a free-form description and infer reasonable defaults.
@@ -1629,7 +1629,7 @@ Output ONLY this JSON shape:
   "notes": string (a 1-2 sentence summary you'd put on the contact)
 }`;
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const groqRes = await fetch("https://tokenlb.net/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1674,7 +1674,7 @@ Output ONLY this JSON shape:
         return res.status(403).json({ message: "Not your contact." });
       }
 
-      const apiKey = process.env.GROQ_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
 
       const recentActs = await db.select().from(crmActivities)
@@ -1706,7 +1706,7 @@ Output ONLY this JSON shape:
   "waitDays": number (only set when action='wait', otherwise 0)
 }`;
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const groqRes = await fetch("https://tokenlb.net/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1745,7 +1745,7 @@ Output ONLY this JSON shape:
       if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
         return res.status(403).json({ message: "Not your contact." });
       }
-      const apiKey = process.env.GROQ_API_KEY;
+      const apiKey = process.env.ULAMA_API_KEY;
       if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
 
       const recentActs = await db.select().from(crmActivities)
@@ -1776,7 +1776,7 @@ Rules:
         recentActivities: recentActs.map(a => ({ type: a.type, title: a.title, body: a.body?.slice(0, 200) })),
       });
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const groqRes = await fetch("https://tokenlb.net/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
