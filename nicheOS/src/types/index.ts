@@ -74,7 +74,7 @@ export interface CompetitorData {
   url?: string
 }
 
-export type PanelMode = 'intelligence' | 'editor' | 'ai' | null
+export type PanelMode = 'brain' | 'editor' | 'ai' | null
 
 export interface AppState {
   nodes: GraphNode[]

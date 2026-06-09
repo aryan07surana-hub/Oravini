@@ -1,8 +1,8 @@
 import { motion, AnimatePresence } from 'motion/react'
-import { X, BarChart2, FileEdit, Trash2 } from 'lucide-react'
+import { X, Brain, FileEdit, Trash2 } from 'lucide-react'
 import { useStore } from '../../stores/useStore'
 import { NODE_BADGE_COLORS, NODE_LABELS } from '../../data/seed'
-import IntelligencePanel from '../intelligence/IntelligencePanel'
+import BrainPanel from '../brain/BrainPanel'
 import NoteEditor from '../editor/NoteEditor'
 
 export default function ContextDrawer() {
@@ -61,10 +61,10 @@ export default function ContextDrawer() {
             <div className="flex items-center gap-1 mt-3">
               {selectedNode!.intelligence && (
                 <TabBtn
-                  active={panelMode === 'intelligence'}
-                  onClick={() => setPanelMode('intelligence')}
-                  icon={<BarChart2 size={11} />}
-                  label="Intelligence"
+                  active={panelMode === 'brain'}
+                  onClick={() => setPanelMode('brain')}
+                  icon={<Brain size={11} />}
+                  label="Brain"
                 />
               )}
               <TabBtn
@@ -79,16 +79,16 @@ export default function ContextDrawer() {
           {/* panel content */}
           <div className="flex-1 overflow-y-auto">
             <AnimatePresence mode="wait">
-              {panelMode === 'intelligence' && selectedNode!.intelligence ? (
+              {panelMode === 'brain' && selectedNode!.intelligence ? (
                 <motion.div
-                  key="intelligence"
+                  key="brain"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.18 }}
                   className="h-full"
                 >
-                  <IntelligencePanel node={selectedNode!} />
+                  <BrainPanel node={selectedNode!} />
                 </motion.div>
               ) : (
                 <motion.div

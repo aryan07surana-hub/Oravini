@@ -53,7 +53,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectNode: (node) => {
     set({
       selectedNode: node,
-      panelMode: node ? (node.intelligence ? 'intelligence' : 'editor') : null,
+      panelMode: node ? (node.intelligence ? 'brain' : 'editor') : null,
     })
   },
 
