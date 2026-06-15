@@ -703,8 +703,27 @@ export const meetingTypes = pgTable("meeting_types", {
   location: text("location"),
   timezone: text("timezone").notNull().default("UTC"),
   bufferTime: integer("buffer_time").notNull().default(0),
+  bufferAfter: integer("buffer_after").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   customQuestions: text("custom_questions").default("[]"),
+  customFields: jsonb("custom_fields").default(sql`'[]'::jsonb`),
+  conditionalLogic: jsonb("conditional_logic").default(sql`'{}'::jsonb`),
+  allowFileUpload: boolean("allow_file_upload").notNull().default(false),
+  maxFileSize: integer("max_file_size").default(5), // MB
+  acceptedFileTypes: text("accepted_file_types").default("image/*,application/pdf"),
+  requirePayment: boolean("require_payment").notNull().default(false),
+  paymentAmount: integer("payment_amount").default(0), // cents
+  paymentCurrency: text("payment_currency").default("USD"),
+  stripePaymentLinkId: text("stripe_payment_link_id"),
+  minNoticeHours: integer("min_notice_hours").notNull().default(24),
+  maxBookingDays: integer("max_booking_days").notNull().default(60),
+  slotInterval: integer("slot_interval").notNull().default(30),
+  teamMembers: jsonb("team_members").default(sql`'[]'::jsonb`),
+  roundRobinEnabled: boolean("round_robin_enabled").notNull().default(false),
+  requireApproval: boolean("require_approval").notNull().default(false),
+  brandingConfig: jsonb("branding_config").default(sql`'{}'::jsonb`),
+  redirectUrl: text("redirect_url"),
+  confirmationMessage: text("confirmation_message"),
   schedulingConfig: text("scheduling_config"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -726,17 +745,32 @@ export type AvailabilityRule = typeof availabilityRules.$inferSelect;
 
 export const scheduledBookings = pgTable("scheduled_bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   meetingTypeId: varchar("meeting_type_id").notNull().references(() => meetingTypes.id, { onDelete: "cascade" }),
+  assignedTeamMemberId: varchar("assigned_team_member_id").references(() => users.id, { onDelete: "set null" }),
   clientName: text("client_name").notNull(),
   clientEmail: text("client_email").notNull(),
+  clientPhone: text("client_phone"),
+  clientTimezone: text("client_timezone").default("UTC"),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
-  status: text("status").notNull().default("scheduled"), // scheduled | cancelled | completed
+  status: text("status").notNull().default("scheduled"), // scheduled | cancelled | completed | pending_approval | no_show
+  title: text("title"),
+  durationMinutes: integer("duration_minutes"),
   notes: text("notes"),
+  customAnswers: text("custom_answers"),
+  uploadedFiles: jsonb("uploaded_files").default(sql`'[]'::jsonb`),
   meetLink: text("meet_link"),
+  paymentStatus: text("payment_status").default("unpaid"), // unpaid | paid | refunded
+  paymentIntentId: text("payment_intent_id"),
+  cancelReason: text("cancel_reason"),
+  cancelledAt: timestamp("cancelled_at"),
+  rescheduledFrom: varchar("rescheduled_from"),
+  rescheduledTo: varchar("rescheduled_to"),
   reminder24Sent: boolean("reminder_24_sent").notNull().default(false),
   reminder1Sent: boolean("reminder_1_sent").notNull().default(false),
   followUpSent: boolean("follow_up_sent").notNull().default(false),
+  noShowRecorded: boolean("no_show_recorded").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1159,6 +1193,10 @@ export const videoEvents = pgTable("video_events", {
   seoDescription: text("seo_description"),
   // Edit metadata for video editor (trim/split/stitch operations)
   editMetadata: text("edit_metadata"), // JSON {clips: [...], music: ...}
+  // End screen CTA (shown after video ends — like Wistia end screen)
+  endScreenConfig: text("end_screen_config"), // JSON {enabled, ctaText, ctaUrl, ctaButtonText, showReplay}
+  // Social share buttons on player
+  socialShareEnabled: boolean("social_share_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertVideoEventSchema = createInsertSchema(videoEvents).omit({ id: true, createdAt: true, views: true });
@@ -2792,12 +2830,21 @@ export const dialerSettings = pgTable("dialer_settings", {
   defaultScript: text("default_script"),
   smsTemplate: text("sms_template"),
   recordCalls: boolean("record_calls").notNull().default(true),
-  aiProvider: text("ai_provider").notNull().default("vapi"),
+  aiProvider: text("ai_provider").notNull().default("retell"),
   vapiApiKey: text("vapi_api_key"),
   vapiAssistantId: text("vapi_assistant_id"),
   blandApiKey: text("bland_api_key"),
   blandVoiceId: text("bland_voice_id"),
+  retellApiKey: text("retell_api_key"),
+  retellAgentId: text("retell_agent_id"),
   aiSystemPrompt: text("ai_system_prompt"),
+  openAiApiKey: text("open_ai_api_key"),
+  inboundAgentEnabled: boolean("inbound_agent_enabled").notNull().default(false),
+  inboundAgentId: text("inbound_agent_id"),
+  autoSmsEnabled: boolean("auto_sms_enabled").notNull().default(false),
+  autoSmsBookedTemplate: text("auto_sms_booked_template"),
+  autoSmsNoAnswerTemplate: text("auto_sms_no_answer_template"),
+  autoSmsHotLeadTemplate: text("auto_sms_hot_lead_template"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -2886,6 +2933,7 @@ export const dialerAiCallResults = pgTable("dialer_ai_call_results", {
   recordingUrl: text("recording_url"),
   keyPoints: jsonb("key_points").$type<string[]>().default(sql`'[]'::jsonb`),
   objections: jsonb("objections").$type<string[]>().default(sql`'[]'::jsonb`),
+  direction: text("direction").notNull().default("outbound"),
   startedAt: timestamp("started_at").defaultNow(),
   endedAt: timestamp("ended_at"),
 });
@@ -2948,6 +2996,7 @@ export const dialerCadenceSteps = pgTable("dialer_cadence_steps", {
   delayHours: integer("delay_hours").notNull().default(0),
   action: text("action").notNull(),
   template: text("template"),
+  aiPersonalize: boolean("ai_personalize").notNull().default(false),
 });
 
 export const dialerCadenceEnrollments = pgTable("dialer_cadence_enrollments", {
@@ -2955,6 +3004,8 @@ export const dialerCadenceEnrollments = pgTable("dialer_cadence_enrollments", {
   cadenceId: varchar("cadence_id").notNull().references(() => dialerCadences.id, { onDelete: "cascade" }),
   leadId: varchar("lead_id").notNull(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  currentStepIndex: integer("current_step_index").notNull().default(0),
+  status: text("status").notNull().default("active"),
   nextRunAt: timestamp("next_run_at"),
   enrolledAt: timestamp("enrolled_at").defaultNow(),
 });
@@ -3001,6 +3052,15 @@ export const dialerTimelineEvents = pgTable("dialer_timeline_events", {
   body: text("body"),
   metadata: jsonb("metadata").$type<Record<string, any>>(),
   occurredAt: timestamp("occurred_at").defaultNow(),
+});
+
+export const dialerAiCallQuota = pgTable("dialer_ai_call_quota", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
+  callsUsed: integer("calls_used").notNull().default(0),
+  bonusCallsBalance: integer("bonus_calls_balance").notNull().default(0),
+  periodMonth: text("period_month").notNull().default(""),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const aiFeedback = pgTable("ai_feedback", {

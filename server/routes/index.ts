@@ -13,4 +13,7 @@ export { registerCrmRoutes } from "./crm";
 export { registerCrmSuiteRoutes, bootstrapCrmSuite } from "./crm-suite";
 export { registerCrmPublicApi, bootstrapCrmPublicApi } from "./crm-public-api";
 export { registerEmailMarketingRoutes, bootstrapEmailMarketing } from "./email-marketing";
-export { registerDialerRoutes } from "./dialer";
+export { registerDialerRoutes, startSequenceRunner } from "./dialer";
+export { registerSmsMarketingRoutes, bootstrapSmsMarketing } from "./sms-marketing";
+export { registerPlatformChatRoutes } from "./platform-chat";
+export { registerAnalyticsRoutes } from "./analytics";

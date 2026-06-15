@@ -180,6 +180,135 @@ function OraviniWatermark({ position = "bottom-right", show = true }: { position
 
 // ── Custom Player Controls ──────────────────────────────────────────────────
 
+// ── Social Share Bar ────────────────────────────────────────────────────────
+
+function SocialShareBar({ title, brandColor }: { title: string; brandColor: string }) {
+  const [copiedLink, setCopiedLink] = useState(false);
+  const url = typeof window !== "undefined" ? window.location.href : "";
+  const text = encodeURIComponent(`Check out: ${title}`);
+  const encodedUrl = encodeURIComponent(url);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(url).catch(() => {});
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  return (
+    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+      <span className="text-[10px] text-white/50 font-semibold uppercase tracking-wider">Share</span>
+      <a
+        href={`https://twitter.com/intent/tweet?text=${text}&url=${encodedUrl}`}
+        target="_blank" rel="noopener noreferrer"
+        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors"
+        title="Share on X"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="white">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.264 5.632 5.9-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+      </a>
+      <a
+        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`}
+        target="_blank" rel="noopener noreferrer"
+        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors"
+        title="Share on LinkedIn"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="white">
+          <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z" /><circle cx="4" cy="4" r="2" />
+        </svg>
+      </a>
+      <button
+        onClick={copyLink}
+        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/15 transition-colors"
+        title="Copy link"
+      >
+        {copiedLink ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ── End Screen ───────────────────────────────────────────────────────────────
+
+function EndScreen({
+  video,
+  brandColor,
+  onReplay,
+  socialShareEnabled,
+}: {
+  video: any;
+  brandColor: string;
+  onReplay: () => void;
+  socialShareEnabled: boolean;
+}) {
+  let cfg: any = {};
+  try { cfg = video.endScreenConfig ? JSON.parse(video.endScreenConfig) : {}; } catch {}
+
+  return (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center z-40 animate-in fade-in duration-500"
+      style={{ background: "rgba(0,0,0,0.92)", backdropFilter: "blur(12px)" }}
+      onClick={e => e.stopPropagation()}
+    >
+      {video.thumbnailUrl && (
+        <img src={video.thumbnailUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-10 blur-sm" />
+      )}
+      <div className="relative z-10 flex flex-col items-center gap-5 max-w-xs w-full px-6 text-center">
+        {/* Video finished badge */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: `${brandColor}18`, border: `1px solid ${brandColor}35` }}>
+          <div className="w-1.5 h-1.5 rounded-full" style={{ background: brandColor }} />
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: brandColor }}>Video Complete</span>
+        </div>
+
+        <p className="text-base font-bold text-white leading-tight">{video.title}</p>
+
+        {cfg.ctaText && (
+          <p className="text-sm text-zinc-300 leading-relaxed">{cfg.ctaText}</p>
+        )}
+
+        {/* CTA button */}
+        {cfg.ctaUrl && (
+          <a
+            href={cfg.ctaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 rounded-xl text-sm font-black transition-all hover:scale-105 hover:opacity-90"
+            style={{ background: brandColor, color: "#000" }}
+          >
+            {cfg.ctaButtonText || "Learn More →"}
+          </a>
+        )}
+
+        {/* Replay */}
+        {cfg.showReplay !== false && (
+          <button
+            onClick={onReplay}
+            className="flex items-center gap-2 text-xs text-zinc-400 hover:text-white transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+            </svg>
+            Watch again
+          </button>
+        )}
+
+        {/* Social share */}
+        {socialShareEnabled && (
+          <div className="pt-2 border-t border-white/10 w-full flex justify-center">
+            <SocialShareBar title={video.title} brandColor={brandColor} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Player Controls ──────────────────────────────────────────────────────────
+
 function PlayerControls({
   videoRef,
   playing,
@@ -191,12 +320,17 @@ function PlayerControls({
   brandColor,
   allowSpeedControl,
   chapters,
+  hasCaptions,
+  captionsEnabled,
+  socialShareEnabled,
+  videoTitle,
   onPlayPause,
   onSeek,
   onVolumeChange,
   onMuteToggle,
   onSpeedChange,
   onFullscreen,
+  onCaptionsToggle,
 }: {
   videoRef: React.RefObject<HTMLVideoElement>;
   playing: boolean;
@@ -208,12 +342,17 @@ function PlayerControls({
   brandColor: string;
   allowSpeedControl: boolean;
   chapters?: Chapter[];
+  hasCaptions: boolean;
+  captionsEnabled: boolean;
+  socialShareEnabled: boolean;
+  videoTitle: string;
   onPlayPause: () => void;
   onSeek: (t: number) => void;
   onVolumeChange: (v: number) => void;
   onMuteToggle: () => void;
   onSpeedChange: (s: number) => void;
   onFullscreen: () => void;
+  onCaptionsToggle: () => void;
 }) {
   const [showSpeed, setShowSpeed] = useState(false);
   const [showVolume, setShowVolume] = useState(false);
@@ -240,13 +379,8 @@ function PlayerControls({
         onClick={handleProgressClick}
         style={{ background: "rgba(255,255,255,0.15)" }}
       >
-        <div
-          className="h-full transition-all"
-          style={{ width: `${pct}%`, background: brandColor }}
-        />
-        {/* Chapter markers */}
+        <div className="h-full transition-all" style={{ width: `${pct}%`, background: brandColor }} />
         {chapters && chapters.length > 0 && <ChapterMarkers chapters={chapters} duration={duration} brandColor={brandColor} />}
-        {/* Scrubber dot */}
         <div
           className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
           style={{ left: `${pct}%`, transform: `translate(-50%, -50%)`, background: brandColor, boxShadow: `0 0 6px ${brandColor}80` }}
@@ -270,6 +404,23 @@ function PlayerControls({
         </span>
 
         <div className="flex-1" />
+
+        {/* Social share (inline in controls) */}
+        {socialShareEnabled && (
+          <SocialShareBar title={videoTitle} brandColor={brandColor} />
+        )}
+
+        {/* CC button */}
+        {hasCaptions && (
+          <button
+            onClick={onCaptionsToggle}
+            className="h-7 px-2 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-[10px] font-black"
+            style={{ color: captionsEnabled ? brandColor : "rgba(255,255,255,0.5)", border: captionsEnabled ? `1px solid ${brandColor}50` : "1px solid transparent" }}
+            title="Toggle captions"
+          >
+            CC
+          </button>
+        )}
 
         {/* Volume */}
         <div className="relative" onMouseEnter={() => setShowVolume(true)} onMouseLeave={() => setShowVolume(false)}>
@@ -382,6 +533,8 @@ export default function EmbedPlayer() {
   const [speed, setSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [hasStarted, setHasStarted] = useState(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [showEndScreen, setShowEndScreen] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -617,10 +770,23 @@ export default function EmbedPlayer() {
         poster={video.thumbnailUrl || undefined}
         onTimeUpdate={() => { if (videoRef.current) setCurrentTime(videoRef.current.currentTime); }}
         onLoadedMetadata={() => { if (videoRef.current) { setDuration(videoRef.current.duration); videoRef.current.playbackRate = speed; } }}
-        onEnded={() => { setPlaying(false); trackEvent("complete", duration, { totalWatchSeconds: totalWatchRef.current, completionPct: 100 }); }}
-        onPlay={() => setPlaying(true)}
+        onEnded={() => {
+          setPlaying(false);
+          setShowEndScreen(true);
+          trackEvent("complete", duration, { totalWatchSeconds: totalWatchRef.current, completionPct: 100 });
+        }}
+        onPlay={() => { setPlaying(true); setShowEndScreen(false); }}
         onPause={() => setPlaying(false)}
-      />
+      >
+        {video.captionUrl && (
+          <track
+            src={video.captionUrl}
+            kind="subtitles"
+            label="Captions"
+            default={captionsEnabled}
+          />
+        )}
+      </video>
 
       {/* Big play button (before first play) */}
       {!hasStarted && gateUnlocked && (
@@ -669,11 +835,24 @@ export default function EmbedPlayer() {
         />
       )}
 
+      {/* End Screen */}
+      {showEndScreen && gateUnlocked && (video.endScreenConfig || video.socialShareEnabled) && (
+        <EndScreen
+          video={video}
+          brandColor={brandColor}
+          socialShareEnabled={!!video.socialShareEnabled}
+          onReplay={() => {
+            if (videoRef.current) { videoRef.current.currentTime = 0; videoRef.current.play(); }
+            setShowEndScreen(false);
+          }}
+        />
+      )}
+
       {/* Oravini Watermark */}
-      <OraviniWatermark position={watermarkPosition} show={showWatermark} />
+      <OraviniWatermark position={watermarkPosition} show={showWatermark && !showEndScreen} />
 
       {/* Custom Controls */}
-      {gateUnlocked && hasStarted && (
+      {gateUnlocked && hasStarted && !showEndScreen && (
         <div style={{ opacity: showControls ? 1 : 0, transition: "opacity 0.3s" }}>
           <PlayerControls
             videoRef={videoRef as React.RefObject<HTMLVideoElement>}
@@ -686,12 +865,26 @@ export default function EmbedPlayer() {
             brandColor={brandColor}
             allowSpeedControl={allowSpeed}
             chapters={chapters}
+            hasCaptions={!!video.captionUrl}
+            captionsEnabled={captionsEnabled}
+            socialShareEnabled={!!video.socialShareEnabled}
+            videoTitle={video.title}
             onPlayPause={handlePlayPause}
             onSeek={handleSeek}
             onVolumeChange={handleVolumeChange}
             onMuteToggle={handleMuteToggle}
             onSpeedChange={handleSpeedChange}
             onFullscreen={handleFullscreen}
+            onCaptionsToggle={() => {
+              const newEnabled = !captionsEnabled;
+              setCaptionsEnabled(newEnabled);
+              if (videoRef.current) {
+                const tracks = videoRef.current.textTracks;
+                for (let i = 0; i < tracks.length; i++) {
+                  tracks[i].mode = newEnabled ? "showing" : "hidden";
+                }
+              }
+            }}
           />
         </div>
       )}

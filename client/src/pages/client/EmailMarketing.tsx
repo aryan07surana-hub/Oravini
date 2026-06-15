@@ -123,13 +123,15 @@ function StatCard({ label, value, sub, color = GOLD, icon: Icon }: any) {
 // ── Nav config ─────────────────────────────────────────────────────────────────
 
 const EM_NAV = [
-  { id: "overview",   label: "Overview",        icon: LayoutDashboard },
-  { id: "sequences",  label: "Sequences",        icon: Mail },
-  { id: "workflow",   label: "Workflow Builder", icon: GitBranch },
-  { id: "contacts",   label: "Contacts",         icon: Users },
-  { id: "templates",  label: "AI Templates",     icon: Wand2 },
-  { id: "analytics",  label: "Analytics",        icon: BarChart3 },
-  { id: "smtp",       label: "SMTP & Delivery",  icon: Settings2 },
+  { id: "overview",       label: "Overview",        icon: LayoutDashboard },
+  { id: "sequences",      label: "Sequences",        icon: Mail },
+  { id: "broadcasts",     label: "Broadcasts",       icon: Send },
+  { id: "workflow",       label: "Workflow Builder", icon: GitBranch },
+  { id: "contacts",       label: "Contacts",         icon: Users },
+  { id: "templates",      label: "AI Templates",     icon: Wand2 },
+  { id: "analytics",      label: "Analytics",        icon: BarChart3 },
+  { id: "deliverability", label: "Deliverability",   icon: Shield },
+  { id: "smtp",           label: "SMTP & Delivery",  icon: Settings2 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1670,6 +1672,497 @@ function AnalyticsSection() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BROADCASTS SECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function BroadcastsSection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [view, setView] = useState<"list" | "compose">("list");
+  const [editing, setEditing] = useState<any>(null);
+  const [launching, setLaunching] = useState<string | null>(null);
+
+  const { data: broadcasts = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/em/broadcasts"],
+    queryFn: () => apiFetch("/api/em/broadcasts"),
+  });
+
+  const { data: oauthStatus } = useQuery<any>({
+    queryKey: ["/api/em/oauth/status"],
+    queryFn: () => apiFetch("/api/em/oauth/status"),
+  });
+
+  const [form, setForm] = useState({
+    name: "", subject: "", preview_text: "", body_html: "",
+    from_name: "", segment_type: "all", segment_tags: "",
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (data: any) => editing
+      ? apiFetch(`/api/em/broadcasts/${editing.id}`, { method: "PATCH", body: JSON.stringify(data) })
+      : apiFetch("/api/em/broadcasts", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/em/broadcasts"] });
+      setView("list");
+      setEditing(null);
+      setForm({ name: "", subject: "", preview_text: "", body_html: "", from_name: "", segment_type: "all", segment_tags: "" });
+      toast({ title: "Broadcast saved" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/em/broadcasts/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/broadcasts"] }),
+  });
+
+  const handleLaunch = async (id: string) => {
+    setLaunching(id);
+    try {
+      const r = await apiFetch(`/api/em/broadcasts/${id}/launch`, { method: "POST" });
+      qc.invalidateQueries({ queryKey: ["/api/em/broadcasts"] });
+      toast({ title: `Broadcast queued for ${r.recipientCount} contacts` });
+    } catch (e: any) {
+      toast({ title: "Launch failed", description: e.message, variant: "destructive" });
+    }
+    setLaunching(null);
+  };
+
+  const startEdit = (b: any) => {
+    setEditing(b);
+    setForm({
+      name: b.name, subject: b.subject, preview_text: b.preview_text || "",
+      body_html: b.body_html, from_name: b.from_name || "",
+      segment_type: b.segment_type || "all", segment_tags: (b.segment_tags || []).join(", "),
+    });
+    setView("compose");
+  };
+
+  const isConnected = oauthStatus?.gmail?.connected || false;
+
+  if (view === "compose") return (
+    <div className="max-w-3xl space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={() => { setView("list"); setEditing(null); }} className="p-1.5 rounded-lg hover:bg-white/5">
+          <ChevronLeft className="w-4 h-4 text-zinc-400" />
+        </button>
+        <h2 className="text-base font-black text-white">{editing ? "Edit Broadcast" : "New Broadcast"}</h2>
+      </div>
+
+      {!isConnected && (
+        <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "#f59e0b10", border: "1px solid #f59e0b30" }}>
+          <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-yellow-400">Connect Gmail in SMTP & Delivery before sending broadcasts.</p>
+        </div>
+      )}
+
+      <div className="rounded-xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Campaign Name</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Black Friday Sale" className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">From Name</label>
+            <input value={form.from_name} onChange={e => setForm(f => ({ ...f, from_name: e.target.value }))}
+              placeholder="Your Name" className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Subject Line</label>
+          <input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+            placeholder="🔥 Big news — only 24 hours left" className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Preview Text</label>
+          <input value={form.preview_text} onChange={e => setForm(f => ({ ...f, preview_text: e.target.value }))}
+            placeholder="Shows after subject in inbox preview..." className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Email Body (HTML)</label>
+          <textarea value={form.body_html} onChange={e => setForm(f => ({ ...f, body_html: e.target.value }))}
+            rows={10} placeholder="<p>Hello {{first_name}},</p><p>Your email body here...</p>"
+            className="w-full px-3 py-2 rounded-lg text-xs text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50 font-mono resize-y" />
+          <p className="text-[10px] text-zinc-500 mt-1">Use {"{{first_name}}"} for personalization</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Segment</label>
+            <select value={form.segment_type} onChange={e => setForm(f => ({ ...f, segment_type: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none">
+              <option value="all">All subscribed contacts</option>
+              <option value="tag">Contacts with specific tag</option>
+            </select>
+          </div>
+          {form.segment_type === "tag" && (
+            <div>
+              <label className="block text-[11px] font-bold text-zinc-400 mb-1.5">Tags (comma separated)</label>
+              <input value={form.segment_tags} onChange={e => setForm(f => ({ ...f, segment_tags: e.target.value }))}
+                placeholder="vip, customers" className="w-full px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <button onClick={() => saveMutation.mutate({
+          ...form,
+          segment_tags: form.segment_tags ? form.segment_tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+        })} disabled={!form.name || !form.subject || !form.body_html || saveMutation.isPending}
+          className="px-5 py-2.5 rounded-xl text-sm font-black transition-all disabled:opacity-40"
+          style={{ background: GOLD, color: "#000" }}>
+          {saveMutation.isPending ? "Saving..." : "Save Broadcast"}
+        </button>
+        <button onClick={() => { setView("list"); setEditing(null); }}
+          className="px-5 py-2.5 rounded-xl text-sm font-black text-zinc-400 hover:bg-white/5 transition-all">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 max-w-4xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-black text-white">Broadcasts</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">One-time email blasts to your full list or a segment</p>
+        </div>
+        <button onClick={() => setView("compose")}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all"
+          style={{ background: GOLD, color: "#000" }}>
+          <Plus className="w-3.5 h-3.5" /> New Broadcast
+        </button>
+      </div>
+
+      {!isConnected && (
+        <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "#f59e0b10", border: "1px solid #f59e0b30" }}>
+          <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-yellow-400">No sending account connected</p>
+            <p className="text-[11px] text-yellow-400/70 mt-0.5">Connect Gmail in SMTP & Delivery to start sending broadcasts.</p>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? <Loader state="Loading broadcasts..." /> : broadcasts.length === 0 ? (
+        <div className="rounded-2xl p-12 flex flex-col items-center justify-center text-center" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+          <Send className="w-8 h-8 text-zinc-600 mb-3" />
+          <p className="text-sm font-black text-white">No broadcasts yet</p>
+          <p className="text-xs text-zinc-500 mt-1 mb-4">Create a one-time campaign to blast to your list</p>
+          <button onClick={() => setView("compose")} className="px-4 py-2 rounded-xl text-sm font-black" style={{ background: GOLD, color: "#000" }}>
+            Create Broadcast
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {broadcasts.map((b: any) => {
+            const openRate = b.sent_count > 0 ? Math.round((b.opened_count / b.sent_count) * 100) : 0;
+            const statusColor = b.status === "sent" ? "#22c55e" : b.status === "sending" ? GOLD : "#71717a";
+            return (
+              <div key={b.id} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-black text-white truncate">{b.name}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                        style={{ background: `${statusColor}15`, color: statusColor }}>{b.status}</span>
+                    </div>
+                    <p className="text-xs text-zinc-400 truncate mb-2">{b.subject}</p>
+                    {b.status !== "draft" && (
+                      <div className="flex items-center gap-4">
+                        <span className="text-[11px] text-zinc-500"><span className="font-bold text-white">{b.sent_count}</span> sent</span>
+                        <span className="text-[11px] text-zinc-500"><span className="font-bold text-white">{b.opened_count}</span> opens ({openRate}%)</span>
+                        <span className="text-[11px] text-zinc-500"><span className="font-bold text-white">{b.clicked_count}</span> clicks</span>
+                        <span className="text-[11px] text-zinc-500">of <span className="font-bold text-white">{b.recipient_count}</span> recipients</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {b.status === "draft" && (
+                      <>
+                        <button onClick={() => startEdit(b)} className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-all">
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleLaunch(b.id)} disabled={!isConnected || launching === b.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all disabled:opacity-40"
+                          style={{ background: GOLD, color: "#000" }}>
+                          {launching === b.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          Send Now
+                        </button>
+                        <button onClick={() => deleteMutation.mutate(b.id)} className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-600 hover:text-red-400 transition-all">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                    {b.status === "sending" && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-yellow-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Sending...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DELIVERABILITY SECTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function DeliverabilitySection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"domain" | "suppression" | "validation">("domain");
+  const [domain, setDomain] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [domainResult, setDomainResult] = useState<any>(null);
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [newEmail, setNewEmail] = useState("");
+
+  const { data: suppressions = [], isLoading: loadingSup } = useQuery<any[]>({
+    queryKey: ["/api/em/suppressions"],
+    queryFn: () => apiFetch("/api/em/suppressions"),
+  });
+
+  const addSuppression = useMutation({
+    mutationFn: (email: string) => apiFetch("/api/em/suppressions", { method: "POST", body: JSON.stringify({ email, reason: "manual" }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/em/suppressions"] }); setNewEmail(""); toast({ title: "Email suppressed" }); },
+  });
+
+  const removeSuppression = useMutation({
+    mutationFn: (email: string) => apiFetch(`/api/em/suppressions/${encodeURIComponent(email)}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/em/suppressions"] }),
+  });
+
+  const checkDomain = async () => {
+    if (!domain) return;
+    setChecking(true);
+    setDomainResult(null);
+    try {
+      const r = await apiFetch(`/api/em/domain/check?domain=${encodeURIComponent(domain)}`);
+      setDomainResult(r);
+    } catch (e: any) {
+      toast({ title: "Check failed", description: e.message, variant: "destructive" });
+    }
+    setChecking(false);
+  };
+
+  const runBulkValidation = async () => {
+    setValidating(true);
+    try {
+      const r = await apiFetch("/api/em/contacts/bulk-validate", { method: "POST" });
+      setValidationResult(r);
+      toast({ title: `Validated ${r.checked} contacts` });
+    } catch (e: any) {
+      toast({ title: "Validation failed", description: e.message, variant: "destructive" });
+    }
+    setValidating(false);
+  };
+
+  const tabs = [
+    { id: "domain", label: "Domain Health" },
+    { id: "suppression", label: "Suppression List" },
+    { id: "validation", label: "List Validation" },
+  ];
+
+  return (
+    <div className="space-y-5 max-w-3xl">
+      <div>
+        <h2 className="text-base font-black text-white">Deliverability</h2>
+        <p className="text-xs text-zinc-500 mt-0.5">Keep your sender reputation clean and emails out of spam</p>
+      </div>
+
+      {/* Tab strip */}
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}10` }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id as any)}
+            className="flex-1 py-2 rounded-lg text-xs font-black transition-all"
+            style={activeTab === t.id ? { background: GOLD, color: "#000" } : { color: "rgba(255,255,255,0.4)" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Domain Health */}
+      {activeTab === "domain" && (
+        <div className="space-y-4">
+          <div className="rounded-xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+            <p className="text-xs font-black text-white">Check SPF, DKIM & DMARC</p>
+            <p className="text-[11px] text-zinc-400">These DNS records prove your emails are legitimate. Without them, Gmail and Outlook route you to spam.</p>
+            <div className="flex gap-2">
+              <input value={domain} onChange={e => setDomain(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && checkDomain()}
+                placeholder="yourdomain.com" className="flex-1 px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+              <button onClick={checkDomain} disabled={!domain || checking}
+                className="px-4 py-2 rounded-lg text-sm font-black transition-all disabled:opacity-40"
+                style={{ background: GOLD, color: "#000" }}>
+                {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Check"}
+              </button>
+            </div>
+
+            {domainResult && (
+              <div className="space-y-3 pt-2">
+                {[
+                  { key: "spf", label: "SPF", desc: "Authorizes servers to send on your behalf", fix: `Add this to your DNS TXT records:\n\nv=spf1 include:_spf.google.com ~all\n\n(Replace with your sending provider's SPF include)` },
+                  { key: "dkim", label: "DKIM", desc: "Signs emails to prove they weren't tampered with", fix: "Generate a DKIM key in your email provider (SendGrid/Mailgun/Google Workspace) and add the TXT record they give you to your DNS." },
+                  { key: "dmarc", label: "DMARC", desc: "Tells receivers what to do with failed emails", fix: `Add this DNS TXT record to _dmarc.${domain}:\n\nv=DMARC1; p=quarantine; rua=mailto:dmarc@${domain}` },
+                ].map(({ key, label, desc, fix }) => {
+                  const record = domainResult[key];
+                  const found = record?.found;
+                  return (
+                    <div key={key} className="rounded-lg p-3 space-y-1.5" style={{ background: found ? "#22c55e08" : "#ef444408", border: `1px solid ${found ? "#22c55e" : "#ef4444"}25` }}>
+                      <div className="flex items-center gap-2">
+                        {found ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                        <span className="text-xs font-black" style={{ color: found ? "#22c55e" : "#ef4444" }}>{label} — {found ? "Found" : "Missing"}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 pl-5">{desc}</p>
+                      {record?.record && <p className="text-[10px] font-mono text-zinc-500 pl-5 break-all">{record.record}</p>}
+                      {record?.selector && <p className="text-[10px] text-zinc-500 pl-5">Selector: <span className="font-mono text-zinc-300">{record.selector}</span></p>}
+                      {!found && (
+                        <details className="pl-5">
+                          <summary className="text-[11px] text-yellow-400 cursor-pointer font-bold">How to fix →</summary>
+                          <pre className="mt-2 text-[10px] text-zinc-300 whitespace-pre-wrap font-mono bg-black/30 p-2 rounded">{fix}</pre>
+                        </details>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+            <p className="text-xs font-black text-white">Webhook Setup (Bounce Handling)</p>
+            <p className="text-[11px] text-zinc-400">Configure these URLs in your ESP dashboard so bounces and spam complaints auto-suppress contacts.</p>
+            <div className="space-y-2">
+              {[
+                { label: "SendGrid", path: "Settings → Mail Settings → Event Webhook", url: "https://oravini.com/api/em/webhooks/sendgrid" },
+                { label: "Mailgun", path: "Sending → Webhooks → Add Webhook", url: "https://oravini.com/api/em/webhooks/mailgun" },
+              ].map(({ label, path, url }) => (
+                <div key={label} className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-black text-white">{label}</span>
+                    <span className="text-[10px] text-zinc-500">{path}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-[11px] font-mono text-zinc-300 bg-black/30 px-2 py-1 rounded truncate">{url}</code>
+                    <button onClick={() => { navigator.clipboard.writeText(url); toast({ title: "Copied" }); }}
+                      className="p-1.5 rounded hover:bg-white/5 text-zinc-400 hover:text-white transition-all flex-shrink-0">
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suppression List */}
+      {activeTab === "suppression" && (
+        <div className="space-y-4">
+          <div className="rounded-xl p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+            <p className="text-xs font-black text-white">Add to Suppression List</p>
+            <p className="text-[11px] text-zinc-400">Suppressed emails are blocked from all sequences and broadcasts permanently.</p>
+            <div className="flex gap-2">
+              <input value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && newEmail && addSuppression.mutate(newEmail)}
+                placeholder="bad@example.com" type="email"
+                className="flex-1 px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-yellow-500/50" />
+              <button onClick={() => newEmail && addSuppression.mutate(newEmail)} disabled={!newEmail || addSuppression.isPending}
+                className="px-4 py-2 rounded-lg text-sm font-black transition-all disabled:opacity-40"
+                style={{ background: GOLD, color: "#000" }}>
+                Suppress
+              </button>
+            </div>
+          </div>
+
+          {loadingSup ? <Loader state="Loading..." /> : (
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${GOLD}14` }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ background: "rgba(255,255,255,0.03)", borderBottom: `1px solid ${GOLD}10` }}>
+                <p className="text-xs font-black text-white">Suppressed Emails</p>
+                <span className="text-[11px] text-zinc-500">{suppressions.length} total</span>
+              </div>
+              {suppressions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Shield className="w-6 h-6 text-zinc-600 mx-auto mb-2" />
+                  <p className="text-xs text-zinc-500">No suppressed emails — clean list</p>
+                </div>
+              ) : (
+                <div className="divide-y" style={{ borderColor: `${GOLD}08` }}>
+                  {suppressions.map((s: any) => (
+                    <div key={s.id} className="px-4 py-2.5 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-white">{s.email}</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5 capitalize">{s.reason.replace("_", " ")} · {s.source || "manual"}</p>
+                      </div>
+                      <button onClick={() => removeSuppression.mutate(s.email)} className="p-1.5 rounded hover:bg-white/5 text-zinc-600 hover:text-red-400 transition-all">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List Validation */}
+      {activeTab === "validation" && (
+        <div className="space-y-4">
+          <div className="rounded-xl p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${GOLD}14` }}>
+            <p className="text-xs font-black text-white">Validate Your Contact List</p>
+            <p className="text-[11px] text-zinc-400">Checks MX records to verify email addresses are deliverable. Catches invalid domains and disposable emails. Processes up to 200 unvalidated contacts per run.</p>
+
+            {validationResult && (
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Valid", count: validationResult.valid, color: "#22c55e" },
+                  { label: "Risky", count: validationResult.risky, color: GOLD },
+                  { label: "Invalid", count: validationResult.invalid, color: "#ef4444" },
+                ].map(({ label, count, color }) => (
+                  <div key={label} className="rounded-lg p-3 text-center" style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
+                    <p className="text-xl font-black" style={{ color }}>{count}</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={runBulkValidation} disabled={validating}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-black transition-all disabled:opacity-40"
+              style={{ background: GOLD, color: "#000" }}>
+              {validating ? <><Loader2 className="w-4 h-4 animate-spin" /> Validating...</> : <><Shield className="w-4 h-4" /> Run Validation</>}
+            </button>
+
+            <div className="space-y-2 pt-1">
+              {[
+                { label: "Valid", desc: "MX records found, domain active — safe to send", color: "#22c55e" },
+                { label: "Risky", desc: "Disposable email or couldn't verify — send with caution", color: GOLD },
+                { label: "Invalid", desc: "No MX records or malformed — remove from list", color: "#ef4444" },
+              ].map(({ label, desc, color }) => (
+                <div key={label} className="flex items-start gap-2">
+                  <div className="w-2 h-2 rounded-full mt-1 flex-shrink-0" style={{ background: color }} />
+                  <p className="text-[11px] text-zinc-400"><span className="font-bold" style={{ color }}>{label}</span> — {desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SMTP SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2431,14 +2924,16 @@ function EmailMarketingPlatform() {
 
   const renderSection = () => {
     switch (activeId) {
-      case "overview":   return <OverviewSection setActiveId={setActiveId} isEmailConnected={!!isEmailConnected} />;
-      case "sequences":  return <SequencesSection />;
-      case "workflow":   return <WorkflowSection />;
-      case "contacts":   return <ContactsSection />;
-      case "templates":  return <TemplatesSection onUseTemplate={(t) => { setActiveId("sequences"); }} />;
-      case "analytics":  return <AnalyticsSection />;
-      case "smtp":       return <SmtpSection />;
-      default:           return null;
+      case "overview":       return <OverviewSection setActiveId={setActiveId} isEmailConnected={!!isEmailConnected} />;
+      case "sequences":      return <SequencesSection />;
+      case "broadcasts":     return <BroadcastsSection />;
+      case "workflow":       return <WorkflowSection />;
+      case "contacts":       return <ContactsSection />;
+      case "templates":      return <TemplatesSection onUseTemplate={(t) => { setActiveId("sequences"); }} />;
+      case "analytics":      return <AnalyticsSection />;
+      case "deliverability": return <DeliverabilitySection />;
+      case "smtp":           return <SmtpSection />;
+      default:               return null;
     }
   };
 

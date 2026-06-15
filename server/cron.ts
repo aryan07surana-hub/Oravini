@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import { storage } from "./storage";
 import { log } from "./index";
-import { processEmSendQueue } from "./routes/email-marketing";
+import { processEmSendQueue, processBroadcastQueue } from "./routes/email-marketing";
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
 
@@ -753,5 +753,6 @@ export function startCronJobs() {
   cron.schedule("0 * * * *", processEmailSequences);
   cron.schedule("*/2 * * * *", processSmsSequences);
   cron.schedule("*/5 * * * *", processEmSendQueue);
+  cron.schedule("*/5 * * * *", processBroadcastQueue);
   log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch 8AM; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
 }

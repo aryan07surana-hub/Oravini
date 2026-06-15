@@ -310,4 +310,116 @@ export function registerOAuthRoutes(app: Express) {
       res.status(500).json({ message: err.message });
     }
   });
+
+  // ── Gmail OAuth ───────────────────────────────────────────────────────────────
+  app.get("/api/oauth/gmail/connect", requireAuth, (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ message: "Gmail OAuth not configured" });
+
+    const redirectUri = `${getAppBase()}/api/oauth/gmail/callback`;
+    const scope = [
+      "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+    ].join(" ");
+    const state = Buffer.from(JSON.stringify({ userId })).toString("base64");
+
+    const authUrl =
+      `https://accounts.google.com/o/oauth2/v2/auth` +
+      `?client_id=${clientId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(scope)}` +
+      `&state=${state}` +
+      `&access_type=offline` +
+      `&prompt=consent`;
+    res.redirect(authUrl);
+  });
+
+  app.get("/api/oauth/gmail/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code || !state) return res.redirect("/dashboard?error=gmail_auth_failed");
+
+      const { userId } = JSON.parse(Buffer.from(state as string, "base64").toString());
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      if (!clientId || !clientSecret) return res.redirect("/dashboard?error=gmail_not_configured");
+
+      const redirectUri = `${getAppBase()}/api/oauth/gmail/callback`;
+
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code: code as string,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+        }),
+      });
+      const tokenData = await tokenResp.json() as any;
+      if (!tokenData.access_token) return res.redirect("/dashboard?error=gmail_token_failed");
+
+      const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000);
+
+      const profileResp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = await profileResp.json() as any;
+
+      const encAccessToken = encryptToken(tokenData.access_token);
+      const encRefreshToken = tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : null;
+
+      await pool.query(
+        `INSERT INTO gmail_tokens (user_id, access_token, refresh_token, expires_at, gmail_address, gmail_name, scope, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+           access_token = EXCLUDED.access_token,
+           refresh_token = COALESCE(EXCLUDED.refresh_token, gmail_tokens.refresh_token),
+           expires_at = EXCLUDED.expires_at,
+           gmail_address = EXCLUDED.gmail_address,
+           gmail_name = EXCLUDED.gmail_name,
+           scope = EXCLUDED.scope,
+           updated_at = NOW()`,
+        [userId, encAccessToken, encRefreshToken, expiresAt, profile.email, profile.name,
+          "gmail.send gmail.readonly"]
+      );
+
+      res.redirect("/dashboard?connected=gmail");
+    } catch (err: any) {
+      console.error("[gmail-oauth] callback error:", err);
+      res.redirect("/dashboard?error=gmail_callback_failed");
+    }
+  });
+
+  app.post("/api/oauth/gmail/disconnect", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      await pool.query("DELETE FROM gmail_tokens WHERE user_id = $1", [userId]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/oauth/gmail/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req.user as any).id;
+      const result = await pool.query("SELECT * FROM gmail_tokens WHERE user_id = $1", [userId]);
+      const token = result.rows[0];
+      if (!token) return res.json({ connected: false });
+      res.json({
+        connected: true,
+        gmailAddress: token.gmail_address,
+        gmailName: token.gmail_name,
+        expired: token.expires_at && new Date(token.expires_at) < new Date(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
 }

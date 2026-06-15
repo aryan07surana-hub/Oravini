@@ -1,6 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import PlatformChatbot from "@/components/PlatformChatbot";
+import NotificationCenter from "@/components/NotificationCenter";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -12,7 +14,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -214,6 +216,7 @@ const topNavItems = [
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
+  { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
 const bottomNavItems = [
@@ -267,9 +270,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <p className="text-[9px] text-muted-foreground mt-0.5 tracking-wider uppercase leading-none">Creator Growth Platform</p>
               </div>
             </div>
-            <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {!isAdmin && <NotificationCenter />}
+              <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <nav className="flex-1 p-4 overflow-y-auto">
@@ -283,6 +289,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   return true;
                 }),
                 ...(["growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/email-marketing", label: "Email & Workflows", icon: Mail }] : []),
+                ...(["starter", "growth", "pro", "elite"].includes((user as any)?.plan) ? [{ href: "/sms-marketing", label: "SMS Marketing", icon: Smartphone }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/progress", label: "Project Tracker", icon: TrendingUp }] : []),
                 ...((user as any)?.plan === "elite" ? [{ href: "/crm", label: "CRM", icon: Database }] : []),
               ].map(({ href, label, icon: Icon }) => {
@@ -493,6 +500,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
         <FocusMusicPlayer />
         {!isAdmin && <UpgradeModal />}
+        {!isAdmin && <PlatformChatbot />}
       </div>
     </>
   );

@@ -64,6 +64,7 @@ import DMTracker from "@/pages/client/DMTracker";
 import DMHub from "@/pages/client/DMHub";
 import DMAutomation from "@/pages/client/DMAutomation";
 import EmailMarketing from "@/pages/client/EmailMarketing";
+import SmsMarketing from "@/pages/client/SmsMarketing";
 import AIVideoEditor from "@/pages/client/AIVideoEditor";
 import TwitterScheduler from "@/pages/client/TwitterScheduler";
 import LinkedInScheduler from "@/pages/client/LinkedInScheduler";
@@ -117,6 +118,8 @@ import ContentIntelligence from "@/pages/ContentIntelligence";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
 import ClientCRM from "@/pages/client/CRM";
 import ClientScheduling from "@/pages/client/Scheduling";
+import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
+import Analytics from "@/pages/client/Analytics";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -129,6 +132,7 @@ import AdminCredits from "@/pages/admin/AdminCredits";
 import AdminCRM from "@/pages/admin/AdminCRM";
 import AdminCRMSuite from "@/pages/admin/AdminCRMSuite";
 import AdminEmailMarketing from "@/pages/admin/AdminEmailMarketing";
+import AdminSmsMarketing from "@/pages/admin/AdminSmsMarketing";
 import AdminChurnAnalysis from "@/pages/admin/AdminChurnAnalysis";
 import AdminReferrals from "@/pages/admin/AdminReferrals";
 import AdminResponses from "@/pages/admin/AdminResponses";
@@ -254,6 +258,7 @@ function Router() {
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
+      <Route path="/sms-marketing">{() => <Guard component={SmsMarketing} />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
@@ -291,6 +296,8 @@ function Router() {
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
       <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
+      <Route path="/knowledge-graph">{() => <Guard component={KnowledgeGraph} />}</Route>
+      <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}
       <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>
@@ -318,6 +325,7 @@ function Router() {
       <Route path="/admin/crm-legacy">{() => <Guard component={AdminCRM} adminOnly />}</Route>
       <Route path="/admin/crm-suite">{() => <Guard component={AdminCRMSuite} adminOnly />}</Route>
       <Route path="/admin/email-marketing">{() => <Guard component={AdminEmailMarketing} adminOnly />}</Route>
+      <Route path="/admin/sms-marketing">{() => <Guard component={AdminSmsMarketing} adminOnly />}</Route>
       <Route path="/admin/churn">{() => <Guard component={AdminChurnAnalysis} adminOnly />}</Route>
       <Route path="/admin/referrals">{() => <Guard component={AdminReferrals} adminOnly />}</Route>
       <Route path="/admin/responses">{() => <Guard component={AdminResponses} adminOnly />}</Route>

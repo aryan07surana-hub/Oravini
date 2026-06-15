@@ -291,6 +291,17 @@ async function runMigrations() {
     console.warn("[migration] video_events extended columns skipped:", e.message);
   }
 
+  try {
+    await pool.query(`
+      ALTER TABLE video_events
+        ADD COLUMN IF NOT EXISTS end_screen_config TEXT,
+        ADD COLUMN IF NOT EXISTS social_share_enabled BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    console.log("[migration] video_events end_screen + social_share ensured");
+  } catch (e: any) {
+    console.warn("[migration] video_events end_screen/social_share skipped:", e.message);
+  }
+
   // ── Video Marketing: feature tables (templates, interactive elements, A/B, channels, dubbing, collab) ──
   try {
     await pool.query(`
@@ -655,6 +666,81 @@ async function runMigrations() {
     console.log("[migration] dialer tables ensured");
   } catch (e: any) {
     console.warn("[migration] dialer tables skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE dialer_settings
+        ADD COLUMN IF NOT EXISTS retell_api_key TEXT,
+        ADD COLUMN IF NOT EXISTS retell_agent_id TEXT
+    `);
+    console.log("[migration] dialer_settings retell columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] dialer_settings retell skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE dialer_settings
+        ADD COLUMN IF NOT EXISTS open_ai_api_key TEXT,
+        ADD COLUMN IF NOT EXISTS auto_sms_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS auto_sms_booked_template TEXT,
+        ADD COLUMN IF NOT EXISTS auto_sms_no_answer_template TEXT,
+        ADD COLUMN IF NOT EXISTS auto_sms_hot_lead_template TEXT
+    `);
+    console.log("[migration] dialer_settings ai-analysis columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] dialer_settings ai-analysis skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE dialer_cadence_steps
+        ADD COLUMN IF NOT EXISTS ai_personalize BOOLEAN NOT NULL DEFAULT FALSE
+    `);
+    await pool.query(`
+      ALTER TABLE dialer_cadence_enrollments
+        ADD COLUMN IF NOT EXISTS current_step_index INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
+    `);
+    console.log("[migration] dialer cadence sequence columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] dialer cadence sequence skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE dialer_settings
+        ADD COLUMN IF NOT EXISTS inbound_agent_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS inbound_agent_id TEXT
+    `);
+    await pool.query(`
+      ALTER TABLE dialer_ai_call_results
+        ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound'
+    `);
+    console.log("[migration] dialer inbound columns ensured");
+  } catch (e: any) {
+    console.warn("[migration] dialer inbound skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dialer_ai_call_quota (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+        calls_used INTEGER NOT NULL DEFAULT 0,
+        bonus_calls_balance INTEGER NOT NULL DEFAULT 0,
+        period_month TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      ALTER TABLE dialer_ai_call_quota
+        ADD COLUMN IF NOT EXISTS bonus_calls_balance INTEGER NOT NULL DEFAULT 0
+    `);
+    console.log("[migration] dialer_ai_call_quota ensured");
+  } catch (e: any) {
+    console.warn("[migration] dialer_ai_call_quota skipped:", e.message);
   }
 }
 

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Zap, Database, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3
+  LogOut, ChevronRight, Menu, X, Zap, Database, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3, Smartphone
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ const mainNavItems = [
   { href: "/admin/clients", label: "Elite Members", icon: Users },
   { href: "/admin/crm-suite", label: "CRM", icon: Database },
   { href: "/admin/email-marketing", label: "Email Marketing", icon: Mail },
+  { href: "/admin/sms-marketing", label: "SMS Marketing", icon: Smartphone },
   { href: "/admin/responses", label: "Survey Responses", icon: ClipboardList },
   { href: "/admin/feedback", label: "Feedback", icon: Star },
   { href: "/admin/referrals", label: "Referrals", icon: Gift },

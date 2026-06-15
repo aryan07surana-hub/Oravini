@@ -32,8 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import VideoHosting from "@/components/video-marketing/VideoHosting";
 import {
   ChaptersTab, InteractiveElementsTab, ABTestingTab, ChannelsTab,
-  ViewerHeatmapsTab, ThumbnailsTab, SEOEmbeddingTab, LocalizationTab, CollaborationTab,
-  VideoEditorTab,
+  ViewerHeatmapsTab, VideoEditorTab,
 } from "@/components/video-marketing/HostingFeatures";
 
 const GOLD = "#d4b461";
@@ -5227,7 +5226,7 @@ function PlayerSettingsTab() {
 
 // ── DIALER TAB ────────────────────────────────────────────────────────────────
 
-type DialerSubTab = "leads" | "calls" | "ai-campaigns" | "sms" | "settings";
+type DialerSubTab = "leads" | "calls" | "ai-campaigns" | "sequences" | "sms" | "settings";
 
 function DialerTab() {
   const { toast } = useToast();
@@ -5241,12 +5240,67 @@ function DialerTab() {
   const [selectedWebinarId, setSelectedWebinarId] = useState("");
 
   const { data: stats } = useQuery<any>({ queryKey: ["/api/dialer/stats"], staleTime: 30000 });
+  const { data: heatmap } = useQuery<any>({ queryKey: ["/api/dialer/analytics/heatmap"], staleTime: 60000 });
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const { data: leads = [], isLoading: leadsLoading } = useQuery<any[]>({ queryKey: ["/api/dialer/leads"], staleTime: 15000 });
   const { data: calls = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/calls"], staleTime: 15000 });
   const { data: campaigns = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/ai/campaigns"], staleTime: 15000 });
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  // SMS Sequences
+  const { data: sequences = [], refetch: refetchSequences } = useQuery<any[]>({ queryKey: ["/api/dialer/cadences"], staleTime: 15000 });
+  const { data: seqEnrollments = [], refetch: refetchEnrollments } = useQuery<any[]>({ queryKey: ["/api/dialer/cadences/enrollments"], staleTime: 15000 });
+  const [showSeqBuilder, setShowSeqBuilder] = useState(false);
+  const [seqForm, setSeqForm] = useState<{ name: string; triggerOutcome: string; steps: { delayHours: number; template: string; aiPersonalize: boolean }[] }>({
+    name: "", triggerOutcome: "no_answer",
+    steps: [
+      { delayHours: 1,  template: "Hey {name}, I tried calling earlier — got a quick 2 minutes to chat? Reply here!", aiPersonalize: false },
+      { delayHours: 24, template: "Hey {name}, following up from yesterday's call. Would love to connect this week!", aiPersonalize: true },
+      { delayHours: 72, template: "Hey {name}, last check-in — happy to share more about how we can help. Reply anytime!", aiPersonalize: false },
+    ],
+  });
+  const createSequence = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/dialer/cadences", data),
+    onSuccess: () => { refetchSequences(); setShowSeqBuilder(false); toast({ title: "Sequence created" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+  const deleteSequence = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/dialer/cadences/${id}`),
+    onSuccess: () => { refetchSequences(); toast({ title: "Sequence deleted" }); },
+  });
+  const stopEnrollment = useMutation({
+    mutationFn: (id: string) => apiRequest("POST", `/api/dialer/cadences/enrollments/${id}/stop`),
+    onSuccess: () => { refetchEnrollments(); toast({ title: "Sequence stopped" }); },
+  });
+  const { data: campaignResults = [] } = useQuery<any[]>({
+    queryKey: [`/api/dialer/ai/campaigns/${selectedCampaignId}/results`],
+    enabled: !!selectedCampaignId,
+    staleTime: 10000,
+  });
   const { data: smsConvs = [] } = useQuery<any[]>({ queryKey: ["/api/dialer/sms/conversations"], staleTime: 15000 });
   const { data: dialerSettings } = useQuery<any>({ queryKey: ["/api/dialer/settings"] });
   const { data: webinars = [] } = useQuery<any[]>({ queryKey: ["/api/webinars"], staleTime: 60000 });
+  const { data: aiQuota, refetch: refetchQuota } = useQuery<any>({ queryKey: ["/api/dialer/ai/quota"], staleTime: 60000 });
+
+  const topUpMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/dialer/ai/topup"),
+    onSuccess: () => { refetchQuota(); toast({ title: "100 AI calls added to your account!" }); },
+    onError: (e: any) => toast({ title: "Top-up failed", description: e.message, variant: "destructive" }),
+  });
+
+  const WHOP_TOPUP_URL = "https://whop.com/checkout/plan_PLACEHOLDER_TOPUP";
+  const handleTopUp = () => {
+    const returnUrl = `${window.location.origin}/dashboard?topup_success=ai_calls`;
+    window.location.href = `${WHOP_TOPUP_URL}?redirect_uri=${encodeURIComponent(returnUrl)}`;
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("topup_success") === "ai_calls") {
+      topUpMutation.mutate();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (dialerSettings) setSettingsForm(dialerSettings);
@@ -5302,6 +5356,7 @@ function DialerTab() {
     { id: "leads", label: "Leads" },
     { id: "calls", label: "Call Log" },
     { id: "ai-campaigns", label: "AI Campaigns" },
+    { id: "sequences", label: "SMS Sequences" },
     { id: "sms", label: "SMS Inbox" },
     { id: "settings", label: "Settings" },
   ];
@@ -5325,6 +5380,32 @@ function DialerTab() {
           <Settings2 className="w-3 h-3" /> Setup
         </button>
       </div>
+
+      {/* AI Call Quota Banner */}
+      {aiQuota && (
+        <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex items-center gap-3 flex-1">
+            <span className="text-xs font-bold text-zinc-400 whitespace-nowrap">AI Calls</span>
+            <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${Math.min(100, ((aiQuota.used) / (aiQuota.limit || 1)) * 100)}%`,
+                background: aiQuota.used >= aiQuota.limit ? "#ef4444" : GOLD,
+              }} />
+            </div>
+            <span className="text-xs text-zinc-400 whitespace-nowrap">
+              {aiQuota.used}/{aiQuota.limit}/mo
+              {aiQuota.bonus > 0 && <span className="ml-1 text-emerald-400">+{aiQuota.bonus} bonus</span>}
+            </span>
+          </div>
+          {aiQuota.used >= aiQuota.limit && aiQuota.bonus === 0 && (
+            <button onClick={handleTopUp}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap"
+              style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD }}>
+              Buy 100 more — $18
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3">
@@ -5438,7 +5519,78 @@ function DialerTab() {
 
       {/* CALL LOG TAB */}
       {subTab === "calls" && (
-        <div className="space-y-2">
+        <div className="space-y-4">
+
+          {/* Best Time to Call Heatmap */}
+          {heatmap && heatmap.totalCalls >= 3 && (
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+              <button onClick={() => setShowHeatmap(h => !h)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white">Best Time to Call</span>
+                  {heatmap.bestSlots?.[0] && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${GOLD}18`, color: GOLD }}>
+                      Best: {heatmap.bestSlots[0].label} · {heatmap.bestSlots[0].answerRate}% answer rate
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] text-zinc-500">{showHeatmap ? "▲ Hide" : "▼ Show"}</span>
+              </button>
+
+              {showHeatmap && (
+                <div className="px-4 pb-4 space-y-4">
+                  {/* Best 3 slots */}
+                  {heatmap.bestSlots?.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 pt-2">
+                      {heatmap.bestSlots.map((slot: any, i: number) => (
+                        <div key={i} className="rounded-lg px-3 py-2 text-center" style={{ background: i === 0 ? `${GOLD}15` : "rgba(255,255,255,0.03)", border: `1px solid ${i === 0 ? GOLD + "30" : "rgba(255,255,255,0.06)"}` }}>
+                          <p className="text-sm font-black" style={{ color: i === 0 ? GOLD : "#a1a1aa" }}>{slot.label}</p>
+                          <p className="text-[10px] text-zinc-500">{slot.answerRate}% answer · {slot.bookRate}% booked</p>
+                          <p className="text-[10px] text-zinc-600">{slot.total} calls</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Hourly heatmap — business hours 7am–10pm */}
+                  <div>
+                    <p className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Answer Rate by Hour</p>
+                    <div className="flex items-end gap-0.5 h-16">
+                      {(heatmap.hourly as any[]).filter((h: any) => h.hour >= 7 && h.hour <= 22).map((h: any) => {
+                        const pct = h.answerRate;
+                        const isTop = heatmap.bestSlots?.some((s: any) => s.hour === h.hour);
+                        return (
+                          <div key={h.hour} className="flex-1 flex flex-col items-center gap-0.5" title={`${h.label}: ${pct}% (${h.total} calls)`}>
+                            <div className="w-full rounded-t-sm transition-all" style={{
+                              height: `${Math.max(4, pct)}%`,
+                              background: isTop ? GOLD : pct > 40 ? "#34d399" : pct > 20 ? `${GOLD}60` : "rgba(255,255,255,0.08)",
+                            }} />
+                            <span className="text-[7px] text-zinc-600" style={{ color: isTop ? GOLD : undefined }}>{h.label.replace("am","a").replace("pm","p")}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Day of week */}
+                  <div>
+                    <p className="text-[10px] text-zinc-500 mb-2 uppercase tracking-wider">Answer Rate by Day</p>
+                    <div className="grid grid-cols-7 gap-1">
+                      {(heatmap.daily as any[]).map((d: any) => (
+                        <div key={d.dow} className="rounded-lg p-2 text-center" style={{ background: `rgba(${d.answerRate > 40 ? "52,211,153" : "255,255,255"},${d.answerRate > 0 ? 0.04 + d.answerRate * 0.003 : 0.02})`, border: "1px solid rgba(255,255,255,0.05)" }}>
+                          <p className="text-[10px] font-bold" style={{ color: d.answerRate > 40 ? "#34d399" : "#a1a1aa" }}>{d.label}</p>
+                          <p className="text-[9px] text-zinc-600">{d.answerRate}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Call log */}
           {(calls as any[]).length === 0 ? (
             <div className="text-center py-16 text-zinc-600">
               <Activity className="w-8 h-8 mx-auto mb-3 opacity-30" />
@@ -5471,31 +5623,229 @@ function DialerTab() {
       {/* AI CAMPAIGNS TAB */}
       {subTab === "ai-campaigns" && (
         <div className="space-y-4">
+          {selectedCampaignId ? (
+            <>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setSelectedCampaignId(null)}
+                  className="text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1">
+                  ← Back
+                </button>
+                <p className="text-sm font-bold text-white">
+                  {(campaigns as any[]).find(c => c.id === selectedCampaignId)?.name}
+                </p>
+              </div>
+              {(campaignResults as any[]).length === 0 ? (
+                <div className="text-center py-12 text-zinc-600">
+                  <p className="text-sm">No calls completed yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(campaignResults as any[]).map((r: any) => (
+                    <div key={r.id} className="px-4 py-3 rounded-xl space-y-2"
+                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-white">{r.leadName}</p>
+                        <div className="flex items-center gap-2">
+                          {r.hotLead && <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: "#ef444418", color: "#ef4444" }}>🔥 Hot</span>}
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold capitalize"
+                            style={{ background: r.outcome === "booked" ? "#22c55e18" : r.outcome === "not_interested" ? "#ef444418" : `${GOLD}10`, color: r.outcome === "booked" ? "#22c55e" : r.outcome === "not_interested" ? "#ef4444" : GOLD }}>
+                            {outcomeLabel(r.outcome)}
+                          </span>
+                        </div>
+                      </div>
+                      {r.summary && (
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">{r.summary}</p>
+                      )}
+                      {r.keyPoints?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {r.keyPoints.map((kp: string, i: number) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "#22c55e12", color: "#22c55e", border: "1px solid #22c55e20" }}>✓ {kp}</span>
+                          ))}
+                        </div>
+                      )}
+                      {r.objections?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {r.objections.map((obj: string, i: number) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "#f59e0b12", color: "#f59e0b", border: "1px solid #f59e0b20" }}>⚡ {obj}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 text-[10px] text-zinc-600">
+                        <span>{Math.round((r.durationSeconds || 0) / 60)}:{String((r.durationSeconds || 0) % 60).padStart(2, "0")} min</span>
+                        <span className="capitalize">{r.sentiment}</span>
+                        {r.needsHumanFollowup && <span style={{ color: GOLD }}>Needs follow-up</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-zinc-400">AI-powered campaigns call your leads automatically using Retell AI.</p>
+              {(campaigns as any[]).length === 0 ? (
+                <div className="text-center py-16 text-zinc-600">
+                  <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No campaigns yet. Add your Retell API key &amp; Agent ID in Settings first.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(campaigns as any[]).map((c: any) => (
+                    <button key={c.id} onClick={() => setSelectedCampaignId(c.id)}
+                      className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 transition-colors"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-bold text-white">{c.name}</p>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                          style={{ background: c.status === "running" ? "#22c55e18" : `${GOLD}10`, color: c.status === "running" ? "#22c55e" : GOLD }}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-[11px] text-zinc-500">
+                        <span>{c.calledCount}/{c.totalLeads} called</span>
+                        <span style={{ color: "#22c55e" }}>{c.bookedCount} booked</span>
+                        <span style={{ color: "#f87171" }}>{c.notInterestedCount} declined</span>
+                        <span className="ml-auto text-zinc-700">View results →</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* SMS SEQUENCES TAB */}
+      {subTab === "sequences" && (
+        <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-zinc-400">AI-powered campaigns call your leads automatically using Vapi or Bland AI.</p>
+            <div>
+              <p className="text-sm font-bold text-white">SMS Sequences</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Auto-enroll leads after calls. Stops when they reply.</p>
+            </div>
+            <button onClick={() => setShowSeqBuilder(!showSeqBuilder)}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
+              {showSeqBuilder ? "Cancel" : "+ New Sequence"}
+            </button>
           </div>
-          {(campaigns as any[]).length === 0 ? (
-            <div className="text-center py-16 text-zinc-600">
-              <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No campaigns yet. Configure Vapi/Bland API key in Settings first.</p>
+
+          {/* Sequence builder */}
+          {showSeqBuilder && (
+            <div className="rounded-xl p-4 space-y-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${GOLD}20` }}>
+              <p className="text-xs font-bold text-white">Build Sequence</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-zinc-400 mb-1 block">Sequence Name</label>
+                  <Input value={seqForm.name} onChange={e => setSeqForm(s => ({ ...s, name: e.target.value }))}
+                    placeholder="No Answer Follow-up" className="bg-zinc-900 border-zinc-700 text-white text-xs" />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-400 mb-1 block">Trigger — Call Outcome</label>
+                  <select value={seqForm.triggerOutcome} onChange={e => setSeqForm(s => ({ ...s, triggerOutcome: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg text-xs text-white bg-zinc-900 border border-zinc-700">
+                    {["no_answer", "voicemail", "answered", "booked", "not_interested"].map(o => (
+                      <option key={o} value={o}>{o.replace(/_/g, " ")}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[11px] text-zinc-400 font-bold">Steps</p>
+                {seqForm.steps.map((step, i) => (
+                  <div key={i} className="rounded-lg p-3 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0" style={{ background: `${GOLD}18`, color: GOLD }}>{i + 1}</span>
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-[11px] text-zinc-500">Wait</span>
+                        <Input type="number" value={step.delayHours} min={0}
+                          onChange={e => setSeqForm(s => ({ ...s, steps: s.steps.map((st, j) => j === i ? { ...st, delayHours: +e.target.value } : st) }))}
+                          className="w-16 bg-zinc-900 border-zinc-700 text-white text-xs h-7 px-2" />
+                        <span className="text-[11px] text-zinc-500">hours, then send SMS</span>
+                      </div>
+                      {seqForm.steps.length > 1 && (
+                        <button onClick={() => setSeqForm(s => ({ ...s, steps: s.steps.filter((_, j) => j !== i) }))}
+                          className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors">✕</button>
+                      )}
+                    </div>
+                    <Textarea value={step.template} rows={2}
+                      onChange={e => setSeqForm(s => ({ ...s, steps: s.steps.map((st, j) => j === i ? { ...st, template: e.target.value } : st) }))}
+                      placeholder="Hey {name}, following up from our call…"
+                      className="bg-zinc-900 border-zinc-700 text-white text-xs resize-none" />
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setSeqForm(s => ({ ...s, steps: s.steps.map((st, j) => j === i ? { ...st, aiPersonalize: !st.aiPersonalize } : st) }))}
+                        className="w-7 h-4 rounded-full relative transition-all flex-shrink-0"
+                        style={{ background: step.aiPersonalize ? "#34d399" : "rgba(255,255,255,0.1)" }}>
+                        <span className="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all"
+                          style={{ left: step.aiPersonalize ? "calc(100% - 14px)" : "2px" }} />
+                      </button>
+                      <span className="text-[10px] text-zinc-500">AI personalize with GPT</span>
+                      <span className="text-[10px] text-zinc-600 ml-2">Use {"{name}"}, {"{webinar}"} as variables</span>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => setSeqForm(s => ({ ...s, steps: [...s.steps, { delayHours: 48, template: "", aiPersonalize: false }] }))}
+                  className="text-[11px] text-zinc-500 hover:text-white transition-colors">+ Add step</button>
+              </div>
+
+              <button onClick={() => createSequence.mutate(seqForm)}
+                disabled={createSequence.isPending || !seqForm.name}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all"
+                style={{ background: GOLD, color: "#000" }}>
+                {createSequence.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                Save Sequence
+              </button>
+            </div>
+          )}
+
+          {/* Existing sequences */}
+          {(sequences as any[]).length === 0 && !showSeqBuilder ? (
+            <div className="text-center py-12 text-zinc-600">
+              <p className="text-sm">No sequences yet. Create one to auto-follow up after calls.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {(campaigns as any[]).map((c: any) => (
-                <div key={c.id} className="px-4 py-3 rounded-xl"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-bold text-white">{c.name}</p>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: c.status === "running" ? "#22c55e18" : `${GOLD}10`, color: c.status === "running" ? "#22c55e" : GOLD }}>
-                      {c.status}
-                    </span>
+              {(sequences as any[]).map((seq: any) => (
+                <div key={seq.id} className="px-4 py-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-bold text-white">{seq.name}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: `${GOLD}10`, color: GOLD }}>
+                        on: {seq.triggerOutcome?.replace(/_/g, " ")}
+                      </span>
+                      <button onClick={() => deleteSequence.mutate(seq.id)} className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors">Delete</button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-[11px] text-zinc-500">
-                    <span>{c.calledCount}/{c.totalLeads} called</span>
-                    <span style={{ color: "#22c55e" }}>{c.bookedCount} booked</span>
-                    <span style={{ color: "#f87171" }}>{c.notInterestedCount} declined</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {(seq.steps || []).map((step: any, i: number) => (
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "#71717a" }}>
+                        Step {i+1}: {step.delayHours}h {step.aiPersonalize ? "✦ AI" : ""}
+                      </span>
+                    ))}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Active enrollments */}
+          {(seqEnrollments as any[]).filter((e: any) => e.status === "active").length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Active Enrollments</p>
+              {(seqEnrollments as any[]).filter((e: any) => e.status === "active").map((e: any) => (
+                <div key={e.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div>
+                    <p className="text-xs text-white font-semibold">{e.leadName} <span className="text-zinc-500 font-normal">in {e.cadenceName}</span></p>
+                    <p className="text-[10px] text-zinc-600">
+                      Step {(e.currentStepIndex || 0) + 1} — next: {e.nextRunAt ? new Date(e.nextRunAt).toLocaleString() : "pending"}
+                    </p>
+                  </div>
+                  <button onClick={() => stopEnrollment.mutate(e.id)}
+                    className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors px-2 py-1 rounded">
+                    Stop
+                  </button>
                 </div>
               ))}
             </div>
@@ -5543,9 +5893,11 @@ function DialerTab() {
             { key: "twilioAuthToken",   label: "Twilio Auth Token",     type: "password", placeholder: "••••••••" },
             { key: "twilioPhoneNumber", label: "Twilio Phone Number",   type: "text",     placeholder: "+12135550100" },
             { key: "twilioTwimlAppSid", label: "Twilio TwiML App SID",  type: "text",     placeholder: "APxxxxxxxx" },
-            { key: "vapiApiKey",        label: "Vapi API Key",          type: "password", placeholder: "For AI outbound calls" },
+            { key: "retellApiKey",      label: "Retell API Key",        type: "password", placeholder: "sk-… from app.retellai.com" },
+            { key: "retellAgentId",     label: "Retell Agent ID",       type: "text",     placeholder: "agent_… from Retell dashboard" },
+            { key: "vapiApiKey",        label: "Vapi API Key",          type: "password", placeholder: "Optional — legacy provider" },
             { key: "vapiAssistantId",   label: "Vapi Assistant ID",     type: "text",     placeholder: "Optional — uses default if blank" },
-            { key: "blandApiKey",       label: "Bland AI API Key",      type: "password", placeholder: "Alternative AI provider" },
+            { key: "blandApiKey",       label: "Bland AI API Key",      type: "password", placeholder: "Optional — legacy provider" },
           ].map(f => (
             <div key={f.key}>
               <label className="text-xs text-zinc-400 mb-1.5 block">{f.label}</label>
@@ -5561,7 +5913,7 @@ function DialerTab() {
           <div>
             <label className="text-xs text-zinc-400 mb-1.5 block">AI Provider</label>
             <div className="flex gap-2">
-              {["vapi", "bland"].map(p => (
+              {["retell", "vapi", "bland"].map(p => (
                 <button key={p} onClick={() => setSettingsForm((s: any) => ({ ...s, aiProvider: p }))}
                   className="px-4 py-2 rounded-lg text-sm font-bold transition-all capitalize"
                   style={{
@@ -5584,6 +5936,84 @@ function DialerTab() {
               rows={4}
             />
           </div>
+
+          {/* Inbound AI Agent section */}
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-bold text-white mb-1">Inbound AI Agent</p>
+            <p className="text-[11px] text-zinc-500 mb-3">Point your Twilio number's Voice webhook to <code className="bg-zinc-800 px-1 rounded text-zinc-300">/api/dialer/twiml/inbound-ai</code> to enable 24/7 AI answering.</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSettingsForm((s: any) => ({ ...s, inboundAgentEnabled: !s.inboundAgentEnabled }))}
+                  className="w-9 h-5 rounded-full transition-all relative flex-shrink-0"
+                  style={{ background: settingsForm.inboundAgentEnabled ? "#34d399" : "rgba(255,255,255,0.1)" }}>
+                  <span className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
+                    style={{ left: settingsForm.inboundAgentEnabled ? "calc(100% - 18px)" : "2px" }} />
+                </button>
+                <label className="text-xs text-zinc-400">Enable AI agent for inbound calls</label>
+              </div>
+              {settingsForm.inboundAgentEnabled && (
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Inbound Agent ID <span className="text-zinc-600">(leave blank to use Retell Agent ID above)</span></label>
+                  <Input
+                    placeholder="agent_… separate agent for inbound, or leave blank"
+                    value={settingsForm.inboundAgentId ?? ""}
+                    onChange={e => setSettingsForm((s: any) => ({ ...s, inboundAgentId: e.target.value }))}
+                    className="bg-zinc-900 border-zinc-700 text-white text-xs"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Post-call AI Analysis section */}
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-bold text-white mb-3">Post-Call AI Analysis</p>
+            <p className="text-[11px] text-zinc-500 mb-4">After every call, GPT-4o-mini analyzes the transcript, updates the lead score, and auto-sends follow-up SMS.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-zinc-400 mb-1.5 block">OpenAI API Key</label>
+                <Input
+                  type="password"
+                  placeholder="sk-… for transcript analysis"
+                  value={settingsForm.openAiApiKey ?? ""}
+                  onChange={e => setSettingsForm((s: any) => ({ ...s, openAiApiKey: e.target.value }))}
+                  className="bg-zinc-900 border-zinc-700 text-white text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSettingsForm((s: any) => ({ ...s, autoSmsEnabled: !s.autoSmsEnabled }))}
+                  className="w-9 h-5 rounded-full transition-all relative flex-shrink-0"
+                  style={{ background: settingsForm.autoSmsEnabled ? "#34d399" : "rgba(255,255,255,0.1)" }}>
+                  <span className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
+                    style={{ left: settingsForm.autoSmsEnabled ? "calc(100% - 18px)" : "2px" }} />
+                </button>
+                <label className="text-xs text-zinc-400">Auto-send follow-up SMS after every call</label>
+              </div>
+              {settingsForm.autoSmsEnabled && (
+                <div className="space-y-3 pl-2 border-l" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                  {[
+                    { key: "autoSmsBookedTemplate",    label: "SMS — Booked",    placeholder: "Hey {name}! Great chatting. Calendar invite coming shortly!" },
+                    { key: "autoSmsHotLeadTemplate",   label: "SMS — Interested", placeholder: "Hey {name}, thanks for your time! Reply here with any questions." },
+                    { key: "autoSmsNoAnswerTemplate",  label: "SMS — No Answer",  placeholder: "Hey {name}, I tried reaching you — reply whenever works!" },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label className="text-[11px] text-zinc-500 mb-1 block">{f.label}</label>
+                      <Input
+                        placeholder={f.placeholder}
+                        value={settingsForm[f.key] ?? ""}
+                        onChange={e => setSettingsForm((s: any) => ({ ...s, [f.key]: e.target.value }))}
+                        className="bg-zinc-900 border-zinc-700 text-white text-xs"
+                      />
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-zinc-600">Leave blank to use AI-generated messages. Not sent for "Not Interested" outcomes.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <button onClick={() => saveSettings.mutate(settingsForm)}
             disabled={saveSettings.isPending}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
@@ -5655,10 +6085,7 @@ const HOSTING_NAV: NavItem[] = [
   { id: "ab-testing",        label: "A/B Testing",      icon: Activity },
   { id: "channels",          label: "Channels",         icon: Film },
   { id: "viewer-heatmaps",   label: "Heatmaps",        icon: Eye },
-  { id: "thumbnails",        label: "Thumbnails",       icon: Image },
-  { id: "seo-embedding",     label: "SEO & Embed",      icon: Globe },
-  { id: "localization",      label: "Localization",     icon: Globe },
-  { id: "collaboration",     label: "Collaboration",    icon: Users },
+
   { id: "vsl-library",       label: "VSL Library",      icon: Film },
   { id: "video-analytics",   label: "Analytics",        icon: BarChart3 },
   { id: "video-crm",         label: "Viewer CRM",       icon: UserCheck },
@@ -5802,10 +6229,7 @@ export default function PlatformView() {
           {activeId === "ab-testing"        && <ABTestingTab />}
           {activeId === "channels"          && <ChannelsTab />}
           {activeId === "viewer-heatmaps"   && <ViewerHeatmapsTab />}
-          {activeId === "thumbnails"        && <ThumbnailsTab />}
-          {activeId === "seo-embedding"     && <SEOEmbeddingTab />}
-          {activeId === "localization"      && <LocalizationTab />}
-          {activeId === "collaboration"     && <CollaborationTab />}
+
           {activeId === "vsl-library"       && <VideosTab typeFilter="vsl" />}
           {activeId === "video-analytics"   && <VideoAnalyticsTab />}
           {activeId === "video-crm"         && <VideoViewerCRMTab />}

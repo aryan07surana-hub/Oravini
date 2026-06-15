@@ -115,6 +115,8 @@ const PLANS = [
       "AI Content Planner",
       "DM Tracker",
       "Direct team messaging",
+      "AI Voice Dialer — 200 calls/month",
+      "Webinar → Lead CRM → AI Follow-up",
       "Priority support",
     ],
   },
@@ -516,7 +518,7 @@ export default function SelectPlan() {
               Elite — <span style={{ color: GOLD }}>Work With Us</span>
             </div>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.7, maxWidth: 480 }}>
-              Done-with-you strategy, weekly 1-on-1 calls, unlimited credits, and direct Oravini team access. Custom pricing — limited spots.
+              Done-with-you strategy, weekly 1-on-1 calls, unlimited credits, unlimited AI voice dialer calls, and direct Oravini team access. Custom pricing — limited spots.
             </p>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

@@ -49,6 +49,15 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.60.5",
+    "@tiptap/extension-character-count": "^3.26.1",
+    "@tiptap/extension-highlight": "^3.26.1",
+    "@tiptap/extension-link": "^3.26.1",
+    "@tiptap/extension-placeholder": "^3.26.1",
+    "@tiptap/extension-task-item": "^3.26.1",
+    "@tiptap/extension-task-list": "^3.26.1",
+    "@tiptap/extension-typography": "^3.26.1",
+    "@tiptap/react": "^3.26.1",
+    "@tiptap/starter-kit": "^3.26.1",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
@@ -94,6 +103,7 @@
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "multer": "^2.1.1",
+    "nanoid": "^5.1.11",
     "next-themes": "^0.4.6",
     "node-cron": "^4.2.1",
     "node-media-server": "^4.2.4",
@@ -107,6 +117,7 @@
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.1",
     "react-hook-form": "^7.55.0",
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.7",
@@ -127,7 +138,8 @@
     "youtube-transcript": "^1.3.0",
     "youtubei.js": "^17.0.1",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "zustand": "^5.0.14"
   },
   "overrides": {
     "drizzle-kit": {

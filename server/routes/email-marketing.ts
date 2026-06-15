@@ -228,6 +228,66 @@ async function doBootstrap() {
   await pool.query(`ALTER TABLE em_smtp_configs ADD COLUMN IF NOT EXISTS today_sent INTEGER NOT NULL DEFAULT 0;`);
   await pool.query(`ALTER TABLE em_smtp_configs ADD COLUMN IF NOT EXISTS last_send_date DATE;`);
   await pool.query(`ALTER TABLE em_sequences ADD COLUMN IF NOT EXISTS total_enrolled INTEGER NOT NULL DEFAULT 0;`);
+  await pool.query(`ALTER TABLE em_contacts ADD COLUMN IF NOT EXISTS validation_status TEXT DEFAULT 'unknown';`);
+  await pool.query(`ALTER TABLE em_contacts ADD COLUMN IF NOT EXISTS validation_checked_at TIMESTAMPTZ;`);
+  await pool.query(`ALTER TABLE em_sends ADD COLUMN IF NOT EXISTS bounce_type TEXT;`);
+  await pool.query(`ALTER TABLE em_sends ADD COLUMN IF NOT EXISTS complaint BOOLEAN DEFAULT false;`);
+
+  // Suppression list — global per user, email blocked from all sends
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_suppressions (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT 'manual',
+      source TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, email)
+    );
+  `);
+
+  // Broadcast campaigns — one-time blasts to a segment
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_broadcasts (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      preview_text TEXT,
+      body_html TEXT NOT NULL,
+      from_name TEXT,
+      from_email TEXT,
+      reply_to TEXT,
+      segment_type TEXT NOT NULL DEFAULT 'all',
+      segment_tags TEXT[],
+      status TEXT NOT NULL DEFAULT 'draft',
+      recipient_count INTEGER NOT NULL DEFAULT 0,
+      sent_count INTEGER NOT NULL DEFAULT 0,
+      opened_count INTEGER NOT NULL DEFAULT 0,
+      clicked_count INTEGER NOT NULL DEFAULT 0,
+      scheduled_at TIMESTAMPTZ,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // Per-contact send record for broadcasts
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS em_broadcast_sends (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      broadcast_id TEXT NOT NULL REFERENCES em_broadcasts(id) ON DELETE CASCADE,
+      contact_id TEXT NOT NULL REFERENCES em_contacts(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tracking_id TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      sent_at TIMESTAMPTZ,
+      opened_at TIMESTAMPTZ,
+      clicked_at TIMESTAMPTZ,
+      bounced_at TIMESTAMPTZ,
+      UNIQUE(broadcast_id, contact_id)
+    );
+  `);
 
   await pool.query(`CREATE INDEX IF NOT EXISTS em_sequences_user_idx ON em_sequences(user_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_steps_seq_idx ON em_steps(sequence_id);`);
@@ -236,6 +296,9 @@ async function doBootstrap() {
   await pool.query(`CREATE INDEX IF NOT EXISTS em_workflows_user_idx ON em_workflows(user_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_enrollments_due_idx ON em_enrollments(next_send_at) WHERE status = 'active';`);
   await pool.query(`CREATE INDEX IF NOT EXISTS em_oauth_user_idx ON em_oauth_tokens(user_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS em_suppressions_user_email_idx ON em_suppressions(user_id, email);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS em_broadcasts_user_idx ON em_broadcasts(user_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS em_broadcast_sends_status_idx ON em_broadcast_sends(status) WHERE status = 'pending';`);
 }
 
 // ── Route Registration ────────────────────────────────────────────────────────
@@ -1044,6 +1107,408 @@ If the user asks to create something (sequence, email, etc.), guide them to use 
     await pool.query(`DELETE FROM em_chat_history WHERE user_id = $1`, [uid(req)]).catch(() => {});
     res.json({ ok: true });
   });
+
+  // ── WEBHOOKS: SendGrid + Mailgun bounce/complaint ────────────────────────────
+
+  async function handleBounce(userEmail: string, bouncedEmail: string, reason: string) {
+    // Find which user owns this sending address and suppress the bounced contact
+    const senders = await pool.query(
+      `SELECT user_id FROM em_oauth_tokens WHERE email = $1
+       UNION
+       SELECT user_id FROM em_smtp_configs WHERE from_email = $1`,
+      [userEmail]
+    ).then(r => r.rows);
+
+    for (const { user_id } of senders) {
+      await pool.query(
+        `INSERT INTO em_suppressions (user_id, email, reason, source)
+         VALUES ($1, $2, $3, 'webhook')
+         ON CONFLICT (user_id, email) DO NOTHING`,
+        [user_id, bouncedEmail, reason]
+      );
+      await pool.query(
+        `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW()
+         WHERE user_id = $1 AND LOWER(email) = LOWER($2)`,
+        [user_id, bouncedEmail]
+      );
+    }
+  }
+
+  // SendGrid event webhook — configure in SendGrid dashboard → Settings → Mail Settings → Event Webhook
+  // URL: https://oravini.com/api/em/webhooks/sendgrid
+  app.post("/api/em/webhooks/sendgrid", async (req: Request, res: Response) => {
+    try {
+      const events = Array.isArray(req.body) ? req.body : [req.body];
+      for (const ev of events) {
+        const email = ev.email?.toLowerCase();
+        if (!email) continue;
+        if (ev.event === "bounce" || ev.event === "dropped") {
+          await handleBounce(ev.sg_message_id || "", email, ev.event === "bounce" ? "hard_bounce" : "dropped");
+          // Also mark em_sends record
+          await pool.query(
+            `UPDATE em_sends SET status = 'bounced', bounced_at = NOW(), bounce_type = $1
+             WHERE tracking_id = $2`,
+            [ev.type || "hard", ev.sg_message_id || ""]
+          );
+        } else if (ev.event === "spamreport") {
+          await pool.query(
+            `INSERT INTO em_suppressions (user_id, email, reason, source)
+             SELECT user_id, $1, 'spam_complaint', 'sendgrid'
+             FROM em_oauth_tokens WHERE email = $2
+             ON CONFLICT (user_id, email) DO NOTHING`,
+            [email, ev["smtp-id"] || ""]
+          );
+          await pool.query(
+            `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW()
+             WHERE LOWER(email) = $1`,
+            [email]
+          );
+          await pool.query(
+            `UPDATE em_sends SET complaint = true WHERE tracking_id = $1`,
+            [ev.sg_message_id || ""]
+          );
+        }
+      }
+      res.status(200).json({ ok: true });
+    } catch (e: any) {
+      console.error("[sendgrid-webhook]", e.message);
+      res.status(200).json({ ok: true }); // always 200 to SendGrid
+    }
+  });
+
+  // Mailgun event webhook — configure in Mailgun dashboard → Sending → Webhooks
+  // URL: https://oravini.com/api/em/webhooks/mailgun
+  app.post("/api/em/webhooks/mailgun", async (req: Request, res: Response) => {
+    try {
+      const ev = req.body?.["event-data"] || req.body;
+      const email = (ev.recipient || ev.email || "").toLowerCase();
+      const event = ev.event;
+      if (!email) return res.status(200).json({ ok: true });
+
+      if (event === "failed" || event === "bounced") {
+        const severity = ev.severity || "permanent";
+        if (severity === "permanent") {
+          await pool.query(
+            `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW()
+             WHERE LOWER(email) = $1`,
+            [email]
+          );
+          await pool.query(
+            `INSERT INTO em_suppressions (user_id, email, reason, source)
+             SELECT user_id, $1, 'hard_bounce', 'mailgun'
+             FROM em_contacts WHERE LOWER(email) = $1 LIMIT 1
+             ON CONFLICT (user_id, email) DO NOTHING`,
+            [email]
+          );
+        }
+      } else if (event === "complained") {
+        await pool.query(
+          `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW()
+           WHERE LOWER(email) = $1`,
+          [email]
+        );
+        await pool.query(
+          `INSERT INTO em_suppressions (user_id, email, reason, source)
+           SELECT user_id, $1, 'spam_complaint', 'mailgun'
+           FROM em_contacts WHERE LOWER(email) = $1 LIMIT 1
+           ON CONFLICT (user_id, email) DO NOTHING`,
+          [email]
+        );
+      }
+      res.status(200).json({ ok: true });
+    } catch (e: any) {
+      console.error("[mailgun-webhook]", e.message);
+      res.status(200).json({ ok: true });
+    }
+  });
+
+  // ── SUPPRESSION LIST ─────────────────────────────────────────────────────────
+
+  app.get("/api/em/suppressions", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const rows = await pool.query(
+      `SELECT id, email, reason, source, created_at FROM em_suppressions WHERE user_id = $1 ORDER BY created_at DESC`,
+      [uid(req)]
+    ).then(r => r.rows);
+    res.json(rows);
+  });
+
+  app.post("/api/em/suppressions", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const { email, reason = "manual" } = req.body;
+    if (!email) return res.status(400).json({ ok: false, message: "email required" });
+    await pool.query(
+      `INSERT INTO em_suppressions (user_id, email, reason, source)
+       VALUES ($1, LOWER($2), $3, 'manual')
+       ON CONFLICT (user_id, email) DO NOTHING`,
+      [userId, email, reason]
+    );
+    await pool.query(
+      `UPDATE em_contacts SET subscribed = false, unsubscribed_at = NOW()
+       WHERE user_id = $1 AND LOWER(email) = LOWER($2)`,
+      [userId, email]
+    );
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/em/suppressions/:email", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(
+      `DELETE FROM em_suppressions WHERE user_id = $1 AND email = LOWER($2)`,
+      [uid(req), req.params.email]
+    );
+    res.json({ ok: true });
+  });
+
+  // ── LIST VALIDATION ──────────────────────────────────────────────────────────
+
+  async function validateEmailMx(email: string): Promise<"valid" | "invalid" | "risky"> {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return "invalid";
+    const domain = email.split("@")[1];
+    try {
+      const dns = await import("dns/promises");
+      const mx = await dns.resolveMx(domain).catch(() => []);
+      if (!mx || mx.length === 0) return "invalid";
+      // Disposable/risky domains
+      const risky = ["mailinator.com","guerrillamail.com","tempmail.com","throwaway.email","yopmail.com","sharklasers.com","trashmail.com"];
+      if (risky.includes(domain.toLowerCase())) return "risky";
+      return "valid";
+    } catch {
+      return "risky";
+    }
+  }
+
+  app.post("/api/em/contacts/validate", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ ok: false, message: "email required" });
+    const status = await validateEmailMx(email);
+    res.json({ ok: true, email, status });
+  });
+
+  app.post("/api/em/contacts/bulk-validate", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const contacts = await pool.query(
+      `SELECT id, email FROM em_contacts WHERE user_id = $1 AND (validation_status = 'unknown' OR validation_status IS NULL) LIMIT 200`,
+      [userId]
+    ).then(r => r.rows);
+
+    let valid = 0, invalid = 0, risky = 0;
+    for (const c of contacts) {
+      const status = await validateEmailMx(c.email);
+      await pool.query(
+        `UPDATE em_contacts SET validation_status = $1, validation_checked_at = NOW() WHERE id = $2`,
+        [status, c.id]
+      );
+      if (status === "valid") valid++;
+      else if (status === "invalid") { invalid++; }
+      else risky++;
+      await new Promise(r => setTimeout(r, 100)); // avoid DNS flood
+    }
+    res.json({ ok: true, checked: contacts.length, valid, invalid, risky });
+  });
+
+  // ── DOMAIN CHECK: SPF / DKIM ─────────────────────────────────────────────────
+
+  app.get("/api/em/domain/check", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const domain = req.query.domain as string;
+    if (!domain) return res.status(400).json({ ok: false, message: "domain required" });
+
+    try {
+      const dns = await import("dns/promises");
+      const results: any = { domain, spf: null, dkim: null, dmarc: null };
+
+      // SPF
+      try {
+        const txt = await dns.resolveTxt(domain);
+        const spfRecord = txt.flat().find(r => r.startsWith("v=spf1"));
+        results.spf = spfRecord
+          ? { found: true, record: spfRecord, valid: spfRecord.includes("~all") || spfRecord.includes("-all") }
+          : { found: false };
+      } catch { results.spf = { found: false }; }
+
+      // DMARC
+      try {
+        const txt = await dns.resolveTxt(`_dmarc.${domain}`);
+        const dmarcRecord = txt.flat().find(r => r.startsWith("v=DMARC1"));
+        results.dmarc = dmarcRecord
+          ? { found: true, record: dmarcRecord }
+          : { found: false };
+      } catch { results.dmarc = { found: false }; }
+
+      // DKIM — check common selectors
+      const selectors = ["default", "google", "mail", "dkim", "k1", "selector1", "selector2"];
+      results.dkim = { found: false, selector: null };
+      for (const sel of selectors) {
+        try {
+          const txt = await dns.resolveTxt(`${sel}._domainkey.${domain}`);
+          if (txt.flat().some(r => r.includes("v=DKIM1"))) {
+            results.dkim = { found: true, selector: sel };
+            break;
+          }
+        } catch { /* try next */ }
+      }
+
+      res.json({ ok: true, ...results });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: e.message });
+    }
+  });
+
+  // ── BROADCASTS ───────────────────────────────────────────────────────────────
+
+  app.get("/api/em/broadcasts", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const rows = await pool.query(
+      `SELECT * FROM em_broadcasts WHERE user_id = $1 ORDER BY created_at DESC`,
+      [uid(req)]
+    ).then(r => r.rows);
+    res.json(rows);
+  });
+
+  app.post("/api/em/broadcasts", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const { name, subject, preview_text, body_html, from_name, from_email, reply_to, segment_type = "all", segment_tags } = req.body;
+    if (!name || !subject || !body_html) return res.status(400).json({ ok: false, message: "name, subject, body_html required" });
+    const result = await pool.query(
+      `INSERT INTO em_broadcasts (user_id, name, subject, preview_text, body_html, from_name, from_email, reply_to, segment_type, segment_tags)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [userId, name, subject, preview_text || null, body_html, from_name || null, from_email || null, reply_to || null, segment_type, segment_tags || null]
+    );
+    res.json(result.rows[0]);
+  });
+
+  app.patch("/api/em/broadcasts/:id", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const { name, subject, preview_text, body_html, from_name, from_email, reply_to, segment_type, segment_tags, scheduled_at } = req.body;
+    const result = await pool.query(
+      `UPDATE em_broadcasts SET
+         name = COALESCE($1, name), subject = COALESCE($2, subject),
+         preview_text = COALESCE($3, preview_text), body_html = COALESCE($4, body_html),
+         from_name = COALESCE($5, from_name), from_email = COALESCE($6, from_email),
+         reply_to = COALESCE($7, reply_to), segment_type = COALESCE($8, segment_type),
+         segment_tags = COALESCE($9, segment_tags), scheduled_at = COALESCE($10, scheduled_at),
+         updated_at = NOW()
+       WHERE id = $11 AND user_id = $12 RETURNING *`,
+      [name, subject, preview_text, body_html, from_name, from_email, reply_to, segment_type, segment_tags, scheduled_at, req.params.id, userId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ ok: false, message: "Not found" });
+    res.json(result.rows[0]);
+  });
+
+  app.delete("/api/em/broadcasts/:id", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    await pool.query(`DELETE FROM em_broadcasts WHERE id = $1 AND user_id = $2`, [req.params.id, uid(req)]);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/em/broadcasts/:id/launch", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const userId = uid(req);
+    const [broadcast] = await pool.query(
+      `SELECT * FROM em_broadcasts WHERE id = $1 AND user_id = $2`, [req.params.id, userId]
+    ).then(r => r.rows);
+    if (!broadcast) return res.status(404).json({ ok: false, message: "Broadcast not found" });
+    if (broadcast.status !== "draft") return res.status(400).json({ ok: false, message: "Already sent or sending" });
+
+    // Check sender configured
+    const [gmailToken] = await pool.query(
+      `SELECT email FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+    ).then(r => r.rows);
+    const [smtpCfg] = await pool.query(
+      `SELECT * FROM em_smtp_configs WHERE user_id = $1 AND is_verified = true`, [userId]
+    ).then(r => r.rows);
+    if (!gmailToken && !smtpCfg) {
+      return res.status(400).json({ ok: false, message: "Connect Gmail or configure SMTP first" });
+    }
+
+    // Build recipient list (excluding suppressions)
+    let contacts: any[];
+    if (broadcast.segment_type === "tag" && broadcast.segment_tags?.length) {
+      contacts = await pool.query(
+        `SELECT c.* FROM em_contacts c
+         WHERE c.user_id = $1 AND c.subscribed = true
+           AND c.tags && $2
+           AND NOT EXISTS (SELECT 1 FROM em_suppressions s WHERE s.user_id = $1 AND LOWER(s.email) = LOWER(c.email))`,
+        [userId, broadcast.segment_tags]
+      ).then(r => r.rows);
+    } else {
+      contacts = await pool.query(
+        `SELECT c.* FROM em_contacts c
+         WHERE c.user_id = $1 AND c.subscribed = true
+           AND NOT EXISTS (SELECT 1 FROM em_suppressions s WHERE s.user_id = $1 AND LOWER(s.email) = LOWER(c.email))`,
+        [userId]
+      ).then(r => r.rows);
+    }
+
+    if (contacts.length === 0) {
+      return res.status(400).json({ ok: false, message: "No eligible contacts in segment" });
+    }
+
+    // Queue all sends
+    for (const c of contacts) {
+      const trackingId = randomUUID();
+      await pool.query(
+        `INSERT INTO em_broadcast_sends (broadcast_id, contact_id, user_id, tracking_id, status)
+         VALUES ($1, $2, $3, $4, 'pending')
+         ON CONFLICT (broadcast_id, contact_id) DO NOTHING`,
+        [broadcast.id, c.id, userId, trackingId]
+      );
+    }
+
+    await pool.query(
+      `UPDATE em_broadcasts SET status = 'sending', recipient_count = $1, updated_at = NOW() WHERE id = $2`,
+      [contacts.length, broadcast.id]
+    );
+
+    res.json({ ok: true, recipientCount: contacts.length });
+  });
+
+  app.get("/api/em/broadcasts/:id/stats", async (req: Request, res: Response) => {
+    if (!requirePlan(req, res)) return;
+    const [broadcast] = await pool.query(
+      `SELECT * FROM em_broadcasts WHERE id = $1 AND user_id = $2`, [req.params.id, uid(req)]
+    ).then(r => r.rows);
+    if (!broadcast) return res.status(404).json({ ok: false });
+    const stats = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'sent') AS sent,
+         COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE opened_at IS NOT NULL) AS opened,
+         COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS clicked
+       FROM em_broadcast_sends WHERE broadcast_id = $1`,
+      [broadcast.id]
+    ).then(r => r.rows[0]);
+    res.json({ ...broadcast, ...stats });
+  });
+
+  // Track opens/clicks for broadcasts (reuse tracking_id)
+  app.get("/api/em/broadcast/track/open/:trackingId", async (req: Request, res: Response) => {
+    await pool.query(
+      `UPDATE em_broadcast_sends SET opened_at = NOW() WHERE tracking_id = $1 AND opened_at IS NULL`,
+      [req.params.trackingId]
+    ).catch(() => {});
+    // Return 1x1 transparent GIF
+    const gif = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+    res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store" }).send(gif);
+  });
+
+  app.get("/api/em/broadcast/track/click/:trackingId", async (req: Request, res: Response) => {
+    const url = req.query.url as string;
+    await pool.query(
+      `UPDATE em_broadcast_sends SET clicked_at = NOW() WHERE tracking_id = $1 AND clicked_at IS NULL`,
+      [req.params.trackingId]
+    ).catch(() => {});
+    if (url) return res.redirect(decodeURIComponent(url));
+    res.redirect("/");
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1260,6 +1725,10 @@ export async function processEmSendQueue() {
         AND e.next_send_at <= NOW()
         AND s.status = 'active'
         AND c.subscribed = true
+        AND NOT EXISTS (
+          SELECT 1 FROM em_suppressions sup
+          WHERE sup.user_id = e.user_id AND LOWER(sup.email) = LOWER(c.email)
+        )
       ORDER BY e.next_send_at ASC
       LIMIT 50
     `).then(r => r.rows);
@@ -1452,5 +1921,175 @@ export async function processEmSendQueue() {
     }
   } catch (e: any) {
     console.error(`[em] processEmSendQueue error: ${e.message}`);
+  }
+}
+
+export async function processBroadcastQueue() {
+  try {
+    const appBase = process.env.APP_URL?.replace(/\/$/, "") || `http://localhost:${process.env.PORT || "5000"}`;
+
+    const pending = await pool.query(`
+      SELECT bs.id AS send_id, bs.broadcast_id, bs.contact_id, bs.user_id, bs.tracking_id,
+             b.subject, b.preview_text, b.body_html, b.from_name, b.from_email, b.reply_to,
+             c.email AS contact_email, c.first_name, c.unsubscribe_token
+      FROM em_broadcast_sends bs
+      JOIN em_broadcasts b ON b.id = bs.broadcast_id
+      JOIN em_contacts c ON c.id = bs.contact_id
+      WHERE bs.status = 'pending'
+        AND b.status = 'sending'
+        AND c.subscribed = true
+        AND NOT EXISTS (
+          SELECT 1 FROM em_suppressions sup
+          WHERE sup.user_id = bs.user_id AND LOWER(sup.email) = LOWER(c.email)
+        )
+      ORDER BY bs.id ASC
+      LIMIT 100
+    `).then(r => r.rows);
+
+    if (!pending.length) return;
+
+    const byUser: Record<string, typeof pending> = {};
+    for (const row of pending) {
+      if (!byUser[row.user_id]) byUser[row.user_id] = [];
+      byUser[row.user_id].push(row);
+    }
+
+    for (const [userId, sends] of Object.entries(byUser)) {
+      const sendStatus = await canSendToday(userId);
+      let sent = sendStatus.sent;
+
+      for (const s of sends) {
+        if (sent >= sendStatus.limit) break;
+
+        try {
+          const unsubToken = s.unsubscribe_token || randomUUID();
+          if (!s.unsubscribe_token) {
+            await pool.query(`UPDATE em_contacts SET unsubscribe_token = $1 WHERE id = $2`, [unsubToken, s.contact_id]);
+          }
+          const unsubscribeUrl = `${appBase}/api/em/unsubscribe/${unsubToken}`;
+          const fromName = s.from_name || "The Team";
+
+          const html = buildEmailHtml({
+            bodyHtml: s.body_html,
+            previewText: s.preview_text,
+            fromName,
+            contactFirstName: s.first_name || "",
+            trackingId: s.tracking_id,
+            unsubscribeUrl,
+            appBase,
+          }).replace(
+            /\/api\/em\/track\/(open|click)\//g,
+            "/api/em/broadcast/track/$1/"
+          );
+
+          const text = buildEmailText({
+            bodyHtml: s.body_html,
+            fromName,
+            contactFirstName: s.first_name || "",
+            unsubscribeUrl,
+          });
+
+          const subject = (s.subject || "")
+            .replace(/\{\{first_name\}\}/gi, s.first_name || "there")
+            .replace(/\{\{name\}\}/gi, s.first_name || "there");
+
+          let sendOk = false;
+
+          if (sendStatus.provider === "gmail") {
+            const token = await getOrRefreshGmailToken(userId);
+            if (token) {
+              const nodemailer = await import("nodemailer");
+              const transporter = nodemailer.default.createTransport({
+                service: "gmail",
+                auth: {
+                  type: "OAuth2",
+                  user: token.email,
+                  clientId: process.env.GOOGLE_CLIENT_ID,
+                  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                  refreshToken: (await pool.query(
+                    `SELECT refresh_token FROM em_oauth_tokens WHERE user_id = $1 AND provider = 'gmail'`, [userId]
+                  ).then(r => r.rows[0]?.refresh_token)),
+                  accessToken: token.accessToken,
+                },
+              } as any);
+              await transporter.sendMail({
+                from: `"${s.from_name || token.displayName || token.email}" <${token.email}>`,
+                to: s.contact_email,
+                subject,
+                html,
+                text,
+                replyTo: s.reply_to || token.email,
+                headers: {
+                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                },
+              });
+              sendOk = true;
+            }
+          } else if (sendStatus.provider === "smtp") {
+            const [smtp] = await pool.query(
+              `SELECT * FROM em_smtp_configs WHERE user_id = $1`, [userId]
+            ).then(r => r.rows);
+            if (smtp?.username && smtp?.password) {
+              const nodemailer = await import("nodemailer");
+              const transporter = nodemailer.default.createTransport({
+                host: smtp.host, port: smtp.port || 587,
+                secure: smtp.secure || false,
+                auth: { user: smtp.username, pass: smtp.password },
+              });
+              await transporter.sendMail({
+                from: smtp.from_name ? `"${smtp.from_name}" <${smtp.from_email || smtp.username}>` : (smtp.from_email || smtp.username),
+                to: s.contact_email,
+                subject,
+                html,
+                text,
+                replyTo: smtp.reply_to || smtp.from_email || smtp.username,
+                headers: {
+                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                },
+              });
+              sendOk = true;
+            }
+          }
+
+          await pool.query(
+            `UPDATE em_broadcast_sends SET status = $1, sent_at = $2 WHERE id = $3`,
+            [sendOk ? "sent" : "failed", sendOk ? new Date() : null, s.send_id]
+          );
+
+          if (sendOk) {
+            await pool.query(
+              `UPDATE em_broadcasts SET sent_count = sent_count + 1 WHERE id = $1`,
+              [s.broadcast_id]
+            );
+            await incrementSendCount(userId, sendStatus.provider as "gmail" | "smtp");
+            sent++;
+          }
+
+          await new Promise(r => setTimeout(r, 300));
+        } catch (err: any) {
+          console.error(`[broadcast] send error for ${s.contact_email}: ${err.message}`);
+          await pool.query(`UPDATE em_broadcast_sends SET status = 'failed' WHERE id = $1`, [s.send_id]);
+        }
+      }
+
+      // Mark broadcast complete if all sends done
+      const [remaining] = await pool.query(
+        `SELECT COUNT(*) FROM em_broadcast_sends WHERE broadcast_id IN (
+           SELECT DISTINCT broadcast_id FROM em_broadcast_sends WHERE user_id = $1
+         ) AND status = 'pending'`,
+        [userId]
+      ).then(r => r.rows);
+      if (Number(remaining?.count) === 0) {
+        await pool.query(
+          `UPDATE em_broadcasts SET status = 'sent', sent_at = NOW()
+           WHERE user_id = $1 AND status = 'sending'`,
+          [userId]
+        );
+      }
+    }
+  } catch (e: any) {
+    console.error(`[broadcast] processBroadcastQueue error: ${e.message}`);
   }
 }

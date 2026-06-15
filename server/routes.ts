@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -1039,8 +1039,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── OTP ─────────────────────────────────────────────────────────────────────
   const otpTransporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    host: process.env.PLATFORM_SMTP_HOST || "email-smtp.us-east-1.amazonaws.com",
+    port: parseInt(process.env.PLATFORM_SMTP_PORT || "587"),
+    secure: false,
+    auth: {
+      user: process.env.PLATFORM_SMTP_USER || process.env.EMAIL_USER,
+      pass: process.env.PLATFORM_SMTP_PASS || process.env.EMAIL_PASS,
+    },
   });
 
   app.post("/api/auth/otp/send", async (req, res) => {
@@ -11121,8 +11126,13 @@ Rules:
   // ── Scheduling System ────────────────────────────────────────────────────────
 
   const schedulingTransporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    host: process.env.PLATFORM_SMTP_HOST || "email-smtp.us-east-1.amazonaws.com",
+    port: parseInt(process.env.PLATFORM_SMTP_PORT || "587"),
+    secure: false,
+    auth: {
+      user: process.env.PLATFORM_SMTP_USER || process.env.EMAIL_USER,
+      pass: process.env.PLATFORM_SMTP_PASS || process.env.EMAIL_PASS,
+    },
   });
 
   async function sendBookingEmail(to: string, subject: string, html: string) {
@@ -14698,6 +14708,35 @@ Rules:
   // ── Email Marketing Platform (Growth+ tier) ───────────────────────────────
   await bootstrapEmailMarketing().catch(err => console.error("[email-marketing] bootstrap failed:", err));
   registerEmailMarketingRoutes(app, requireAuth);
+
+  // ── Dialer (Twilio + AI calling) ──────────────────────────────────────────
+  registerDialerRoutes(app, requireAuth);
+  startSequenceRunner();
+
+  // ── SMS Marketing Platform ────────────────────────────────────────────────
+  await bootstrapSmsMarketing().catch(err => console.error("[sms-marketing] bootstrap failed:", err));
+  registerSmsMarketingRoutes(app, requireAuth);
+
+  // ── Platform-wide AI Chat ─────────────────────────────────────────────────
+  registerPlatformChatRoutes(app, requireAuth);
+
+  // ── Unified Analytics ─────────────────────────────────────────────────────
+  registerAnalyticsRoutes(app, requireAuth);
+
+  // ── SMS Link Shortener redirect (public, no auth) ─────────────────────────
+  app.get("/s/:code", async (req: any, res: any) => {
+    try {
+      const { code } = req.params;
+      const r = await pool.query("SELECT original_url FROM sms_short_links WHERE code = $1", [code]);
+      if (!r.rows[0]) return res.status(404).send("Link not found");
+      await pool.query("UPDATE sms_short_links SET clicks = clicks + 1 WHERE code = $1", [code]).catch(() => null);
+      res.redirect(301, r.rows[0].original_url);
+    } catch {
+      res.status(500).send("Error");
+    }
+  });
+
+  app.use(contentWorkflowRoutes);
 
   return httpServer;
 }

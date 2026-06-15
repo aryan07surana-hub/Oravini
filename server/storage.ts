@@ -136,6 +136,7 @@ import {
   competitorWatchlist, competitorSnapshots, competitorAlerts,
   type CompetitorWatchlistItem, type InsertCompetitorWatchlistItem,
   type CompetitorSnapshot, type CompetitorAlert,
+  dialerAiCallQuota,
 } from "@shared/schema";
 
 export const pool = new Pool({
@@ -4035,6 +4036,83 @@ class DatabaseStorage implements IStorage {
       results.push(updated);
     }
     return results;
+  }
+
+  // ── AI Call Quota ─────────────────────────────────────────────────────────
+  // Pro (Tier 4): 200 calls/month included. Elite: unlimited.
+  // Top-up packs add bonus calls that carry over (never reset).
+  // After monthly allowance exhausted, bonus calls consumed first before blocking.
+
+  private readonly AI_CALL_QUOTA: Record<string, number> = {
+    free: 0, starter: 0, growth: 0, pro: 200, elite: 9999,
+  };
+
+  private currentMonthKey(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  async getAiCallQuota(userId: string, plan: string): Promise<{ used: number; limit: number; bonus: number; periodMonth: string }> {
+    const limit = this.AI_CALL_QUOTA[plan] ?? 0;
+    const periodMonth = this.currentMonthKey();
+    const [row] = await db.select().from(dialerAiCallQuota).where(eq(dialerAiCallQuota.userId, userId));
+    if (!row || row.periodMonth !== periodMonth) {
+      return { used: 0, limit, bonus: row?.bonusCallsBalance ?? 0, periodMonth };
+    }
+    return { used: row.callsUsed, limit, bonus: row.bonusCallsBalance, periodMonth };
+  }
+
+  async checkAndIncrementAiCallQuota(userId: string, plan: string): Promise<{ allowed: boolean; used: number; limit: number; bonus: number }> {
+    const limit = this.AI_CALL_QUOTA[plan] ?? 0;
+    const periodMonth = this.currentMonthKey();
+    const [row] = await db.select().from(dialerAiCallQuota).where(eq(dialerAiCallQuota.userId, userId));
+
+    const isNewMonth = !row || row.periodMonth !== periodMonth;
+    const used = isNewMonth ? 0 : row!.callsUsed;
+    const bonus = row?.bonusCallsBalance ?? 0;
+
+    // Under monthly limit → consume monthly allowance
+    if (limit > 0 && used < limit) {
+      const newUsed = used + 1;
+      if (!row) {
+        await db.insert(dialerAiCallQuota).values({ userId, callsUsed: newUsed, bonusCallsBalance: 0, periodMonth });
+      } else {
+        await db.update(dialerAiCallQuota)
+          .set({ callsUsed: newUsed, periodMonth, updatedAt: new Date() })
+          .where(eq(dialerAiCallQuota.userId, userId));
+      }
+      return { allowed: true, used: newUsed, limit, bonus };
+    }
+
+    // Over monthly limit — consume bonus calls if available
+    if (bonus > 0) {
+      const newBonus = bonus - 1;
+      if (!row) {
+        await db.insert(dialerAiCallQuota).values({ userId, callsUsed: used, bonusCallsBalance: newBonus, periodMonth });
+      } else {
+        await db.update(dialerAiCallQuota)
+          .set({ callsUsed: isNewMonth ? 0 : used, bonusCallsBalance: newBonus, periodMonth, updatedAt: new Date() })
+          .where(eq(dialerAiCallQuota.userId, userId));
+      }
+      return { allowed: true, used, limit, bonus: newBonus };
+    }
+
+    return { allowed: false, used, limit, bonus: 0 };
+  }
+
+  async addAiCallTopUp(userId: string, amount: number): Promise<{ bonus: number }> {
+    const [row] = await db.select().from(dialerAiCallQuota).where(eq(dialerAiCallQuota.userId, userId));
+    if (!row) {
+      await db.insert(dialerAiCallQuota).values({
+        userId, callsUsed: 0, bonusCallsBalance: amount, periodMonth: this.currentMonthKey(),
+      });
+      return { bonus: amount };
+    }
+    const newBonus = row.bonusCallsBalance + amount;
+    await db.update(dialerAiCallQuota)
+      .set({ bonusCallsBalance: newBonus, updatedAt: new Date() })
+      .where(eq(dialerAiCallQuota.userId, userId));
+    return { bonus: newBonus };
   }
 }
 

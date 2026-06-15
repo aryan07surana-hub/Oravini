@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { GoogleCalendarWidget } from "@/components/scheduling/GoogleCalendarWidget";
 import { SiGoogle } from "react-icons/si";
 import {
   Copy, CheckCheck, Link2, Clock, ExternalLink, Settings2,

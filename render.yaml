@@ -40,3 +40,11 @@ services:
         sync: false
       - key: APIFY_TOKEN
         sync: false
+      - key: PLATFORM_SMTP_HOST
+        value: email-smtp.us-east-1.amazonaws.com
+      - key: PLATFORM_SMTP_PORT
+        value: "587"
+      - key: PLATFORM_SMTP_USER
+        sync: false
+      - key: PLATFORM_SMTP_PASS
+        sync: false

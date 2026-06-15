@@ -306,6 +306,7 @@ const FEATURES = [
   { icon: "🤖", title: "Auto-Posting", desc: "Schedule and auto-publish to Instagram, LinkedIn, X, and YouTube directly from your dashboard.", tag: "Multi-Channel" },
   { icon: "🎬", title: "AI Video Editor", desc: "Trim, caption, and enhance your videos with AI — no editing experience needed.", tag: "New" },
   { icon: "📡", title: "Live Webinars", desc: "Host unlimited live webinars with auto-built registration pages, email reminders, and real-time attendee CRM.", tag: "Add-on" },
+  { icon: "📞", title: "AI Voice Dialer", desc: "Import webinar attendees directly into a dialer CRM. AI calls your leads automatically, qualifies them, and books meetings — while you sleep.", tag: "Tier 4 & 5" },
   { icon: "🎯", title: "VSL Engine", desc: "Deploy video sales letters with custom progress bars that control viewer pacing and push watch-through rates past 70%.", tag: "Add-on" },
   { icon: "🧬", title: "Audience Psychology", desc: "Map your audience's deepest fears, desires, and buying triggers to craft content that converts.", tag: "Behavioral AI" },
   { icon: "📋", title: "Forms & Quiz Builder", desc: "Build custom lead capture forms and interactive quizzes. Share a link — responses land straight in your dashboard.", tag: "Lead Capture" },
@@ -401,14 +402,14 @@ const TIER_RESULTS: Record<number, { name: string; tagline: string; price: strin
     name: "Tier 4 — Pro",
     tagline: "You need the full toolkit — video, coaching, planning, and automation.",
     price: "$59/mo",
-    features: ["500 AI credits / month", "Full Video Marketing Suite", "AI Content Coach", "AI Content Planner", "DM Tracker", "Priority support"],
+    features: ["500 AI credits / month", "Full Video Marketing Suite", "AI Content Coach", "AI Content Planner", "DM Tracker", "AI Voice Dialer — 200 calls/month", "Priority support"],
     accent: "#34d399",
   },
   5: {
     name: "Tier 5 — Elite",
     tagline: "You're thinking bigger than a subscription. Let's build your platform.",
     price: "Custom",
-    features: ["Unlimited AI credits", "Custom-built platform", "AI Workers trained on your voice", "Weekly strategy calls", "Dedicated build team", "Full done-with-you system"],
+    features: ["Unlimited AI credits", "Unlimited AI voice dialer calls", "Custom-built platform", "AI Workers trained on your voice", "Weekly strategy calls", "Dedicated build team", "Full done-with-you system"],
     accent: GOLD_BRIGHT,
   },
 };
@@ -576,7 +577,7 @@ const PRICING_TIERS = [
   { tier: "Tier 1", name: "Free", price: "Free", period: "", credits: "20 credits / month", accent: "rgba(255,255,255,0.55)", bg: "rgba(255,255,255,0.02)", border: "rgba(255,255,255,0.08)", highlight: false, features: ["20 AI credits per month", "Access to all AI tools", "Group community access", "AI Content Ideas — 3 credits", "Virality Tester — 4 credits", "Basic carousel generation", "Partial audit preview"], cta: "Join Free" },
   { tier: "Tier 2", name: "Starter", price: "$19", period: "/mo", credits: "100 credits / month", accent: "#818cf8", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.25)", highlight: false, features: ["100 AI credits / month", "Everything in Free", "Full audit access", "AI Content Ideas — 5 credits", "Carousel Studio — 5 credits", "Story Generator — 2 credits", "Lead Magnet Generator — 6 credits", "Brand Kit Builder — 6 credits", "Virality Tester — 4 credits", "IG Growth Tracker — 1 credit/scan"], cta: "Get Started" },
   { tier: "Tier 3", name: "Growth", price: "$49", period: "/mo", credits: "250 credits / month", accent: GOLD, bg: `${GOLD}0a`, border: `${GOLD}44`, highlight: true, features: ["250 AI credits / month", "Everything in Starter", "No watermarks", "Competitor Analysis — 12 credits", "Reel vs Reel Compare — 5 credits", "Steal Strategy Plan — 10 credits", "Niche Intelligence — 12 credits", "ICP Builder — 6 credits", "Audience Psychology Map — 6 credits", "Content DNA Analysis — 7 credits", "Priority processing"], cta: "Start Growing" },
-  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "Priority support"], cta: "Go Pro" },
+  { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "AI Voice Dialer — 200 calls/month", "Webinar → Lead CRM → AI Follow-up", "Priority support"], cta: "Go Pro" },
 ];
 
 // ── Hero Background Video (3 plays then freeze) ───────────────────────────────
@@ -828,7 +829,7 @@ export default function OraviniLanding() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <Anim style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>The Toolkit</div>
-            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>14 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1 }}>15 tools. One dashboard.<br /><span style={{ color: GOLD }}>Infinite leverage.</span></h2>
           </Anim>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 18 }}>
             {FEATURES.map((f, i) => (
@@ -1045,6 +1046,127 @@ export default function OraviniLanding() {
                   onClick={() => window.open("/video-marketing-landing", "_blank")}
                   style={{ background: "transparent", color: GOLD, fontWeight: 600, fontSize: 14, border: `1px solid ${GOLD}44`, borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
                   Full Feature Overview
+                </button>
+              </div>
+            </div>
+          </Anim>
+        </div>
+      </section>
+
+      {/* ── AI VOICE DIALER ──────────────────────────────────────────────────── */}
+      <section style={{ padding: "120px 24px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(52,211,153,0.04) 0%, transparent 65%)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <Anim style={{ textAlign: "center", marginBottom: 72 }}>
+            <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "#34d399", textTransform: "uppercase", marginBottom: 14, fontWeight: 700 }}>AI Voice Dialer · Tier 4 & 5</div>
+            <h2 style={{ fontSize: "clamp(28px, 4.5vw, 52px)", fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 20px" }}>
+              Your webinar ends.<br /><span style={{ color: "#34d399" }}>The AI starts calling.</span>
+            </h2>
+            <p style={{ color: "rgba(255,255,255,0.42)", fontSize: "clamp(14px, 1.6vw, 16px)", maxWidth: 560, margin: "0 auto", lineHeight: 1.8 }}>
+              Import attendees from any webinar, score them by engagement, and deploy AI voice agents that call, qualify, and book meetings — automatically.
+            </p>
+          </Anim>
+
+          {/* How it works — numbered flow */}
+          <Anim style={{ marginBottom: 64 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 2, position: "relative" }}>
+              {[
+                { num: "01", icon: "📡", title: "Run Your Webinar", body: "Host live or automated webinars inside Oravini. Attendee behaviour — questions asked, time watched, CTA clicks — is tracked in real-time." },
+                { num: "02", icon: "🎯", title: "Leads Auto-Scored", body: "Every attendee is scored 0–100 based on engagement. Raised hand? +15. Asked a question? +20. Clicked the offer CTA? +25. Hot leads rise to the top." },
+                { num: "03", icon: "📞", title: "AI Calls Them", body: "One click launches an AI agent that dials your top leads, references what they did in the webinar, handles objections naturally, and books meetings on your calendar." },
+                { num: "04", icon: "📋", title: "You See Everything", body: "Full call transcripts, sentiment analysis, objection logs, and booking status land in your CRM automatically. You only talk to leads that are already warmed up." },
+              ].map((step, i) => (
+                <Anim key={step.num} delay={i * 100}>
+                  <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "36px 28px", position: "relative" }}>
+                    <div style={{ fontSize: 10, fontWeight: 900, color: "#34d399", letterSpacing: "0.2em", marginBottom: 18, opacity: 0.6 }}>{step.num}</div>
+                    <div style={{ fontSize: 28, marginBottom: 16 }}>{step.icon}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", marginBottom: 10, lineHeight: 1.25 }}>{step.title}</div>
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, margin: 0 }}>{step.body}</p>
+                  </div>
+                </Anim>
+              ))}
+            </div>
+          </Anim>
+
+          {/* Feature blocks */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20, marginBottom: 60 }}>
+            {[
+              {
+                icon: "🤖",
+                title: "AI-Powered Conversations",
+                desc: "The AI agent knows each lead's name, which webinar they attended, what questions they asked, and whether they clicked your offer. Every call feels personal.",
+                bullets: ["References webinar behaviour by name", "Handles objections without scripts", "Books meetings or logs voicemails", "Natural GPT-4o-mini voice — not robotic"],
+                accent: "#34d399",
+              },
+              {
+                icon: "⚡",
+                title: "Bulk AI Campaigns",
+                desc: "Launch a campaign and let the system work through your full lead list overnight. Configurable call rate, concurrency, and per-lead delay — no manual dialling.",
+                bullets: ["Up to 5 concurrent calls", "Configurable calls per hour", "Auto-queues remaining leads", "Stop / resume any campaign live"],
+                accent: "#60a5fa",
+              },
+              {
+                icon: "📊",
+                title: "Call Intelligence",
+                desc: "Every call is recorded, transcribed, and analysed. Sentiment scores, key objections, and appointment status are extracted automatically and saved to the lead's CRM record.",
+                bullets: ["Full transcript + recording saved", "Sentiment: positive / neutral / negative", "Objection patterns surfaced across calls", "Hot leads flagged for human follow-up"],
+                accent: "#a78bfa",
+              },
+              {
+                icon: "💬",
+                title: "SMS + Cadence Follow-Up",
+                desc: "Missed calls get an automatic SMS sequence. Set multi-step cadences triggered by call outcome — voicemail, no-answer, or not-interested — with custom delay between each step.",
+                bullets: ["Two-way SMS inbox built in", "Outcome-triggered cadences", "Voicemail drop on no-answer", "All threads in one place"],
+                accent: GOLD,
+              },
+            ].map((item, i) => (
+              <Anim key={item.title} delay={i * 80}>
+                <div className="feature-card" style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 20, padding: "32px 28px", height: "100%", transition: "border-color 0.3s, box-shadow 0.3s", display: "flex", flexDirection: "column" }}>
+                  <div style={{ fontSize: 28, marginBottom: 16 }}>{item.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: item.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>AI Voice Dialer</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginBottom: 12, lineHeight: 1.25 }}>{item.title}</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.42)", lineHeight: 1.75, marginBottom: 20, flex: 1 }}>{item.desc}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {item.bullets.map(b => (
+                      <div key={b} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <span style={{ color: item.accent, fontSize: 10, marginTop: 3, flexShrink: 0 }}>✓</span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Anim>
+            ))}
+          </div>
+
+          {/* Pricing callout */}
+          <Anim>
+            <div style={{ background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 24, padding: "40px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 28 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#34d399", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 10 }}>Included in Pro · Tier 4</div>
+                <h3 style={{ fontSize: "clamp(20px, 3vw, 30px)", fontWeight: 900, lineHeight: 1.2, marginBottom: 10 }}>
+                  200 AI calls/month<br /><span style={{ color: "#34d399" }}>included at $59/mo</span>
+                </h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.7, maxWidth: 420 }}>
+                  Pro plan includes 200 outbound AI calls per month. Need more? Top up 100 extra calls for just $18 — bonus calls roll over and never expire.
+                </p>
+                <div style={{ display: "flex", gap: 24, marginTop: 16, flexWrap: "wrap" }}>
+                  {[
+                    { label: "Included on Pro", val: "200 calls/mo" },
+                    { label: "Top-up pack", val: "100 calls · $18" },
+                    { label: "Elite plan", val: "Unlimited" },
+                  ].map(({ label, val }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "#34d399" }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => { const el = document.getElementById("pricing"); el?.scrollIntoView({ behavior: "smooth" }); }}
+                  style={{ background: "linear-gradient(135deg, #34d399, #059669)", color: "#000", fontWeight: 800, fontSize: 14, border: "none", borderRadius: 12, padding: "14px 28px", cursor: "pointer" }}>
+                  See Pro Plan →
                 </button>
               </div>
             </div>
