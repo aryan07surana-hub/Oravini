@@ -15,6 +15,7 @@ import { storage } from "./storage";
 import { comparePassword } from "./auth";
 import { startCronJobs } from "./cron";
 import { startWebinarEmailScheduler } from "./jobs/webinar-email-scheduler";
+import { startSchedulingCronJobs } from "./schedulingCron";
 import { startRtmpServer } from "./rtmp";
 import { applySecurityMiddleware, getSecureSessionConfig, checkAccountLockout, recordFailedLogin, clearFailedLogins } from "./security";
 import { initAuditLog, initSessionManager, initSuspiciousLoginDetection, initWsAuth, registerCspReportingEndpoint, writeAuditLog, AuditActions, checkLoginDevice, sendSuspiciousLoginAlert } from "./security/index";
@@ -702,5 +703,6 @@ async function runMigrations() {
     log(`Brandverse portal serving on port ${port}`);
     startCronJobs();
     startWebinarEmailScheduler();
+    startSchedulingCronJobs();
   });
 })();

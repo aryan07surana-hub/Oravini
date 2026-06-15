@@ -8,7 +8,12 @@ import {
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { google } from "googleapis";
-import nodemailer from "nodemailer";
+import {
+  sendBookingConfirmation,
+  send24HourReminder,
+  send1HourReminder,
+  sendCancellationEmail,
+} from "../emailService";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -76,40 +81,7 @@ async function createGoogleMeetEvent(userId: string, booking: any) {
   }
 }
 
-// Send confirmation email
-async function sendBookingConfirmation(booking: any) {
-  try {
-    const transporter = nodemailer.createTransporter({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: booking.clientEmail,
-      subject: `Booking Confirmed: ${booking.title || "Strategy Call"}`,
-      html: `
-        <h2>Your booking is confirmed!</h2>
-        <p>Hi ${booking.clientName},</p>
-        <p>Your call has been scheduled:</p>
-        <ul>
-          <li><strong>Date:</strong> ${new Date(booking.startTime).toLocaleDateString()}</li>
-          <li><strong>Time:</strong> ${new Date(booking.startTime).toLocaleTimeString()}</li>
-          <li><strong>Duration:</strong> ${Math.round((new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()) / 60000)} minutes</li>
-        </ul>
-        ${booking.meetLink ? `<p><a href="${booking.meetLink}" style="background: #d4b461; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">Join Google Meet</a></p>` : ""}
-        <p>Looking forward to speaking with you!</p>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error("Error sending confirmation email:", error);
-  }
-}
 
 export function registerSchedulingRoutes(app: Express) {
   

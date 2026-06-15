@@ -1,0 +1,152 @@
+1. Caption Toggle on Video Player
+When the video is displayed in the main preview screen, include a visible option:
+Button: “Captions” / “Subtitles”
+Placement:
+Top-right corner of video player OR overlay controls bar
+
+2. Caption Input Options (User Control)
+When user clicks Captions, open a panel with:
+A. Auto Generate Captions
+Button: “Generate Captions with AI”
+AI detects speech and creates synced captions
+B. Manual Input
+Text input box where user can:
+Paste captions
+Type custom subtitles
+Option to sync manually with timeline
+
+3. Multiple Caption Style Variations (Core Feature 🔥)
+Once captions are generated or added:
+👉 Show multiple caption style options instantly
+Examples:
+Clean Subtitle Style (Netflix-style)
+Bold Viral Style (Hormozi/TikTok style)
+Highlight Keywords Style
+Animated Pop-Up Words
+Minimal Aesthetic Style
+
+4. AI Caption Variations Engine
+AI should automatically generate different text versions of captions:
+Shortened captions
+More engaging/viral phrasing
+Emphasized hook versions
+Simplified versions
+👉 Show as selectable options:
+“Original”
+“Engaging”
+“Viral”
+“Short & Punchy”
+
+5. Live Preview on Video
+When user selects a caption style or version:
+Update captions instantly on the video preview
+Sync text with playback in real time
+
+6. Caption Editing Controls
+Allow user to:
+Edit specific words
+Change timing
+Highlight keywords
+Adjust position (top / middle / bottom)
+Change font, size, color
+
+7. AI Chat Integration
+ Users can type:
+“Make captions more engaging”
+“Highlight key words”
+“Shorten captions”
+“Add emojis”
+👉 AI applies changes directly to captions on video
+
+8. Smart UX Details
+Highlight currently spoken word in real time
+Show caption segments on timeline
+Smooth animations (fade, pop, slide)
+
+9. Experience Goal
+ 👉 Feels like:
+ “You’re directing captions live while watching the video”
+Interactive
+Instant feedback
+Multiple creative options
+AI-assisted but user-controlled
+AI Creative Director UI + Video Editing Flow (Final Enhanced Prompt)
+1. Make AI Creative Director Highly Visible
+Place the AI Creative Director more visible 
+It should feel like the core brain of the product, not a secondary tool
+Design:
+Sticky top bar or header
+Bold title: “AI Creative Director”
+Live status text: “Analyzing your video…”, “Optimizing captions…”
+Always visible and accessible
+
+2. Video Input System
+Allow users to input:
+Instagram links
+YouTube links
+Direct video URLs
+Upload video files
+On submission:
+Automatically fetch and load the video
+Display it in a large central editing panel
+
+3. CapCut-Style Video Preview
+Show the video like a real editing tool UI
+Include:
+Video player (center)
+Timeline/scrubber below
+Play, pause, seek controls
+👉 The user should feel like they are inside a professional editor
+
+4. AI Captioning System (NEW — Core Feature)
+Automatically detect spoken words in the video
+Generate accurate captions/subtitles in real time
+User Options:
+Toggle:
+Auto captions ON/OFF
+Edit captions manually
+Choose caption styles:
+Font
+Size
+Color
+Position (center / bottom / TikTok-style dynamic captions)
+
+5. Smart Caption Enhancements
+AI Creative Director should:
+Highlight important words
+Add viral-style captions (like reels/TikTok)
+Emphasize hooks and key moments
+Sync captions perfectly with speech timing
+Optional features:
+Emoji captions
+Animated captions
+Keyword highlighting for retention
+
+6. Chat + Editing Integration
+Add chat connected to AI Creative Director
+Users can say:
+“Add captions”
+“Make captions more engaging”
+“Highlight key words”
+“Convert captions to viral style”
+👉 AI should:
+Respond conversationally
+Apply caption edits directly on the video preview
+
+7. Real-Time Visual Feedback
+Show captions directly on the video
+Update instantly when changes are made
+Highlight active caption segments on the timeline
+Always show processing states:
+“Generating captions…”
+“Syncing audio…”
+(Keep 25–30 sec realistic delay if needed)
+
+8. Overall Experience Goal
+ 👉 Feels like:
+ “An AI video editor + caption expert + creative strategist in one”
+AI is visible
+Video is interactive
+Captions are dynamic and editable
+Everything feels real-time and premium
+

@@ -1,0 +1,146 @@
+Also give them an option to put their fan or comptetitor's reels like i wanna include and make my reel like this comptetior and give them a few reel url options for their comptitor and then tell ai to make edits like this also give them options for like tempaltes use AI TO SUGGEST SOME TEMPLATES SHOW THEM VARIOUS IMAGES AND ETC FOR THE VIDEO EDITING TEMPLATES
+
+
+PAGE: AI Video Editor Dashboard
+
+--------------------------------------------------
+
+[HEADER]
+- Logo (Top Left)
+- Tabs:
+  - Dashboard
+  - AI Content Coach
+  - Video Editor (ACTIVE)
+  - Competitor Intel
+  - Analytics
+
+--------------------------------------------------
+
+[MAIN HERO SECTION]
+
+Title:
+“Turn Any Video Into Viral Content in 60 Seconds”
+
+Input Box (CENTER):
+- Paste Instagram URL OR Upload Video
+- Placeholder: “Paste your reel link or upload your video…”
+
+Buttons:
+[Upload Video]   [Paste URL]   [Analyze]
+
+--------------------------------------------------
+
+[MODE SELECTOR]
+
+Label: “Choose Editing Style”
+
+Options (Clickable Cards):
+- 🔥 Viral Mode
+- 🎬 Story Mode
+- 💰 Sales Mode
+- 😂 Funny Mode
+- 🎥 Cinematic Mode
+- 📚 Educational Mode
+
+--------------------------------------------------
+
+[QUICK ACTIONS PANEL]
+
+Buttons:
+- Generate Hooks
+- Make It Viral
+- Retention Warning
+- Fix This Line
+- Add Captions
+- Improve Clarity
+- Add Emotion
+- Suggest Trending Audio
+- Generate CTA
+- Create Variations
+
+--------------------------------------------------
+
+[AI OUTPUT PANEL]
+
+Sections:
+
+1. 🎯 Hook Analysis
+- Score + feedback
+- Suggested hooks (3–5)
+
+2. ✂️ Edit Suggestions
+- “Cut at 0:04”
+- “Zoom at 0:07”
+- “Add caption here”
+
+3. 🎧 Audio Suggestions
+- Trending audio recommendations
+
+4. 🎨 Visual Suggestions
+- “Add emoji here”
+- “Insert B-roll here”
+
+--------------------------------------------------
+
+[VIDEO PREVIEW PANEL]
+
+- Video Player
+- Before / After toggle
+- Play / Pause
+
+Buttons:
+[Apply Edits]   [Download]   [Regenerate]
+
+--------------------------------------------------
+
+[TIMELINE LITE]
+
+- Clip segments
+- Drag to reorder
+- Toggle:
+  - Captions ON/OFF
+  - Zoom ON/OFF
+  - Effects ON/OFF
+
+--------------------------------------------------
+
+[CAPTION GENERATOR]
+
+Options:
+- Short / Long
+- Viral / Funny / Sales
+
+Output:
+- Caption text
+- Hashtags
+- CTA
+
+--------------------------------------------------
+
+[RIGHT SIDEBAR - AI COACH]
+
+Animated Avatar (small)
+
+Chat UI:
+- “Yo 👋 what are we fixing today?”
+- Real-time feedback
+
+Buttons:
+- Fix Line
+- Rewrite Hook
+- Improve Entire Script
+
+--------------------------------------------------
+
+[BOTTOM SECTION]
+
+Multi-Version Output:
+- Version A
+- Version B
+- Version C
+
+Buttons:
+[Export All]   [A/B Test Mode]
+
+--------------------------------------------------
+

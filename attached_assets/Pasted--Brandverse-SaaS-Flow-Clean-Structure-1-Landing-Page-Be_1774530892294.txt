@@ -1,0 +1,148 @@
+🧠 Brandverse SaaS Flow (Clean Structure)
+🏠 1. Landing Page Behavior
+Do NOT show free credits immediately
+Wait ~2 minutes OR user scroll trigger (~60–70% page)
+
+👉 Then show popup:
+
+“Get your free AI Monetisation Audit”
+
+🔐 2. Navigation (Top Bar)
+Left side:
+Logo
+“Apply to Work with Brandverse”
+Right side:
+Login
+Sign Up
+🚀 3. “Apply to Work with Brandverse” Page
+Header:
+
+“We help you scale your content system & info coaching business”
+
+Page Content:
+What Brandverse does
+Who it’s for (creators, coaches, info businesses)
+Results / positioning (authority + growth)
+Pull inspiration/content from your existing site
+CTA:
+“Apply Now”
+“Get My Free Audit”
+🧪 4. Free Audit Funnel (CORE FEATURE)
+
+This is your main conversion engine.
+
+Step 1: Start Audit
+Clean UI
+Progress bar
+Option to go back anytime
+Step 2: Questions Flow
+
+Ask things like:
+
+What platform? (Instagram / YouTube)
+Niche
+Target audience
+Biggest struggle
+Goals (growth / monetisation / brand deals)
+Final Step (IMPORTANT):
+
+“Insert your Instagram URL”
+
+👉 This triggers:
+
+Backend API call
+Pull last 30 posts data
+Start AI analysis
+Step 3: Processing Screen (30–60 sec)
+
+Show:
+
+“Analyzing your content…”
+“Mapping audience psychology…”
+“Estimating revenue potential…”
+
+👉 Builds anticipation
+
+Step 4: Report Delivery
+Show preview of report
+DO NOT give full access instantly
+Step 5: CTA After Report
+“Upgrade to unlock full report”
+“Get deeper insights + strategy”
+
+❌ DO NOT show “buy extra credits” (for now)
+
+🧾 5. CRM Integration (VERY IMPORTANT)
+
+Every audit submission should store:
+
+Name
+Email
+Instagram URL
+Answers to all questions
+Engagement data pulled
+Audit result summary
+
+👉 Store inside CRM as:
+Lead Type: “Audit User”
+
+🧠 Use This Data For:
+Retargeting
+Email follow-ups
+Personalized upsells
+Future product offers
+⚙️ 6. Dashboard Structure (After Login)
+Keep:
+✅ AI Content Coach
+✅ AI Video Editor
+✅ Documents (but move to admin-controlled access)
+Remove (for now):
+❌ Call Feedback
+❌ Sessions Hub
+📊 7. Plans Structure
+🟢 Tier 1 — Free
+Limited credits
+Access to basic tools
+Partial audit preview
+🔵 Tier 2 — $29/month
+Moderate credits
+Full audit access
+Basic tools unlocked
+🟣 Tier 3 — $59/month
+Higher credits
+Advanced insights
+Priority processing
+🟠 Tier 4 — $79/month
+High credits
+Full system access
+Faster results
+🔴 Tier 5 — Brandverse Elite (Application Only)
+
+“Scale your info coaching business with us”
+
+Includes:
+
+Unlimited usage (fair use)
+Done-with-you support
+Strategy guidance
+High-level growth system
+
+CTA:
+
+“Apply to Work with Brandverse”
+
+🔥 8. Key UX Rules (Don’t Mess This Up)
+Always show “Upgrade Plan” button
+Never overwhelm users early
+Delay value → increase curiosity
+Use audit as main hook
+Make everything feel personalized
+💬 Final Positioning
+
+This is NOT:
+
+“AI tools dashboard”
+
+This IS:
+
+“Your personal AI growth + monetisation system”

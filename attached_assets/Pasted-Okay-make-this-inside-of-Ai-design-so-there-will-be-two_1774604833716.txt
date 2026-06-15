@@ -1,0 +1,215 @@
+Okay make this inside of Ai design so there will be two square boxes one with carousel generator and the other will lead magent generator give them all the options niche what do they wanna generate goal of the lead magnet generator and also give them some options to insert designs of their own and make it and like that give them an option to keep the design same on all pages or separate on all even if they wanna keep it separate on all pages give them an option for it though
+Also whatever lead magent you generate make it properly in detail and with full information use Ai design the led magent and lso generate text also give them an option to export the pdf as a whole like that
+
+
+
+You are an expert marketing strategist.
+
+Create a high-converting lead magnet outline based on:
+
+GOAL: {goal}
+TOPIC: {topic}
+AUDIENCE: {audience}
+TYPE: {checklist / guide / cheat sheet}
+
+Requirements:
+- Make it highly actionable
+- Avoid generic advice
+- Focus on real results
+- Structure it like a premium product
+
+Output format:
+
+1. Title (5 variations)
+2. Hook (first page idea)
+3. Sections (with headings)
+4. CTA idea (end goal)
+
+Expand the following lead magnet outline into full content.
+
+Guidelines:
+- Write in a clear, engaging tone
+- Avoid fluff
+- Use short, punchy sentences
+- Make it practical and actionable
+- Each section should feel valuable
+
+Structure:
+- Hook page (attention-grabbing)
+- Problem explanation
+- Core content
+- Tips or steps
+- CTA page
+
+Make it feel like a premium downloadable product.
+
+
+Convert this lead magnet content into structured design pages.
+
+For each page, define:
+
+- Page type (cover, content, checklist, CTA)
+- Title text
+- Body text
+- Visual suggestion (icons, layout style)
+- Emphasis elements (bold text, highlights)
+
+Keep pages short and visually clean.
+
+Each page should not exceed 30-50 words.
+
+
+
+Improve the call-to-action for this lead magnet.
+
+Goal: {goal}
+
+Generate:
+- 3 CTA variations
+- Make them persuasive but not pushy
+- Focus on action (DM, signup, click)
+
+Also suggest:
+- Where to place CTA in the document
+
+
+
+
+
+
+Convert this lead magnet into:
+
+1. Instagram carousel (slide-by-slide)
+2. Instagram story sequence (5 slides)
+3. LinkedIn post
+4. Short promotional caption
+
+Keep content concise and engaging.
+Adapt tone for each platform.
+
+
+
+Generate 10 high-converting titles for a lead magnet.
+
+Topic: {topic}
+Audience: {audience}
+
+Make them:
+- Curiosity-driven
+- Benefit-focused
+- Not generic
+
+Also generate 5 hook lines for the first page.
+
+
+Adapt this lead magnet for the following niche:
+
+NICHE: {fitness / finance / business / etc}
+
+Adjust:
+- Tone
+- Examples
+- Language
+- Style
+
+Make it feel native to that audience.
+
+User Input →
+Prompt 1 (Outline) →
+Prompt 2 (Content) →
+Prompt 3 (Design Pages) →
+Prompt 4 (CTA) →
+Prompt 5 (Repurpose)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2. TYPES OF LEAD MAGNETS YOU SHOULD SUPPORT Make it diverse so it doesn’t feel generic: 📘 Guides / eBooks “Beginner’s guide to X” 📋 Checklists “10-step checklist” 🧠 Cheat Sheets Quick hacks / summaries 📊 Templates Notion templates Content planners 📅 Mini planners Weekly plans 👉 These are HIGH converting 🎨 3. YOUR BIG ADVANTAGE = DESIGN (USE IT HARD) Since you already have design capability: Add: Auto-layout pages Section styling Cover design Consistent theme Think: 👉 Better looking than Canva exports 🧩 4. STRUCTURED CONTENT (THIS IS WHAT MAKES IT NON-GENERIC) Don’t let AI dump text. Use frameworks like: Example (Checklist): Hook page Problem explanation Checklist items Tips CTA page Example (Guide): Cover Introduction Core content Case study CTA 👉 This is what makes it feel “premium” ✨ 5. MAKE IT INTERACTIVE / MODULAR Let users: Edit sections Add/remove pages Regenerate specific parts 👉 Control = less generic feel 🔥 6. BUILT-IN CONVERSION ELEMENTS (GAME CHANGER) This is where you beat competitors. Auto-add: CTA pages “Follow me” sections Product plug Email capture suggestions 📱 7. REPURPOSING ENGINE (INSANE VALUE) After generating lead magnet: Auto create: Instagram carousel Story promo LinkedIn post Email announcement 👉 From SAME content 🧠 8. NICHE INTELLIGENCE Ask user: “What niche are you in?” Then adapt: Tone Design Examples Fitness ≠ Finance ≠ Personal brand 🎯 9. TITLE + HOOK GENERATOR This matters A LOT. Generate: 5 lead magnet titles Curiosity-driven hooks Example: “The 7 mistakes killing your growth” 🧪 10. MULTIPLE STYLE OUTPUTS Same input → Give: Minimal design Bold design Aesthetic design ⚡ 11. SIMPLE MVP (START HERE) Don’t overbuild. Step flow: User selects goal Enters topic Picks type (checklist / guide) AI generates: Content Design Export PDF DONE. 💡 WHAT MAKES YOUR TOOL DIFFERENT Most tools: ❌ Generate content ❌ Generate design Yours should: 👉 Generate RESULTS 🚀 POSITIONING (VERY IMPORTANT) Don’t say: ❌ “Create lead magnets” Say: ✅ “Create high-converting lead magnets in 60 seconds”
+
+
+
+Goal → Format → Structure → Content → Design → Conversion Elements
+Example:
+User selects:
+Goal: “Grow email list”
+Topic: “Instagram growth”
+Your system decides:
+Format → Checklist
+Structure → Hook → Problem → Steps → CTA
+Tone → Beginner-friendly
+Design → Clean + bold
+👉 This logic layer is what makes you NOT generic.
+2. STRUCTURED CONTENT ENGINE (VERY IMPORTANT)
+You should NOT generate everything in one prompt.
+Break it into steps:
+Step 1: Generate outline
+Step 2: Expand sections
+Step 3: Optimize for conversion
+Step 4: Format into pages
+
+🎨 3. DESIGN SYSTEM (YOUR BIG WEAPON)
+Instead of random layouts, define:
+Layout types:
+Cover page
+Content page
+Checklist page
+CTA page
+Each has:
+Fixed spacing rules
+Font hierarchy
+Color logic
+👉 This is how you beat generic Canva outputs
+
+🔥 4. CONVERSION LAYER (THIS IS YOUR EDGE)
+Every lead magnet should include:
+Strong hook (first page)
+Value delivery (middle)
+CTA (last page)
+Example CTA:
+“DM me ‘GROWTH’ for help”
+“Download full guide”
+“Book a call”
+👉 Most tools MISS this completely
+
+🔁 5. REPURPOSING ENGINE (BIG DIFFERENTIATOR)
+After generating the lead magnet:
+You run a second AI pass:
+Input:
+Full lead magnet content
+Output:
+Carousel version
+Story version
+LinkedIn post
+Email
+👉 Same content → multiple assets
+
+
+

@@ -1,0 +1,226 @@
+Update my Client Portal SaaS system with the following structure and functionality improvements.
+
+The portal must support two roles:
+
+Admin
+
+Client
+
+Both should be able to access the Content Tracking system, but admin should have access to all client data.
+
+1. Tracking Section Structure
+
+Create a main subsection called "Tracking" in the portal navigation.
+
+When a user clicks Tracking, show three options:
+
+Content Tracking
+
+Sales Tracking
+
+Ad Tracking
+
+For now:
+
+Sales Tracking = Coming Soon
+
+Ad Tracking = Coming Soon
+
+Only Content Tracking should be fully functional.
+
+2. Content Tracking Structure
+
+When a user clicks Content Tracking, they should see two options:
+
+Instagram
+
+YouTube
+
+Each option should open its own separate page.
+
+3. Instagram Content Tracking Page
+
+Allow both clients and admin to log Instagram content posts.
+
+Each log entry should allow:
+
+Date Posted
+
+Content Type
+
+Reel
+
+Carousel
+
+Post
+
+Story
+
+Funnel Stage
+
+Top of Funnel
+
+Middle of Funnel
+
+Bottom of Funnel
+
+Post Link
+
+Views
+
+Likes
+
+Comments
+
+Saves
+
+Followers Gained
+
+Users must be able to create new log posts.
+Currently the system does not allow posting, so fix this and enable logging.
+
+4. YouTube Content Tracking Page
+
+Allow users to log YouTube videos with:
+
+Upload Date
+
+Video Title
+
+Video Link
+
+Views
+
+Subscribers Gained
+
+Content Type
+
+Users must be able to add log posts for YouTube videos.
+
+5. Reminder System
+
+When a user logs content (Instagram or YouTube):
+
+Automatically send a reminder 48–96 hours later to update metrics.
+
+The reminder should ask the user to update:
+
+Views
+
+Engagement
+
+Followers gained
+
+Subscribers gained
+
+This reminder should apply only to log posts.
+
+6. Content Report System
+
+Inside both the Instagram and YouTube pages, create a Report Generator.
+
+Users should be able to choose:
+
+Generate Report (Last 2 Weeks)
+
+Generate Report (Last 4 Weeks)
+
+When they click Generate Report, the system should analyze all logged content during that timeframe and show:
+
+Total views
+
+Total engagement
+
+Followers gained
+
+Subscribers gained
+
+Number of posts
+
+Best performing content
+
+The report should combine metrics from all logged posts in that period.
+
+Example output:
+
+Last 2 Weeks Report
+Total Posts: 8
+Total Views: 420,000
+Followers Gained: 3,200
+Best Performing Post: Reel on March 12
+
+7. Admin Access
+
+Admin must be able to:
+
+View all client tracking data
+
+Access all Instagram and YouTube logs
+
+View reports for each client
+
+Access the same dashboards clients see
+
+Admin should also have access to global analytics across clients in the future.
+
+8. Dashboard Layout
+
+When a user logs in, the dashboard should display the following layout.
+
+At the top:
+
+A rectangular World Clock bar showing:
+
+Dubai time
+
+London time
+
+New York time
+
+Below the world clock, show two square cards.
+
+Left Card:
+Daily Motivational Quote
+Display a new quote each day.
+
+Right Card:
+Income Goal
+
+Show the user’s income goal for the next 6 months.
+
+Example:
+
+Income Goal
+$100,000 in 6 Months
+
+This should be visible on both admin and client dashboards.
+
+9. Goal System
+
+When a client first joins the platform, ask:
+
+“How much money do you want to make in the next 6 months?”
+
+Save this goal and display it permanently on the dashboard.
+
+Admin should also have the option to set or edit this goal.
+
+10. System Objective
+
+This portal should function as a complete content performance operating system for creators.
+
+The main capabilities should include:
+
+Content logging
+
+Instagram performance tracking
+
+YouTube performance tracking
+
+Automated reminders
+
+Analytics reports
+
+Admin oversight of all client activity
+
+Make sure the interface is clean, structured, and easy for clients to use.

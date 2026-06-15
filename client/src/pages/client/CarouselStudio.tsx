@@ -19,7 +19,46 @@ import { useLocation } from "wouter";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface AiSlide { role: string; headline: string; body: string; }
-interface DesignSlide extends AiSlide { imageUrl: string | null; layout: "full" | "split" | "text"; }
+interface DesignSlide extends AiSlide { 
+  imageUrl: string | null; 
+  layout: "full" | "split" | "text";
+  textPosition?: { x: number; y: number };
+  headlineSize?: number;
+  bodySize?: number;
+  overlayOpacity?: number;
+  textColor?: string;
+  headlineColor?: string;
+  chartData?: ChartData;
+}
+
+interface BrandKit {
+  id: string;
+  name: string;
+  logo?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  headlineFont?: string;
+  bodyFont?: string;
+  createdAt: Date;
+}
+
+interface CarouselTemplate {
+  id: string;
+  name: string;
+  thumbnail: string;
+  niche: string;
+  style: string;
+  slideCount: number;
+  slides: DesignSlide[];
+  theme: ThemeKey;
+}
+
+interface ChartData {
+  type: "bar" | "pie" | "line" | "donut";
+  data: { label: string; value: number; color?: string }[];
+  title?: string;
+}
 
 type ThemeData = { name: string; bg: string; overlay: string; headline: string; body: string; accent: string; accentText: string };
 type ThemeKey = "brandverse" | "minimal" | "navy" | "coral" | "viral" | "rose" | "forest" | "sunset" | "cyber" | "arctic" | "custom";
@@ -136,40 +175,143 @@ async function loadImg(src: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 }
 async function renderSlide(slide: DesignSlide, t: ThemeData, num: number, total: number): Promise<string> {
-  const S = 1080; const canvas = document.createElement("canvas"); canvas.width = S; canvas.height = S;
+  const S = 1080; 
+  const canvas = document.createElement("canvas"); 
+  canvas.width = S; 
+  canvas.height = S;
   const ctx = canvas.getContext("2d")!;
+  
+  // Get custom values or defaults
+  const headlineSize = slide.headlineSize || 72;
+  const bodySize = slide.bodySize || 36;
+  const overlayOpacity = slide.overlayOpacity !== undefined ? slide.overlayOpacity : 0.58;
+  const headlineColor = slide.headlineColor || t.headline;
+  const textColor = slide.textColor || t.body;
+  
   if (slide.layout === "split" && slide.imageUrl) {
-    const W = S / 2; const img = await loadImg(slide.imageUrl);
-    const sc = Math.max(W / img.width, S / img.height); const dw = img.width * sc; const dh = img.height * sc;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, S); ctx.clip(); ctx.drawImage(img, (W-dw)/2, (S-dh)/2, dw, dh); ctx.restore();
-    ctx.fillStyle = t.bg; ctx.fillRect(W, 0, W, S);
-    ctx.fillStyle = t.accent; ctx.fillRect(W, 0, 6, S);
-    const tx = W + 60; const tw = W - 100;
-    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(tx, 80, 70, 32, 8); ctx.fill();
-    ctx.fillStyle = t.accentText; ctx.font = "bold 17px Inter,Arial,sans-serif"; ctx.textAlign = "center";
+    const W = S / 2; 
+    const img = await loadImg(slide.imageUrl);
+    const sc = Math.max(W / img.width, S / img.height); 
+    const dw = img.width * sc; 
+    const dh = img.height * sc;
+    ctx.save(); 
+    ctx.beginPath(); 
+    ctx.rect(0, 0, W, S); 
+    ctx.clip(); 
+    ctx.drawImage(img, (W-dw)/2, (S-dh)/2, dw, dh); 
+    ctx.restore();
+    ctx.fillStyle = t.bg; 
+    ctx.fillRect(W, 0, W, S);
+    ctx.fillStyle = t.accent; 
+    ctx.fillRect(W, 0, 6, S);
+    const tx = W + 60; 
+    const tw = W - 100;
+    ctx.fillStyle = t.accent; 
+    ctx.beginPath(); 
+    ctx.roundRect(tx, 80, 70, 32, 8); 
+    ctx.fill();
+    ctx.fillStyle = t.accentText; 
+    ctx.font = "bold 17px Inter,Arial,sans-serif"; 
+    ctx.textAlign = "center";
     ctx.fillText(`${num}/${total}`, tx + 35, 102);
-    ctx.fillStyle = t.headline; ctx.font = "bold 58px Inter,Arial,sans-serif"; ctx.textAlign = "left";
-    const hy = wrapText(ctx, slide.headline || "Your Headline", tx, 200, tw, 68);
-    ctx.fillStyle = t.accent; ctx.fillRect(tx, hy + 28, 60, 4);
-    ctx.fillStyle = t.body; ctx.font = "34px Inter,Arial,sans-serif"; wrapText(ctx, slide.body || "", tx, hy + 68, tw, 48);
+    ctx.fillStyle = headlineColor; 
+    ctx.font = `bold ${Math.floor(headlineSize * 0.8)}px Inter,Arial,sans-serif`; 
+    ctx.textAlign = "left";
+    const hy = wrapText(ctx, slide.headline || "Your Headline", tx, 200, tw, Math.floor(headlineSize * 0.9));
+    ctx.fillStyle = t.accent; 
+    ctx.fillRect(tx, hy + 28, 60, 4);
+    ctx.fillStyle = textColor; 
+    ctx.font = `${Math.floor(bodySize * 0.9)}px Inter,Arial,sans-serif`; 
+    wrapText(ctx, slide.body || "", tx, hy + 68, tw, Math.floor(bodySize * 1.3));
   } else {
+    // Draw background image if exists
     if (slide.imageUrl && slide.layout !== "text") {
-      const img = await loadImg(slide.imageUrl); const sc = Math.max(S/img.width, S/img.height);
+      const img = await loadImg(slide.imageUrl); 
+      const sc = Math.max(S/img.width, S/img.height);
       ctx.drawImage(img, (S-img.width*sc)/2, (S-img.height*sc)/2, img.width*sc, img.height*sc);
-      ctx.fillStyle = t.overlay; ctx.fillRect(0,0,S,S);
-    } else { ctx.fillStyle = t.bg; ctx.fillRect(0,0,S,S); }
-    ctx.fillStyle = t.accent; ctx.fillRect(0,0,S,8);
-    ctx.fillStyle = t.accent; ctx.beginPath(); ctx.roundRect(S/2-36,50,72,36,10); ctx.fill();
-    ctx.fillStyle = t.accentText; ctx.font = "bold 19px Inter,Arial,sans-serif"; ctx.textAlign = "center"; ctx.fillText(`${num} / ${total}`, S/2, 74);
-    ctx.fillStyle = t.headline; ctx.font = "bold 72px Inter,Arial,sans-serif"; ctx.textAlign = "center";
-    const hy = wrapText(ctx, slide.headline || "Your Headline", S/2, 220, S-130, 86);
-    ctx.fillStyle = t.accent; ctx.fillRect(S/2-60, hy+28, 120, 5);
-    ctx.fillStyle = t.body; ctx.font = "36px Inter,Arial,sans-serif"; ctx.textAlign = "center";
-    wrapText(ctx, slide.body || "", S/2, hy+76, S-170, 50);
+      
+      // Apply custom overlay opacity
+      const overlayColor = t.overlay.match(/rgba?\(([^)]+)\)/);
+      if (overlayColor) {
+        const [r, g, b] = overlayColor[1].split(',').map(v => parseInt(v.trim()));
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${overlayOpacity})`;
+      } else {
+        ctx.fillStyle = t.overlay;
+      }
+      ctx.fillRect(0,0,S,S);
+      
+      // Add gradient for better text contrast
+      const gradient = ctx.createLinearGradient(0, 0, 0, S);
+      gradient.addColorStop(0, `rgba(0,0,0,${overlayOpacity * 0.3})`);
+      gradient.addColorStop(0.5, `rgba(0,0,0,${overlayOpacity * 0.5})`);
+      gradient.addColorStop(1, `rgba(0,0,0,${overlayOpacity * 0.4})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, S, S);
+    } else { 
+      ctx.fillStyle = t.bg; 
+      ctx.fillRect(0,0,S,S); 
+    }
+    
+    // Top accent bar
+    ctx.fillStyle = t.accent; 
+    ctx.fillRect(0,0,S,8);
+    
+    // Slide number badge
+    ctx.fillStyle = t.accent; 
+    ctx.beginPath(); 
+    ctx.roundRect(S/2-36,50,72,36,10); 
+    ctx.fill();
+    ctx.fillStyle = t.accentText; 
+    ctx.font = "bold 19px Inter,Arial,sans-serif"; 
+    ctx.textAlign = "center"; 
+    ctx.fillText(`${num} / ${total}`, S/2, 74);
+    
+    // Custom text position or default
+    const baseY = slide.textPosition?.y || 220;
+    
+    // Headline with shadow for better readability
+    ctx.shadowColor = "rgba(0,0,0,0.8)";
+    ctx.shadowBlur = 20;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = headlineColor; 
+    ctx.font = `bold ${headlineSize}px Inter,Arial,sans-serif`; 
+    ctx.textAlign = "center";
+    const hy = wrapText(ctx, slide.headline || "Your Headline", S/2, baseY, S-130, Math.floor(headlineSize * 1.2));
+    
+    // Reset shadow
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    
+    // Accent line
+    ctx.fillStyle = t.accent; 
+    ctx.fillRect(S/2-60, hy+28, 120, 5);
+    
+    // Body text with shadow
+    ctx.shadowColor = "rgba(0,0,0,0.7)";
+    ctx.shadowBlur = 15;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = textColor; 
+    ctx.font = `${bodySize}px Inter,Arial,sans-serif`; 
+    ctx.textAlign = "center";
+    wrapText(ctx, slide.body || "", S/2, hy+76, S-170, Math.floor(bodySize * 1.4));
+    
+    // Reset shadow
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
   }
-  ctx.fillStyle = "rgba(255,255,255,0.22)"; ctx.font = "20px Inter,Arial,sans-serif"; ctx.textAlign = "right";
+  
+  // Watermark
+  ctx.fillStyle = "rgba(255,255,255,0.22)"; 
+  ctx.font = "20px Inter,Arial,sans-serif"; 
+  ctx.textAlign = "right";
   ctx.fillText("oravini", S-36, S-28);
-  ctx.fillStyle = t.accent; ctx.fillRect(0, S-8, S, 8);
+  
+  // Bottom accent bar
+  ctx.fillStyle = t.accent; 
+  ctx.fillRect(0, S-8, S, 8);
+  
   return canvas.toDataURL("image/png");
 }
 
@@ -247,6 +389,26 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   const [globalImage, setGlobalImage] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [generatingImageIdx, setGeneratingImageIdx] = useState<number | "all" | null>(null);
+  const [showDesignAssignment, setShowDesignAssignment] = useState(false);
+  const [designAssignmentMode, setDesignAssignmentMode] = useState<"manual" | "ai">("manual");
+  const [autoApplyDesigns, setAutoApplyDesigns] = useState(false);
+  const [showAdvancedEditor, setShowAdvancedEditor] = useState(false);
+  const [editHistory, setEditHistory] = useState<DesignSlide[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  
+  // New feature states
+  const [showBrandKit, setShowBrandKit] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showBulkCreate, setShowBulkCreate] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showChartBuilder, setShowChartBuilder] = useState(false);
+  const [showCompetitorAnalysis, setShowCompetitorAnalysis] = useState(false);
+  const [brandKits, setBrandKits] = useState<BrandKit[]>([]);
+  const [activeBrandKit, setActiveBrandKit] = useState<BrandKit | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [bulkTopics, setBulkTopics] = useState<string[]>([]);
+  const [competitorUrl, setCompetitorUrl] = useState("");
 
   // Generate more + refine state
   const [addCount, setAddCount] = useState(3);
@@ -281,7 +443,29 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
   }
 
   function updateSlide(idx: number, updates: Partial<DesignSlide>) {
-    setSlides(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s));
+    setSlides(prev => {
+      const newSlides = prev.map((s, i) => i === idx ? { ...s, ...updates } : s);
+      // Save to history for undo/redo
+      setEditHistory(h => [...h.slice(0, historyIndex + 1), newSlides]);
+      setHistoryIndex(i => i + 1);
+      return newSlides;
+    });
+  }
+
+  function undo() {
+    if (historyIndex > 0) {
+      setHistoryIndex(i => i - 1);
+      setSlides(editHistory[historyIndex - 1]);
+      toast({ title: "Undo" });
+    }
+  }
+
+  function redo() {
+    if (historyIndex < editHistory.length - 1) {
+      setHistoryIndex(i => i + 1);
+      setSlides(editHistory[historyIndex + 1]);
+      toast({ title: "Redo" });
+    }
   }
 
   function saveToHistory(generatedSlides: DesignSlide[], currentTopic: string) {
@@ -422,11 +606,79 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     const urls: string[] = [];
     for (let i = 0; i < Math.min(files.length, 10); i++) urls.push(await readFile(files[i]));
     setUploadedImages(prev => [...prev, ...urls].slice(0, 10));
+    
+    // Auto-apply designs to slides if enabled
+    if (autoApplyDesigns && slides.length > 0) {
+      autoAssignDesignsToSlides(urls);
+    }
+    
     toast({ title: `${urls.length} image${urls.length > 1 ? "s" : ""} uploaded` });
+  }
+
+  function autoAssignDesignsToSlides(designs: string[]) {
+    const allDesigns = [...uploadedImages, ...designs];
+    
+    // Smart assignment: distribute designs evenly across slides
+    setSlides(prev => prev.map((slide, idx) => {
+      const designIdx = idx % allDesigns.length;
+      return {
+        ...slide,
+        imageUrl: allDesigns[designIdx],
+        layout: "full" as const
+      };
+    }));
+    
+    toast({ 
+      title: "Designs auto-applied!", 
+      description: `${allDesigns.length} designs distributed across ${slides.length} slides` 
+    });
+  }
+
+  function applyDesignsIntelligently() {
+    if (uploadedImages.length === 0 || slides.length === 0) {
+      toast({ title: "Upload designs first", variant: "destructive" });
+      return;
+    }
+
+    // Intelligent assignment based on slide roles
+    setSlides(prev => prev.map((slide, idx) => {
+      let designIdx = 0;
+      
+      // Assign designs based on slide role/type
+      if (slide.role === "Hook" || slide.role === "CTA") {
+        // Use first design for important slides
+        designIdx = 0;
+      } else if (slide.role === "Problem" || slide.role === "Solution") {
+        // Use second design if available
+        designIdx = Math.min(1, uploadedImages.length - 1);
+      } else {
+        // Distribute remaining designs
+        designIdx = idx % uploadedImages.length;
+      }
+      
+      return {
+        ...slide,
+        imageUrl: uploadedImages[designIdx],
+        layout: "full" as const
+      };
+    }));
+    
+    toast({ 
+      title: "Smart assignment complete!", 
+      description: "Designs intelligently matched to slide types" 
+    });
   }
 
   function assignImageToSlide(slideIdx: number, imgUrl: string) {
     updateSlide(slideIdx, { imageUrl: imgUrl, layout: "full" });
+  }
+
+  function handleDesignAssignment(designIdx: number, slideIdx: number) {
+    const imgUrl = uploadedImages[designIdx];
+    if (imgUrl) {
+      updateSlide(slideIdx, { imageUrl: imgUrl, layout: "full" });
+      toast({ title: `Design ${designIdx + 1} assigned to slide ${slideIdx + 1}` });
+    }
   }
 
   // ── AI Image Generation ────────────────────────────────────────────────────
@@ -576,32 +828,74 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
           </button>
         </div>
 
-        {/* Upload image */}
+        {/* Upload images */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-muted-foreground">Upload Image</p>
-            <label className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-white cursor-pointer">
-              <input type="checkbox" checked={applyToAll} onChange={e => setApplyToAll(e.target.checked)} className="w-3 h-3" />
-              All slides
-            </label>
+            <p className="text-xs font-semibold text-muted-foreground">Upload Designs</p>
           </div>
-          <input ref={globalRef} type="file" accept="image/*" className="hidden"
-            onChange={async e => { const f = e.target.files?.[0]; if (f) { await handleGlobalImage(f); } e.target.value = ""; }} />
-          {globalImage ? (
-            <div className="relative rounded-xl overflow-hidden h-20">
-              <img src={globalImage} alt="" className="w-full h-full object-cover" />
-              <button onClick={() => { setGlobalImage(null); if (applyToAll) setSlides(prev => prev.map(s => ({ ...s, imageUrl: null }))); }}
-                className="absolute top-1.5 right-1.5 p-1 bg-black/60 rounded-lg text-white hover:bg-red-500/60 transition-colors">
-                <Trash2 className="w-3 h-3" />
-              </button>
-              {applyToAll && <div className="absolute bottom-0 left-0 right-0 px-2 py-0.5 text-[9px] font-bold bg-[#d4b461] text-black text-center">Applied to all</div>}
+          <input ref={multiRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={async e => { const files = e.target.files; if (files) { await handleMultiUpload(files); } e.target.value = ""; }} />
+          
+          {uploadedImages.length > 0 ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                {uploadedImages.map((img, idx) => (
+                  <div key={idx} className="relative rounded-lg overflow-hidden aspect-square border border-white/10 hover:border-[#d4b461]/40 transition-all group">
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-white">Design {idx + 1}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Quick Actions */}
+              <div className="space-y-2">
+                <button onClick={applyDesignsIntelligently}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all"
+                  style={{ background: "#d4b461", color: "#000" }}>
+                  <Sparkles className="w-3.5 h-3.5" />Auto-Apply Text Over Designs
+                </button>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setShowDesignAssignment(true)}
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-medium border border-[#d4b461]/30 text-[#d4b461] hover:bg-[#d4b461]/10 transition-all">
+                    <Layers className="w-3 h-3" />Manual Assign
+                  </button>
+                  <button onClick={() => setUploadedImages([])}
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-white/10 text-muted-foreground hover:text-red-400 hover:border-red-400/30 transition-all">
+                    <Trash2 className="w-3 h-3" />Clear All
+                  </button>
+                </div>
+                
+                {uploadedImages.length === 1 && (
+                  <button onClick={applyAllSameImage}
+                    className="w-full py-2 rounded-lg text-[10px] font-medium bg-[#d4b461]/20 text-[#d4b461] border border-[#d4b461]/30 hover:bg-[#d4b461]/30 transition-all">
+                    Apply This Design to All Slides
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
-            <button onClick={() => globalRef.current?.click()}
-              className="w-full h-16 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all text-xs">
-              <Upload className="w-3.5 h-3.5" />
-              <span className="text-[10px]">Upload brand image</span>
-            </button>
+            <div className="space-y-3">
+              <button onClick={() => multiRef.current?.click()}
+                className="w-full h-20 rounded-xl border-2 border-dashed border-white/15 flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-[#d4b461]/40 hover:text-[#d4b461] transition-all">
+                <Upload className="w-4 h-4" />
+                <span className="text-xs font-semibold">Upload Your Designs</span>
+                <span className="text-[9px] text-zinc-600">Up to 10 images • Auto-overlay text</span>
+              </button>
+              
+              <div className="rounded-xl p-3 space-y-2" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-[#d4b461] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-semibold text-[#d4b461] mb-1">Smart Text Overlay</p>
+                    <p className="text-[9px] text-zinc-500 leading-relaxed">
+                      Upload your brand images and AI will automatically overlay your carousel text with perfect formatting, fonts, and positioning.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -644,6 +938,17 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
             className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-white/10 text-xs font-medium text-muted-foreground hover:text-white hover:border-white/25 transition-all">
             <Download className="w-3 h-3" /> Save Project (.json)
           </button>
+        </div>
+
+        {/* Instagram Auto-Post - Coming Soon */}
+        <div className="rounded-xl p-3.5 space-y-2" style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)" }}>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "#a855f7" }}>
+              <Target className="w-3 h-3" />Auto-Post to Instagram
+            </p>
+            <Badge className="text-[8px] h-4 px-2" style={{ background: "rgba(168,85,247,0.2)", color: "#a855f7" }}>Coming Soon</Badge>
+          </div>
+          <p className="text-[10px] text-zinc-500 leading-relaxed">Post your carousel directly to Instagram with one click. Schedule posts and track performance.</p>
         </div>
       </div>
     );
@@ -699,9 +1004,102 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
     );
   }
 
+  // ── Design Assignment Modal ────────────────────────────────────────────────
+  function DesignAssignmentModal() {
+    if (!showDesignAssignment) return null;
+    
+    return (
+      <div className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur flex items-center justify-center p-4" onClick={() => setShowDesignAssignment(false)}>
+        <div className="relative w-full max-w-3xl bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#d4b461]" />
+              <span className="text-sm font-semibold text-white">Assign Designs to Slides</span>
+            </div>
+            <button onClick={() => setShowDesignAssignment(false)} className="text-zinc-400 hover:text-white text-xl">×</button>
+          </div>
+          
+          <div className="p-5 max-h-96 overflow-y-auto space-y-4">
+            {/* Mode Toggle */}
+            <div className="flex gap-2 p-1 bg-zinc-900 rounded-xl">
+              <button onClick={() => setDesignAssignmentMode("manual")}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${designAssignmentMode === "manual" ? "bg-[#d4b461] text-black" : "text-zinc-400"}`}>
+                Manual Assignment
+              </button>
+              <button onClick={() => setDesignAssignmentMode("ai")}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${designAssignmentMode === "ai" ? "bg-[#d4b461] text-black" : "text-zinc-400"}`}>
+                AI Smart Assignment
+              </button>
+            </div>
+
+            {designAssignmentMode === "manual" ? (
+              <>
+              <div className="rounded-xl p-3 mb-3 space-y-2" style={{ background: "rgba(212,180,97,0.08)", border: "1px solid rgba(212,180,97,0.25)" }}>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-[#d4b461]">💡 Pro Tip</p>
+                </div>
+                <p className="text-[10px] text-zinc-400 leading-relaxed">
+                  Click the slide numbers below each design to assign. Your carousel text will automatically overlay with perfect formatting.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {uploadedImages.map((img, designIdx) => (
+                  <div key={designIdx} className="rounded-xl border border-zinc-800 p-3 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden border border-zinc-700 flex-shrink-0">
+                        <img src={img} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-white mb-1">Design {designIdx + 1}</p>
+                        <p className="text-[10px] text-zinc-500">Click slides below to assign this design</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-10 gap-1">
+                      {slides.map((_, slideIdx) => (
+                        <button key={slideIdx} onClick={() => handleDesignAssignment(designIdx, slideIdx)}
+                          className={`aspect-square rounded text-[10px] font-bold transition-all ${
+                            slides[slideIdx]?.imageUrl === img
+                              ? "bg-[#d4b461] text-black"
+                              : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                          }`}>
+                          {slideIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-xl p-4 bg-zinc-900 border border-zinc-800">
+                  <p className="text-xs font-semibold text-white mb-2">🤖 AI Smart Assignment</p>
+                  <p className="text-[10px] text-zinc-400 mb-3">Describe how you want designs assigned. AI will understand and apply automatically with text overlay:</p>
+                  <div className="space-y-1.5 mb-3">
+                    <p className="text-[10px] text-zinc-500">• "Use design 1 for hook slides, design 2 for content"</p>
+                    <p className="text-[10px] text-zinc-500">• "Apply design 1 to slides 1-3, design 2 to slides 4-7"</p>
+                    <p className="text-[10px] text-zinc-500">• "Use bright designs for problem slides, calm for solutions"</p>
+                    <p className="text-[10px] text-zinc-500">• "Alternate between design 1 and 2 throughout"</p>
+                  </div>
+                  <Textarea placeholder="e.g., Use design 1 for the first 3 slides, design 2 for middle slides, and design 3 for the CTA..." className="text-xs min-h-[90px] bg-zinc-950 border-zinc-700" />
+                  <button className="w-full mt-3 py-2.5 rounded-xl bg-[#a855f7] text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#a855f7]/90 transition-all">
+                    <Brain className="w-3.5 h-3.5" />
+                    Apply AI Assignment (Coming Soon)
+                  </button>
+                  <p className="text-[9px] text-zinc-600 text-center mt-2">Text will automatically overlay your designs with perfect formatting</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const content = (
     <div className="max-w-6xl mx-auto px-5 py-8">
+      {showDesignAssignment && <DesignAssignmentModal />}
 
       {/* 45-second generating screen */}
       {generating && (
@@ -724,6 +1122,18 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
           <p className="text-xs text-muted-foreground">AI writes your slides · add designs · export as 1080×1080 PNG</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowCompetitorAnalysis(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#a855f7]/30 text-[#a855f7] hover:bg-[#a855f7]/10 transition-all">
+            <Target className="w-3 h-3" /> Analyze Viral
+          </button>
+          <button onClick={() => setShowBrandKit(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#d4b461]/30 text-[#d4b461] hover:bg-[#d4b461]/10 transition-all">
+            <Palette className="w-3 h-3" /> Brand Kit
+          </button>
+          <button onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all">
+            <LayoutTemplate className="w-3 h-3" /> Templates
+          </button>
           <input ref={importRef} type="file" accept=".json" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) loadProject(f); e.target.value = ""; }} />
           <button onClick={() => importRef.current?.click()}
@@ -943,11 +1353,25 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
           </div>
 
           {/* Generate button */}
-          <Button onClick={generateText} disabled={generating || !topic.trim() || !carouselGoal}
-            className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl">
-            <Wand2 className="w-4 h-4 mr-2" />Generate Carousel ({slideCount} slides)
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button onClick={generateText} disabled={generating || !topic.trim() || !carouselGoal}
+              className="w-full h-12 text-sm font-bold bg-primary hover:bg-primary/90 text-black rounded-xl">
+              <Wand2 className="w-4 h-4 mr-2" />Generate Carousel
+            </Button>
+            <Button onClick={() => setShowVoiceRecorder(true)}
+              className="w-full h-12 text-sm font-bold bg-[#a855f7] hover:bg-[#a855f7]/90 text-white rounded-xl">
+              <Sparkles className="w-4 h-4 mr-2" />Voice to Carousel
+            </Button>
+          </div>
           <p className="text-center text-xs text-muted-foreground">Uses 3 credits · AI writes Hook → Content → CTA structure automatically</p>
+          
+          {/* Bulk Create Button */}
+          <button onClick={() => setShowBulkCreate(true)}
+            className="w-full py-3 rounded-xl border-2 border-dashed border-[#d4b461]/30 text-[#d4b461] hover:bg-[#d4b461]/5 transition-all flex items-center justify-center gap-2">
+            <Layers className="w-4 h-4" />
+            <span className="text-sm font-semibold">Bulk Create Mode</span>
+            <span className="text-xs text-zinc-500">· Generate 10 carousels at once</span>
+          </button>
 
           {/* History modal */}
           {showHistoryModal && (
@@ -1049,19 +1473,114 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">Slide {activeIdx + 1}</span>
                 </div>
-                <button onClick={() => regenerateSlide(activeIdx)} disabled={regenIdx === activeIdx}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-50"
-                  data-testid={`regen-slide-${activeIdx + 1}`}>
-                  <RefreshCw className={`w-3 h-3 ${regenIdx === activeIdx ? "animate-spin" : ""}`} />
-                  {regenIdx === activeIdx ? "Regenerating…" : "Regenerate"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowChartBuilder(true)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-[#38bdf8]/30 text-[#38bdf8] hover:bg-[#38bdf8]/10 transition-all">
+                    <Layers className="w-3 h-3" />
+                    Add Chart
+                  </button>
+                  <button onClick={() => setShowAdvancedEditor(!showAdvancedEditor)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-all ${showAdvancedEditor ? "border-[#d4b461] bg-[#d4b461]/10 text-[#d4b461]" : "border-white/10 text-muted-foreground hover:text-white hover:border-white/25"}`}>
+                    <Palette className="w-3 h-3" />
+                    {showAdvancedEditor ? "Hide" : "Customize"}
+                  </button>
+                  <button onClick={() => regenerateSlide(activeIdx)} disabled={regenIdx === activeIdx}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-50"
+                    data-testid={`regen-slide-${activeIdx + 1}`}>
+                    <RefreshCw className={`w-3 h-3 ${regenIdx === activeIdx ? "animate-spin" : ""}`} />
+                    {regenIdx === activeIdx ? "Regenerating…" : "Regenerate"}
+                  </button>
+                </div>
               </div>
+              
               <Input value={slides[activeIdx]?.headline || ""} onChange={e => updateSlide(activeIdx, { headline: e.target.value })}
                 placeholder="Headline…" className="bg-white/5 border-white/10 text-sm font-semibold h-9"
                 data-testid={`input-headline-${activeIdx + 1}`} />
               <Textarea value={slides[activeIdx]?.body || ""} onChange={e => updateSlide(activeIdx, { body: e.target.value })}
                 placeholder="Body text…" className="bg-white/5 border-white/10 text-xs resize-none min-h-[64px]"
                 data-testid={`textarea-body-${activeIdx + 1}`} />
+              
+              {/* Advanced Editing Controls */}
+              {showAdvancedEditor && (
+                <div className="rounded-xl p-3 space-y-3 mt-3" style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                  <p className="text-xs font-semibold text-[#d4b461] flex items-center gap-1.5">
+                    <Wand2 className="w-3 h-3" />Advanced Customization
+                  </p>
+                  
+                  {/* Headline Size */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-400">Headline Size</label>
+                      <span className="text-[10px] text-[#d4b461] font-bold">{slides[activeIdx]?.headlineSize || 72}px</span>
+                    </div>
+                    <input type="range" min="40" max="120" value={slides[activeIdx]?.headlineSize || 72}
+                      onChange={e => updateSlide(activeIdx, { headlineSize: Number(e.target.value) })}
+                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#d4b461]" />
+                  </div>
+                  
+                  {/* Body Size */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-400">Body Text Size</label>
+                      <span className="text-[10px] text-[#d4b461] font-bold">{slides[activeIdx]?.bodySize || 36}px</span>
+                    </div>
+                    <input type="range" min="20" max="60" value={slides[activeIdx]?.bodySize || 36}
+                      onChange={e => updateSlide(activeIdx, { bodySize: Number(e.target.value) })}
+                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#d4b461]" />
+                  </div>
+                  
+                  {/* Overlay Opacity */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-zinc-400">Background Overlay</label>
+                      <span className="text-[10px] text-[#d4b461] font-bold">{Math.round((slides[activeIdx]?.overlayOpacity || 0.58) * 100)}%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value={(slides[activeIdx]?.overlayOpacity || 0.58) * 100}
+                      onChange={e => updateSlide(activeIdx, { overlayOpacity: Number(e.target.value) / 100 })}
+                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#d4b461]" />
+                  </div>
+                  
+                  {/* Text Colors */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400">Headline Color</label>
+                      <div className="flex items-center gap-2 p-2 bg-zinc-900 rounded-lg border border-zinc-700">
+                        <input type="color" value={slides[activeIdx]?.headlineColor || t.headline}
+                          onChange={e => updateSlide(activeIdx, { headlineColor: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer" />
+                        <span className="text-[9px] font-mono text-zinc-500">{slides[activeIdx]?.headlineColor || t.headline}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-zinc-400">Body Color</label>
+                      <div className="flex items-center gap-2 p-2 bg-zinc-900 rounded-lg border border-zinc-700">
+                        <input type="color" value={slides[activeIdx]?.textColor || t.body}
+                          onChange={e => updateSlide(activeIdx, { textColor: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer" />
+                        <span className="text-[9px] font-mono text-zinc-500">{slides[activeIdx]?.textColor || t.body}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Reset Button */}
+                  <button onClick={() => updateSlide(activeIdx, { headlineSize: 72, bodySize: 36, overlayOpacity: 0.58, headlineColor: t.headline, textColor: t.body })}
+                    className="w-full py-1.5 rounded-lg text-[10px] font-medium border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all">
+                    Reset to Default
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Undo/Redo Controls */}
+            <div className="flex items-center gap-2">
+              <button onClick={undo} disabled={historyIndex <= 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                <ArrowLeft className="w-3 h-3" />Undo
+              </button>
+              <button onClick={redo} disabled={historyIndex >= editHistory.length - 1}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium border border-white/10 text-muted-foreground hover:text-white hover:border-white/25 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                Redo<ChevronRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
 

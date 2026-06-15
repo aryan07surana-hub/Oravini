@@ -375,6 +375,54 @@ function CreateBookingDialog({ open, onClose, meetingType, prefillDate, prefillH
   );
 }
 
+/* ─── Google Calendar Widget ────────────────────────────────── */
+function GoogleCalendarWidget({ calStatus, onConnect, onDisconnect, disconnecting }: {
+  calStatus?: { connected: boolean; email: string | null };
+  onConnect: () => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
+}) {
+  if (calStatus?.connected) {
+    return (
+      <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-5 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/15">
+          <SiGoogle className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
+            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
+          </div>
+          <p className="text-xs text-zinc-500 mt-0.5">Auto-generates unique Google Meet links · <span className="text-emerald-400/70">{calStatus.email ?? ""}</span></p>
+        </div>
+        <Button variant="outline" size="sm" className="border-zinc-700 text-zinc-400 gap-1.5 flex-shrink-0" onClick={onDisconnect} disabled={disconnecting}>
+          Disconnect
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-zinc-800">
+          <SiGoogle className="w-4 h-4 text-zinc-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-white">Google Calendar & Meet</p>
+            <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">Not connected</Badge>
+          </div>
+          <p className="text-xs text-zinc-500 mt-0.5">Connect to auto-create Google Meet links for every booking</p>
+        </div>
+        <Button size="sm" className="gap-1.5 font-bold" style={{ background: GOLD, color: "#000" }} onClick={onConnect}>
+          <SiGoogle className="w-3.5 h-3.5" /> Connect
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Availability Row (multi-block) ───────────────────────── */
 function AvailRow({ rule, onChange }: { rule: AvailRule; onChange: (r: AvailRule) => void }) {
   return (

@@ -1,0 +1,152 @@
+AI Content Generator – Liked Ideas Feature
+
+Inside the AI Content Generator for both Instagram and YouTube:
+
+When a user generates content ideas and clicks the Like button on any idea, the idea should be saved automatically.
+
+Create a new section called "Liked Ideas" inside each platform.
+
+Structure:
+
+AI Content Generator
+→ Instagram
+ • Generate Ideas
+ • Liked Ideas
+
+AI Content Generator
+→ YouTube
+ • Generate Ideas
+ • Liked Ideas
+
+The Liked Ideas section should store all the ideas the user liked so they can access them later in one place.
+
+Each saved idea should include:
+
+Title / Hook
+
+Content concept
+
+Content format (Reel, Shorts, Long Form, etc.)
+
+Option to copy the idea
+
+Option to remove it from liked ideas
+
+Admin Access to Client Tracking System
+
+Create a new section in the Admin Panel called "Tracking".
+
+Inside this section, the admin must have full visibility of all client tracking data.
+
+Admin should be able to access each client's:
+
+Sales Metrics
+
+Ad Metrics
+
+Content Metrics
+
+Admin must be able to:
+
+Select a specific client
+
+View their complete tracking dashboard
+
+See all the metrics the client sees
+
+Important:
+Admin should have read access to the client's entire tracking system, exactly like the client's dashboard.
+
+Notifications System Improvements
+
+Inside the Notifications panel:
+
+Add two actions for every notification:
+
+Mark as Read
+
+Delete Notification
+
+This allows users to manage notifications properly.
+
+Task System Improvements
+
+When the admin assigns tasks to clients:
+
+Clients should see the tasks in their dashboard.
+
+Each task must have a checkbox or "Done" button.
+
+When the user clicks Done, the task should:
+
+Show a tick mark
+
+Be marked as completed
+
+This helps both admin and clients track completed tasks.
+
+Admin Panel Changes
+
+Make the following updates to the admin panel:
+
+• Remove the Calendar section from the admin panel.
+
+• Add Course Modules section in the Admin Panel.
+
+Placement:
+
+Admin Dashboard
+→ Overview
+→ Course Modules
+
+This section will be used to manage course content for users.
+
+Admin Tracking Section (Important)
+
+Create a dedicated "Tracking" section in the Admin Panel.
+
+Structure:
+
+Admin Panel
+→ Dashboard
+→ Tracking
+
+Inside this section, the admin should be able to:
+
+Select a client
+
+View their metrics:
+
+Sales Metrics
+
+Ad Metrics
+
+Content Metrics
+
+Admin should have full visibility of the client’s tracking data.
+
+Do not hide tracking under the content section.
+
+It must be a separate section called "Tracking" in the admin panel.
+
+UI / UX Requirements
+
+Make the UI clean and premium:
+
+Use cards instead of large tables
+
+Use simple dashboards
+
+Make navigation clear
+
+Keep layout minimal and modern
+
+The admin interface should make it easy to:
+
+manage clients
+
+assign tasks
+
+track client performance
+
+review content ideas

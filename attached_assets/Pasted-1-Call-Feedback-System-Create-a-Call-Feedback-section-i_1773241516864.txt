@@ -1,0 +1,289 @@
+1. Call Feedback System
+
+Create a Call Feedback section inside the portal.
+
+Admin should be able to:
+
+Upload call feedback notes after every call
+
+Upload documents or files related to the call
+
+Save written feedback from the session
+
+Upload feedback even after the call has ended
+
+Clients should be able to:
+
+View call feedback uploaded by the admin
+
+View documents uploaded for that specific call
+
+Submit their own feedback about the call
+
+Write what they learned from the session
+
+This should create a two-way feedback system between admin and client.
+
+2. Content Tracking System
+
+Create a main section called Content Tracking.
+
+Inside this section, create three subsections:
+
+Content Tracking
+
+Sales Tracking (Coming Soon)
+
+Ad Metrics (Coming Soon)
+
+Only Content Tracking should be active for now.
+
+3. Instagram Content Tracker
+
+Inside Content Tracking, create an Instagram Tracker.
+
+Allow the client and admin to log content posts with the following fields:
+
+Date Posted
+
+Content Type
+
+Reel
+
+Carousel
+
+Story
+
+Funnel Stage
+
+Top of Funnel
+
+Middle of Funnel
+
+Bottom of Funnel
+
+Views
+
+Likes
+
+Comments
+
+Saves
+
+Followers Gained
+
+Track weekly metrics such as:
+
+Total content posted
+
+Total views
+
+Followers gained that week
+
+4. YouTube Content Tracker
+
+Create a YouTube Tracker inside the Content Tracking section.
+
+Allow logging of videos with fields:
+
+Upload Date
+
+Video Link
+
+Video Title
+
+Views
+
+Subscribers gained
+
+Content type
+
+The system should track performance trends week by week.
+
+5. Calendar-Based Content System
+
+Create a full-year calendar system where clients can log content by date.
+
+Examples:
+
+March 2026
+April 2026
+May 2026
+
+Users should be able to click a date and log content posted that day.
+
+Example entry:
+
+12 March → Reel posted
+15 March → Carousel posted
+18 March → YouTube video posted
+
+6. Reminder System
+
+When a client logs content, the system should automatically remind them 48–96 hours later to update metrics.
+
+Example:
+
+If a reel was logged on 12 March, the system should remind the client to update:
+
+Views
+
+Engagement
+
+Followers gained
+
+7. AI Content Reports
+
+Create automatic report generation.
+
+Every 2 weeks, allow the user to click a button called Generate Summary.
+
+The report should analyze:
+
+Total content posted
+
+Views
+
+Engagement
+
+Best performing content
+
+Worst performing content
+
+8. 4-Week AI Performance Report
+
+Every 4 weeks, generate a full report including:
+
+Total content posted
+
+Total views
+
+Followers gained
+
+Best performing content type
+
+Worst performing content type
+
+Content insights
+
+This report should be generated automatically when the user clicks Summarize 4 Weeks.
+
+9. Client Dashboard
+
+The client dashboard should show a summary of metrics, not the full tracker.
+
+Display:
+
+Total views this month
+
+Total content posted
+
+Followers gained
+
+Best performing content
+
+This data should automatically pull from the content tracker.
+
+10. Instagram and YouTube Performance Dashboards
+
+Inside Content Tracking, create two performance dashboards:
+
+Instagram Dashboard:
+
+Total views this month
+
+Total posts
+
+Followers gained
+
+Best performing content
+
+YouTube Dashboard:
+
+Total views
+
+Videos posted
+
+Subscribers gained
+
+11. Chat File Upload Feature
+
+Inside the portal chat system, allow both:
+
+Admin and Clients to upload:
+
+Images
+
+Videos
+
+Documents
+
+Files
+
+12. Daily Motivation on Dashboard
+
+Every time a user logs in, show a daily motivational quote on the dashboard.
+
+The quote should change every day.
+
+13. Global Time Display
+
+Display real-time clocks on the dashboard for:
+
+Dubai
+
+London
+
+New York
+
+These clocks should be visible for both admin and clients.
+
+14. Income Goal Feature
+
+When a client first joins, ask:
+
+“How much money do you want to make in the next 6 months?”
+
+Display this goal on the main dashboard permanently.
+
+Example:
+
+Goal: $100,000 in 6 months
+
+15. Content Materials Library
+
+Inside the Documents section, create a subsection called:
+
+Content Materials
+
+Admin should be able to upload:
+
+Content frameworks
+
+Scripts
+
+Guides
+
+Training documents
+
+Clients should be able to download these materials anytime.
+
+Final Goal
+
+This system should function as a complete coaching client portal, including:
+
+Call feedback tracking
+
+Content planning
+
+Content performance tracking
+
+AI reports
+
+Client progress monitoring
+
+File sharing
+
+Calendar-based content management
+
+Ensure the system supports admin and client roles with different permissions.
