@@ -75,3 +75,4 @@ replit.md
 package-lock.json
 free-claude-code/
 *.py
+.gstack/
