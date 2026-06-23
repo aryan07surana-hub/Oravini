@@ -2,10 +2,10 @@ import type { Express, Request, Response } from "express";
 import { pool } from "../storage";
 
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {
-  const key = process.env.ULAMA_API_KEY || process.env.OPENAI_API_KEY;
+  const key = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
   if (!key) throw new Error("No AI key configured");
-  const model = process.env.ULAMA_API_KEY ? "llama-3.3-70b-versatile" : "gpt-4o-mini";
-  const r = await fetch("https://tokenlb.net/v1/chat/completions", {
+  const model = process.env.GROQ_API_KEY ? "llama-3.3-70b-versatile" : "gpt-4o-mini";
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1400 }),

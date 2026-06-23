@@ -2468,7 +2468,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // AI Content Ideas
   // ── Groq helper (fast – used for content ideas) ──────────────────────────
   async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.ULAMA_API_KEY || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("AI API key not configured");
     const keyPreview = apiKey.slice(0, 8) + "...";
     const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
@@ -2502,7 +2502,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Groq JSON-mode helper (structured output, virality analysis) ──────────
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.ULAMA_API_KEY || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("AI API key not configured");
     const keyPreview = apiKey.slice(0, 8) + "...";
     const models = ["llama-3.1-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
@@ -2536,7 +2536,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }
 
   async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens = 1000): Promise<string> {
-    const apiKey = process.env.ULAMA_API_KEY || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("AI API key not configured");
     const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
     let lastError = "";
@@ -2564,7 +2564,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Groq Vision JSON helper (board from image) ────────────────────────
   async function callGroqVisionJson(systemPrompt: string, userPrompt: string, base64Image: string, maxTokens = 4096): Promise<string> {
-    const apiKey = process.env.ULAMA_API_KEY || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error("AI API key not configured");
     const models = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"];
     let lastError = "";
@@ -2799,7 +2799,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Anthropic helper (deep analysis — Claude 4 models) ───────────────────
   async function callAnthropic(systemPrompt: string, userPrompt: string, maxTokens = 4000): Promise<string> {
-    const apiKey = process.env.ULAMA_API_KEY || process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.ANTHROPIC2_API_KEY || process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error("AI API key not configured");
     const client = new Anthropic({ apiKey });
     const models = [
@@ -2839,7 +2839,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     // 2. Try Groq as a reliable fallback for deep analysis
-    if (process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY) {
+    if (process.env.GROQ_API_KEY || process.env.GROQ_API_KEY) {
       try {
         const result = await callGroq(systemPrompt, userPrompt, Math.min(maxTokens, 8000));
         if (result) return result;
@@ -2849,7 +2849,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     // 3. Try OpenRouter as last resort
-    const apiKey = process.env.ULAMA_API_KEY || process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY;
     if (apiKey) {
       const models = ["deepseek/deepseek-chat", "anthropic/claude-3-haiku", "openai/gpt-4o-mini"];
       let lastError = "";
@@ -3416,7 +3416,7 @@ Requirements:
         try {
           const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}` },
             body: JSON.stringify({
               model,
               max_tokens: 300,
@@ -3623,7 +3623,7 @@ Visual notes:
 Keep the entire reel script to 45-60 seconds when read aloud. Every single word must earn its place.`;
       }
 
-      const GROQ_API_KEY = process.env.ULAMA_API_KEY || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
 
       const models = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
@@ -5410,7 +5410,7 @@ Return ONLY this exact JSON:
         try {
           const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}` },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}` },
             body: JSON.stringify({
               model,
               max_tokens: 2000,
@@ -5563,7 +5563,7 @@ Scoring rules:
         const hooksCredit = await storage.deductCredits(_uHooks.id, 2, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
         if (!hooksCredit.success) return res.status(402).json({ message: hooksCredit.message, insufficientCredits: true, balance: hooksCredit.balance });
       }
-      const apiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
       const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
@@ -5612,7 +5612,7 @@ Return ONLY a JSON array of 5 strings:
         const rewCredit = await storage.deductCredits(_uRew.id, 2, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
         if (!rewCredit.success) return res.status(402).json({ message: rewCredit.message, insufficientCredits: true, balance: rewCredit.balance });
       }
-      const apiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
       const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
@@ -5667,7 +5667,7 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
         const angCredit = await storage.deductCredits(_uAng.id, 3, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
         if (!angCredit.success) return res.status(402).json({ message: angCredit.message, insufficientCredits: true, balance: angCredit.balance });
       }
-      const apiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
       const platformLabel = platform === "youtube" ? "YouTube" : "Instagram Reels";
@@ -5798,7 +5798,7 @@ Only include analysis when content is provided. Never produce generic filler con
 
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.1-70b-versatile",
           messages: msgs,
@@ -5830,7 +5830,7 @@ Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrit
 
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -5855,7 +5855,7 @@ Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
 
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
       });
       const data: any = await r.json();
@@ -5894,7 +5894,7 @@ Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)
 
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -5928,7 +5928,7 @@ Original script:
 Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2 sentences explaining the key changes you made and why they work better" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -5946,7 +5946,7 @@ Script: "${script}"
 
 Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -5964,7 +5964,7 @@ Script: "${script}"
 
 Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -5982,7 +5982,7 @@ Script: "${script}"
 
 Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -6018,7 +6018,7 @@ Return ONLY this JSON:
   "uniqueAngle": "what makes them different from everyone else in this niche"
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -6059,7 +6059,7 @@ Return ONLY this JSON:
   "successMetrics": "how to know the roadmap is working"
 }`;
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
       });
       const data: any = await r.json();
@@ -6121,7 +6121,7 @@ Return ONLY this JSON:
 
   // ── AI Video Editor (Groq-powered) ───────────────────────────────────────
   async function callVideoGroq(prompt: string, maxTokens = 8192): Promise<any> {
-    const groqKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
     if (!groqKey) throw new Error("GROQ_API_KEY not configured");
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -6781,7 +6781,7 @@ Return JSON:
 
       const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formData.getHeaders(), "Content-Length": String(formBuffer.length) },
         body: formBuffer,
       });
       if (!whisperRes.ok) throw new Error(`Transcription failed: ${await whisperRes.text()}`);
@@ -7999,7 +7999,7 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const { niche, platform } = req.body;
       if (!niche) return res.status(400).json({ message: "Niche is required" });
 
-      const groqApiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const groqApiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
       const prompt = `Generate 3 creative content ideas for a ${platform || "social media"} creator in the ${niche} niche. For each idea give: a punchy title, a one-line hook, and the content format (reel, carousel, etc.). Keep it actionable and viral-focused. Format as JSON array: [{title, hook, format}]`;
       const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -9904,7 +9904,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         { role: "user", content: message },
       ];
 
-      const jarvisKey = (await storage.getAppSetting("jarvis_groq_key")) || process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+      const jarvisKey = (await storage.getAppSetting("jarvis_groq_key")) || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!jarvisKey) throw new Error("Jarvis AI key not configured — add it in Admin → Settings");
 
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -10074,7 +10074,7 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
 
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.1-70b-versatile",
           messages: [
@@ -10194,7 +10194,7 @@ For every field: be SPECIFIC to these actual posts. Quote captions. Use actual n
 
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "llama-3.1-70b-versatile",
           messages: [
@@ -10477,7 +10477,7 @@ Rules:
     // Process async
     (async () => {
       try {
-        const apiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+        const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
         if (!apiKey) throw new Error("No Groq key");
 
         const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
@@ -10534,7 +10534,7 @@ Rules:
     (async () => {
       const filePath = req.file!.path;
       try {
-        const apiKey = process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY;
+        const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
         if (!apiKey) throw new Error("No Groq key");
 
         // Transcribe with Groq Whisper
@@ -10725,7 +10725,7 @@ Rules:
         const formHeaders = formData.getHeaders();
         const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
           method: "POST",
-          headers: { "Authorization": `Bearer ${process.env.ULAMA_API_KEY || process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
+          headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, ...formHeaders, "Content-Length": String(formBuffer.length) },
           body: formBuffer,
         });
         if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);

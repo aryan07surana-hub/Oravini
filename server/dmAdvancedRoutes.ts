@@ -135,10 +135,10 @@ export function registerDMAdvancedRoutes(app: Express) {
     try {
       const [lead] = await db.select().from(dmLeads).where(eq(dmLeads.id, String(req.params.id)));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
-      const apiKey = process.env.ULAMA_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) return res.status(400).json({ message: "AI not configured" });
       const ctx = `Name: ${lead.name}, Instagram: @${lead.instagramHandle || "?"}, Status: ${lead.status}, Source: ${lead.source || "?"}, Notes: ${lead.notes || "none"}`;
-      const aiRes = await fetch("https://tokenlb.net/v1/chat/completions", {
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 100, messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }] }),
@@ -400,9 +400,9 @@ export function registerDMAdvancedRoutes(app: Express) {
   app.post("/api/dm/analyze-sentiment", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message } = req.body;
-      const apiKey = process.env.ULAMA_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) return res.json({ sentiment: "neutral", action: "continue" });
-      const aiRes = await fetch("https://tokenlb.net/v1/chat/completions", {
+      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 60, messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }] }),
