@@ -7,16 +7,50 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft, ChevronRight, Clock, Video, CheckCircle2,
-  Calendar, ArrowLeft, User, Mail, MessageSquare,
+  Calendar, ArrowLeft, User, Mail, MessageSquare, Globe,
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   addMonths, subMonths, isSameDay, isSameMonth, isToday, isBefore, startOfDay,
 } from "date-fns";
+// Format a UTC ISO string in a specific IANA timezone
+function formatInTz(isoStr: string, tz: string, fmt: string): string {
+  try {
+    const date = new Date(isoStr);
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
+  } catch {
+    return format(new Date(isoStr), fmt);
+  }
+}
+
+const TIMEZONES = [
+  { value: "America/New_York", label: "Eastern (EST/EDT)" },
+  { value: "America/Chicago", label: "Central (CST/CDT)" },
+  { value: "America/Denver", label: "Mountain (MST/MDT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PST/PDT)" },
+  { value: "America/Toronto", label: "Toronto" },
+  { value: "America/Vancouver", label: "Vancouver" },
+  { value: "America/Sao_Paulo", label: "Brasília (BRT)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Paris (CET)" },
+  { value: "Europe/Berlin", label: "Berlin (CET)" },
+  { value: "Asia/Dubai", label: "Dubai (GST)" },
+  { value: "Asia/Kolkata", label: "India (IST)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
+  { value: "Asia/Tokyo", label: "Japan (JST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST)" },
+  { value: "UTC", label: "UTC" },
+];
 
 const GOLD = "#d4b461";
 
@@ -122,8 +156,8 @@ function MiniCalendar({
 }
 
 /* ─── Time slot grid ────────────────────────────────────────── */
-function SlotGrid({ slots, selected, onSelect }: {
-  slots: string[]; selected: string | null; onSelect: (s: string) => void;
+function SlotGrid({ slots, selected, onSelect, clientTz }: {
+  slots: string[]; selected: string | null; onSelect: (s: string) => void; clientTz: string;
 }) {
   if (!slots.length) {
     return (
@@ -164,7 +198,7 @@ function SlotGrid({ slots, selected, onSelect }: {
               }
             }}
           >
-            {format(new Date(slot), "h:mm a")}
+            {formatInTz(slot, clientTz, "h:mm a")}
           </button>
         );
       })}
@@ -181,6 +215,9 @@ export default function PublicBooking() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [step, setStep] = useState<"pick" | "form" | "done">("pick");
+  const [clientTz, setClientTz] = useState(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; }
+  });
   const today = startOfDay(new Date());
 
   // Fetch meeting type
@@ -235,7 +272,7 @@ export default function PublicBooking() {
       fetch(`/api/book/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, startTime: selectedSlot, customAnswers }),
+        body: JSON.stringify({ ...data, startTime: selectedSlot, customAnswers, clientTimezone: clientTz }),
       }).then(async r => {
         if (!r.ok) { const err = await r.json(); throw new Error(err.message || "Booking failed"); }
         return r.json();
@@ -307,7 +344,7 @@ export default function PublicBooking() {
               >
                 {[
                   ["Meeting", mt?.title],
-                  ["When", selectedSlot ? format(new Date(selectedSlot), "EEEE, MMMM d 'at' h:mm a") : "—"],
+                  ["When", selectedSlot ? `${format(new Date(selectedSlot), "EEEE, MMMM d")} at ${formatInTz(selectedSlot, clientTz, "h:mm a")} (${clientTz})` : "—"],
                   ["Duration", mt ? `${mt.duration} minutes` : "—"],
                   ...(mt?.location ? [["Location", mt.location]] : []),
                 ].map(([label, val]) => (
@@ -341,7 +378,7 @@ export default function PublicBooking() {
                 <div>
                   <p className="text-sm font-bold text-white">{mt?.title}</p>
                   <p className="text-xs text-zinc-400">
-                    {selectedSlot ? format(new Date(selectedSlot), "EEEE, MMMM d 'at' h:mm a") : "—"}
+                    {selectedSlot ? `${format(new Date(selectedSlot), "EEEE, MMMM d")} at ${formatInTz(selectedSlot, clientTz, "h:mm a")}` : "—"}
                     {mt ? ` · ${mt.duration} min` : ""}
                   </p>
                 </div>
@@ -474,7 +511,7 @@ export default function PublicBooking() {
                   <>
                     <h1 className="text-2xl font-black text-white mb-2">{mt?.title ?? "Book a Call"}</h1>
                     {mt?.description && <p className="text-zinc-400 text-sm mb-3 max-w-sm mx-auto">{mt.description}</p>}
-                    <div className="flex items-center justify-center gap-4 text-sm text-zinc-500 flex-wrap">
+                    <div className="flex items-center justify-center gap-4 text-sm text-zinc-500 flex-wrap mb-4">
                       <span className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" style={{ color: GOLD }} />
                         {mt?.duration} minutes
@@ -485,6 +522,20 @@ export default function PublicBooking() {
                           Video call
                         </span>
                       )}
+                    </div>
+                    {/* Timezone selector */}
+                    <div className="flex items-center justify-center gap-2">
+                      <Globe className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                      <Select value={clientTz} onValueChange={v => { setClientTz(v); setSelectedDay(null); setSelectedSlot(null); }}>
+                        <SelectTrigger className="h-7 text-xs bg-zinc-900 border-zinc-700 text-zinc-300 w-52">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-zinc-900 border-zinc-700 max-h-52">
+                          {TIMEZONES.map(tz => (
+                            <SelectItem key={tz.value} value={tz.value} className="text-white text-xs">{tz.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
@@ -548,7 +599,7 @@ export default function PublicBooking() {
                           {Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-10 bg-zinc-800 rounded-xl" />)}
                         </div>
                       ) : (
-                        <SlotGrid slots={slots} selected={selectedSlot} onSelect={selectSlot} />
+                        <SlotGrid slots={slots} selected={selectedSlot} onSelect={selectSlot} clientTz={clientTz} />
                       )}
                     </>
                   )}

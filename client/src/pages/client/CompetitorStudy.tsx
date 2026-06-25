@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { captureToVault } from "@/lib/vault";
+import { motion, AnimatePresence } from "framer-motion";
 import { AiRefineButton } from "@/components/ui/AiRefineButton";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -21,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  Legend,
+  Legend, LineChart, Line, CartesianGrid,
 } from "recharts";
 import {
   Instagram, Eye, Heart, MessageCircle, TrendingUp, TrendingDown,
@@ -34,6 +36,264 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+// ─── Cross-section context ────────────────────────────────────────────────────
+
+type SectionId = "competitor" | "niche" | "methodology" | "virality" | "watchlist" | "feed" | "ideas" | "growth" | "digest" | "leaderboard" | "gap";
+
+interface CompetitorCtxValue {
+  setActiveSection: (s: SectionId | null) => void;
+  setPrefilledHandle: (h: string) => void;
+  addIdeaToPipeline: (idea: { topic: string; hook: string; format?: string; structure?: string; cta?: string; rationale?: string; competitorHandle?: string }) => Promise<void>;
+}
+
+const CompetitorCtx = createContext<CompetitorCtxValue | null>(null);
+const useCompetitorCtx = () => useContext(CompetitorCtx)!;
+
+// ─── Workflow Tour ────────────────────────────────────────────────────────────
+
+const TOUR_KEY = "oravini_competitor_tour_v1";
+
+const FLOW_NODES = [
+  { icon: Bell,      label: "Watch List" },
+  { icon: Activity,  label: "Feed" },
+  { icon: Sparkles,  label: "Analyze" },
+  { icon: Lightbulb, label: "Ideas" },
+  { icon: Crosshair, label: "Gap" },
+  { icon: FileText,  label: "Pipeline" },
+  { icon: Calendar,  label: "Digest" },
+] as const;
+
+const TOUR_STEPS = [
+  {
+    node: -1,
+    icon: Target,
+    color: "primary",
+    title: "The Competitor Study workflow",
+    body: "Competitor Study is a closed loop — from spotting what works in your niche, to publishing your own version. Seven connected tools, fully automated. Here's how they fit together.",
+    detail: null,
+  },
+  {
+    node: 0,
+    icon: Bell,
+    color: "cyan",
+    title: "Step 1 — Set up your Watch List",
+    body: "Add 3–7 competitor Instagram handles. Oravini auto-scans every 2 hours, tracking new posts, follower counts, engagement rates, and bio changes.",
+    detail: "Every account you add is monitored 24/7. You'll get instant alerts when someone crosses a follower milestone or a post goes viral.",
+  },
+  {
+    node: 1,
+    icon: Activity,
+    color: "emerald",
+    title: "Step 2 — Intelligence Feed auto-fills",
+    body: "Every new post from your watchlist lands in the Intelligence Feed automatically. You don't have to check Instagram — the feed comes to you.",
+    detail: "New posts show up within 2 hours of being posted. Viral spikes from older posts are flagged in real time.",
+  },
+  {
+    node: 2,
+    icon: Sparkles,
+    color: "yellow",
+    title: "Step 3 — AI breaks down every post",
+    body: "Click Analyze on any post. The AI identifies the hook, content structure, emotional trigger, virality score, and gives you a steal-ready breakdown.",
+    detail: "You also get a full reel script in your voice — just hit \"Write My Version\" and the AI rewrites it for your audience.",
+  },
+  {
+    node: 3,
+    icon: Lightbulb,
+    color: "violet",
+    title: "Step 4 — Ideas drop into the Pipeline",
+    body: "Hit \"Ideas\" on any analyzed post and the AI generates 5 content ideas — with hooks, format, structure, and CTA — all copy-paste ready.",
+    detail: "Ideas land directly in your Content Pipeline. From there you track each one: Idea → Drafting → Scheduled → Published.",
+  },
+  {
+    node: 4,
+    icon: Crosshair,
+    color: "orange",
+    title: "Step 5 — Find your content gaps",
+    body: "Content Gap Detector scans 30 days of competitor posts and finds the topics nobody in your niche is covering. That's your opportunity.",
+    detail: "Each gap comes with your angle, a ready-to-use hook, and one click to add it straight to your pipeline.",
+  },
+  {
+    node: 5,
+    icon: FileText,
+    color: "blue",
+    title: "Step 6 — Pipeline moves ideas to published",
+    body: "All your ideas — from Feed, Gap Analysis, or Weekly Digest — live here as a Kanban board. Move them through stages as you create.",
+    detail: "Filter by format (Reel / Carousel / Post). Copy the hook, draft your content, schedule it, mark it published.",
+  },
+  {
+    node: 6,
+    icon: Calendar,
+    color: "amber",
+    title: "Step 7 — Weekly Digest every Monday",
+    body: "Every Monday morning, Oravini sends a ranked summary of the best competitor posts from the past week — plus 5 ready-to-steal ideas.",
+    detail: "Hit \"Add all → Pipeline\" to drop the whole week's ideas into your pipeline in one click. The loop starts again.",
+  },
+] as const;
+
+function FlowBar({ activeNode }: { activeNode: number }) {
+  return (
+    <div className="flex items-center gap-0 w-full">
+      {FLOW_NODES.map((node, i) => {
+        const Icon = node.icon;
+        const isActive = i === activeNode;
+        const isPast = i < activeNode;
+        return (
+          <div key={i} className="flex items-center flex-1 min-w-0">
+            <div className={`flex flex-col items-center gap-1 flex-shrink-0 transition-all duration-300 ${isActive ? "scale-110" : ""}`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-300 ${
+                isActive ? "bg-primary/20 border-primary/50 shadow-[0_0_12px_rgba(212,180,97,0.3)]"
+                : isPast ? "bg-emerald-500/15 border-emerald-500/30"
+                : "bg-muted/20 border-border"
+              }`}>
+                <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? "text-primary" : isPast ? "text-emerald-400" : "text-muted-foreground/40"}`} />
+              </div>
+              <p className={`text-[8px] font-bold transition-colors whitespace-nowrap ${isActive ? "text-primary" : isPast ? "text-emerald-400" : "text-muted-foreground/40"}`}>
+                {node.label}
+              </p>
+            </div>
+            {i < FLOW_NODES.length - 1 && (
+              <div className={`flex-1 h-px mx-1 transition-all duration-500 ${isPast ? "bg-emerald-500/40" : "bg-border/40"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorkflowTour({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [dir, setDir] = useState(1);
+  const current = TOUR_STEPS[step];
+  const Icon = current.icon;
+  const isLast = step === TOUR_STEPS.length - 1;
+  const isFirst = step === 0;
+
+  const go = (next: number) => {
+    setDir(next > step ? 1 : -1);
+    setStep(next);
+  };
+
+  const finish = () => {
+    localStorage.setItem(TOUR_KEY, "1");
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+        onClick={(e) => e.target === e.currentTarget && finish()}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 16 }}
+          transition={{ type: "spring", stiffness: 350, damping: 30 }}
+          className="w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl overflow-hidden"
+        >
+          {/* Flow bar */}
+          {step > 0 && (
+            <div className="px-6 pt-5 pb-3 border-b border-border bg-muted/10">
+              <FlowBar activeNode={current.node} />
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="p-6 space-y-5">
+            {/* Step indicator */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {step > 0 && <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Step {step} of {TOUR_STEPS.length - 1}</span>}
+                {step === 0 && <span className="text-[10px] text-primary font-bold uppercase tracking-wider">Welcome to Competitor Study</span>}
+              </div>
+              <button onClick={finish} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                Skip tour
+              </button>
+            </div>
+
+            {/* Icon + title */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: dir * 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: dir * -24 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="space-y-4"
+              >
+                <div className={`w-12 h-12 rounded-2xl bg-${current.color === "primary" ? "primary" : `${current.color}-500`}/15 border border-${current.color === "primary" ? "primary" : `${current.color}-500`}/25 flex items-center justify-center`}>
+                  <Icon className={`w-6 h-6 text-${current.color === "primary" ? "primary" : `${current.color}-400`}`} />
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-lg font-black text-foreground leading-tight">{current.title}</h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{current.body}</p>
+                  {current.detail && (
+                    <p className="text-xs text-foreground/70 leading-relaxed border-l-2 border-primary/30 pl-3 italic">{current.detail}</p>
+                  )}
+                </div>
+
+                {/* Step 0: mini flow preview */}
+                {step === 0 && (
+                  <div className="space-y-2 pt-1">
+                    {FLOW_NODES.map((node, i) => {
+                      const NodeIcon = node.icon;
+                      return (
+                        <div key={i} className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded-lg bg-muted/20 border border-border flex items-center justify-center flex-shrink-0">
+                            <NodeIcon className="w-3 h-3 text-muted-foreground" />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{node.label}</p>
+                          {i < FLOW_NODES.length - 1 && <div className="w-3 h-px bg-border" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Progress dots */}
+            <div className="flex items-center justify-center gap-1.5 pt-1">
+              {TOUR_STEPS.map((_, i) => (
+                <button key={i} onClick={() => go(i)}
+                  className={`rounded-full transition-all duration-200 ${i === step ? "w-5 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-muted/40 hover:bg-muted"}`} />
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="px-6 pb-6 flex items-center gap-3">
+            {!isFirst && (
+              <button onClick={() => go(step - 1)}
+                className="flex-shrink-0 px-4 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted/20 transition-colors">
+                ← Back
+              </button>
+            )}
+            <div className="flex-1" />
+            {!isLast ? (
+              <button onClick={() => go(step + 1)}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors">
+                Next →
+              </button>
+            ) : (
+              <button onClick={finish}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors">
+                Let's go →
+              </button>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -2003,6 +2263,109 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
   const [stealGenerating, setStealGenerating] = useState(false);
   const [localAnalysis, setLocalAnalysis] = useState(analysis);
   const [showSteal, setShowSteal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const report = localAnalysis.report as any;
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pw = doc.internal.pageSize.getWidth();
+      let y = 20;
+
+      const addLine = (text: string, size = 10, bold = false, color: [number, number, number] = [0, 0, 0]) => {
+        doc.setFontSize(size);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(text, pw - 20);
+        if (y + lines.length * (size * 0.4) > 280) { doc.addPage(); y = 20; }
+        doc.text(lines, 10, y);
+        y += lines.length * (size * 0.4) + 2;
+      };
+
+      const addSection = (title: string) => {
+        y += 4;
+        doc.setFillColor(20, 20, 30);
+        doc.roundedRect(8, y - 5, pw - 16, 10, 2, 2, "F");
+        addLine(title, 12, true, [212, 180, 97]);
+        y += 2;
+      };
+
+      // Cover
+      addLine(`COMPETITOR INTELLIGENCE REPORT`, 18, true, [212, 180, 97]);
+      addLine(`@${localAnalysis.clientHandle} vs @${localAnalysis.competitorHandle}`, 13, false, [180, 180, 180]);
+      addLine(new Date(localAnalysis.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), 9, false, [120, 120, 120]);
+      y += 4;
+
+      // Overview
+      if (report?.overview) {
+        addSection("OVERVIEW");
+        addLine(`Assessment: ${(report.overview.assessment ?? "competitive").toUpperCase()}`, 10, true);
+        addLine(report.overview.summary ?? "", 10);
+        if (report.overview.outperformingIn?.length) addLine(`Outperforming in: ${report.overview.outperformingIn.join(", ")}`, 9, false, [100, 180, 100]);
+      }
+
+      // Key Metrics
+      if (report?.clientMetrics || report?.competitorMetrics) {
+        addSection("KEY METRICS");
+        const cm = report.clientMetrics ?? {};
+        const co = report.competitorMetrics ?? {};
+        addLine(`You (@${localAnalysis.clientHandle}): Avg Views ${(cm.avgViews ?? 0).toLocaleString()} | Likes ${(cm.avgLikes ?? 0).toLocaleString()} | ER ${cm.avgEngagementRate ?? 0}% | ${cm.postsPerWeek ?? 0} posts/wk`, 9);
+        addLine(`Competitor (@${localAnalysis.competitorHandle}): Avg Views ${(co.avgViews ?? 0).toLocaleString()} | Likes ${(co.avgLikes ?? 0).toLocaleString()} | ER ${co.avgEngagementRate ?? 0}% | ${co.postsPerWeek ?? 0} posts/wk`, 9);
+      }
+
+      // Gap Analysis
+      if (report?.gapAnalysis?.gaps?.length) {
+        addSection("GAP ANALYSIS");
+        for (const gap of report.gapAnalysis.gaps.slice(0, 6)) {
+          addLine(`▸ [${gap.impact}] ${gap.metric}`, 9, true);
+          addLine(`  Them: ${gap.competitor}`, 9);
+          addLine(`  You: ${gap.you}`, 9);
+          addLine(`  Fix: ${gap.fix}`, 9, false, [80, 160, 220]);
+          y += 1;
+        }
+      }
+
+      // Hook Library
+      if (report?.hookLibrary?.length) {
+        addSection("HOOK LIBRARY (top 10)");
+        for (const h of report.hookLibrary.slice(0, 10)) {
+          addLine(`"${h.hook}"`, 9, false, [212, 180, 97]);
+          addLine(`  Type: ${h.type} | ${h.whyItWorks}`, 8, false, [140, 140, 140]);
+          y += 0.5;
+        }
+      }
+
+      // Posting Strategy
+      if (report?.postingStrategy) {
+        addSection("POSTING STRATEGY");
+        const ps = report.postingStrategy;
+        addLine(`Competitor: ${ps.competitorFrequency} | You: ${ps.clientFrequency}`, 9);
+        addLine(`Best days: ${(ps.bestDays ?? []).join(", ")} at ${(ps.bestTimes ?? []).join(", ")}`, 9);
+        addLine(`Format mix: ${ps.formatMix}`, 9);
+        addLine(`Recommendation: ${ps.recommendation}`, 9, false, [80, 200, 120]);
+      }
+
+      // Steal Strategy (if generated)
+      if (report?.stealStrategy?.growthPlaybook) {
+        addSection("30-DAY GROWTH PLAYBOOK");
+        for (const week of report.stealStrategy.growthPlaybook) {
+          addLine(`Week ${week.week}: ${week.focus}`, 10, true);
+          addLine(`Goal: ${week.goal}`, 9, false, [80, 200, 120]);
+          for (const task of (week.tasks ?? []).slice(0, 3)) addLine(`  • ${task}`, 9);
+          y += 1;
+        }
+      }
+
+      doc.save(`competitor-report-${localAnalysis.clientHandle}-vs-${localAnalysis.competitorHandle}.pdf`);
+      toast({ title: "PDF downloaded!" });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const generateSteal = async () => {
     setStealGenerating(true);
@@ -2052,9 +2415,16 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(localAnalysis.createdAt), "MMM d, yyyy 'at' h:mm a")}</p>
         </div>
-        <button onClick={onDelete} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" data-testid="button-delete-analysis">
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={exportPDF} disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 text-primary text-xs font-medium hover:bg-primary/10 transition-colors disabled:opacity-50">
+            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+            Export PDF
+          </button>
+          <button onClick={onDelete} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" data-testid="button-delete-analysis">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Section grid */}
@@ -2159,6 +2529,13 @@ function CompetitorAnalysisSection({ useAdmin, activeClientId, user }: { useAdmi
       setApiDone(true);
       queryClient.invalidateQueries({ queryKey: ["/api/competitor/analyses", activeClientId] });
       setSelectedId(data.id);
+      const title = `${data.clientHandle ?? 'You'} vs ${data.competitorHandle ?? 'Competitor'}`;
+      captureToVault(
+        'competitor_study',
+        title,
+        `Competitor analysis completed.\n\n- Client: ${data.clientHandle ?? clientUrl}\n- Competitor: ${data.competitorHandle ?? competitorUrl}`,
+        { client: data.clientHandle ?? '', competitor: data.competitorHandle ?? '' }
+      );
       setClientUrl("");
       setCompetitorUrl("");
       toast({ title: "Analysis complete!", description: "Your 9-section deep-dive report is ready." });
@@ -3803,15 +4180,1261 @@ function MethodologySection({ useAdmin, activeClientId, user }: { useAdmin: bool
   );
 }
 
+// ── Intelligence Feed Section ─────────────────────────────────────────────────
+
+function IntelligenceFeedSection() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [expandedScript, setExpandedScript] = useState<Record<string, string>>({});
+  const [copiedScript, setCopiedScript] = useState<string | null>(null);
+
+  const { data: feed = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/feed"],
+    queryFn: () => apiRequest("GET", "/api/competitor/feed").then(r => r.json()),
+  });
+
+  const analyzeMut = useMutation({
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/analyze`).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] }); toast({ title: "Analysis ready" }); },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const ideasMut = useMutation({
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/generate-ideas`).then(r => r.json()),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/competitor/feed"] });
+      qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
+      toast({ title: `${data.ideas?.length ?? 5} content ideas generated`, description: "View them in the Ideas tab" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const writeMut = useMutation({
+    mutationFn: (postId: string) => apiRequest("POST", `/api/competitor/feed/${postId}/write-my-version`).then(r => r.json()),
+    onSuccess: (data: any, postId: string) => {
+      if (data?.script) {
+        setExpandedScript(prev => ({ ...prev, [postId]: data.script }));
+        toast({ title: "Script ready — your version is written!" });
+      }
+    },
+    onError: (e: any) => toast({ title: "Error writing script", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
+        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+          <Activity className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div>
+          <p className="font-bold text-foreground">Intelligence Feed</p>
+          <p className="text-xs text-muted-foreground mt-0.5">New posts auto-detected daily from your Watchlist. Click Analyze for AI intel, then Generate Ideas to pipeline content ideas.</p>
+        </div>
+      </div>
+
+      {feed.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No posts detected yet</p>
+          <p className="text-xs mt-1">Add competitors to your Watchlist — new posts appear here automatically each day.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {feed.map((post: any) => {
+            const analysis = post.aiAnalysis as any;
+            const isAnalyzing = analyzeMut.isPending && analyzeMut.variables === post.id;
+            const isGenerating = ideasMut.isPending && ideasMut.variables === post.id;
+            const isWriting = writeMut.isPending && writeMut.variables === post.id;
+            const viralSpike = analysis?.viralSpike === true;
+            const script = expandedScript[post.id];
+            return (
+              <div key={post.id} className={`bg-card border rounded-2xl overflow-hidden ${viralSpike ? "border-orange-500/40" : "border-card-border"}`}>
+                {/* Viral Spike Banner */}
+                {viralSpike && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 border-b border-orange-500/20">
+                    <Flame className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                    <span className="text-xs font-bold text-orange-300">
+                      VIRAL SPIKE — {analysis.viewsAtDetection ? `${Math.round((analysis.viewsAtSpike || 0) / (analysis.viewsAtDetection || 1))}x growth` : "views exploding"}
+                    </span>
+                  </div>
+                )}
+                <div className="flex gap-4 p-4">
+                  {/* Thumbnail */}
+                  {post.thumbnail ? (
+                    <img src={post.thumbnail} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center flex-shrink-0">
+                      <Play className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-bold text-foreground">@{post.handle}</span>
+                      <Badge className={`text-[9px] border ${post.postType === "reel" ? "bg-pink-500/15 text-pink-300 border-pink-500/30" : "bg-blue-500/15 text-blue-300 border-blue-500/30"}`}>
+                        {post.postType?.toUpperCase()}
+                      </Badge>
+                      {post.ideasGenerated && <Badge className="text-[9px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Ideas ✓</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{post.caption || "No caption"}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{(post.views ?? 0).toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{(post.likes ?? 0).toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{(post.comments ?? 0).toLocaleString()}</span>
+                      {post.detectedAt && <span>{format(new Date(post.detectedAt), "MMM d")}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <Button size="sm" variant="outline" className="text-[10px] h-7 px-2 border-primary/30 text-primary hover:bg-primary/10"
+                      disabled={isAnalyzing}
+                      onClick={() => analyzeMut.mutate(post.id)}>
+                      {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+                      <span className="ml-1">Analyze</span>
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-[10px] h-7 px-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                      disabled={isGenerating}
+                      onClick={() => ideasMut.mutate(post.id)}>
+                      {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lightbulb className="w-3 h-3" />}
+                      <span className="ml-1">Ideas</span>
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-[10px] h-7 px-2 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                      disabled={isWriting}
+                      onClick={() => script
+                        ? setExpandedScript(prev => { const n = { ...prev }; delete n[post.id]; return n; })
+                        : writeMut.mutate(post.id)
+                      }>
+                      {isWriting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                      <span className="ml-1">{script ? "Hide" : "Write"}</span>
+                    </Button>
+                    {post.postUrl && (
+                      <a href={post.postUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-1 text-[10px] h-7 px-2 rounded-md border border-border text-muted-foreground hover:bg-muted/30 transition-colors">
+                        <ExternalLink className="w-3 h-3" /> View
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* AI Analysis panel */}
+                {analysis && (
+                  <div className="border-t border-border bg-muted/5 p-4 space-y-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wider">AI Intel</span>
+                      {analysis.hookType && (
+                        <Badge className={`text-[9px] border ${HOOK_COLORS[analysis.hookType] ?? "bg-muted text-muted-foreground border-border"}`}>{analysis.hookType}</Badge>
+                      )}
+                      {typeof analysis.viralityScore === "number" && (
+                        <Badge className={`text-[9px] border ${analysis.viralityScore >= 70 ? "bg-green-500/15 text-green-300 border-green-500/30" : analysis.viralityScore >= 40 ? "bg-yellow-500/15 text-yellow-300 border-yellow-500/30" : "bg-red-500/15 text-red-300 border-red-500/30"}`}>
+                          Virality {analysis.viralityScore}/100
+                        </Badge>
+                      )}
+                    </div>
+                    {analysis.hook && <p className="text-xs text-foreground font-medium">🪝 <span className="text-muted-foreground">Hook:</span> {analysis.hook}</p>}
+                    {analysis.whatToSteal && (
+                      <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">What to steal</p>
+                        <p className="text-xs text-foreground">{analysis.whatToSteal}</p>
+                      </div>
+                    )}
+                    {analysis.suggestedAngle && (
+                      <p className="text-xs text-muted-foreground">💡 <span className="font-medium text-emerald-400">Your angle:</span> {analysis.suggestedAngle}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Write My Version Script */}
+                {script && (
+                  <div className="border-t border-emerald-500/20 bg-emerald-500/5">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-emerald-500/15">
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Your Script — Write My Version</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(script);
+                          setCopiedScript(post.id);
+                          setTimeout(() => setCopiedScript(null), 2000);
+                          toast({ title: "Script copied!" });
+                        }}
+                        className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-2 py-1 rounded-lg hover:bg-emerald-500/10"
+                      >
+                        {copiedScript === post.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedScript === post.id ? "Copied!" : "Copy script"}
+                      </button>
+                    </div>
+                    <pre className="text-xs text-foreground/80 leading-relaxed p-4 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto">
+                      {script}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Content Ideas Section (Kanban pipeline) ───────────────────────────────────
+
+const PIPELINE_COLS = [
+  { status: "idea",      label: "Ideas",     color: "yellow",  dot: "bg-yellow-500" },
+  { status: "drafted",   label: "Drafting",  color: "blue",    dot: "bg-blue-500" },
+  { status: "scheduled", label: "Scheduled", color: "violet",  dot: "bg-violet-500" },
+  { status: "published", label: "Published", color: "emerald", dot: "bg-emerald-500" },
+] as const;
+
+const FORMAT_PILL: Record<string, string> = {
+  reel:     "bg-pink-500/15 text-pink-300 border-pink-500/30",
+  carousel: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  post:     "bg-muted text-muted-foreground border-border",
+};
+
+function IdeaCard({ idea, onStatusChange, onDelete, onCopy, copied }: { idea: any; onStatusChange: (id: string, s: string) => void; onDelete: (id: string) => void; onCopy: (hook: string, id: string) => void; copied: string | null }) {
+  const col = PIPELINE_COLS.find(c => c.status === idea.status) ?? PIPELINE_COLS[0];
+  const nextCol = PIPELINE_COLS[PIPELINE_COLS.findIndex(c => c.status === idea.status) + 1];
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-3 space-y-2.5 group">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold bg-${col.color}-500/15 text-${col.color}-300 border-${col.color}-500/30`}>{col.label.toUpperCase()}</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold ${FORMAT_PILL[idea.format] ?? FORMAT_PILL.post}`}>{idea.format?.toUpperCase()}</span>
+          </div>
+          <p className="text-xs font-bold text-foreground leading-snug">{idea.topic}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">from @{idea.competitorHandle}</p>
+        </div>
+        <button onClick={() => onDelete(idea.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-all flex-shrink-0">
+          <XCircle className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Hook */}
+      <div className="flex items-start gap-1.5 bg-primary/5 border border-primary/15 rounded-lg p-2">
+        <p className="flex-1 text-[10px] text-foreground font-medium leading-relaxed line-clamp-2">{idea.hook}</p>
+        <button onClick={() => onCopy(idea.hook, idea.id)} className="flex-shrink-0 p-1 rounded hover:bg-primary/20 text-primary transition-colors">
+          {copied === idea.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+        </button>
+      </div>
+
+      {/* Expand toggle */}
+      {(idea.structure || idea.cta || idea.rationale) && (
+        <button onClick={() => setExpanded(e => !e)} className="text-[9px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {expanded ? "less" : "details"}
+        </button>
+      )}
+      {expanded && (
+        <div className="space-y-1.5 pt-1 border-t border-border">
+          {idea.structure && <p className="text-[10px] text-muted-foreground"><span className="font-bold text-foreground">Structure:</span> {idea.structure}</p>}
+          {idea.cta && <p className="text-[10px] text-muted-foreground"><span className="font-bold text-foreground">CTA:</span> {idea.cta}</p>}
+          {idea.rationale && <p className="text-[10px] text-muted-foreground italic">{idea.rationale}</p>}
+        </div>
+      )}
+
+      {/* Move forward button */}
+      {nextCol && (
+        <button onClick={() => onStatusChange(idea.id, nextCol.status)}
+          className={`w-full text-[9px] font-bold py-1.5 rounded-lg border border-${nextCol.color}-500/30 text-${nextCol.color}-400 hover:bg-${nextCol.color}-500/10 transition-colors`}>
+          Move to {nextCol.label} →
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ContentIdeasSection() {
+  const { toast } = useToast();
+  const { setActiveSection } = useCompetitorCtx();
+  const qc = useQueryClient();
+  const [copied, setCopied] = useState<string | null>(null);
+  const [filterFormat, setFilterFormat] = useState<string>("all");
+  const [activeCol, setActiveCol] = useState<string | null>(null);
+
+  const { data: ideas = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/ideas"],
+    queryFn: () => apiRequest("GET", "/api/competitor/ideas").then(r => r.json()),
+  });
+
+  const statusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiRequest("PATCH", `/api/competitor/ideas/${id}/status`, { status }).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
+      qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/competitor/ideas/${id}`).then(r => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
+      qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
+    },
+  });
+
+  const copyHook = (hook: string, id: string) => {
+    navigator.clipboard.writeText(hook);
+    setCopied(id);
+    toast({ title: "Hook copied!" });
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const filtered = filterFormat === "all" ? ideas : ideas.filter((i: any) => i.format === filterFormat);
+  const byStatus = (status: string) => filtered.filter((i: any) => i.status === status);
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-r from-violet-500/10 to-violet-500/5 border border-violet-500/20">
+        <div className="w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
+          <Lightbulb className="w-5 h-5 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-foreground">Content Pipeline</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Move ideas from spark to published. Generate from Feed or Gap Analysis to fill the queue.</p>
+        </div>
+        <div className="flex gap-1.5">
+          {["all", "reel", "carousel", "post"].map(f => (
+            <button key={f} onClick={() => setFilterFormat(f)}
+              className={`text-[9px] px-2 py-1 rounded-lg border font-bold transition-colors ${filterFormat === f ? "bg-violet-500/20 border-violet-500/40 text-violet-300" : "border-border text-muted-foreground hover:bg-muted/20"}`}>
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {ideas.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground space-y-3">
+          <Lightbulb className="w-10 h-10 mx-auto opacity-30" />
+          <p className="text-sm font-medium">Pipeline is empty</p>
+          <p className="text-xs max-w-sm mx-auto">Generate ideas from Intelligence Feed, or run Content Gap Analysis to find topics and add them here.</p>
+          <div className="flex gap-2 justify-center">
+            <Button variant="outline" size="sm" onClick={() => setActiveSection("feed")} className="text-xs h-8">
+              <Activity className="w-3 h-3 mr-1.5" /> Intelligence Feed
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setActiveSection("gap")} className="text-xs h-8">
+              <Crosshair className="w-3 h-3 mr-1.5" /> Content Gap
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Kanban — mobile: tabs, desktop: 4 columns */}
+          <div className="hidden sm:grid sm:grid-cols-4 gap-3">
+            {PIPELINE_COLS.map(col => {
+              const colIdeas = byStatus(col.status);
+              return (
+                <div key={col.status} className="space-y-2.5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`w-2 h-2 rounded-full ${col.dot}`} />
+                    <p className="text-[10px] font-black text-foreground uppercase tracking-wider">{col.label}</p>
+                    <span className="text-[9px] text-muted-foreground ml-auto">{colIdeas.length}</span>
+                  </div>
+                  {colIdeas.length === 0 ? (
+                    <div className={`h-20 rounded-xl border border-dashed border-${col.color}-500/20 flex items-center justify-center`}>
+                      <p className="text-[9px] text-muted-foreground">empty</p>
+                    </div>
+                  ) : (
+                    colIdeas.map((idea: any) => (
+                      <IdeaCard key={idea.id} idea={idea}
+                        onStatusChange={(id, s) => statusMut.mutate({ id, status: s })}
+                        onDelete={(id) => deleteMut.mutate(id)}
+                        onCopy={copyHook}
+                        copied={copied}
+                      />
+                    ))
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Mobile: tab switcher */}
+          <div className="sm:hidden">
+            <div className="flex gap-1.5 mb-3 flex-wrap">
+              {PIPELINE_COLS.map(col => (
+                <button key={col.status} onClick={() => setActiveCol(activeCol === col.status ? null : col.status)}
+                  className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1.5 rounded-lg border font-bold transition-colors ${activeCol === col.status ? `bg-${col.color}-500/20 border-${col.color}-500/40 text-${col.color}-300` : "border-border text-muted-foreground"}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${col.dot}`} />
+                  {col.label} ({byStatus(col.status).length})
+                </button>
+              ))}
+            </div>
+            {(activeCol ? [PIPELINE_COLS.find(c => c.status === activeCol)!] : PIPELINE_COLS).map(col => (
+              <div key={col.status} className="space-y-2">
+                {!activeCol && <p className="text-[10px] font-black text-foreground uppercase tracking-wider mt-3 mb-1">{col.label}</p>}
+                {byStatus(col.status).map((idea: any) => (
+                  <IdeaCard key={idea.id} idea={idea}
+                    onStatusChange={(id, s) => statusMut.mutate({ id, status: s })}
+                    onDelete={(id) => deleteMut.mutate(id)}
+                    onCopy={copyHook}
+                    copied={copied}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Dashboard Section (command center home) ────────────────────────────────────
+
+function DashboardSection() {
+  const { setActiveSection } = useCompetitorCtx();
+  const { data: dash, isLoading } = useQuery<any>({
+    queryKey: ["/api/competitor/dashboard"],
+    queryFn: () => apiRequest("GET", "/api/competitor/dashboard").then(r => r.json()),
+    refetchInterval: 60_000,
+  });
+
+  const URGENCY_RING: Record<string, string> = {
+    high: "border-red-500/40 bg-red-500/5",
+    medium: "border-yellow-500/40 bg-yellow-500/5",
+    low: "border-border bg-card",
+  };
+
+  const ALERT_TYPE_COLOR: Record<string, string> = {
+    viral_spike: "text-orange-300",
+    milestone: "text-amber-300",
+    trend_alert: "text-cyan-300",
+    weekly_digest: "text-violet-300",
+    follower_spike: "text-emerald-300",
+  };
+
+  const pipelineTotal = dash ? (dash.pipeline.idea + dash.pipeline.drafted + dash.pipeline.scheduled + dash.pipeline.published) : 0;
+
+  if (isLoading) return (
+    <div className="space-y-4">
+      {[...Array(3)].map((_, i) => <div key={i} className="h-20 rounded-2xl bg-muted/20 animate-pulse" />)}
+      <LandingNav />
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Onboarding nudge — show only if no watchlist */}
+      {dash && !dash.hasData && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/25 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <Users className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-foreground">Set up your Watch List to unlock everything</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Add 3–7 competitors → Oravini auto-scans every 2h, detects new posts, tracks followers, and alerts you on viral spikes.</p>
+          </div>
+          <Button onClick={() => setActiveSection("watchlist")} size="sm" className="flex-shrink-0 text-xs h-9">
+            Add Competitors <ChevronRight className="w-3.5 h-3.5 ml-1" />
+          </Button>
+        </div>
+      )}
+
+      {dash?.hasData && (
+        <>
+          {/* Stats row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Competitors tracked", val: dash.watchlistCount, icon: Users, color: "cyan", section: "watchlist" as SectionId },
+              { label: "New posts in feed", val: dash.unseenFeedCount, icon: Activity, color: "emerald", section: "feed" as SectionId },
+              { label: "Unread alerts", val: dash.unreadAlertCount, icon: Bell, color: "amber", section: "watchlist" as SectionId },
+              { label: "Ideas in pipeline", val: pipelineTotal, icon: Lightbulb, color: "violet", section: "ideas" as SectionId },
+            ].map(s => (
+              <button key={s.label} onClick={() => setActiveSection(s.section)}
+                className="group flex flex-col gap-2 p-4 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all text-left">
+                <div className={`w-8 h-8 rounded-xl bg-${s.color}-500/15 border border-${s.color}-500/25 flex items-center justify-center`}>
+                  <s.icon className={`w-4 h-4 text-${s.color}-400`} />
+                </div>
+                <p className={`text-2xl font-black ${s.val > 0 ? "text-foreground" : "text-muted-foreground"}`}>{s.val}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{s.label}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Next actions */}
+          {dash.nextActions?.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-black">Today's priorities</p>
+              {dash.nextActions.map((action: any, i: number) => (
+                <button key={i} onClick={() => setActiveSection(action.section as SectionId)}
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border transition-all hover:brightness-105 text-left ${URGENCY_RING[action.urgency]}`}>
+                  <span className="text-base">{action.icon}</span>
+                  <p className="flex-1 text-sm font-semibold text-foreground">{action.label}</p>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Two-col: alerts + pipeline */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Recent alerts */}
+            <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-foreground uppercase tracking-wider">Recent Alerts</p>
+                <button onClick={() => setActiveSection("watchlist")} className="text-[10px] text-muted-foreground hover:text-foreground">view all →</button>
+              </div>
+              {dash.recentAlerts?.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-3 text-center">No unread alerts</p>
+              ) : (
+                <div className="space-y-2">
+                  {dash.recentAlerts?.map((a: any) => (
+                    <div key={a.id} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className={`text-xs font-semibold truncate ${ALERT_TYPE_COLOR[a.alertType] ?? "text-foreground"}`}>{a.title}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{a.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pipeline health */}
+            <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-foreground uppercase tracking-wider">Content Pipeline</p>
+                <button onClick={() => setActiveSection("ideas")} className="text-[10px] text-muted-foreground hover:text-foreground">open →</button>
+              </div>
+              {pipelineTotal === 0 ? (
+                <p className="text-xs text-muted-foreground py-3 text-center">No ideas yet — generate from Feed or Gap Analysis</p>
+              ) : (
+                <div className="space-y-2">
+                  {[
+                    { label: "Ideas", val: dash.pipeline.idea, color: "bg-yellow-500" },
+                    { label: "Drafting", val: dash.pipeline.drafted, color: "bg-blue-500" },
+                    { label: "Scheduled", val: dash.pipeline.scheduled, color: "bg-violet-500" },
+                    { label: "Published", val: dash.pipeline.published, color: "bg-emerald-500" },
+                  ].map(p => (
+                    <div key={p.label} className="flex items-center gap-2">
+                      <p className="text-[10px] text-muted-foreground w-16 flex-shrink-0">{p.label}</p>
+                      <div className="flex-1 h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                        <div className={`h-full ${p.color} rounded-full transition-all`}
+                          style={{ width: pipelineTotal > 0 ? `${Math.round((p.val / pipelineTotal) * 100)}%` : "0%" }} />
+                      </div>
+                      <p className="text-[10px] font-bold text-foreground w-4 text-right">{p.val}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top performer spotlight */}
+          {dash.topPerformer && (
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <Trophy className="w-4.5 h-4.5 text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider mb-0.5">Top Performer</p>
+                <p className="text-sm font-black text-foreground">@{dash.topPerformer.handle}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {dash.topPerformer.follower_count?.toLocaleString()} followers
+                  {dash.topPerformer.avg_views ? ` · ${Number(dash.topPerformer.avg_views).toLocaleString()} avg views` : ""}
+                </p>
+              </div>
+              <button onClick={() => setActiveSection("leaderboard")}
+                className="text-[10px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1">
+                Full board <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Always show section nav */}
+      <div>
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-black mb-4">All Tools</p>
+        <LandingNav />
+      </div>
+    </div>
+  );
+}
+
+// ── Landing Navigation (grouped tabs) ──────────────────────────────────────────
+
+function NavCard({ icon: Icon, label, desc, color, onClick }: { icon: any; label: string; desc: string; color: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex items-start gap-3 p-4 rounded-xl border border-border bg-card hover:border-${color}-500/40 hover:bg-${color}-500/5 transition-all text-left w-full`}
+    >
+      <div className={`w-9 h-9 rounded-xl bg-${color}-500/15 border border-${color}-500/25 flex items-center justify-center flex-shrink-0 group-hover:bg-${color}-500/20 transition-colors`}>
+        <Icon className={`w-4.5 h-4.5 text-${color}-400`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-foreground mb-0.5">{label}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{desc}</p>
+      </div>
+      <ChevronRight className={`w-3.5 h-3.5 text-${color}-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1 flex-shrink-0`} />
+    </button>
+  );
+}
+
+function LandingNav() {
+  const { setActiveSection } = useCompetitorCtx();
+  const GROUPS = [
+    {
+      label: "Analyze",
+      desc: "Deep-dive tools to understand the competitive landscape",
+      color: "border-pink-500/20",
+      items: [
+        { key: "competitor" as SectionId, icon: Instagram, label: "Competitor Analysis", desc: "You vs one competitor — 9-section deep dive, full strategy to steal", color: "pink" },
+        { key: "niche" as SectionId, icon: Search, label: "Niche Intelligence", desc: "5 competitors · full niche map · 20 content angles · 30-day playbook", color: "yellow" },
+        { key: "methodology" as SectionId, icon: Dna, label: "My Content DNA", desc: "Analyse your own posts · improve hooks · A/B test · AI rewriter", color: "violet" },
+        { key: "virality" as SectionId, icon: Flame, label: "Virality Tester", desc: "Score any script or reel · retention curve · hook analysis · viral rewrite", color: "red" },
+      ],
+    },
+    {
+      label: "Track",
+      desc: "Monitor competitors continuously — every post, every spike",
+      color: "border-cyan-500/20",
+      items: [
+        { key: "watchlist" as SectionId, icon: Bell, label: "Watch List", desc: "Track 7 accounts · auto-scan every 2h · bio, follower & engagement alerts", color: "cyan" },
+        { key: "leaderboard" as SectionId, icon: Trophy, label: "Leaderboard", desc: "All accounts ranked by followers, avg views, engagement · format breakdown", color: "amber" },
+        { key: "feed" as SectionId, icon: Activity, label: "Intelligence Feed", desc: "Every new post auto-detected · AI analysis · viral spike alerts", color: "emerald" },
+        { key: "growth" as SectionId, icon: TrendingUp, label: "Growth Charts", desc: "Follower trends over time · avg views & likes per competitor", color: "blue" },
+      ],
+    },
+    {
+      label: "Create",
+      desc: "Turn competitor intel directly into your content",
+      color: "border-violet-500/20",
+      items: [
+        { key: "gap" as SectionId, icon: Crosshair, label: "Content Gap", desc: "AI finds topics competitors ignore that you can own — with hooks ready", color: "orange" },
+        { key: "ideas" as SectionId, icon: Lightbulb, label: "Content Ideas", desc: "Ideas from competitor intel · copy hooks · track idea → drafted → published", color: "violet" },
+        { key: "digest" as SectionId, icon: Calendar, label: "Weekly Digest", desc: "Monday summary · top posts ranked by virality · 5 ready-to-steal ideas", color: "amber" },
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {GROUPS.map(group => (
+        <div key={group.label}>
+          <div className={`flex items-center gap-3 mb-3 pb-3 border-b ${group.color}`}>
+            <p className="text-sm font-black text-foreground uppercase tracking-wider">{group.label}</p>
+            <p className="text-xs text-muted-foreground">{group.desc}</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {group.items.map(item => (
+              <NavCard
+                key={item.key}
+                icon={item.icon}
+                label={item.label}
+                desc={item.desc}
+                color={item.color}
+                onClick={() => setActiveSection(item.key)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Leaderboard Section ─────────────────────────────────────────────────────────
+
+function LeaderboardSection() {
+  const [sortBy, setSortBy] = useState<"followers" | "avg_views" | "avg_likes" | "avg_engagement">("followers");
+
+  const { data: rows = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/leaderboard"],
+    queryFn: () => apiRequest("GET", "/api/competitor/leaderboard").then(r => r.json()),
+  });
+
+  const sorted = [...rows].sort((a, b) => (b[sortBy] ?? 0) - (a[sortBy] ?? 0));
+
+  const fmt = (n: number | null) => {
+    if (n == null) return "—";
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
+    return String(n);
+  };
+
+  const SORT_OPTS = [
+    { key: "followers" as const, label: "Followers" },
+    { key: "avg_views" as const, label: "Avg Views" },
+    { key: "avg_likes" as const, label: "Avg Likes" },
+    { key: "avg_engagement" as const, label: "Engagement %" },
+  ];
+
+  const TYPE_COLORS: Record<string, string> = {
+    reel: "bg-pink-500/15 text-pink-300 border-pink-500/30",
+    post: "bg-muted text-muted-foreground border-border",
+    carousel: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+  };
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
+  if (!rows.length) return (
+    <div className="text-center py-16 text-muted-foreground">
+      <Trophy className="w-10 h-10 mx-auto mb-3 opacity-30" />
+      <p className="text-sm font-medium">No watchlist accounts yet</p>
+      <p className="text-xs mt-1">Add competitors to your Watchlist — the leaderboard builds as scans accumulate.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 to-amber-500/5 border border-amber-500/20">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+          <Trophy className="w-5 h-5 text-amber-400" />
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-foreground">Competitor Leaderboard</p>
+          <p className="text-xs text-muted-foreground mt-0.5">All watchlist accounts ranked side-by-side. See who leads on each metric and which formats are driving their performance.</p>
+        </div>
+        {/* Sort controls */}
+        <div className="flex gap-1.5 flex-wrap">
+          {SORT_OPTS.map(o => (
+            <button key={o.key} onClick={() => setSortBy(o.key)}
+              className={`text-[10px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${sortBy === o.key ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "border-border text-muted-foreground hover:bg-muted/30"}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Ranked cards */}
+      <div className="space-y-3">
+        {sorted.map((row: any, i) => {
+          const isFirst = i === 0;
+          const growthPositive = row.followerGrowth != null && row.followerGrowth > 0;
+          return (
+            <div key={row.id} className={`bg-card border rounded-2xl p-4 ${isFirst ? "border-amber-500/30 bg-amber-500/3" : "border-border"}`}>
+              <div className="flex items-start gap-4">
+                {/* Rank badge */}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${i === 0 ? "bg-amber-500/20 text-amber-300" : i === 1 ? "bg-gray-400/20 text-gray-300" : i === 2 ? "bg-orange-600/20 text-orange-400" : "bg-muted/20 text-muted-foreground"}`}>
+                  {i + 1}
+                </div>
+
+                {/* Handle + display name */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-sm font-black text-foreground">@{row.handle}</span>
+                    {row.display_name && <span className="text-xs text-muted-foreground">{row.display_name}</span>}
+                    {row.followerGrowth != null && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${growthPositive ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
+                        {growthPositive ? "+" : ""}{fmt(row.followerGrowth)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Metric row */}
+                  <div className="grid grid-cols-4 gap-3 mb-3">
+                    {[
+                      { label: "Followers", val: fmt(row.follower_count) },
+                      { label: "Avg Views", val: fmt(row.avg_views) },
+                      { label: "Avg Likes", val: fmt(row.avg_likes) },
+                      { label: "Engagement", val: row.avg_engagement != null ? `${Number(row.avg_engagement).toFixed(2)}%` : "—" },
+                    ].map(m => (
+                      <div key={m.label}>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold mb-0.5">{m.label}</p>
+                        <p className={`text-sm font-black ${
+                          (m.label === "Followers" && sortBy === "followers") ||
+                          (m.label === "Avg Views" && sortBy === "avg_views") ||
+                          (m.label === "Avg Likes" && sortBy === "avg_likes") ||
+                          (m.label === "Engagement" && sortBy === "avg_engagement")
+                            ? "text-amber-300" : "text-foreground"
+                        }`}>{m.val}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Format breakdown */}
+                  {row.formatBreakdown?.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold">Formats:</span>
+                      {row.formatBreakdown.map((f: any) => (
+                        <span key={f.post_type} className={`inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-lg border font-semibold ${TYPE_COLORS[f.post_type] ?? TYPE_COLORS.post}`}>
+                          {f.post_type?.toUpperCase()} ·
+                          {f.count} posts ·
+                          {fmt(f.avg_views)} views
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Content Gap Section ─────────────────────────────────────────────────────────
+
+function ContentGapSection() {
+  const { toast } = useToast();
+  const { setActiveSection, addIdeaToPipeline } = useCompetitorCtx();
+  const qc = useQueryClient();
+  const [result, setResult] = useState<any>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [addedGaps, setAddedGaps] = useState<Set<number>>(new Set());
+
+  const gapMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/competitor/gap-analysis").then(r => r.json()),
+    onSuccess: (data) => {
+      if (data?.message) { toast({ title: "Not enough data", description: data.message, variant: "destructive" }); return; }
+      setResult(data);
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const URGENCY_COLORS: Record<string, string> = {
+    high: "bg-red-500/15 text-red-300 border-red-500/30",
+    medium: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
+    low: "bg-muted text-muted-foreground border-border",
+  };
+
+  const FORMAT_COLORS: Record<string, string> = {
+    reel: "bg-pink-500/15 text-pink-300 border-pink-500/30",
+    carousel: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+    post: "bg-muted text-muted-foreground border-border",
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-orange-500/10 to-orange-500/5 border border-orange-500/20">
+        <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0">
+          <Crosshair className="w-5 h-5 text-orange-400" />
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-foreground">Content Gap Detector</p>
+          <p className="text-xs text-muted-foreground mt-0.5">AI analyzes 30 days of competitor posts and finds topics nobody in your niche is covering — your opportunity to own that space.</p>
+        </div>
+        <Button
+          onClick={() => gapMut.mutate()}
+          disabled={gapMut.isPending}
+          className="flex-shrink-0 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 text-xs h-9"
+          variant="outline"
+        >
+          {gapMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Crosshair className="w-3.5 h-3.5 mr-1.5" />}
+          {result ? "Re-analyze" : "Find Gaps"}
+        </Button>
+      </div>
+
+      {!result && !gapMut.isPending && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Crosshair className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">Ready to find your edge</p>
+          <p className="text-xs mt-1 max-w-sm mx-auto">Click "Find Gaps" — AI scans 30 days of competitor content and surfaces the topics nobody in your niche is touching.</p>
+        </div>
+      )}
+
+      {gapMut.isPending && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+          <p className="text-sm text-muted-foreground">Analyzing {30} days of competitor content…</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          {result.summary && (
+            <p className="text-sm text-muted-foreground italic border-l-2 border-orange-500/40 pl-3">{result.summary}</p>
+          )}
+
+          {result.coveredTopics?.length > 0 && (
+            <div className="flex items-start gap-2 flex-wrap p-3 rounded-xl bg-muted/10 border border-border">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-shrink-0 mt-0.5">Already saturated:</span>
+              {result.coveredTopics.map((t: string, i: number) => (
+                <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-muted/30 text-muted-foreground border border-border">{t}</span>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {(result.gaps ?? []).map((gap: any, i: number) => (
+              <div key={i} className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-7 h-7 rounded-xl bg-orange-500/20 flex items-center justify-center text-xs font-black text-orange-300 flex-shrink-0">{i + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="text-sm font-black text-foreground">{gap.topic}</p>
+                      <Badge className={`text-[9px] border ${URGENCY_COLORS[gap.urgency] ?? URGENCY_COLORS.low}`}>{gap.urgency} priority</Badge>
+                      <Badge className={`text-[9px] border ${FORMAT_COLORS[gap.format] ?? FORMAT_COLORS.post}`}>{gap.format?.toUpperCase()}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{gap.opportunity}</p>
+                  </div>
+                </div>
+
+                {gap.angle && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Your Angle</p>
+                    <p className="text-xs text-foreground">{gap.angle}</p>
+                  </div>
+                )}
+
+                {gap.exampleHook && (
+                  <div className="flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1">Example Hook</p>
+                      <p className="text-xs text-foreground font-medium">"{gap.exampleHook}"</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(gap.exampleHook);
+                        setCopied(String(i));
+                        toast({ title: "Hook copied!" });
+                        setTimeout(() => setCopied(null), 2000);
+                      }}
+                      className="flex-shrink-0 p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                    >
+                      {copied === String(i) ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+
+                {/* Add to pipeline CTA */}
+                <button
+                  disabled={addedGaps.has(i)}
+                  onClick={async () => {
+                    await addIdeaToPipeline({ topic: gap.topic, hook: gap.exampleHook ?? gap.angle ?? gap.topic, format: gap.format, rationale: gap.opportunity, competitorHandle: "gap-analysis" });
+                    setAddedGaps(prev => new Set(prev).add(i));
+                    qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
+                  }}
+                  className={`w-full flex items-center justify-center gap-1.5 text-[10px] font-bold py-2 rounded-xl border transition-all ${addedGaps.has(i) ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10 cursor-default" : "border-orange-500/30 text-orange-400 hover:bg-orange-500/10"}`}
+                >
+                  {addedGaps.has(i) ? <><Check className="w-3 h-3" /> Added to pipeline</> : <><Lightbulb className="w-3 h-3" /> Add to pipeline</>}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add ALL to pipeline */}
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/10 border border-border">
+            <p className="flex-1 text-xs text-muted-foreground">Add all {result.gaps?.length} gaps to your content pipeline at once</p>
+            <button
+              onClick={async () => {
+                for (let i = 0; i < result.gaps.length; i++) {
+                  const gap = result.gaps[i];
+                  await addIdeaToPipeline({ topic: gap.topic, hook: gap.exampleHook ?? gap.angle ?? gap.topic, format: gap.format, rationale: gap.opportunity, competitorHandle: "gap-analysis" });
+                  setAddedGaps(prev => new Set(prev).add(i));
+                }
+                qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
+                toast({ title: "All gaps added to pipeline!" });
+              }}
+              className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors"
+            >
+              Add all → Pipeline
+            </button>
+            <button onClick={() => setActiveSection("ideas")} className="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted/20 transition-colors">
+              View pipeline →
+            </button>
+          </div>
+
+          <p className="text-center text-[10px] text-muted-foreground">Analyzed {result.analyzedPosts} posts from {result.handles?.length} competitors over 30 days</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Follower Growth Chart Section ──────────────────────────────────────────────
+
+function GrowthChartSection() {
+  const { data: watchlist = [], isLoading: wlLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/watchlist"],
+    queryFn: () => apiRequest("GET", "/api/competitor/watchlist").then(r => r.json()),
+  });
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const watchlistId = selectedId ?? (watchlist[0]?.id ?? null);
+
+  const { data: snapshots = [], isLoading: snapLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/watchlist", watchlistId, "snapshots"],
+    queryFn: () => watchlistId
+      ? apiRequest("GET", `/api/competitor/watchlist/${watchlistId}/snapshots?limit=30`).then(r => r.json())
+      : Promise.resolve([]),
+    enabled: !!watchlistId,
+  });
+
+  const chartData = [...(snapshots as any[])]
+    .reverse()
+    .map((s: any) => ({
+      date: format(new Date(s.scannedAt), "MMM d"),
+      followers: s.followerCount ?? 0,
+      avgViews: Math.round(s.avgViews ?? 0),
+      avgLikes: Math.round(s.avgLikes ?? 0),
+    }));
+
+  const selected = watchlist.find((w: any) => w.id === watchlistId);
+
+  if (wlLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
+  if (!watchlist.length) return (
+    <div className="text-center py-16 text-muted-foreground">
+      <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+      <p className="text-sm font-medium">No watchlist accounts yet</p>
+      <p className="text-xs mt-1">Add competitors to your Watchlist to start tracking their growth.</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-blue-500/5 border border-blue-500/20">
+        <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+          <TrendingUp className="w-5 h-5 text-blue-400" />
+        </div>
+        <div>
+          <p className="font-bold text-foreground">Follower Growth Charts</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Track competitor follower count over time — see when they spike and why.</p>
+        </div>
+      </div>
+
+      {/* Account selector */}
+      <div className="flex gap-2 flex-wrap">
+        {watchlist.map((w: any) => (
+          <button
+            key={w.id}
+            onClick={() => setSelectedId(w.id)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${(selectedId ?? watchlist[0]?.id) === w.id ? "bg-blue-500/20 border-blue-500/40 text-blue-300" : "bg-muted/20 border-border text-muted-foreground hover:border-blue-500/30"}`}
+          >
+            @{w.handle}
+          </button>
+        ))}
+      </div>
+
+      {snapLoading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      ) : chartData.length < 2 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <BarChart2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Not enough data yet for @{selected?.handle}</p>
+          <p className="text-xs mt-1">Growth charts build up over time as the 2-hour scans accumulate snapshots.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">@{selected?.handle} — Follower Growth</p>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "#888" }} axisLine={false} tickLine={false} width={60} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
+                <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 11 }} />
+                <Line type="monotone" dataKey="followers" stroke="#60a5fa" strokeWidth={2} dot={false} name="Followers" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Avg Views / Post</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
+                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 10 }} />
+                  <Line type="monotone" dataKey="avgViews" stroke="#e879a0" strokeWidth={2} dot={false} name="Avg Views" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border rounded-2xl p-5">
+              <p className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Avg Likes / Post</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 9, fill: "#888" }} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
+                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, fontSize: 10 }} />
+                  <Line type="monotone" dataKey="avgLikes" stroke="#d4b461" strokeWidth={2} dot={false} name="Avg Likes" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Weekly Digest Section ──────────────────────────────────────────────────────
+
+function WeeklyDigestSection() {
+  const { toast } = useToast();
+  const { setActiveSection, addIdeaToPipeline } = useCompetitorCtx();
+  const qc = useQueryClient();
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const { data: alerts = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/competitor/alerts"],
+    queryFn: () => apiRequest("GET", "/api/competitor/alerts").then(r => r.json()),
+    select: (data: any[]) => data.filter((a: any) => a.alertType === "weekly_digest"),
+  });
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-4 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 to-amber-500/5 border border-amber-500/20">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+          <Calendar className="w-5 h-5 text-amber-400" />
+        </div>
+        <div>
+          <p className="font-bold text-foreground">Weekly Intel Digest</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Every Monday — top competitor posts ranked by virality, with 5 content ideas ready to steal.</p>
+        </div>
+      </div>
+
+      {alerts.length === 0 ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No weekly digests yet</p>
+          <p className="text-xs mt-1 max-w-xs mx-auto">Your first digest will arrive next Monday morning, summarizing everything your competitors posted this week.</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {alerts.map((alert: any) => {
+            const d = (alert.data as any) || {};
+            return (
+              <div key={alert.id} className="bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border bg-gradient-to-r from-amber-500/5 to-transparent">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{alert.description}</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{format(new Date(alert.createdAt), "MMM d, yyyy")}</span>
+                  </div>
+                </div>
+
+                {/* Top posts */}
+                {d.topPosts?.length > 0 && (
+                  <div className="p-5 space-y-3 border-b border-border">
+                    <p className="text-xs font-bold text-foreground uppercase tracking-wider">Top Posts This Week</p>
+                    {d.topPosts.map((p: any) => (
+                      <div key={p.rank} className="flex items-start gap-3">
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0 ${p.rank === 1 ? "bg-amber-500/20 text-amber-300" : p.rank === 2 ? "bg-gray-500/20 text-gray-300" : "bg-muted/20 text-muted-foreground"}`}>
+                          {p.rank}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-xs font-bold text-foreground">@{p.handle}</span>
+                            <Badge className={`text-[9px] border ${p.type === "reel" ? "bg-pink-500/15 text-pink-300 border-pink-500/30" : "bg-blue-500/15 text-blue-300 border-blue-500/30"}`}>
+                              {p.type?.toUpperCase()}
+                            </Badge>
+                            {typeof p.viralityScore === "number" && (
+                              <Badge className={`text-[9px] border ${p.viralityScore >= 70 ? "bg-green-500/15 text-green-300 border-green-500/30" : "bg-yellow-500/15 text-yellow-300 border-yellow-500/30"}`}>
+                                {p.viralityScore}/100
+                              </Badge>
+                            )}
+                          </div>
+                          {p.hook && <p className="text-[11px] text-muted-foreground line-clamp-1">{p.hook}</p>}
+                          {p.whatToSteal && <p className="text-[10px] text-primary mt-0.5">{p.whatToSteal}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Ideas */}
+                {d.ideas?.length > 0 && (
+                  <div className="p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-foreground uppercase tracking-wider">5 Content Ideas from This Week</p>
+                      <button
+                        onClick={async () => {
+                          for (const idea of d.ideas) {
+                            await addIdeaToPipeline({ topic: idea.topic, hook: idea.hook, format: idea.format ?? "reel", rationale: idea.rationale, competitorHandle: "weekly-digest" });
+                          }
+                          qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] });
+                          toast({ title: "All ideas added to pipeline!" });
+                          setActiveSection("ideas");
+                        }}
+                        className="text-[9px] font-bold px-2.5 py-1 rounded-lg border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors"
+                      >
+                        Add all → Pipeline
+                      </button>
+                    </div>
+                    {d.ideas.map((idea: any, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-muted/10 border border-border">
+                        <div className="w-5 h-5 rounded-lg bg-violet-500/20 flex items-center justify-center text-[9px] font-black text-violet-300 flex-shrink-0">{i + 1}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground mb-0.5">{idea.topic}</p>
+                          <p className="text-[11px] text-muted-foreground mb-1">{idea.hook}</p>
+                          {idea.rationale && <p className="text-[10px] text-primary">{idea.rationale}</p>}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => addIdeaToPipeline({ topic: idea.topic, hook: idea.hook, format: idea.format ?? "reel", rationale: idea.rationale, competitorHandle: "weekly-digest" }).then(() => { qc.invalidateQueries({ queryKey: ["/api/competitor/dashboard"] }); toast({ title: "Added to pipeline" }); })}
+                            className="p-1.5 rounded-lg hover:bg-violet-500/10 text-violet-400 transition-colors"
+                            title="Add to pipeline"
+                          >
+                            <Lightbulb className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(idea.hook);
+                              setCopied(`${alert.id}-${i}`);
+                              toast({ title: "Hook copied!" });
+                              setTimeout(() => setCopied(null), 2000);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {copied === `${alert.id}-${i}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boolean }) {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<"competitor" | "niche" | "methodology" | "virality" | "watchlist" | null>(null);
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [activeSection, setActiveSectionRaw] = useState<SectionId | null>(null);
+  const [prefilledHandle, setPrefilledHandle] = useState<string>("");
   const [selectedClient, setSelectedClient] = useState<string>("");
 
   const Layout = useAdmin ? AdminLayout : ClientLayout;
   const activeClientId = useAdmin ? selectedClient : (user?.id ?? "");
 
+  const [showTour, setShowTour] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem(TOUR_KEY)) setShowTour(true);
+  }, []);
+
+  const setActiveSection = (s: SectionId | null) => setActiveSectionRaw(s);
+
+  const addIdeaToPipeline = async (idea: { topic: string; hook: string; format?: string; structure?: string; cta?: string; rationale?: string; competitorHandle?: string }) => {
+    await apiRequest("POST", "/api/competitor/ideas", idea);
+    qc.invalidateQueries({ queryKey: ["/api/competitor/ideas"] });
+  };
+
+  const ctxValue: CompetitorCtxValue = { setActiveSection, setPrefilledHandle, addIdeaToPipeline };
+
   return (
+    <CompetitorCtx.Provider value={ctxValue}>
+    {showTour && <WorkflowTour onClose={() => setShowTour(false)} />}
     <Layout>
       <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
 
@@ -3832,38 +5455,50 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">
-                {activeSection === "competitor"
-                  ? "Competitor Analysis"
-                  : activeSection === "niche"
-                    ? "What's Working in My Niche"
-                    : activeSection === "methodology"
-                      ? "Use My Own Methodology"
-                      : activeSection === "virality"
-                        ? "Virality Tester"
-                        : activeSection === "watchlist"
-                          ? "Competitor Watch List"
-                          : "Competitor Study"}
+                {activeSection === "competitor" ? "Competitor Analysis"
+                  : activeSection === "niche" ? "What's Working in My Niche"
+                  : activeSection === "methodology" ? "Use My Own Methodology"
+                  : activeSection === "virality" ? "Virality Tester"
+                  : activeSection === "watchlist" ? "Competitor Watch List"
+                  : activeSection === "feed" ? "Intelligence Feed"
+                  : activeSection === "ideas" ? "Content Ideas"
+                  : activeSection === "growth" ? "Growth Charts"
+                  : activeSection === "digest" ? "Weekly Digest"
+                  : activeSection === "leaderboard" ? "Leaderboard"
+                  : activeSection === "gap" ? "Content Gap Detector"
+                  : "Competitor Study"}
               </h1>
             </div>
             <p className="text-xs text-muted-foreground">
-              {activeSection === "competitor"
-                ? "Your account vs one competitor · 9-section deep-dive · Steal their strategy"
-                : activeSection === "niche"
-                  ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
-                  : activeSection === "methodology"
-                    ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
-                    : activeSection === "virality"
-                      ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
-                      : activeSection === "watchlist"
-                        ? "Track 7 competitors · Daily auto-scan · Follower, bio & engagement alerts"
-                        : "Choose a study mode below"}
+              {activeSection === "competitor" ? "Your account vs one competitor · 9-section deep-dive · Steal their strategy"
+                : activeSection === "niche" ? "Niche Intelligence Engine · Up to 5 competitors · Full niche map"
+                : activeSection === "methodology" ? "Content DNA Profile · AI Content Improver · Hook Optimizer · A/B Test Generator"
+                : activeSection === "virality" ? "Retention Analyser · Drop-Off Detection · Hook Rewriter · Make It Viral"
+                : activeSection === "watchlist" ? "Track competitors · Auto-scan · Follower, bio & engagement alerts"
+                : activeSection === "feed" ? "Auto-detected competitor posts · AI analysis · Generate ideas"
+                : activeSection === "ideas" ? "AI-generated content ideas from competitor intel · Track from idea to published"
+                : activeSection === "growth" ? "Follower & engagement trends over time per competitor"
+                : activeSection === "digest" ? "Monday summary · Top posts ranked · 5 ready-to-steal ideas"
+                : activeSection === "leaderboard" ? "All watchlist accounts ranked · Format breakdown · Follower growth"
+                : activeSection === "gap" ? "AI finds topics competitors aren't covering that you can own"
+                : "Choose a module below"}
             </p>
           </div>
-          <PageTourButton pageKey="competitor" className="ml-auto flex-shrink-0" />
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowTour(true)}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 px-3 py-1.5 rounded-lg transition-all"
+            >
+              <Play className="w-3 h-3" />
+              How it works
+            </button>
+            <PageTourButton pageKey="competitor" />
+          </div>
         </div>
 
-        {/* Landing — five option cards */}
-        {!activeSection && (
+        {/* Dashboard — command center (home) */}
+        {!activeSection && <DashboardSection />}
+        {false && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Competitor Analysis card */}
             <button
@@ -3969,6 +5604,90 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 Open <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </button>
+
+            {/* Intelligence Feed card */}
+            <button
+              onClick={() => setActiveSection("feed")}
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                <Activity className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Intelligence Feed</p>
+                  <span className="bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-emerald-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Every new post your watchlist competitors make — auto-detected daily. Click Analyze for deep AI intel, Generate Ideas to pipeline content.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+
+            {/* Content Ideas card */}
+            <button
+              onClick={() => setActiveSection("ideas")}
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-violet-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                <Lightbulb className="w-6 h-6 text-violet-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Content Ideas</p>
+                  <span className="bg-violet-500/20 border border-violet-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-violet-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">AI-generated content ideas from competitor intel. Copy-paste hooks, track status from idea → drafted → published. Your content pipeline.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-violet-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+
+            {/* Follower Growth Chart card */}
+            <button
+              onClick={() => setActiveSection("growth")}
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                <TrendingUp className="w-6 h-6 text-blue-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Growth Charts</p>
+                  <span className="bg-blue-500/20 border border-blue-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-blue-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Track competitor follower growth over time. See when they spike, slow down, or change strategy — with avg views and likes trends.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-blue-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
+
+            {/* Weekly Digest card */}
+            <button
+              onClick={() => setActiveSection("digest")}
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-amber-500/40 hover:bg-amber-500/5 transition-all text-left p-6 flex flex-col gap-5"
+            >
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="relative w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+                <Calendar className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="relative flex-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <p className="text-base font-black text-foreground">Weekly Digest</p>
+                  <span className="bg-amber-500/20 border border-amber-500/30 rounded-full px-2 py-0.5 text-[9px] font-bold text-amber-300 uppercase tracking-wider">NEW</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">Every Monday — your top competitor posts ranked by virality, trending topics identified, and 5 ready-to-steal content ideas.</p>
+              </div>
+              <div className="relative flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
+                Open <ChevronRight className="w-3.5 h-3.5" />
+              </div>
+            </button>
           </div>
         )}
 
@@ -3988,8 +5707,15 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
         {activeSection === "watchlist" && (
           <CompetitorWatchlist useAdmin={useAdmin} activeClientId={activeClientId} />
         )}
+        {activeSection === "feed" && <IntelligenceFeedSection />}
+        {activeSection === "ideas" && <ContentIdeasSection />}
+        {activeSection === "growth" && <GrowthChartSection />}
+        {activeSection === "digest" && <WeeklyDigestSection />}
+        {activeSection === "leaderboard" && <LeaderboardSection />}
+        {activeSection === "gap" && <ContentGapSection />}
 
       </div>
     </Layout>
+    </CompetitorCtx.Provider>
   );
 }

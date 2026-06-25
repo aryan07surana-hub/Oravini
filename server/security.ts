@@ -132,9 +132,9 @@ function applyCors(app: Express) {
       origin: (requestOrigin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         // Allow requests with no Origin header (mobile apps, curl, server-to-server, same-origin GETs)
         if (!requestOrigin) return callback(null, true);
-        if (allowedOrigins.has(requestOrigin)) {
-          return callback(null, true);
-        }
+        if (allowedOrigins.has(requestOrigin)) return callback(null, true);
+        // Allow Oravini Chrome extension (background worker + offscreen doc upload)
+        if (requestOrigin.startsWith("chrome-extension://")) return callback(null, true);
         // Don't throw — CORS spec says simply omit the ACAO header for
         // disallowed origins. Throwing here would 500 the request.
         return callback(null, false);

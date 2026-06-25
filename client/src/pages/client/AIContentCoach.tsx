@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { PageTourButton } from "@/components/ui/TourGuide";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSurvey } from "@/hooks/use-survey";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,27 @@ import {
   CheckCircle2, ChevronDown, ChevronUp, Copy, Check, Send, Instagram,
   Flame, Brain, BarChart2, Loader2, Play, Scissors, Heart, BookOpen,
   DollarSign, Laugh, BookMarked, Map, User, ChevronRight, Star,
-  Clock, Trash2, PlusCircle,
+  Clock, Trash2, PlusCircle, Settings, Activity, TrendingDown,
+  Package, History, Smartphone, Music2, PlayCircle, X as XIcon,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
 
+// ── Swap this with your Loom or YouTube embed URL ────────────────────────────
+// Loom:    "https://www.loom.com/embed/YOUR_VIDEO_ID?autoplay=1&hide_owner=true"
+// YouTube: "https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&mute=1&rel=0"
+const COACH_INTRO_VIDEO_SRC = "https://www.loom.com/embed/REPLACE_WITH_YOUR_LOOM_ID?autoplay=1&hide_owner=true&hide_share=true&hide_title=true";
+const COACH_WELCOME_STORAGE_KEY = "oravini_coach_welcome_seen";
+
 type Mood = "weak" | "decent" | "strong" | "idle" | "thinking";
+
+type ScriptVersion = {
+  id: string;
+  script: string;
+  score: number | null;
+  label: string;
+  ts: number;
+};
 
 type ChatMessage = {
   role: "coach" | "user";
@@ -31,6 +46,8 @@ type ChatMessage = {
   scriptResult?: { script: string; label: string; explanation?: string; extras?: string[] };
   brandData?: any;
   roadmapData?: any;
+  postPackage?: any;
+  agentSteps?: string[];
   timestamp: number;
 };
 
@@ -41,6 +58,7 @@ type AnalysisData = {
   strengths: string[];
   dropoffs: Array<{ second: number; reason: string; severity: string }>;
   verdict: string;
+  retentionScore?: number;
 };
 
 const GOALS = [
@@ -50,11 +68,11 @@ const GOALS = [
 ];
 
 const MODES = [
-  { id: "breakdown", label: "Script Breakdown", icon: Brain },
-  { id: "pre-post", label: "Pre-Post Check", icon: Play },
-  { id: "competitor", label: "Competitor Intel", icon: Instagram },
-  { id: "brand", label: "Brand Builder", icon: User },
-  { id: "roadmap", label: "AI Roadmap", icon: Map },
+  { id: "breakdown", label: "Script Breakdown", icon: Brain, sub: "Score & improve your script" },
+  { id: "pre-post", label: "Pre-Post Check", icon: Play, sub: "Predict performance before posting" },
+  { id: "competitor", label: "Competitor Intel", icon: Instagram, sub: "Spy on what's working in your niche" },
+  { id: "brand", label: "Brand Builder", icon: User, sub: "Craft your unique voice & style" },
+  { id: "roadmap", label: "AI Roadmap", icon: Map, sub: "30-day content plan for growth" },
 ];
 
 const TONES = [
@@ -65,6 +83,12 @@ const TONES = [
   { id: "story", label: "📖 Story", color: "text-orange-400 border-orange-500/30 bg-orange-500/10" },
   { id: "emotional", label: "😢 Emotional", color: "text-pink-400 border-pink-500/30 bg-pink-500/10" },
 ];
+
+const PLATFORMS = [
+  { id: "reels", label: "Reels", icon: Smartphone, note: "60-90s · hook in 1s" },
+  { id: "tiktok", label: "TikTok", icon: Music2, note: "15-60s · trend-driven" },
+  { id: "shorts", label: "Shorts", icon: Play, note: "60s max · value-first" },
+] as const;
 
 // ── Animated Coach Character ────────────────────────────────────────────────
 function CoachCharacter({ mood, thinking }: { mood: Mood; thinking: boolean }) {
@@ -193,6 +217,27 @@ function ScriptResultCard({ result }: { result: { script: string; label: string;
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AgentStepsTag({ steps }: { steps: string[] }) {
+  if (!steps?.length) return null;
+  const labels: Record<string, string> = {
+    analyze_script: "📊 Analyzed",
+    generate_hooks: "🎣 Generated hooks",
+    rewrite_viral: "✨ Rewrote script",
+    retention_check: "📉 Checked retention",
+    fix_line: "✏️ Fixed line",
+    tone_shift: "🎭 Shifted tone",
+  };
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {steps.map((s, i) => (
+        <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border" style={{ color: GOLD, borderColor: `${GOLD}40`, background: `${GOLD}10` }}>
+          {labels[s] || s}
+        </span>
+      ))}
     </div>
   );
 }
@@ -356,7 +401,271 @@ function RoadmapCard({ data }: { data: any }) {
   );
 }
 
-function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: string) => void }) {
+// ── Score Trend Mini Chart ──────────────────────────────────────────────────
+function ScoreTrendChart({ scores }: { scores: any[] }) {
+  if (!scores || scores.length < 2) return null;
+  const pts = scores.slice(0, 10).reverse();
+  const vals = pts.map((s: any) => s.overall_score);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 10;
+  const W = 200, H = 40;
+  const xStep = W / (pts.length - 1);
+  const toY = (v: number) => H - ((v - min) / range) * (H - 4) - 2;
+  const path = pts.map((s: any, i: number) => `${i === 0 ? "M" : "L"} ${(i * xStep).toFixed(1)} ${toY(s.overall_score).toFixed(1)}`).join(" ");
+  const lastScore = vals[vals.length - 1];
+  const prevScore = vals[vals.length - 2];
+  const trend = lastScore - prevScore;
+  const avgScore = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(0);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Score Trend</p>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] font-bold" style={{ color: GOLD }}>avg {avgScore}</span>
+          <span className={`text-[9px] font-bold ${trend > 0 ? "text-green-400" : trend < 0 ? "text-red-400" : "text-zinc-500"}`}>
+            {trend > 0 ? `+${trend}` : trend}
+          </span>
+        </div>
+      </div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+        <defs>
+          <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={GOLD} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={GOLD} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${path} L ${((pts.length-1)*xStep).toFixed(1)} ${H} L 0 ${H} Z`} fill="url(#trendGrad)" />
+        <path d={path} fill="none" stroke={GOLD} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((s: any, i: number) => (
+          <circle key={i} cx={(i * xStep).toFixed(1)} cy={toY(s.overall_score).toFixed(1)} r="2.5"
+            fill={s.overall_score >= 70 ? "#34d399" : s.overall_score >= 45 ? GOLD : "#f87171"} />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// ── Profile Chip ───────────────────────────────────────────────────────────
+function ProfileChip({ profile, onEdit }: { profile: any; onEdit: () => void }) {
+  if (!profile) return null;
+  const tierLabel = profile.follower_tier === "macro" ? "100k+" : profile.follower_tier === "micro" ? "10-100k" : "<10k";
+  return (
+    <button onClick={onEdit} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900/80 border border-zinc-700/50 hover:border-zinc-500 transition-all group">
+      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${GOLD}20`, border: `1px solid ${GOLD}40` }}>
+        <User className="w-3 h-3" style={{ color: GOLD }} />
+      </div>
+      <div className="flex-1 min-w-0 text-left">
+        <p className="text-[11px] font-semibold text-zinc-200 truncate">{profile.niche || "Set your niche"}</p>
+        <p className="text-[9px] text-zinc-500">{profile.platform || "instagram"} · {tierLabel}</p>
+      </div>
+      {profile.avg_overall > 0 && (
+        <span className="text-[10px] font-bold shrink-0" style={{ color: GOLD }}>{Number(profile.avg_overall).toFixed(0)} avg</span>
+      )}
+      <Settings className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" />
+    </button>
+  );
+}
+
+// ── Profile Setup Modal ────────────────────────────────────────────────────
+function ProfileSetupModal({ profile, onSave, onClose }: { profile: any; onSave: (data: any) => void; onClose: () => void }) {
+  const [form, setForm] = useState({
+    niche: profile?.niche || "",
+    platform: profile?.platform || "instagram",
+    goal: profile?.goal || "",
+    follower_tier: profile?.follower_tier || "nano",
+    content_style: profile?.content_style || "",
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white">Your Creator Profile</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xs">✕</button>
+        </div>
+        <p className="text-[11px] text-zinc-400">Coach uses this to give you personalized, niche-specific feedback every session.</p>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Your Niche</label>
+            <Input value={form.niche} onChange={e=>setForm(f=>({...f,niche:e.target.value}))} placeholder="e.g. fitness for busy moms, personal finance" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Platform</label>
+              <select value={form.platform} onChange={e=>setForm(f=>({...f,platform:e.target.value}))} className="w-full h-8 text-xs bg-zinc-800 border border-zinc-700 rounded-md px-2 text-zinc-200">
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube</option>
+                <option value="linkedin">LinkedIn</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Follower Count</label>
+              <select value={form.follower_tier} onChange={e=>setForm(f=>({...f,follower_tier:e.target.value}))} className="w-full h-8 text-xs bg-zinc-800 border border-zinc-700 rounded-md px-2 text-zinc-200">
+                <option value="nano">Under 10k (Nano)</option>
+                <option value="micro">10k–100k (Micro)</option>
+                <option value="macro">100k+ (Macro)</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Main Goal</label>
+            <Input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="e.g. get clients, grow to 50k, monetize" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Content Style (optional)</label>
+            <Input value={form.content_style} onChange={e=>setForm(f=>({...f,content_style:e.target.value}))} placeholder="e.g. educational, storytelling, humor" className="h-8 text-xs bg-zinc-800 border-zinc-700"/>
+          </div>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button onClick={onClose} variant="outline" className="flex-1 h-9 text-xs border-zinc-700 text-zinc-400">Cancel</Button>
+          <Button onClick={()=>onSave(form)} className="flex-1 h-9 text-xs font-semibold" style={{ background: GOLD, color: "#000" }}>Save Profile</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Welcome Video Modal ───────────────────────────────────────────────────────
+function WelcomeVideoModal({ onClose }: { onClose: () => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+
+  const dismiss = () => {
+    setVisible(false);
+    setTimeout(onClose, 280);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={dismiss} />
+      <div
+        style={{
+          transform: visible ? "scale(1) translateY(0)" : "scale(0.96) translateY(12px)",
+          opacity: visible ? 1 : 0,
+          transition: "all 0.28s cubic-bezier(0.32,0.72,0,1)",
+          maxWidth: 640,
+        }}
+        className="relative w-full bg-[#0d0d0d] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-6 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+              style={{ background:`${GOLD}15`, border:`1px solid ${GOLD}30` }}>🤙</div>
+            <div>
+              <h2 className="text-[15px] font-black text-white leading-tight">Welcome to AI Content Coach</h2>
+              <p className="text-[11px] text-white/40 mt-0.5">Watch this 2-min walkthrough — then start creating.</p>
+            </div>
+          </div>
+          <button onClick={dismiss}
+            className="w-7 h-7 rounded-full bg-white/6 hover:bg-white/12 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors shrink-0 ml-4">
+            <XIcon className="w-3.5 h-3.5"/>
+          </button>
+        </div>
+
+        {/* Video embed */}
+        <div className="px-6">
+          <div className="relative w-full rounded-xl overflow-hidden bg-zinc-950 border border-white/6" style={{ aspectRatio:"16/9" }}>
+            <iframe
+              src={COACH_INTRO_VIDEO_SRC}
+              className="absolute inset-0 w-full h-full"
+              frameBorder="0"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              title="AI Content Coach — Walkthrough"
+            />
+          </div>
+        </div>
+
+        {/* What's inside quick list */}
+        <div className="px-6 py-4 grid grid-cols-2 gap-2">
+          {[
+            { icon:"🎯", text:"Score your hook before posting" },
+            { icon:"📦", text:"Get caption, hashtags & story tease" },
+            { icon:"📊", text:"See where viewers drop off" },
+            { icon:"🔥", text:"Quick rewrites in one click" },
+          ].map(({icon,text}) => (
+            <div key={text} className="flex items-center gap-2 text-[11px] text-white/50">
+              <span>{icon}</span><span>{text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 pb-6 pt-2 border-t border-white/6">
+          <p className="text-[10px] text-white/20">Won't auto-play again. Hit "Watch intro" anytime to rewatch.</p>
+          <Button onClick={dismiss}
+            className="h-9 px-5 font-bold text-sm shrink-0"
+            style={{ background:GOLD, color:"#000" }}>
+            Let's go →
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Post Package Card ────────────────────────────────────────────────────────
+function PostPackageCard({ data }: { data: any }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const cp = (text: string, key: string) => { navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 2000); };
+  const CopyBtn = ({ text, k }: { text: string; k: string }) => (
+    <button onClick={() => cp(text, k)} className="text-[10px] text-zinc-600 hover:text-zinc-400 flex items-center gap-1 transition-colors">
+      {copied === k ? <><Check className="w-3 h-3 text-green-400"/>Copied</> : <><Copy className="w-3 h-3"/>Copy</>}
+    </button>
+  );
+  return (
+    <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-xl p-4 space-y-4">
+      <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider flex items-center gap-1.5"><Package className="w-3.5 h-3.5"/>Post Package</p>
+      {data.caption && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between"><p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Caption</p><CopyBtn text={data.caption} k="caption"/></div>
+          <p className="text-[11px] text-zinc-300 leading-relaxed bg-zinc-800/40 rounded-lg p-3 whitespace-pre-wrap">{data.caption}</p>
+        </div>
+      )}
+      {data.hashtags?.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Hashtags ({data.hashtags.length})</p>
+            <CopyBtn text={data.hashtags.map((h: string) => `#${h.replace('#','')}`).join(' ')} k="hashtags"/>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {data.hashtags.map((h: string, i: number) => <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">#{h.replace('#','')}</span>)}
+          </div>
+        </div>
+      )}
+      {data.firstComment && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between"><p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">First Comment</p><CopyBtn text={data.firstComment} k="comment"/></div>
+          <p className="text-[11px] text-zinc-300 bg-zinc-800/40 rounded-lg p-3">{data.firstComment}</p>
+        </div>
+      )}
+      {data.storyTease && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between"><p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Story Tease</p><CopyBtn text={data.storyTease} k="story"/></div>
+          <p className="text-[11px] text-zinc-300 bg-zinc-800/40 rounded-lg p-3 italic">"{data.storyTease}"</p>
+        </div>
+      )}
+      {data.bestTimeToPost && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background:`${GOLD}10`, border:`1px solid ${GOLD}20` }}>
+          <Clock className="w-3.5 h-3.5 shrink-0" style={{ color:GOLD }}/>
+          <span className="text-[11px] text-zinc-400">Best time: </span>
+          <span className="text-[11px] font-semibold" style={{ color:GOLD }}>{data.bestTimeToPost}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const POST_ANALYSIS_CHIPS = [
+  { id: "hooks", label: "Generate Hooks", icon: "⚡" },
+  { id: "viral", label: "Make it Viral", icon: "🔥" },
+  { id: "shorten", label: "Shorten It", icon: "✂️" },
+  { id: "clarify", label: "Fix Weakest Line", icon: "🎯" },
+];
+
+function CoachBubble({ msg, onFixLine, onQuickAction, isLast }: { msg: ChatMessage; onFixLine: (line: string) => void; onQuickAction?: (id: string) => void; isLast?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [fixingLine, setFixingLine] = useState<string|null>(null);
   const a = msg.analysis;
@@ -370,6 +679,7 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
           <button onClick={()=>{navigator.clipboard.writeText(msg.content);setCopied(true);setTimeout(()=>setCopied(false),2000)}} className="absolute top-2 right-2 text-zinc-600 hover:text-zinc-400 transition-colors">
             {copied?<Check className="w-3.5 h-3.5 text-green-400"/>:<Copy className="w-3.5 h-3.5"/>}
           </button>
+          {msg.agentSteps?.length ? <AgentStepsTag steps={msg.agentSteps} /> : null}
         </div>
 
         {a && (
@@ -409,17 +719,38 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
               </div>
             )}
             {a.dropoffs?.length>0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-orange-400"/> Drop-off warnings
+                  <TrendingUp className="w-3.5 h-3.5 text-orange-400"/> Retention Map
                 </p>
-                {a.dropoffs.map((d,i)=>(
-                  <div key={i} className="flex items-center gap-2 text-[11px] text-zinc-400">
-                    <span className="text-orange-400 shrink-0">~{d.second}s</span>
-                    <span>{d.reason}</span>
-                    <Badge style={{ fontSize:9,background:d.severity==="high"?"#f8717122":"#fb923c22",color:d.severity==="high"?"#f87171":"#fb923c",border:"none" }}>{d.severity}</Badge>
-                  </div>
-                ))}
+                {/* Visual timeline bar */}
+                <div className="relative h-5 rounded-full overflow-hidden bg-zinc-800/50">
+                  <div className="absolute inset-0 rounded-full" style={{ background:"linear-gradient(to right,#34d39944,#d4b46144,#f8717144)" }}/>
+                  {a.dropoffs.map((d: any,i: number)=>{
+                    const pct=Math.min((d.second/90)*100,97);
+                    const col=d.severity==="high"?"#f87171":d.severity==="medium"?"#fb923c":"#fbbf24";
+                    return (
+                      <div key={i} title={`${d.second}s: ${d.reason}`}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-default"
+                        style={{ left:`${pct}%` }}>
+                        <div className="w-3 h-3 rounded-full border-2 border-zinc-900" style={{ background:col }}/>
+                      </div>
+                    );
+                  })}
+                  {/* Second labels */}
+                  <div className="absolute bottom-0 left-1 text-[8px] text-zinc-600">0s</div>
+                  <div className="absolute bottom-0 right-1 text-[8px] text-zinc-600">90s</div>
+                </div>
+                {/* Detail list */}
+                <div className="space-y-1">
+                  {a.dropoffs.map((d: any,i: number)=>(
+                    <div key={i} className="flex items-center gap-2 text-[11px] text-zinc-400">
+                      <span className="text-orange-400 shrink-0 font-mono w-8">~{d.second}s</span>
+                      <span className="flex-1">{d.reason}</span>
+                      <Badge style={{ fontSize:9,background:d.severity==="high"?"#f8717122":"#fb923c22",color:d.severity==="high"?"#f87171":"#fb923c",border:"none" }}>{d.severity}</Badge>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -428,6 +759,18 @@ function CoachBubble({ msg, onFixLine }: { msg: ChatMessage; onFixLine: (line: s
         {msg.scriptResult && <ScriptResultCard result={msg.scriptResult}/>}
         {msg.brandData && <BrandResultCard data={msg.brandData}/>}
         {msg.roadmapData && <RoadmapCard data={msg.roadmapData}/>}
+        {msg.postPackage && <PostPackageCard data={msg.postPackage}/>}
+
+        {isLast && onQuickAction && msg.analysis && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {POST_ANALYSIS_CHIPS.map(chip=>(
+              <button key={chip.id} onClick={()=>onQuickAction(chip.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-600 hover:text-white transition-all">
+                <span>{chip.icon}</span>{chip.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {msg.competitorData?.profile && (
           <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-xl p-4 space-y-3">
@@ -505,11 +848,43 @@ export default function AIContentCoach() {
   const [showTones, setShowTones] = useState(false);
   const [creditError, setCreditError] = useState<string | null>(null);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const { data: _coachHistory } = useQuery<any[]>({
-    queryKey: ["/api/ai/history?tool=coach"],
+  // ── Welcome modal — show once per browser, "Watch again" button reopens it ─
+  const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(COACH_WELCOME_STORAGE_KEY));
+  const dismissWelcome = () => { localStorage.setItem(COACH_WELCOME_STORAGE_KEY, "1"); setShowWelcome(false); };
+
+  // ── New feature state ──────────────────────────────────────────────────────
+  const [platform, setPlatform] = useState<"reels" | "tiktok" | "shorts">("reels");
+  const [hookScore, setHookScore] = useState<{ score: number; label: string; color: string; weakness: string } | null>(null);
+  const [hookScoring, setHookScoring] = useState(false);
+  const [versions, setVersions] = useState<ScriptVersion[]>([]);
+  const [showVersions, setShowVersions] = useState(false);
+  const [buildingPackage, setBuildingPackage] = useState(false);
+  const pendingVersionId = useRef<string | null>(null);
+
+  const { data: coachHistoryRaw } = useQuery<any[]>({ queryKey: ["/api/ai/history?tool=coach"] });
+  const coachHistory = coachHistoryRaw ?? [];
+
+  const { data: coachProfile, refetch: refetchProfile } = useQuery<any>({
+    queryKey: ["/api/coach/profile"],
+    retry: false,
   });
-  const coachHistory = _coachHistory ?? [];
+
+  const { data: scoreHistory } = useQuery<any[]>({
+    queryKey: ["/api/coach/scores"],
+    retry: false,
+  });
+
+  const profileMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("PATCH", "/api/coach/profile", data),
+    onSuccess: () => {
+      refetchProfile();
+      qc.invalidateQueries({ queryKey: ["/api/coach/scores"] });
+      toast({ title: "Profile saved", description: "Coach will personalize feedback to your niche." });
+      setShowProfileModal(false);
+    },
+  });
 
   const saveSession = () => {
     const userMessages = messages.filter(m => m.role === "user");
@@ -534,36 +909,69 @@ export default function AIContentCoach() {
 
   const survey = useSurvey();
 
-  // Brand builder state — pre-filled from survey
   const [brandForm, setBrandForm] = useState({ niche: "", target: "", goal: "", currentBio: "", handle: "" });
   const [buildingBrand, setBuildingBrand] = useState(false);
-
-  // Roadmap state — pre-filled from survey
   const [roadmapForm, setRoadmapForm] = useState({ niche: "", goal: "", currentFollowers: "", mainProblem: "" });
   const [buildingRoadmap, setBuildingRoadmap] = useState(false);
 
-  // Pre-fill brand + roadmap forms from survey
   useEffect(() => {
     if (!survey.hasData) return;
-    setBrandForm(f => ({
-      ...f,
-      niche: f.niche || survey.niche,
-      goal: f.goal || survey.primaryGoal,
-    }));
-    setRoadmapForm(f => ({
-      ...f,
-      niche: f.niche || survey.niche,
-      goal: f.goal || survey.primaryGoal,
-      currentFollowers: f.currentFollowers || survey.followerCount,
-      mainProblem: f.mainProblem || survey.topStruggle,
-    }));
+    setBrandForm(f => ({ ...f, niche: f.niche || survey.niche, goal: f.goal || survey.primaryGoal }));
+    setRoadmapForm(f => ({ ...f, niche: f.niche || survey.niche, goal: f.goal || survey.primaryGoal, currentFollowers: f.currentFollowers || survey.followerCount, mainProblem: f.mainProblem || survey.topStruggle }));
   }, [survey.hasData]);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [hubPrefillTopic, setHubPrefillTopic] = useState<string | null>(null);
+  const [pendingAutoAnalyze, setPendingAutoAnalyze] = useState<string | null>(null);
 
+  useEffect(() => {
+    const prefill = sessionStorage.getItem("coach_prefill");
+    const topic = sessionStorage.getItem("coach_prefill_topic");
+    if (prefill) {
+      setScript(prefill);
+      if (topic) setHubPrefillTopic(topic);
+      setPendingAutoAnalyze(prefill);
+      sessionStorage.removeItem("coach_prefill");
+      sessionStorage.removeItem("coach_prefill_topic");
+    }
+  }, []);
+
+  // Auto-trigger analysis once greeting is shown and hub script is loaded
+  useEffect(() => {
+    if (!pendingAutoAnalyze || !hasGreeted || messages.length === 0 || thinking) return;
+    const toAnalyze = pendingAutoAnalyze;
+    setPendingAutoAnalyze(null);
+    const t = setTimeout(() => {
+      sendToAgent(
+        `Analyze this script${hubPrefillTopic ? ` built from competitor intelligence for "${hubPrefillTopic}"` : ""}. Score it across hook, clarity, persuasion, and CTA — then tell me exactly what to fix to make it go viral.`,
+        toAnalyze
+      );
+    }, 500);
+    return () => clearTimeout(t);
+  }, [pendingAutoAnalyze, hasGreeted, messages.length]);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
 
-  // Pre-fill from Jarvis navigation (URL params) with typewriter effect
+  // ── Live hook scorer ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!script.trim()) { setHookScore(null); return; }
+    const firstSentence = script.split(/[\n.!?]/)[0].trim();
+    if (firstSentence.length < 8) { setHookScore(null); return; }
+    const timer = setTimeout(async () => {
+      setHookScoring(true);
+      try {
+        const d = await apiRequest("POST", "/api/coach/score-hook", { hook: firstSentence, platform });
+        setHookScore({
+          score: d.score,
+          label: d.label,
+          color: d.score >= 75 ? "#34d399" : d.score >= 50 ? GOLD : "#f87171",
+          weakness: d.weakness || "",
+        });
+      } catch {} finally { setHookScoring(false); }
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [script, platform]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get("script");
@@ -572,11 +980,7 @@ export default function AIContentCoach() {
       window.history.replaceState({}, "", window.location.pathname);
       let i = 0;
       setScript("");
-      const timer = setInterval(() => {
-        i++;
-        setScript(decoded.slice(0, i));
-        if (i >= decoded.length) clearInterval(timer);
-      }, 16);
+      const timer = setInterval(() => { i++; setScript(decoded.slice(0, i)); if (i >= decoded.length) clearInterval(timer); }, 16);
       return () => clearInterval(timer);
     }
   }, []);
@@ -584,32 +988,79 @@ export default function AIContentCoach() {
   useEffect(() => {
     if (hasGreeted) return;
     setHasGreeted(true);
-    const greetings = [
-      "Yo 👋 how are you doing? What are we creating today?\n\nDrop your script, idea, or Instagram link — let's make it better 🔥",
-      "Let's build something viral today 🔥 Drop your script or idea and I'll break it down for you.",
-      "Yo! Ready to make some fire content? Paste your script below and I'll tell you EXACTLY what to fix 👇",
-    ];
-    setMessages([{ role:"coach", content:greetings[Math.floor(Math.random()*greetings.length)], timestamp:Date.now() }]);
-  }, []);
+    const niche = coachProfile?.niche;
+    const sessions = coachProfile?.total_sessions || 0;
 
-  const addCoachMsg = (content:string, extras?:{ analysis?:AnalysisData|null; competitorData?:any; scriptResult?:any; brandData?:any; roadmapData?:any }) =>
+    // Special greeting when arriving with a hub script
+    if (pendingAutoAnalyze && hubPrefillTopic) {
+      setMessages([{
+        role: "coach",
+        content: `Script loaded from your Daily Intel Hub 🎯\n\nTopic: "${hubPrefillTopic}"\n\nThis was built from real competitor data. Analyzing it now — scoring your hook, clarity, persuasion, and CTA, then giving you exact fixes 👇`,
+        timestamp: Date.now()
+      }]);
+      return;
+    }
+
+    const greetings = sessions > 0 && niche
+      ? [`Yo, welcome back 👋 Last time your avg score was ${Number(coachProfile?.avg_overall || 0).toFixed(0)}/100. Let's push that higher — drop a script 🔥`]
+      : [
+          "Yo 👋 What are we creating today?\n\nPaste your script below and I'll score it, find every weak point, and tell you exactly how to fix it 🔥",
+          "Let's build something viral 🔥 Paste your script or hook below — I'll break it down completely.",
+          "Ready to coach you 💪 Drop your script below and I'll give you scores, issues, and a full rewrite.",
+        ];
+    setMessages([{ role:"coach", content:greetings[Math.floor(Math.random()*greetings.length)], timestamp:Date.now() }]);
+  }, [coachProfile]);
+
+  const addCoachMsg = (content:string, extras?:{ analysis?:AnalysisData|null; competitorData?:any; scriptResult?:any; brandData?:any; roadmapData?:any; postPackage?:any; agentSteps?:string[] }) =>
     setMessages(prev=>[...prev,{ role:"coach",content,...(extras||{}),timestamp:Date.now() }]);
   const addUserMsg = (content:string) =>
     setMessages(prev=>[...prev,{ role:"user",content,timestamp:Date.now() }]);
 
-  const sendToCoach = async (userMsg:string, scriptToAnalyze?:string) => {
+  // ── Primary: agent endpoint (Claude tool calling) ─────────────────────────
+  const sendToAgent = async (userMsg:string, scriptToAnalyze?:string) => {
     if (!userMsg.trim() && !scriptToAnalyze) return;
+
+    // Version tracking — save script version before sending
+    if (scriptToAnalyze) {
+      const vId = `v-${Date.now()}`;
+      setVersions(prev => {
+        if (prev.length > 0 && prev[prev.length-1].script === scriptToAnalyze) {
+          pendingVersionId.current = prev[prev.length-1].id;
+          return prev;
+        }
+        pendingVersionId.current = vId;
+        return [...prev, { id: vId, script: scriptToAnalyze, score: null, label: `v${prev.length + 1}`, ts: Date.now() }];
+      });
+    }
+
     addUserMsg(scriptToAnalyze ? `[Script] ${scriptToAnalyze.slice(0,100)}…` : userMsg);
     setThinking(true); setMood("thinking");
     try {
-      const minDelay = new Promise<void>(resolve => setTimeout(resolve, 15000));
       const history = messages.slice(-8).map(m=>({ role:m.role==="coach"?"assistant":"user",content:m.content }));
-      const [data] = await Promise.all([
-        apiRequest("POST","/api/coach/chat",{ message:userMsg||"Analyze this script",script:scriptToAnalyze||(userMsg.length>40?userMsg:undefined),mode,goal,history }),
-        minDelay,
-      ]);
+      const data = await apiRequest("POST","/api/coach/agent",{
+        message: userMsg,
+        script: scriptToAnalyze,
+        mode,
+        goal,
+        platform,
+        history,
+      });
+
+      // Tag version with score
+      if (data.analysis?.overallScore && pendingVersionId.current) {
+        const vid = pendingVersionId.current;
+        setVersions(prev => prev.map(v => v.id === vid ? { ...v, score: data.analysis.overallScore } : v));
+        pendingVersionId.current = null;
+      }
+
       setMood(data.mood==="strong"?"strong":data.mood==="weak"?"weak":"decent");
-      addCoachMsg(data.reply||"Let me check that out…",{ analysis:data.analysis||null });
+      addCoachMsg(data.reply||"Let me check that out…",{
+        analysis: data.analysis||null,
+        scriptResult: data.scriptResult||null,
+        agentSteps: data.agentSteps||[],
+      });
+      qc.invalidateQueries({ queryKey: ["/api/coach/scores"] });
+      qc.invalidateQueries({ queryKey: ["/api/coach/profile"] });
     } catch(e:any) {
       if (e instanceof ApiError && e.status === 402) {
         setCreditError(e.message);
@@ -621,6 +1072,23 @@ export default function AIContentCoach() {
       setMood("idle");
     }
     finally { setThinking(false); }
+  };
+
+  // ── Post Package builder ──────────────────────────────────────────────────
+  const buildPostPackage = async () => {
+    if (!script.trim()) { toast({ title:"Add your script first!" }); return; }
+    setBuildingPackage(true);
+    try {
+      const data = await apiRequest("POST", "/api/coach/post-package", {
+        script,
+        platform,
+        niche: coachProfile?.niche || "content creation",
+      });
+      addCoachMsg("Here's your full post package 📦", { postPackage: data });
+    } catch(e:any) {
+      if (e instanceof ApiError && e.status === 402) setCreditError(e.message);
+      else toast({ title: "Package build failed", variant: "destructive" });
+    } finally { setBuildingPackage(false); }
   };
 
   const restoreSession = (item: any) => {
@@ -644,66 +1112,20 @@ export default function AIContentCoach() {
 
   const handleQuickAction = async (action:string) => {
     if (!script.trim()) { toast({ title:"Add your script first!",description:"Paste your content then try again." }); return; }
-    setThinking(true); setMood("thinking");
-    const actionLabels:Record<string,string> = {
-      hooks:"Generate Hooks",viral:"Make It Viral",retention:"Retention Warning",
-      clarify:"Improve Clarity",emotion:"Add Emotion",shorten:"Shorten/Tighten",
+    const actionMsg: Record<string,string> = {
+      hooks:"Generate 5 viral hooks for my content",
+      viral:"Do a full viral rewrite of my script",
+      retention:"Do a retention analysis — where will people drop off and why?",
+      clarify:"Improve the clarity of my script — cut the confusion",
+      emotion:"Add emotion and vulnerability to make people feel something",
+      shorten:"Shorten and tighten my script — cut all the fluff",
     };
-    addUserMsg(`${actionLabels[action] || action} my content`);
-    try {
-      if (action==="hooks") {
-        const data = await apiRequest("POST","/api/virality/hooks",{ script,platform:"instagram" });
-        const hooks = data.hooks||[];
-        addCoachMsg(
-          `Here are ${hooks.length} scroll-stopping hooks — pick the one that feels most like YOU 🎣\n\n${hooks.map((h:string,i:number)=>`${i+1}. "${h}"`).join("\n")}\n\nTest these and let me know how they hit 🔥`,
-        );
-        setMood("strong");
-      } else if (action==="viral") {
-        const lastAnalysis = [...messages].reverse().find(m=>m.analysis);
-        const data = await apiRequest("POST","/api/coach/improve-script",{ script,goal,issues:lastAnalysis?.analysis?.issues||[] });
-        addCoachMsg("Okay here's your improved script 🔥 I fixed the hook, tightened pacing, and made the payoff hit harder:",{
-          scriptResult:{ script:data.script||"",label:"✨ VIRAL REWRITE",explanation:"Compare this with your original — notice the hook is sharper and the ending has more punch." }
-        });
-        setMood("strong");
-      } else if (action==="retention") {
-        sendToCoach("Do a retention analysis — where will people drop off and why?",script);
-        return;
-      } else if (action==="clarify") {
-        const data = await apiRequest("POST","/api/coach/clarify",{ script });
-        addCoachMsg(`Okay I stripped out all the confusing parts 🧹 Your message is way clearer now:\n\n${data.explanation||""}`,{
-          scriptResult:{ script:data.script||"",label:"💡 CLARITY REWRITE",extras:data.removed||[] }
-        });
-        setMood("decent");
-      } else if (action==="emotion") {
-        const data = await apiRequest("POST","/api/coach/add-emotion",{ script });
-        addCoachMsg(`Injected some emotion into this 💉 People will actually FEEL something now:\n\n${data.explanation||""}`,{
-          scriptResult:{ script:data.script||"",label:"❤️ EMOTIONAL VERSION",extras:data.triggers||[] }
-        });
-        setMood("strong");
-      } else if (action==="shorten") {
-        const data = await apiRequest("POST","/api/coach/shorten",{ script });
-        addCoachMsg(`Cut out all the fluff ✂️ Tighter, faster, more watchable:\n\n${data.explanation||""}`,{
-          scriptResult:{ script:data.script||"",label:"✂️ TIGHTENED VERSION",extras:data.cutLines||[] }
-        });
-        setMood("decent");
-      }
-    } catch(e:any) { toast({ title:"Action failed",description:e.message,variant:"destructive" }); setMood("idle"); }
-    finally { setThinking(false); }
+    await sendToAgent(actionMsg[action] || action, script);
   };
 
   const handleTone = async (tone:string) => {
-    if (!script.trim()) { toast({ title:"Add your script first!",description:"Paste your content then select a tone." }); return; }
-    const toneLabel = TONES.find(t=>t.id===tone)?.label||tone;
-    addUserMsg(`Rewrite my script in ${toneLabel} mode`);
-    setThinking(true); setMood("thinking");
-    try {
-      const data = await apiRequest("POST","/api/coach/tone",{ script,tone });
-      addCoachMsg(`Done 🎭 Here's your script in ${toneLabel} mode:\n\n${data.whatChanged||""}`,{
-        scriptResult:{ script:data.script||"",label:`${toneLabel.toUpperCase()} MODE` }
-      });
-      setMood("strong");
-    } catch(e:any) { toast({ title:"Tone failed",description:e.message,variant:"destructive" }); setMood("idle"); }
-    finally { setThinking(false); }
+    if (!script.trim()) { toast({ title:"Add your script first!" }); return; }
+    await sendToAgent(`Rewrite my script in ${tone} mode`, script);
   };
 
   const analyzeCompetitor = async () => {
@@ -727,7 +1149,7 @@ export default function AIContentCoach() {
     setBuildingBrand(true); setThinking(true); setMood("thinking");
     try {
       const data = await apiRequest("POST","/api/coach/brand",brandForm);
-      addCoachMsg(`Okay I built your complete brand strategy 🏆 You've got a unique angle — here's everything you need to stand out in ${brandForm.niche}:`,{ brandData:data });
+      addCoachMsg(`Okay I built your complete brand strategy 🏆 Here's everything you need to stand out in ${brandForm.niche}:`,{ brandData:data });
       setMood("strong");
     } catch(e:any) { toast({ title:"Brand builder failed",description:e.message,variant:"destructive" }); setMood("idle"); }
     finally { setBuildingBrand(false); setThinking(false); }
@@ -735,7 +1157,7 @@ export default function AIContentCoach() {
 
   const buildRoadmap = async () => {
     if (!roadmapForm.niche||!roadmapForm.goal) {
-      toast({ title:"Fill in your niche and goal",description:"These are required to generate your roadmap." }); return;
+      toast({ title:"Fill in your niche and goal" }); return;
     }
     addUserMsg(`Create my growth roadmap — Niche: ${roadmapForm.niche}, Goal: ${roadmapForm.goal}, Problem: ${roadmapForm.mainProblem||"getting started"}`);
     setBuildingRoadmap(true); setThinking(true); setMood("thinking");
@@ -748,23 +1170,25 @@ export default function AIContentCoach() {
   };
 
   const handleFixLine = async (line:string) => {
-    try {
-      const data = await apiRequest("POST","/api/coach/fix-line",{ line,goal,context:"Instagram Reel" });
-      addCoachMsg(
-        `Here are 3 better versions of that line 💪\n\n${data.rewrites?.map((r:string,i:number)=>`${i+1}. "${r}"`).join("\n")||""}\n\n${data.explanation||""}`,
-      );
-    } catch(e:any) { toast({ title:"Fix failed",description:e.message,variant:"destructive" }); }
+    await sendToAgent(`Fix this specific line for me: "${line}"`, script || undefined);
   };
 
   const handleChat = () => {
     if (!chatInput.trim()) return;
-    const msg=chatInput; setChatInput(""); sendToCoach(msg);
+    const msg=chatInput; setChatInput(""); sendToAgent(msg, script && script.trim().length > 20 ? script : undefined);
   };
 
   const isScriptMode = ["breakdown","pre-post"].includes(mode);
 
   return (
     <ClientLayout>
+      {showProfileModal && (
+        <ProfileSetupModal
+          profile={coachProfile}
+          onSave={(data) => profileMutation.mutate(data)}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
       <div className="min-h-screen bg-background flex flex-col" style={{ maxHeight:"100vh" }}>
         {/* Header */}
         <div className="border-b border-border px-6 py-3 flex items-center gap-4 shrink-0" data-tour="coach-header">
@@ -772,7 +1196,7 @@ export default function AIContentCoach() {
             <Sparkles className="w-5 h-5" style={{ color:GOLD }}/>
             <h1 className="text-lg font-bold text-foreground">AI Content Coach</h1>
           </div>
-          <Badge style={{ background:"#d4b46122",color:GOLD,borderColor:"#d4b46130",fontSize:10 }} className="border">BETA</Badge>
+          <Badge style={{ background:"#d4b46122",color:GOLD,borderColor:"#d4b46130",fontSize:10 }} className="border">AGENT</Badge>
           <div className="ml-auto flex items-center gap-2">
             {GOALS.map(g=>(
               <button key={g.id} onClick={()=>setGoal(g.id)} data-testid={`goal-${g.id}`}
@@ -797,8 +1221,45 @@ export default function AIContentCoach() {
             <div className="flex flex-col items-center py-6 px-4 border-b border-border">
               <CoachCharacter mood={mood} thinking={thinking}/>
               <p className="text-[11px] text-zinc-500 text-center mt-3 leading-relaxed px-2">
-                Your AI content mentor — drop a script and I'll tell you exactly what to fix.
+                Your AI content agent — drops scripts, I do everything automatically.
               </p>
+            </div>
+
+            {/* Profile chip */}
+            <div className="px-3 pt-3 pb-2 border-b border-border">
+              <ProfileChip profile={coachProfile} onEdit={() => setShowProfileModal(true)} />
+              {!coachProfile?.niche && (
+                <button onClick={() => setShowProfileModal(true)} className="w-full mt-1.5 text-[10px] text-center py-1 rounded-lg border border-dashed border-zinc-700 text-zinc-600 hover:text-zinc-400 hover:border-zinc-500 transition-all">
+                  + Set your niche for personalized coaching
+                </button>
+              )}
+            </div>
+
+            {/* Score trend */}
+            {scoreHistory && scoreHistory.length >= 2 && (
+              <div className="px-3 py-3 border-b border-border">
+                <ScoreTrendChart scores={scoreHistory} />
+              </div>
+            )}
+
+            {/* Platform */}
+            <div className="p-3 border-b border-border">
+              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Platform</p>
+              <div className="flex gap-1">
+                {PLATFORMS.map(p => {
+                  const Icon = p.icon;
+                  const active = platform === p.id;
+                  return (
+                    <button key={p.id} onClick={() => setPlatform(p.id)}
+                      title={p.note}
+                      className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${active ? "border text-primary bg-primary/10" : "border border-transparent text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300"}`}
+                      style={active ? { borderColor: `${GOLD}40`, background: `${GOLD}12`, color: GOLD } : {}}>
+                      <Icon className="w-3.5 h-3.5"/>
+                      <span className="text-[9px] font-semibold">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Modes */}
@@ -809,8 +1270,12 @@ export default function AIContentCoach() {
                   const Icon=m.icon, active=mode===m.id;
                   return (
                     <button key={m.id} onClick={()=>setMode(m.id)} data-testid={`mode-${m.id}`}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all ${active?"bg-primary/15 text-primary border border-primary/30":"text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"}`}>
-                      <Icon className="w-3.5 h-3.5"/> {m.label}
+                      className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-all ${active?"bg-primary/15 border border-primary/30":"text-zinc-400 hover:bg-zinc-800/50"}`}>
+                      <Icon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${active?"text-primary":"text-zinc-500"}`}/>
+                      <div className="min-w-0">
+                        <p className={`text-[12px] font-medium leading-tight ${active?"text-primary":"text-zinc-300"}`}>{m.label}</p>
+                        <p className="text-[10px] text-zinc-600 leading-tight mt-0.5">{m.sub}</p>
+                      </div>
                     </button>
                   );
                 })}
@@ -821,6 +1286,11 @@ export default function AIContentCoach() {
             {isScriptMode && (
               <div className="p-3 border-b border-border space-y-1.5">
                 <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Quick Actions</p>
+                {!script.trim() && (
+                  <div className="px-3 py-2 rounded-lg border border-dashed border-zinc-700 text-center">
+                    <p className="text-[10px] text-zinc-600">Paste your script below first ↓</p>
+                  </div>
+                )}
                 {[
                   { id:"hooks", icon:Zap, label:"Generate Hooks", color:"text-yellow-400" },
                   { id:"viral", icon:Flame, label:"Make It Viral", color:"text-red-400" },
@@ -833,7 +1303,7 @@ export default function AIContentCoach() {
                   return (
                     <Button key={a.id} size="sm" onClick={()=>handleQuickAction(a.id)} disabled={thinking||!script.trim()}
                       data-testid={`btn-action-${a.id}`}
-                      className="w-full h-8 text-[11px] justify-start gap-2 bg-zinc-800/60 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/50">
+                      className="w-full h-8 text-[11px] justify-start gap-2 bg-zinc-800/60 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/50 disabled:opacity-30">
                       <Icon className={`w-3.5 h-3.5 ${a.color}`}/>{a.label}
                     </Button>
                   );
@@ -857,57 +1327,95 @@ export default function AIContentCoach() {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Session History */}
-          <div className="p-3 border-b border-border" data-tour="coach-sessions">
-            <button
-              onClick={() => setShowSessionHistory(v => !v)}
-              className="w-full flex items-center justify-between text-[10px] font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"
-              data-testid="toggle-coach-history"
-            >
-              <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />Sessions ({coachHistory.length})</span>
-              {showSessionHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-            {showSessionHistory && (
-              <div className="space-y-1 max-h-48 overflow-y-auto mt-1">
-                {coachHistory.length === 0 ? (
-                  <p className="text-[10px] text-zinc-600 text-center py-3">No saved sessions yet</p>
-                ) : (
-                  coachHistory.map((item: any) => (
-                    <div key={item.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer" onClick={() => restoreSession(item)} data-testid={`restore-session-${item.id}`}>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-zinc-300 truncate leading-snug">{item.title}</p>
-                        <p className="text-[9px] text-zinc-600">{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} · {item.output?.messageCount ?? 0} msgs</p>
-                      </div>
-                      <button
-                        className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0"
-                        onClick={e => { e.stopPropagation(); apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {}); }}
-                        data-testid={`delete-session-${item.id}`}
-                        title="Delete session"
-                      ><Trash2 className="w-3 h-3" /></button>
-                    </div>
-                  ))
+            {/* Script Version History */}
+            {versions.length > 0 && (
+              <div className="p-3 border-b border-border">
+                <button onClick={() => setShowVersions(v => !v)}
+                  className="w-full flex items-center justify-between text-[10px] font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1">
+                  <span className="flex items-center gap-1.5"><History className="w-3 h-3"/>Versions ({versions.length})</span>
+                  {showVersions ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
+                </button>
+                {showVersions && (
+                  <div className="space-y-0.5 mt-1">
+                    {versions.map((v, i) => (
+                      <button key={v.id} onClick={() => setScript(v.script)}
+                        className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 text-left transition-colors ${i === versions.length-1 ? "bg-zinc-800/30" : ""}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10px] font-semibold text-zinc-400 shrink-0">{v.label}</span>
+                          <span className="text-[9px] text-zinc-700 truncate">{new Date(v.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                        </div>
+                        {v.score !== null
+                          ? <span className="text-[10px] font-bold shrink-0" style={{ color: v.score >= 75 ? "#34d399" : v.score >= 50 ? GOLD : "#f87171" }}>{v.score}</span>
+                          : <span className="text-[9px] text-zinc-700 shrink-0">—</span>
+                        }
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={startNewSession}
-              className="w-full mt-2 h-7 text-[10px] border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 gap-1.5"
-              data-testid="btn-new-session"
-            >
-              <PlusCircle className="w-3 h-3" />New Session
-            </Button>
+
+            {/* Session History */}
+            <div className="p-3 border-b border-border" data-tour="coach-sessions">
+              <button
+                onClick={() => setShowSessionHistory(v => !v)}
+                className="w-full flex items-center justify-between text-[10px] font-semibold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"
+                data-testid="toggle-coach-history"
+              >
+                <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />Sessions ({coachHistory.length})</span>
+                {showSessionHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+              {showSessionHistory && (
+                <div className="space-y-1 max-h-48 overflow-y-auto mt-1">
+                  {coachHistory.length === 0 ? (
+                    <p className="text-[10px] text-zinc-600 text-center py-3">No saved sessions yet</p>
+                  ) : (
+                    coachHistory.map((item: any) => (
+                      <div key={item.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer" onClick={() => restoreSession(item)} data-testid={`restore-session-${item.id}`}>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-zinc-300 truncate leading-snug">{item.title}</p>
+                          <p className="text-[9px] text-zinc-600">{new Date(item.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} · {item.output?.messageCount ?? 0} msgs</p>
+                        </div>
+                        <button
+                          className="text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0"
+                          onClick={e => { e.stopPropagation(); apiRequest("DELETE", `/api/ai/history/${item.id}`).then(() => qc.invalidateQueries({ queryKey: ["/api/ai/history?tool=coach"] })).catch(() => {}); }}
+                          data-testid={`delete-session-${item.id}`}
+                          title="Delete session"
+                        ><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={startNewSession}
+                className="w-full mt-2 h-7 text-[10px] border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 gap-1.5"
+                data-testid="btn-new-session"
+              >
+                <PlusCircle className="w-3 h-3" />New Session
+              </Button>
+            </div>
           </div>
 
           {/* ── Center: Chat ── */}
           <div className="flex-1 flex flex-col min-w-0">
+            {/* Chat top bar with Watch intro button */}
+            <div className="flex items-center justify-end px-4 py-2 border-b border-border/40 shrink-0">
+              <button
+                onClick={() => setShowWelcome(true)}
+                className="flex items-center gap-1.5 text-[10px] text-white/25 hover:text-white/50 transition-colors"
+              >
+                <PlayCircle className="w-3.5 h-3.5"/>
+                Watch intro
+              </button>
+            </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {messages.map((msg,i)=>(
                 msg.role==="coach"?(
-                  <CoachBubble key={i} msg={msg} onFixLine={handleFixLine}/>
+                  <CoachBubble key={i} msg={msg} onFixLine={handleFixLine} onQuickAction={handleQuickAction} isLast={i===messages.length-1}/>
                 ):(
                   <div key={i} className="flex justify-end">
                     <div className="max-w-sm bg-zinc-800 border border-zinc-700/50 rounded-2xl rounded-tr-sm px-4 py-3">
@@ -927,23 +1435,57 @@ export default function AIContentCoach() {
               <div ref={bottomRef}/>
             </div>
 
-            {/* ── Bottom Input Area (context-aware) ── */}
+            {/* ── Bottom Input Area ── */}
             <div className="border-t border-border p-4 shrink-0 space-y-3">
 
-              {/* Script breakdown / pre-post */}
               {isScriptMode && (
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Your Script / Hook / Idea</label>
+                  {hubPrefillTopic && (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-[#d4b461]/25 bg-[#d4b461]/8 px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] font-black text-[#d4b461] shrink-0">FROM HUB</span>
+                        <span className="text-[11px] text-white/60 truncate">{hubPrefillTopic}</span>
+                      </div>
+                      <button onClick={() => setHubPrefillTopic(null)} className="shrink-0 text-white/25 hover:text-white/60 text-xs">✕</button>
+                    </div>
+                  )}
                   <Textarea value={script} onChange={e=>setScript(e.target.value)} placeholder="Paste your script, hook, or content idea here…" className="min-h-20 text-sm bg-zinc-900/80 border-zinc-700/60 resize-none" data-testid="textarea-script"/>
+
+                  {/* Hook score bar */}
+                  {script.trim() && (
+                    <div className="flex items-center justify-between px-0.5">
+                      <p className="text-[10px] text-zinc-600">Hook strength</p>
+                      {hookScoring
+                        ? <span className="text-[10px] text-zinc-700 animate-pulse">scoring…</span>
+                        : hookScore
+                          ? <div className="flex items-center gap-2">
+                              {hookScore.weakness && <span className="text-[10px] text-zinc-600 truncate max-w-[120px]" title={hookScore.weakness}>{hookScore.weakness}</span>}
+                              <div className="w-14 h-1 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+                                <div className="h-full rounded-full transition-all duration-700" style={{ width:`${hookScore.score}%`, background:hookScore.color }}/>
+                              </div>
+                              <span className="text-[10px] font-bold shrink-0" style={{ color:hookScore.color }}>{hookScore.score}</span>
+                            </div>
+                          : null
+                      }
+                    </div>
+                  )}
+
                   <AiRefineButton text={script} onAccept={setScript} context="social media script or hook" />
-                  <Button onClick={()=>{ if(!script.trim()){toast({title:"Add your script first!"});return;} sendToCoach("Analyze my content",script); }} disabled={thinking||!script.trim()} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-analyze-script">
+                  <Button onClick={()=>{ if(!script.trim()){toast({title:"Add your script first!"});return;} sendToAgent("Analyze my content and give me everything I need to improve it", script); }} disabled={thinking||!script.trim()} className="w-full h-9 font-semibold" style={{ background:GOLD,color:"#000" }} data-testid="btn-analyze-script">
                     {thinking?<Loader2 className="w-4 h-4 animate-spin mr-2"/>:<Brain className="w-4 h-4 mr-2"/>}
                     {mode==="pre-post"?"Pre-Post Check":"Analyze My Content"}
                   </Button>
+                  {script.trim() && (
+                    <Button onClick={buildPostPackage} disabled={buildingPackage||thinking} variant="outline"
+                      className="w-full h-8 text-[11px] border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 gap-1.5">
+                      {buildingPackage?<Loader2 className="w-3 h-3 animate-spin"/>:<Package className="w-3 h-3"/>}
+                      Generate Post Package
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {/* Competitor mode */}
               {mode==="competitor" && (
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Competitor Instagram URL or @handle</label>
@@ -956,7 +1498,6 @@ export default function AIContentCoach() {
                 </div>
               )}
 
-              {/* Brand builder mode */}
               {mode==="brand" && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
@@ -984,7 +1525,6 @@ export default function AIContentCoach() {
                 </div>
               )}
 
-              {/* Roadmap mode */}
               {mode==="roadmap" && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
@@ -1026,5 +1566,8 @@ export default function AIContentCoach() {
         </div>
       </div>
     </ClientLayout>
+
+    {/* ── Welcome Video Modal — shows once, user can reopen via "Watch intro" ── */}
+    {showWelcome && <WelcomeVideoModal onClose={dismissWelcome}/>}
   );
 }

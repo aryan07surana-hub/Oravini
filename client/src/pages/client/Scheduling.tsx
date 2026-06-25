@@ -14,6 +14,7 @@ import {
   CalendarDays, Copy, CheckCheck, ExternalLink, Clock, Globe, Settings2, Link2, Users,
   Ban, CheckCircle2, Video, Monitor, ChevronLeft, ChevronRight, Mail, Bell,
   Sparkles, ArrowRight, Check, RefreshCw, Eye, Send, MessageSquare,
+  Plus, Trash2, Edit2, Code2, Unlink, UserX, FileText, Zap,
 } from "lucide-react";
 import {
   format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, isToday,
@@ -43,7 +44,7 @@ const TIMEZONES = [
   { value: "Australia/Sydney", label: "Sydney (AEST)" },
 ];
 
-type TabType = "scheduling" | "reminders" | "emails";
+type TabType = "scheduling" | "reminders" | "emails" | "forms" | "workflows";
 type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean };
 
 function formatHour(h: number) {
@@ -469,6 +470,1405 @@ function SettingsDialog({ open, onClose, mt }: { open: boolean; onClose: () => v
   );
 }
 
+const PRESET_COLORS = ["#d4b461", "#60a5fa", "#34d399", "#f472b6", "#a78bfa", "#fb923c"];
+
+/* ─── Google Calendar Panel ─────────────────────────────────────────── */
+function GoogleCalendarPanel() {
+  const { toast } = useToast();
+  const [copiedCal, setCopiedCal] = useState(false);
+
+  const { data: calStatus, isLoading: calLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/scheduling/google-calendar/status"],
+    queryFn: () =>
+      fetch("/api/scheduling/google-calendar/status").then(async r => {
+        if (!r.ok) throw new Error("Failed");
+        return r.json();
+      }),
+    retry: false,
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () =>
+      fetch("/api/scheduling/google-calendar/disconnect", { method: "DELETE" }).then(async r => {
+        if (!r.ok) { const e = await r.json(); throw new Error(e.message); }
+        return r.json();
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/google-calendar/status"] });
+      toast({ title: "Google Calendar disconnected" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  if (calLoading) {
+    return (
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div className="h-5 w-48 bg-zinc-800 rounded animate-pulse mb-2" />
+        <div className="h-3 w-64 bg-zinc-800 rounded animate-pulse" />
+      </div>
+    );
+  }
+
+  const connected = calStatus?.connected;
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: connected ? "#34A85318" : "rgba(255,255,255,0.04)" }}
+        >
+          <CalendarDays className="w-4 h-4" style={{ color: connected ? "#34A853" : "#52525b" }} />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-bold text-white">Google Calendar</p>
+          <p className="text-xs text-zinc-500">
+            {connected ? "Syncing bookings automatically" : "Connect to sync bookings to your calendar"}
+          </p>
+        </div>
+        {connected && (
+          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Connected</Badge>
+        )}
+      </div>
+
+      {connected ? (
+        <div className="space-y-3">
+          {calStatus?.email && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-950">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+              <span className="text-xs text-zinc-300 font-mono truncate">{calStatus.email}</span>
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+          >
+            <Unlink className="w-3.5 h-3.5" />
+            {disconnectMutation.isPending ? "Disconnecting…" : "Disconnect"}
+          </Button>
+        </div>
+      ) : (
+        <Button
+          className="gap-2 font-bold"
+          style={{ background: "#34A853", color: "#fff" }}
+          onClick={() => window.location.href = "/api/auth/google-calendar"}
+        >
+          <CalendarDays className="w-4 h-4" />
+          Connect Google Calendar
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* ─── New Meeting Type Form ──────────────────────────────────────────── */
+function NewMeetingTypeForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState("");
+  const [duration, setDuration] = useState(30);
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState(PRESET_COLORS[0]);
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/scheduling/meeting-types", { title, duration, description, color }),
+    onSuccess: () => {
+      onSaved();
+      toast({ title: "Meeting type created!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="rounded-2xl border border-zinc-700 bg-zinc-900 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-white">New Meeting Type</p>
+        <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors text-xs">Cancel</button>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Title</label>
+        <Input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Strategy Call"
+          className="bg-zinc-950 border-zinc-700 text-white text-sm"
+          autoFocus
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration (minutes)</label>
+        <div className="grid grid-cols-4 gap-2">
+          {[15, 30, 45, 60].map(d => (
+            <button
+              key={d}
+              onClick={() => setDuration(d)}
+              className="py-2 rounded-xl text-sm font-bold transition-all"
+              style={{
+                background: duration === d ? GOLD : "rgba(255,255,255,0.04)",
+                color: duration === d ? "#000" : "#71717a",
+                border: `1px solid ${duration === d ? GOLD : "rgba(255,255,255,0.08)"}`,
+              }}
+            >
+              {d}m
+            </button>
+          ))}
+        </div>
+        <Select value={String(duration)} onValueChange={v => setDuration(Number(v))}>
+          <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm h-8">
+            <SelectValue placeholder="Other…" />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-700">
+            {DURATIONS.map(d => <SelectItem key={d} value={String(d)} className="text-white">{d} min</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Description <span className="font-normal text-zinc-600 normal-case">(optional)</span>
+        </label>
+        <Textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="What will you cover?"
+          rows={2}
+          className="bg-zinc-950 border-zinc-700 text-white resize-none text-sm"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Color</label>
+        <div className="flex items-center gap-2">
+          {PRESET_COLORS.map(c => (
+            <button
+              key={c}
+              onClick={() => setColor(c)}
+              className="w-7 h-7 rounded-full transition-all flex-shrink-0"
+              style={{
+                background: c,
+                boxShadow: color === c ? `0 0 0 2px #080808, 0 0 0 4px ${c}` : "none",
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-1">
+        <Button variant="outline" className="flex-1 border-zinc-700 text-white" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          className="flex-1 font-bold"
+          style={{ background: GOLD, color: "#000" }}
+          onClick={() => createMutation.mutate()}
+          disabled={createMutation.isPending || !title.trim()}
+        >
+          {createMutation.isPending ? "Creating…" : "Create"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Meeting Type Card ──────────────────────────────────────────────── */
+function MeetingTypeCard({ mt: item, onEdit, onDelete }: { mt: any; onEdit: (mt: any) => void; onDelete: (id: string) => void }) {
+  const [showEmbed, setShowEmbed] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
+
+  const bookingUrl = `${window.location.origin}/book/${item.slug}`;
+  const embedCode = `<iframe src="${window.location.origin}/book/embed/${item.slug}" width="100%" height="700" frameborder="0"></iframe>`;
+
+  function copyEmbed() {
+    navigator.clipboard.writeText(embedCode);
+    setEmbedCopied(true);
+    setTimeout(() => setEmbedCopied(false), 2000);
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
+            style={{ background: item.color || GOLD }}
+          />
+          <div>
+            <p className="text-sm font-bold text-white">{item.title}</p>
+            {item.description && <p className="text-xs text-zinc-500 mt-0.5">{item.description}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <span className="text-xs text-zinc-500 mr-2">{item.duration}m</span>
+          <button
+            onClick={() => onEdit(item)}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(item.id)}
+            className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Quick links */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => window.open(bookingUrl, "_blank")}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+        >
+          <Eye className="w-3 h-3" /> Preview
+        </button>
+        <button
+          onClick={() => { navigator.clipboard.writeText(bookingUrl); }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+        >
+          <Copy className="w-3 h-3" /> Copy Link
+        </button>
+        <button
+          onClick={() => setShowEmbed(v => !v)}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+          style={{
+            borderColor: showEmbed ? `${GOLD}50` : "#3f3f46",
+            color: showEmbed ? GOLD : "#71717a",
+            background: showEmbed ? `${GOLD}10` : "transparent",
+          }}
+        >
+          <Code2 className="w-3 h-3" /> Embed
+        </button>
+      </div>
+
+      {/* Embed widget */}
+      {showEmbed && (
+        <div className="rounded-xl border border-zinc-700 bg-zinc-950 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Embed Widget</p>
+            <button
+              onClick={copyEmbed}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors"
+              style={{ background: embedCopied ? "#10b981" : GOLD, color: "#000" }}
+            >
+              {embedCopied ? <><CheckCheck className="w-3 h-3" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy Code</>}
+            </button>
+          </div>
+          <pre className="text-[11px] text-zinc-400 font-mono bg-zinc-900 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
+            {embedCode}
+          </pre>
+          <p className="text-[11px] text-zinc-600">Paste this HTML anywhere on your website to embed the booking widget.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Edit Meeting Type Dialog ───────────────────────────────────────── */
+function EditMeetingTypeDialog({ open, onClose, mt: item }: { open: boolean; onClose: () => void; mt: any }) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState(item?.title ?? "");
+  const [duration, setDuration] = useState(item?.duration ?? 30);
+  const [description, setDescription] = useState(item?.description ?? "");
+  const [color, setColor] = useState(item?.color ?? PRESET_COLORS[0]);
+
+  useEffect(() => {
+    if (item) {
+      setTitle(item.title);
+      setDuration(item.duration);
+      setDescription(item.description ?? "");
+      setColor(item.color ?? PRESET_COLORS[0]);
+    }
+  }, [item?.id]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", `/api/scheduling/meeting-types/${item.id}`, { title, duration, description, color }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/meeting-types"] });
+      toast({ title: "Saved!" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Edit2 className="w-4 h-4" style={{ color: GOLD }} /> Edit Meeting Type
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Title</label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} className="bg-zinc-900 border-zinc-700 text-white" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</label>
+            <Select value={String(duration)} onValueChange={v => setDuration(Number(v))}>
+              <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-700">
+                {DURATIONS.map(d => <SelectItem key={d} value={String(d)} className="text-white">{d} minutes</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Description <span className="font-normal text-zinc-600 normal-case">(optional)</span>
+            </label>
+            <Textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={2}
+              className="bg-zinc-900 border-zinc-700 text-white resize-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Color</label>
+            <div className="flex items-center gap-2">
+              {PRESET_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className="w-7 h-7 rounded-full transition-all"
+                  style={{
+                    background: c,
+                    boxShadow: color === c ? `0 0 0 2px #09090b, 0 0 0 4px ${c}` : "none",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1 border-zinc-700 text-white" onClick={onClose}>Cancel</Button>
+            <Button
+              className="flex-1 font-bold"
+              style={{ background: GOLD, color: "#000" }}
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending || !title.trim()}
+            >
+              {saveMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Workflows Tab ──────────────────────────────────────────────────── */
+const TRIGGER_OPTIONS = [
+  { value: "booking.created",      label: "When booking is created" },
+  { value: "booking.cancelled",    label: "When booking is cancelled" },
+  { value: "booking.completed",    label: "When booking is marked completed" },
+  { value: "booking.no_show",      label: "When marked as no-show" },
+  { value: "booking.reminder_24h", label: "24 hours before booking" },
+  { value: "booking.reminder_1h",  label: "1 hour before booking" },
+];
+const ACTION_OPTIONS = [
+  { value: "send_email", label: "Send Email" },
+  { value: "webhook",    label: "Send Webhook" },
+];
+function triggerLabel(t: string) {
+  return TRIGGER_OPTIONS.find(o => o.value === t)?.label ?? t;
+}
+
+type WorkflowFormState = {
+  name: string;
+  trigger: string;
+  action: string;
+  meetingTypeId: string;
+  emailSubject: string;
+  emailBody: string;
+  webhookUrl: string;
+};
+
+function emptyForm(): WorkflowFormState {
+  return { name: "", trigger: "booking.created", action: "send_email", meetingTypeId: "", emailSubject: "", emailBody: "", webhookUrl: "" };
+}
+
+function WorkflowForm({
+  initial,
+  meetingTypes,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  initial: WorkflowFormState;
+  meetingTypes: any[];
+  onSave: (f: WorkflowFormState) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<WorkflowFormState>(initial);
+  function set<K extends keyof WorkflowFormState>(k: K, v: WorkflowFormState[K]) {
+    setForm(f => ({ ...f, [k]: v }));
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Name */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Name</label>
+        <Input
+          value={form.name}
+          onChange={e => set("name", e.target.value)}
+          placeholder="e.g. Follow-up after call"
+          className="bg-zinc-900 border-zinc-700 text-white text-sm"
+        />
+      </div>
+
+      {/* Trigger */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Trigger</label>
+        <Select value={form.trigger} onValueChange={v => set("trigger", v)}>
+          <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-700">
+            {TRIGGER_OPTIONS.map(o => (
+              <SelectItem key={o.value} value={o.value} className="text-white text-sm">{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Meeting Type */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Meeting Type <span className="font-normal text-zinc-600 normal-case">(optional)</span>
+        </label>
+        <Select value={form.meetingTypeId || "__all__"} onValueChange={v => set("meetingTypeId", v === "__all__" ? "" : v)}>
+          <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-700">
+            <SelectItem value="__all__" className="text-white text-sm">All Types</SelectItem>
+            {meetingTypes.map((mt: any) => (
+              <SelectItem key={mt.id} value={String(mt.id)} className="text-white text-sm">{mt.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Action */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Action</label>
+        <Select value={form.action} onValueChange={v => set("action", v)}>
+          <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-700">
+            {ACTION_OPTIONS.map(o => (
+              <SelectItem key={o.value} value={o.value} className="text-white text-sm">{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Conditional fields */}
+      {form.action === "send_email" && (
+        <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Subject</label>
+            <Input
+              value={form.emailSubject}
+              onChange={e => set("emailSubject", e.target.value)}
+              placeholder="e.g. Thanks for the call, {{name}}!"
+              className="bg-zinc-900 border-zinc-700 text-white text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Body</label>
+            <Textarea
+              value={form.emailBody}
+              onChange={e => set("emailBody", e.target.value)}
+              placeholder={"Hey {{name}},\n\nThank you for booking {{title}} on {{date}}.\n\nLooking forward to speaking with you!"}
+              rows={5}
+              className="bg-zinc-900 border-zinc-700 text-white resize-none text-sm font-mono"
+            />
+            <p className="text-[11px] text-zinc-600">
+              Available variables:{" "}
+              {["{{name}}", "{{title}}", "{{date}}"].map(v => (
+                <code key={v} className="text-yellow-400 text-[11px] mr-1">{v}</code>
+              ))}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {form.action === "webhook" && (
+        <div className="space-y-1.5 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Webhook URL</label>
+          <Input
+            value={form.webhookUrl}
+            onChange={e => set("webhookUrl", e.target.value)}
+            placeholder="https://hooks.example.com/my-webhook"
+            className="bg-zinc-900 border-zinc-700 text-white text-sm font-mono"
+          />
+        </div>
+      )}
+
+      {/* Form actions */}
+      <div className="flex gap-2 pt-1">
+        <Button variant="outline" className="flex-1 border-zinc-700 text-white" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          className="flex-1 font-bold"
+          style={{ background: GOLD, color: "#000" }}
+          onClick={() => onSave(form)}
+          disabled={saving || !form.name.trim()}
+        >
+          {saving ? "Saving…" : "Save Workflow"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WorkflowEditorDialog({
+  open,
+  onClose,
+  workflow,
+  meetingTypes,
+}: {
+  open: boolean;
+  onClose: () => void;
+  workflow: any;
+  meetingTypes: any[];
+}) {
+  const { toast } = useToast();
+  const initial: WorkflowFormState = {
+    name: workflow?.name ?? "",
+    trigger: workflow?.trigger ?? "booking.created",
+    action: workflow?.action ?? "send_email",
+    meetingTypeId: workflow?.meetingTypeId ? String(workflow.meetingTypeId) : "",
+    emailSubject: workflow?.emailSubject ?? "",
+    emailBody: workflow?.emailBody ?? "",
+    webhookUrl: workflow?.webhookUrl ?? "",
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: (f: WorkflowFormState) =>
+      apiRequest("PUT", `/api/scheduling/workflows/${workflow.id}`, {
+        name: f.name,
+        trigger: f.trigger,
+        action: f.action,
+        meetingTypeId: f.meetingTypeId || null,
+        emailSubject: f.emailSubject || null,
+        emailBody: f.emailBody || null,
+        webhookUrl: f.webhookUrl || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/workflows"] });
+      toast({ title: "Workflow updated" });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md bg-zinc-950 border-zinc-800">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Zap className="w-4 h-4" style={{ color: GOLD }} /> Edit Workflow
+          </DialogTitle>
+        </DialogHeader>
+        <div className="pt-2">
+          <WorkflowForm
+            initial={initial}
+            meetingTypes={meetingTypes}
+            onSave={f => updateMutation.mutate(f)}
+            onCancel={onClose}
+            saving={updateMutation.isPending}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WorkflowCard({
+  workflow,
+  meetingTypes,
+  onEdit,
+  onDelete,
+}: {
+  workflow: any;
+  meetingTypes: any[];
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { toast } = useToast();
+  const isEmail = workflow.action === "send_email";
+  const meetingType = meetingTypes.find((mt: any) => String(mt.id) === String(workflow.meetingTypeId));
+
+  const toggleMutation = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/scheduling/workflows/${workflow.id}/toggle`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/scheduling/workflows"] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="flex items-center gap-4 p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 group hover:bg-zinc-900 transition-colors">
+      {/* Icon */}
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}25` }}
+      >
+        <Zap className="w-4 h-4" style={{ color: GOLD }} />
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-bold text-white truncate">{workflow.name}</p>
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isEmail ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}
+          >
+            {isEmail ? "Send Email" : "Webhook"}
+          </span>
+        </div>
+        <p className="text-xs text-zinc-500 truncate mt-0.5">{triggerLabel(workflow.trigger)}</p>
+        <p className="text-[11px] text-zinc-600 mt-0.5">
+          {meetingType ? meetingType.title : "All types"}
+        </p>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Switch
+          checked={!!workflow.isActive}
+          onCheckedChange={() => toggleMutation.mutate()}
+          disabled={toggleMutation.isPending}
+        />
+        <button
+          onClick={onEdit}
+          className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"
+        >
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const EXAMPLE_WORKFLOWS = [
+  { name: "Follow-up email",    trigger: "booking.completed", action: "send_email", desc: "Send a thank-you after every completed call" },
+  { name: "No-show alert",      trigger: "booking.no_show",   action: "send_email", desc: "Notify yourself when someone doesn't show up" },
+  { name: "Webhook on booking", trigger: "booking.created",   action: "webhook",    desc: "Push data to your CRM or Zapier on new bookings" },
+];
+
+function WorkflowsTab({ meetingTypes }: { meetingTypes: any[] }) {
+  const { toast } = useToast();
+  const [showNew, setShowNew] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState<any>(null);
+
+  const { data: workflows = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/scheduling/workflows"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (f: WorkflowFormState) =>
+      apiRequest("POST", "/api/scheduling/workflows", {
+        name: f.name,
+        trigger: f.trigger,
+        action: f.action,
+        meetingTypeId: f.meetingTypeId || null,
+        emailSubject: f.emailSubject || null,
+        emailBody: f.emailBody || null,
+        webhookUrl: f.webhookUrl || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/workflows"] });
+      setShowNew(false);
+      toast({ title: "Workflow created" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/scheduling/workflows/${id}`, undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/workflows"] });
+      toast({ title: "Workflow deleted" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const isEmpty = !isLoading && (workflows as any[]).length === 0;
+
+  return (
+    <div className="space-y-5 max-w-2xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap className="w-4 h-4" style={{ color: GOLD }} />
+          <h2 className="text-sm font-bold text-white">Automation Workflows</h2>
+          {(workflows as any[]).length > 0 && (
+            <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">
+              {(workflows as any[]).length}
+            </Badge>
+          )}
+        </div>
+        <Button
+          size="sm"
+          className="gap-1.5 font-bold text-xs"
+          style={{ background: GOLD, color: "#000" }}
+          onClick={() => setShowNew(v => !v)}
+        >
+          <Plus className="w-3.5 h-3.5" /> New Workflow
+        </Button>
+      </div>
+
+      {/* New workflow inline form */}
+      {showNew && (
+        <div className="rounded-2xl border border-zinc-700 bg-zinc-900/60 p-5">
+          <p className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5" style={{ color: GOLD }} /> New Workflow
+          </p>
+          <WorkflowForm
+            initial={emptyForm()}
+            meetingTypes={meetingTypes}
+            onSave={f => createMutation.mutate(f)}
+            onCancel={() => setShowNew(false)}
+            saving={createMutation.isPending}
+          />
+        </div>
+      )}
+
+      {/* Empty state with feature showcase */}
+      {isEmpty && !showNew && (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}25` }}
+            >
+              <Zap className="w-7 h-7" style={{ color: GOLD }} />
+            </div>
+            <p className="text-base font-bold text-white">No workflows yet</p>
+            <p className="text-sm text-zinc-500 mt-1 max-w-xs">
+              Automate follow-ups, no-show alerts, and more.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Example workflows</p>
+            {EXAMPLE_WORKFLOWS.map(ex => (
+              <div
+                key={ex.name}
+                className="flex items-center gap-4 p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/60"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${GOLD}12`, border: `1px solid ${GOLD}20` }}
+                >
+                  <Zap className="w-3.5 h-3.5" style={{ color: GOLD }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">{ex.name}</p>
+                  <p className="text-xs text-zinc-500 truncate">{ex.desc}</p>
+                </div>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${ex.action === "send_email" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"}`}
+                >
+                  {ex.action === "send_email" ? "Email" : "Webhook"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Workflow list */}
+      {!isEmpty && (
+        <div className="space-y-3">
+          {(workflows as any[]).map((wf: any) => (
+            <WorkflowCard
+              key={wf.id}
+              workflow={wf}
+              meetingTypes={meetingTypes}
+              onEdit={() => setEditingWorkflow(wf)}
+              onDelete={() => deleteMutation.mutate(wf.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Edit dialog */}
+      {editingWorkflow && (
+        <WorkflowEditorDialog
+          open={!!editingWorkflow}
+          onClose={() => setEditingWorkflow(null)}
+          workflow={editingWorkflow}
+          meetingTypes={meetingTypes}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Routing Forms ──────────────────────────────────────────────────── */
+type FormField = {
+  id: string;
+  label: string;
+  type: "text" | "email" | "phone" | "select" | "radio" | "checkbox";
+  options: string[] | null;
+  required: boolean;
+  orderIndex: number;
+};
+
+type RoutingForm = {
+  id: string;
+  title: string;
+  description: string | null;
+  isActive: boolean;
+  meetingTypeId: string | null;
+  fields: FormField[];
+};
+
+type FormRule = {
+  id: string;
+  fieldId: string;
+  operator: "equals" | "contains" | "not_equals";
+  value: string;
+  action: "route_to" | "block" | "show_message";
+  targetMeetingTypeId: string | null;
+  message: string | null;
+};
+
+function FormEditorDialog({ form, onClose, meetingTypes }: {
+  form: RoutingForm;
+  onClose: () => void;
+  meetingTypes: any[];
+}) {
+  const { toast } = useToast();
+
+  const [fieldLabel, setFieldLabel] = useState("");
+  const [fieldType, setFieldType] = useState<FormField["type"]>("text");
+  const [fieldRequired, setFieldRequired] = useState(false);
+  const [fieldOptions, setFieldOptions] = useState("");
+
+  const [ruleFieldId, setRuleFieldId] = useState("");
+  const [ruleOperator, setRuleOperator] = useState<FormRule["operator"]>("equals");
+  const [ruleValue, setRuleValue] = useState("");
+  const [ruleAction, setRuleAction] = useState<FormRule["action"]>("route_to");
+  const [ruleTargetMtId, setRuleTargetMtId] = useState("");
+  const [ruleMessage, setRuleMessage] = useState("");
+
+  const { data: fields = [] } = useQuery<FormField[]>({
+    queryKey: [`/api/scheduling/routing-forms/${form.id}/fields`],
+    queryFn: () => apiRequest("GET", `/api/scheduling/routing-forms/${form.id}/fields`),
+  });
+
+  const { data: rules = [] } = useQuery<FormRule[]>({
+    queryKey: [`/api/scheduling/routing-forms/${form.id}/rules`],
+    queryFn: () => apiRequest("GET", `/api/scheduling/routing-forms/${form.id}/rules`),
+  });
+
+  const addFieldMutation = useMutation({
+    mutationFn: () => {
+      const body: any = { label: fieldLabel, type: fieldType, required: fieldRequired };
+      if (fieldType === "select" || fieldType === "radio") {
+        body.options = fieldOptions.split(",").map((s: string) => s.trim()).filter(Boolean);
+      }
+      return apiRequest("POST", `/api/scheduling/routing-forms/${form.id}/fields`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/scheduling/routing-forms/${form.id}/fields`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/routing-forms"] });
+      setFieldLabel("");
+      setFieldType("text");
+      setFieldRequired(false);
+      setFieldOptions("");
+      toast({ title: "Field added" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteFieldMutation = useMutation({
+    mutationFn: (fieldId: string) =>
+      apiRequest("DELETE", `/api/scheduling/routing-forms/${form.id}/fields/${fieldId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/scheduling/routing-forms/${form.id}/fields`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/routing-forms"] });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const addRuleMutation = useMutation({
+    mutationFn: () => {
+      const body: any = { fieldId: ruleFieldId, operator: ruleOperator, value: ruleValue, action: ruleAction };
+      if (ruleAction === "route_to") body.targetMeetingTypeId = ruleTargetMtId;
+      if (ruleAction === "show_message") body.message = ruleMessage;
+      return apiRequest("POST", `/api/scheduling/routing-forms/${form.id}/rules`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/scheduling/routing-forms/${form.id}/rules`] });
+      setRuleFieldId("");
+      setRuleOperator("equals");
+      setRuleValue("");
+      setRuleAction("route_to");
+      setRuleTargetMtId("");
+      setRuleMessage("");
+      toast({ title: "Rule added" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: (ruleId: string) =>
+      apiRequest("DELETE", `/api/scheduling/routing-forms/${form.id}/rules/${ruleId}`),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: [`/api/scheduling/routing-forms/${form.id}/rules`] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const needsOptions = fieldType === "select" || fieldType === "radio";
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl bg-zinc-950 border-zinc-800 max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <FileText className="w-4 h-4" style={{ color: GOLD }} />
+            {form.title}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+          {/* Left: Fields */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Fields</p>
+
+            {(fields as FormField[]).length === 0 ? (
+              <p className="text-xs text-zinc-600 py-2">No fields yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(fields as FormField[]).map(f => (
+                  <div key={f.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900">
+                    <div>
+                      <p className="text-sm font-medium text-white">{f.label}</p>
+                      <p className="text-[11px] text-zinc-500">{f.type}{f.required ? " · required" : ""}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteFieldMutation.mutate(f.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Add Field</p>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Label</label>
+                <Input
+                  value={fieldLabel}
+                  onChange={e => setFieldLabel(e.target.value)}
+                  placeholder="e.g. Company size"
+                  className="bg-zinc-950 border-zinc-700 text-white text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Type</label>
+                <Select value={fieldType} onValueChange={v => setFieldType(v as FormField["type"])}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {(["text", "email", "phone", "select", "radio", "checkbox"] as const).map(t => (
+                      <SelectItem key={t} value={t} className="text-white">{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {needsOptions && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Options (comma-separated)</label>
+                  <Input
+                    value={fieldOptions}
+                    onChange={e => setFieldOptions(e.target.value)}
+                    placeholder="Option A, Option B, Option C"
+                    className="bg-zinc-950 border-zinc-700 text-white text-sm"
+                  />
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Required</label>
+                <Switch checked={fieldRequired} onCheckedChange={setFieldRequired} />
+              </div>
+              <Button
+                size="sm"
+                className="w-full font-bold"
+                style={{ background: GOLD, color: "#000" }}
+                onClick={() => addFieldMutation.mutate()}
+                disabled={addFieldMutation.isPending || !fieldLabel.trim()}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                {addFieldMutation.isPending ? "Adding…" : "Add Field"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Right: Rules */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Routing Rules</p>
+
+            {(rules as FormRule[]).length === 0 ? (
+              <p className="text-xs text-zinc-600 py-2">No rules yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(rules as FormRule[]).map(r => {
+                  const fieldName = (fields as FormField[]).find(f => f.id === r.fieldId)?.label ?? r.fieldId;
+                  const mtName = meetingTypes.find((m: any) => m.id === r.targetMeetingTypeId)?.title;
+                  return (
+                    <div key={r.id} className="flex items-start justify-between px-3 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900 gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-white truncate">
+                          If <span style={{ color: GOLD }}>{fieldName}</span> {r.operator.replace("_", " ")} "<span className="text-zinc-300">{r.value}</span>"
+                        </p>
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
+                          {r.action === "route_to"
+                            ? `→ Route to ${mtName ?? r.targetMeetingTypeId}`
+                            : r.action === "show_message"
+                            ? `→ Show: "${r.message}"`
+                            : "→ Block"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deleteRuleMutation.mutate(r.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Add Rule</p>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Field</label>
+                <Select value={ruleFieldId} onValueChange={setRuleFieldId}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                    <SelectValue placeholder="Select field…" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {(fields as FormField[]).map(f => (
+                      <SelectItem key={f.id} value={f.id} className="text-white">{f.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Operator</label>
+                <Select value={ruleOperator} onValueChange={v => setRuleOperator(v as FormRule["operator"])}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {(["equals", "contains", "not_equals"] as const).map(op => (
+                      <SelectItem key={op} value={op} className="text-white">{op.replace("_", " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Value</label>
+                <Input
+                  value={ruleValue}
+                  onChange={e => setRuleValue(e.target.value)}
+                  placeholder="e.g. 10+"
+                  className="bg-zinc-950 border-zinc-700 text-white text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Action</label>
+                <Select value={ruleAction} onValueChange={v => setRuleAction(v as FormRule["action"])}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-700">
+                    {(["route_to", "block", "show_message"] as const).map(a => (
+                      <SelectItem key={a} value={a} className="text-white">{a.replace("_", " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {ruleAction === "route_to" && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Target Meeting Type</label>
+                  <Select value={ruleTargetMtId} onValueChange={setRuleTargetMtId}>
+                    <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                      <SelectValue placeholder="Select meeting type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-700">
+                      {meetingTypes.map((m: any) => (
+                        <SelectItem key={m.id} value={m.id} className="text-white">{m.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {ruleAction === "show_message" && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Message</label>
+                  <Input
+                    value={ruleMessage}
+                    onChange={e => setRuleMessage(e.target.value)}
+                    placeholder="e.g. Sorry, we only work with companies of 10+ people."
+                    className="bg-zinc-950 border-zinc-700 text-white text-sm"
+                  />
+                </div>
+              )}
+              <Button
+                size="sm"
+                className="w-full font-bold"
+                style={{ background: GOLD, color: "#000" }}
+                onClick={() => addRuleMutation.mutate()}
+                disabled={addRuleMutation.isPending || !ruleFieldId || !ruleValue}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                {addRuleMutation.isPending ? "Adding…" : "Add Rule"}
+              </Button>
+            </div>
+
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Embed</p>
+              <p className="text-xs text-zinc-600">
+                Attach to a meeting type to pre-qualify bookers before they reach the scheduling page.
+              </p>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FormsTab() {
+  const { toast } = useToast();
+  const [showNew, setShowNew] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newMeetingTypeId, setNewMeetingTypeId] = useState("");
+  const [editingForm, setEditingForm] = useState<RoutingForm | null>(null);
+
+  const { data: forms = [] } = useQuery<RoutingForm[]>({
+    queryKey: ["/api/scheduling/routing-forms"],
+  });
+
+  const { data: meetingTypes = [] } = useQuery<any[]>({
+    queryKey: ["/api/scheduling/meeting-types"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/scheduling/routing-forms", {
+        title: newTitle,
+        description: newDescription || null,
+        meetingTypeId: newMeetingTypeId || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/routing-forms"] });
+      setShowNew(false);
+      setNewTitle("");
+      setNewDescription("");
+      setNewMeetingTypeId("");
+      toast({ title: "Form created!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      apiRequest("PUT", `/api/scheduling/routing-forms/${id}`, { isActive }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/scheduling/routing-forms"] }),
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/scheduling/routing-forms/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/routing-forms"] });
+      toast({ title: "Form deleted" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-5 max-w-3xl">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" style={{ color: GOLD }} />
+            <p className="text-sm font-bold text-white">Routing Forms</p>
+            {(forms as RoutingForm[]).length > 0 && (
+              <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">
+                {(forms as RoutingForm[]).length}
+              </Badge>
+            )}
+          </div>
+          <Button
+            size="sm"
+            className="gap-1.5 font-bold text-xs"
+            style={{ background: GOLD, color: "#000" }}
+            onClick={() => setShowNew(v => !v)}
+          >
+            <Plus className="w-3.5 h-3.5" /> New Form
+          </Button>
+        </div>
+
+        {showNew && (
+          <div className="mb-4 rounded-2xl border border-zinc-700 bg-zinc-900 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-white">New Routing Form</p>
+              <button onClick={() => setShowNew(false)} className="text-zinc-500 hover:text-white transition-colors text-xs">Cancel</button>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Title</label>
+              <Input
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                placeholder="Pre-qualification Form"
+                className="bg-zinc-950 border-zinc-700 text-white text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                Description <span className="font-normal text-zinc-600 normal-case">(optional)</span>
+              </label>
+              <Textarea
+                value={newDescription}
+                onChange={e => setNewDescription(e.target.value)}
+                placeholder="Help us understand your needs before the call."
+                rows={2}
+                className="bg-zinc-950 border-zinc-700 text-white resize-none text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                Meeting Type <span className="font-normal text-zinc-600 normal-case">(optional)</span>
+              </label>
+              <Select value={newMeetingTypeId} onValueChange={setNewMeetingTypeId}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-700 text-white text-sm">
+                  <SelectValue placeholder="None selected" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-700">
+                  {(meetingTypes as any[]).map((m: any) => (
+                    <SelectItem key={m.id} value={m.id} className="text-white">{m.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button variant="outline" className="flex-1 border-zinc-700 text-white" onClick={() => setShowNew(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 font-bold"
+                style={{ background: GOLD, color: "#000" }}
+                onClick={() => createMutation.mutate()}
+                disabled={createMutation.isPending || !newTitle.trim()}
+              >
+                {createMutation.isPending ? "Creating…" : "Create Form"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(forms as RoutingForm[]).length === 0 && !showNew ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <FileText className="w-10 h-10 mb-3" style={{ color: `${GOLD}40` }} />
+            <p className="text-zinc-500 text-sm">No routing forms yet</p>
+            <p className="text-zinc-700 text-xs mt-1">Create a form to pre-qualify bookers before they schedule</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {(forms as RoutingForm[]).map(form => {
+              const linkedMt = (meetingTypes as any[]).find((m: any) => m.id === form.meetingTypeId);
+              return (
+                <div key={form.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-white">{form.title}</p>
+                        {form.isActive
+                          ? <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">Active</Badge>
+                          : <Badge className="bg-zinc-700/50 text-zinc-400 border-zinc-600/30 text-[10px]">Paused</Badge>}
+                        <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                          {form.fields.length} field{form.fields.length !== 1 ? "s" : ""}
+                        </Badge>
+                        {linkedMt && (
+                          <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                            → {linkedMt.title}
+                          </Badge>
+                        )}
+                      </div>
+                      {form.description && (
+                        <p className="text-xs text-zinc-500 mt-1">{form.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Switch
+                        checked={form.isActive}
+                        onCheckedChange={v => toggleActiveMutation.mutate({ id: form.id, isActive: v })}
+                      />
+                      <button
+                        onClick={() => setEditingForm(form)}
+                        className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteMutation.mutate(form.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {editingForm && (
+        <FormEditorDialog
+          form={editingForm}
+          onClose={() => setEditingForm(null)}
+          meetingTypes={meetingTypes as any[]}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ─── Main Page ──────────────────────────────────────────────────────── */
 export default function ClientScheduling() {
   const { toast } = useToast();
@@ -495,10 +1895,46 @@ export default function ClientScheduling() {
   const [followUpSubject, setFollowUpSubject] = useState("How did our call go, {{name}}?");
   const [followUpBody, setFollowUpBody] = useState("");
 
+  const [showNewMtForm, setShowNewMtForm] = useState(false);
+  const [editingMt, setEditingMt] = useState<any>(null);
+
   const { data: mt, isLoading: mtLoading } = useQuery<any>({ queryKey: ["/api/scheduling/me"] });
   const { data: bookings = [] } = useQuery<any[]>({ queryKey: ["/api/scheduling/bookings"] });
   const { data: availRules = [] } = useQuery<any[]>({ queryKey: ["/api/scheduling/availability"], enabled: !!mt });
   const { data: config } = useQuery<any>({ queryKey: ["/api/scheduling/config"], enabled: !!mt });
+  const { data: meetingTypes = [], refetch: refetchMeetingTypes } = useQuery<any[]>({
+    queryKey: ["/api/scheduling/meeting-types"],
+    enabled: !!mt,
+  });
+
+  const deleteMeetingType = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/scheduling/meeting-types/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/meeting-types"] });
+      toast({ title: "Meeting type deleted" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Handle Google Calendar OAuth callback params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const calConnected = params.get("cal_connected");
+    const calError = params.get("cal_error");
+    if (calConnected === "1") {
+      toast({ title: "Google Calendar connected!", description: "Your bookings will now sync automatically." });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/google-calendar/status"] });
+      // Remove param from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("cal_connected");
+      window.history.replaceState({}, "", url.toString());
+    } else if (calError) {
+      toast({ title: "Google Calendar connection failed", description: decodeURIComponent(calError), variant: "destructive" });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("cal_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   useEffect(() => {
     if (availRules.length > 0) {
@@ -528,8 +1964,15 @@ export default function ClientScheduling() {
   }, [config]);
 
   const availMutation = useMutation({
-    mutationFn: () => apiRequest("PUT", "/api/scheduling/availability", rules),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/scheduling/availability"] }); toast({ title: "Availability saved!" }); },
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/scheduling/setup", { title: mt?.title, duration: mt?.duration, description: mt?.description, location: mt?.location, timezone, isActive: mt?.isActive });
+      await apiRequest("PUT", "/api/scheduling/availability", rules);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/availability"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/me"] });
+      toast({ title: "Availability saved!" });
+    },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -561,6 +2004,15 @@ export default function ClientScheduling() {
   const updateBooking = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => apiRequest("PATCH", `/api/scheduling/bookings/${id}`, { status }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/scheduling/bookings"] }),
+  });
+
+  const noShowMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("PATCH", `/api/scheduling/bookings/${id}/no-show`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/bookings"] });
+      toast({ title: "Marked as no-show" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const bookingUrl = mt ? `${window.location.origin}/book/${mt.slug}` : null;
@@ -641,6 +2093,8 @@ export default function ClientScheduling() {
               { id: "scheduling" as TabType, label: "Scheduling", Icon: CalendarDays },
               { id: "reminders" as TabType, label: "Reminders", Icon: Bell },
               { id: "emails" as TabType, label: "Emails", Icon: Mail },
+              { id: "forms" as TabType, label: "Forms", Icon: FileText },
+              { id: "workflows" as TabType, label: "Workflows", Icon: Zap },
             ]).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg font-semibold transition-colors"
@@ -654,6 +2108,63 @@ export default function ClientScheduling() {
           {/* ══ SCHEDULING TAB ══ */}
           {activeTab === "scheduling" && (
             <div className="space-y-5">
+
+              {/* Google Calendar */}
+              <GoogleCalendarPanel />
+
+              {/* Meeting Types */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4" style={{ color: GOLD }} />
+                    <p className="text-sm font-bold text-white">Meeting Types</p>
+                    {(meetingTypes as any[]).length > 0 && (
+                      <Badge variant="outline" className="border-zinc-700 text-zinc-400 text-[10px]">
+                        {(meetingTypes as any[]).length}
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 font-bold text-xs"
+                    style={{ background: GOLD, color: "#000" }}
+                    onClick={() => setShowNewMtForm(v => !v)}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> New Meeting Type
+                  </Button>
+                </div>
+
+                {showNewMtForm && (
+                  <div className="mb-4">
+                    <NewMeetingTypeForm
+                      onClose={() => setShowNewMtForm(false)}
+                      onSaved={() => {
+                        setShowNewMtForm(false);
+                        queryClient.invalidateQueries({ queryKey: ["/api/scheduling/meeting-types"] });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {(meetingTypes as any[]).length === 0 && !showNewMtForm ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <CalendarDays className="w-10 h-10 mb-3" style={{ color: `${GOLD}40` }} />
+                    <p className="text-zinc-500 text-sm">No meeting types yet</p>
+                    <p className="text-zinc-700 text-xs mt-1">Create your first meeting type above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(meetingTypes as any[]).map((item: any) => (
+                      <MeetingTypeCard
+                        key={item.id}
+                        mt={item}
+                        onEdit={m => setEditingMt(m)}
+                        onDelete={id => deleteMeetingType.mutate(id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Booking link */}
               <div className="rounded-2xl border border-zinc-700 bg-zinc-900 p-5">
@@ -788,6 +2299,22 @@ export default function ClientScheduling() {
                             <button onClick={() => updateBooking.mutate({ id: b.id, status: "cancelled" })}
                               className="p-1.5 rounded-lg hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors">
                               <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                        {b.status === "scheduled" && isPast && (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => noShowMutation.mutate(b.id)}
+                              title="Mark as no-show"
+                              className="p-1.5 rounded-lg hover:bg-orange-500/20 text-zinc-600 hover:text-orange-400 transition-colors"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => updateBooking.mutate({ id: b.id, status: "completed" })}
+                              title="Mark completed"
+                              className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-zinc-600 hover:text-emerald-400 transition-colors">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}
@@ -984,10 +2511,27 @@ export default function ClientScheduling() {
             </div>
           )}
 
+          {/* ══ FORMS TAB ══ */}
+          {activeTab === "forms" && (
+            <FormsTab />
+          )}
+
+          {/* ══ WORKFLOWS TAB ══ */}
+          {activeTab === "workflows" && (
+            <WorkflowsTab meetingTypes={meetingTypes as any[]} />
+          )}
+
         </div>
       </div>
 
       {mt && <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} mt={mt} />}
+      {editingMt && (
+        <EditMeetingTypeDialog
+          open={!!editingMt}
+          onClose={() => setEditingMt(null)}
+          mt={editingMt}
+        />
+      )}
     </ClientLayout>
   );
 }

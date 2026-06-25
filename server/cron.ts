@@ -594,8 +594,178 @@ export async function processScheduledInstagramPosts() {
   }
 }
 
+async function autoAnalyzePost(post: { id: string; handle: string; caption: string | null; views: number | null; likes: number | null; comments: number | null; postType: string; postUrl?: string }): Promise<void> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return;
+  try {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: "You are an Instagram competitive intelligence analyst. Return ONLY valid JSON." },
+          { role: "user", content: `Analyze this competitor post. Return ONLY valid JSON with these exact fields:
+{"hook":"exact first sentence of caption or No caption","hookType":"curiosity|storytelling|authority|controversy|pain-point|education","structure":"structure from caption","emotion":"fear|curiosity|authority|relatability|aspiration|entertainment","viralityScore":0,"viralityReason":"1 sentence why it got this engagement","whatToSteal":"3 specific actionable things to copy","suggestedAngle":"your unique angle on this topic","hashtags":[]}
+
+Account: @${post.handle} | Type: ${post.postType}
+Views: ${post.views ?? 0} | Likes: ${post.likes ?? 0} | Comments: ${post.comments ?? 0}
+Caption: "${(post.caption || "").slice(0, 400)}"` }
+        ],
+        temperature: 0.5,
+        max_tokens: 600,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!r.ok) return;
+    const data: any = await r.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) return;
+    const analysis = JSON.parse(text);
+    analysis.viralityScore = Math.min(100, Math.max(0, analysis.viralityScore ?? 0));
+    await storage.updateDetectedPost(post.id, { aiAnalysis: analysis });
+  } catch { /* silent — best-effort */ }
+}
+
+async function detectNicheTrends(userId: string, recentPosts: Array<{ handle: string; caption: string | null; watchlistId: string }>): Promise<void> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey || recentPosts.length < 3) return;
+  const uniqueHandles = new Set(recentPosts.map(p => p.handle));
+  if (uniqueHandles.size < 3) return;
+
+  try {
+    const postSummaries = recentPosts.slice(0, 20).map(p => ({
+      handle: p.handle,
+      caption: (p.caption || "").slice(0, 100),
+    }));
+
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: "You are a trend analyst for content creators. Identify trending topics from competitor posts. Return ONLY valid JSON." },
+          { role: "user", content: `These are recent competitor posts from different Instagram accounts. Identify 1-3 trending themes that appear across MULTIPLE different accounts (3+ accounts sharing the same topic = a trend). Only flag real trends, not coincidences.
+
+Posts:
+${JSON.stringify(postSummaries, null, 1)}
+
+Return JSON: {"trends":[{"topic":"Trend topic name","handles":["@handle1","@handle2","@handle3"],"insight":"Why this is trending and what content angle to take","urgency":"high|medium|low"}],"hasTrends":true|false}
+If no clear trends with 3+ accounts, set hasTrends to false and trends to [].` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 500,
+        temperature: 0.3,
+      }),
+    });
+    if (!r.ok) return;
+    const data: any = await r.json();
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) return;
+    const parsed = JSON.parse(text);
+    if (!parsed.hasTrends || !parsed.trends?.length) return;
+
+    const watchlistItem = await storage.getUserWatchlistItems(userId);
+    if (!watchlistItem.length) return;
+
+    for (const trend of parsed.trends.slice(0, 2)) {
+      if (!trend.topic || !trend.handles?.length) continue;
+      await storage.createCompetitorAlert({
+        userId,
+        watchlistId: watchlistItem[0].id,
+        alertType: "trend_alert",
+        title: `📈 Niche trend: "${trend.topic}"`,
+        description: `${trend.handles.join(", ")} all posted about this — ${trend.insight}`,
+        data: { trend },
+        isRead: false,
+      });
+      log(`Trend detected for user ${userId}: "${trend.topic}"`, "cron");
+    }
+  } catch { /* silent */ }
+}
+
+async function sendWeeklyDigest() {
+  log("Weekly digest: starting", "cron");
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) { log("Weekly digest: no GROQ_API_KEY", "cron"); return; }
+
+  const userIds = await storage.getUserIdsWithWatchlist();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  for (const userId of userIds) {
+    try {
+      const posts = await storage.getRecentDetectedPostsForUser(userId, sevenDaysAgo);
+      if (!posts.length) continue;
+
+      const sorted = posts
+        .filter(p => typeof (p.aiAnalysis as any)?.viralityScore === "number")
+        .sort((a, b) => ((b.aiAnalysis as any)?.viralityScore ?? 0) - ((a.aiAnalysis as any)?.viralityScore ?? 0))
+        .slice(0, 10);
+
+      const topPostsSummary = sorted.slice(0, 5).map((p, i) => ({
+        rank: i + 1,
+        handle: p.handle,
+        type: p.postType,
+        views: p.views,
+        viralityScore: (p.aiAnalysis as any)?.viralityScore,
+        hook: (p.aiAnalysis as any)?.hook?.slice(0, 80),
+        whatToSteal: (p.aiAnalysis as any)?.whatToSteal?.slice(0, 100),
+      }));
+
+      let digestIdeas: any[] = [];
+      if (topPostsSummary.length > 0) {
+        const ideasResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: "You are a content strategist. Generate original content ideas based on what competitors are winning with this week. Return ONLY valid JSON." },
+              { role: "user", content: `Top competitor posts this week:\n${JSON.stringify(topPostsSummary, null, 2)}\n\nGenerate 5 original content ideas inspired by what's working. JSON: {"ideas":[{"topic":"specific topic","hook":"copy-paste ready first sentence","format":"reel","rationale":"why this will work — 1 sentence"}]}` },
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 1000,
+            temperature: 0.8,
+          }),
+        });
+        if (ideasResp.ok) {
+          const ideasData: any = await ideasResp.json();
+          const ideasParsed = JSON.parse(ideasData?.choices?.[0]?.message?.content || "{}");
+          digestIdeas = ideasParsed.ideas?.slice(0, 5) || [];
+        }
+      }
+
+      const watchlistItems = await storage.getUserWatchlistItems(userId);
+      if (!watchlistItems.length) continue;
+
+      const uniqueHandles = [...new Set(posts.map(p => p.handle))];
+      const topHandle = sorted[0]?.handle ?? uniqueHandles[0];
+      const topScore = (sorted[0]?.aiAnalysis as any)?.viralityScore ?? 0;
+
+      await storage.createCompetitorAlert({
+        userId,
+        watchlistId: watchlistItems[0].id,
+        alertType: "weekly_digest",
+        title: `📊 Weekly Intel — ${posts.length} posts tracked, @${topHandle} leads at ${topScore}/100`,
+        description: `${uniqueHandles.length} competitors active this week. Top themes identified. ${digestIdeas.length} content ideas ready.`,
+        data: { topPosts: topPostsSummary, ideas: digestIdeas, totalPosts: posts.length, handles: uniqueHandles, period: "7d", generatedAt: new Date().toISOString() },
+        isRead: false,
+      });
+
+      log(`Weekly digest: created for user ${userId} — ${posts.length} posts, ${digestIdeas.length} ideas`, "cron");
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e: any) {
+      log(`Weekly digest: error for user ${userId} — ${e.message}`, "cron");
+    }
+  }
+  log("Weekly digest: complete", "cron");
+}
+
 async function scanCompetitorWatchlist() {
-  log("Competitor watch: starting daily scan", "cron");
+  log("Competitor watch: starting scan", "cron");
+  // Map userId → detected posts this scan cycle (for trend detection)
+  const trendBuffer: Map<string, Array<{ handle: string; caption: string | null; watchlistId: string }>> = new Map();
   try {
     const items = await storage.getAllActiveWatchlistItems();
     if (items.length === 0) return;
@@ -684,6 +854,23 @@ async function scanCompetitorWatchlist() {
                 isRead: false,
               });
             }
+            // Milestone detection
+            const MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+            for (const m of MILESTONES) {
+              if (lastSnap.followerCount < m && followerCount >= m) {
+                const label = m >= 1000000 ? `${m / 1000000}M` : `${m / 1000}K`;
+                await storage.createCompetitorAlert({
+                  userId: item.userId,
+                  watchlistId: item.id,
+                  alertType: "milestone",
+                  title: `🎯 @${item.handle} just hit ${label} followers`,
+                  description: `They crossed the ${label} milestone — a significant credibility marker in this niche`,
+                  data: { milestone: m, followerCount },
+                  isRead: false,
+                });
+                break; // one milestone alert per scan max
+              }
+            }
           }
 
           if (bio && lastSnap.bio && bio !== lastSnap.bio) {
@@ -709,6 +896,76 @@ async function scanCompetitorWatchlist() {
               data: { newPosts, totalPosts: postCount },
               isRead: false,
             });
+
+            // Store new posts in intelligence feed and auto-analyze immediately
+            try {
+              for (const p of recentPosts.slice(0, newPosts)) {
+                if (!p.url) continue;
+                const alreadyStored = await storage.postAlreadyDetected(item.id, p.url);
+                if (alreadyStored) continue;
+                const stored = await storage.createDetectedPost({
+                  userId: item.userId,
+                  watchlistId: item.id,
+                  handle: item.handle,
+                  postUrl: p.url,
+                  caption: p.caption || null,
+                  views: p.views || 0,
+                  likes: p.likes || 0,
+                  comments: p.comments || 0,
+                  postType: p.type === "reel" ? "reel" : p.type === "Sidecar" ? "carousel" : "post",
+                  thumbnail: p.thumbnail || null,
+                  postedAt: p.timestamp ? new Date(p.timestamp) : null,
+                  aiAnalysis: null,
+                  ideasGenerated: false,
+                  isSeen: false,
+                });
+                // Auto-analyze in background (best-effort, don't block the scan)
+                autoAnalyzePost({ ...stored, postUrl: stored.postUrl }).catch(() => {});
+                log(`Competitor watch: new post detected + analyzing @${item.handle}`, "cron");
+                // Add to trend buffer
+                const buf = trendBuffer.get(item.userId) ?? [];
+                buf.push({ handle: item.handle, caption: p.caption || null, watchlistId: item.id });
+                trendBuffer.set(item.userId, buf);
+              }
+            } catch (feedErr: any) {
+              log(`Competitor watch: feed store error for @${item.handle} — ${feedErr.message}`, "cron");
+            }
+          }
+
+          // Check for viral spikes in previously detected posts
+          try {
+            for (const p of recentPosts) {
+              if (!p.url || !p.views) continue;
+              const existing = await storage.getDetectedPostByUrl(item.id, p.url);
+              if (!existing || existing.views === null) continue;
+              const prevViews = existing.views || 0;
+              const currViews = p.views || 0;
+              if (currViews <= prevViews) continue;
+              const growthFactor = prevViews > 0 ? currViews / prevViews : 0;
+              const growthAbs = currViews - prevViews;
+              const existingAnalysis = (existing.aiAnalysis as any) || {};
+              if ((growthFactor >= 5 || growthAbs >= 100000) && !existingAnalysis.viralSpike) {
+                const hoursAgo = Math.round((Date.now() - new Date(existing.detectedAt!).getTime()) / 3600000);
+                await storage.updateDetectedPost(existing.id, {
+                  views: currViews,
+                  aiAnalysis: { ...existingAnalysis, viralSpike: true, viralSpikeAt: new Date().toISOString(), viewsAtDetection: prevViews, viewsAtSpike: currViews },
+                });
+                await storage.createCompetitorAlert({
+                  userId: item.userId,
+                  watchlistId: item.id,
+                  alertType: "viral_spike",
+                  title: `🔥 @${item.handle} post EXPLODING`,
+                  description: `${currViews.toLocaleString()} views — ${prevViews > 0 ? `${Math.round(growthFactor)}x growth` : `+${growthAbs.toLocaleString()}`} in ${hoursAgo}h`,
+                  data: { postUrl: p.url, prevViews, currViews, growthFactor, growthAbs },
+                  isRead: false,
+                });
+                log(`Competitor watch: viral spike @${item.handle} — ${Math.round(growthFactor)}x`, "cron");
+              } else if (currViews !== prevViews) {
+                await storage.updateDetectedPost(existing.id, { views: currViews });
+              }
+            }
+          } catch (spikeErr: any) {
+            log(`Competitor watch: spike check error @${item.handle} — ${spikeErr.message}`, "cron");
           }
 
           if (avgEngagement > 0 && lastSnap.avgEngagement && lastSnap.avgEngagement > 0) {
@@ -734,16 +991,369 @@ async function scanCompetitorWatchlist() {
         log(`Competitor watch: error scanning @${item.handle} — ${e.message}`, "cron");
       }
     }
+    // Run trend detection per user based on this scan's new posts
+    for (const [userId, posts] of trendBuffer.entries()) {
+      detectNicheTrends(userId, posts).catch(() => {});
+    }
     log("Competitor watch: daily scan complete", "cron");
   } catch (e: any) {
     log(`Competitor watch: scan error — ${e.message}`, "cron");
   }
 }
 
+async function generateDailyContentIdeas() {
+  log("Daily content ideas: starting generation", "cron");
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) { log("Daily content ideas: no GROQ_API_KEY, skipping", "cron"); return; }
+
+  try {
+    const userIds = await storage.getUserIdsWithWatchlist();
+    if (userIds.length === 0) return;
+    log(`Daily content ideas: processing ${userIds.length} user(s)`, "cron");
+
+    for (const userId of userIds) {
+      try {
+        const [snapshots, profile] = await Promise.all([
+          storage.getRecentSnapshotsForUser(userId, 30),
+          storage.getCoachProfile(userId),
+        ]);
+
+        if (snapshots.length === 0) continue;
+
+        // Collect top posts — last 14 days only, above-avg views only
+        const _now14 = Date.now();
+        const _14dMs = 14 * 24 * 3600 * 1000;
+        const competitorSummaries = snapshots.slice(0, 5).map((snap: any) => {
+          const posts: any[] = Array.isArray(snap.recent_posts) ? snap.recent_posts : [];
+          const avgViews = snap.avg_views || 0;
+          const topPosts = posts
+            .filter((p: any) => !p.timestamp || (_now14 - new Date(p.timestamp).getTime()) < _14dMs)
+            .filter((p: any) => avgViews === 0 || (p.views || p.likes || 0) > avgViews * 1.2)
+            .sort((a: any, b: any) => (b.views || b.likes || 0) - (a.views || a.likes || 0))
+            .slice(0, 3);
+          return {
+            handle: snap.handle,
+            avgViews: Math.round(avgViews),
+            avgLikes: Math.round(snap.avg_likes || 0),
+            topPosts: topPosts.map((p: any) => ({
+              caption: (p.caption || "").slice(0, 300),
+              views: p.views || 0,
+              likes: p.likes || 0,
+              type: p.type || "reel",
+            })),
+          };
+        }).filter((s: any) => s.topPosts.length > 0);
+
+        const niche = profile?.niche || "content creation";
+        const goal = profile?.goal || "grow audience";
+        const style = profile?.content_style || "educational";
+
+        const systemPrompt = `You are a world-class content strategist who reverse-engineers viral competitor content to create original winning ideas. Return ONLY valid JSON.`;
+        const userPrompt = `Based on what competitors are posting today, generate 3 original daily content ideas for a creator.
+
+Creator profile:
+- Niche: ${niche}
+- Goal: ${goal}
+- Style: ${style}
+
+Competitor activity (last 24 hours):
+${JSON.stringify(competitorSummaries, null, 2)}
+
+Return EXACTLY this JSON structure:
+{
+  "patterns": ["pattern 1 from competitor data", "pattern 2", "pattern 3"],
+  "ideas": [
+    {
+      "topic": "Specific, concrete topic (not generic)",
+      "hook": "Exact first sentence — copy-paste ready, grabs attention instantly",
+      "format": "reel",
+      "structure": "Opening hook → 3 tips → Story → CTA",
+      "cta": "Exact call to action",
+      "rationale": "Why this will perform based on competitor signals",
+      "inspired_by": "@handle that inspired this angle",
+      "confidence": 85
+    }
+  ]
+}`;
+
+        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 2000,
+            temperature: 0.6,
+          }),
+        });
+
+        if (!resp.ok) { log(`Daily content ideas: Groq error for user ${userId}`, "cron"); continue; }
+        const groqData: any = await resp.json();
+        const rawJson = groqData?.choices?.[0]?.message?.content || "{}";
+
+        let parsed: any = {};
+        try { parsed = JSON.parse(rawJson); } catch { continue; }
+
+        const ideas: any[] = Array.isArray(parsed.ideas) ? parsed.ideas.slice(0, 3) : [];
+        for (const idea of ideas) {
+          if (!idea.topic || !idea.hook) continue;
+          await storage.createContentIdea({
+            userId,
+            sourcePostId: null,
+            competitorHandle: idea.inspired_by || snapshots[0]?.handle || "competitor",
+            topic: idea.topic,
+            hook: idea.hook,
+            format: idea.format || "reel",
+            structure: idea.structure || "",
+            cta: idea.cta || "",
+            rationale: idea.rationale || "",
+            status: "idea",
+          });
+        }
+
+        log(`Daily content ideas: generated ${ideas.length} ideas for user ${userId}`, "cron");
+        await new Promise(r => setTimeout(r, 2000));
+      } catch (e: any) {
+        log(`Daily content ideas: error for user ${userId} — ${e.message}`, "cron");
+      }
+    }
+    log("Daily content ideas: generation complete", "cron");
+  } catch (e: any) {
+    log(`Daily content ideas: fatal error — ${e.message}`, "cron");
+  }
+}
+
+// ── Manual scan rate limit (in-memory, resets daily) ────────────────────────
+const _scanRateLimits = new Map<string, { count: number; date: string }>();
+
+export function checkScanRateLimit(userId: string, max = 5): { allowed: boolean; remaining: number } {
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = _scanRateLimits.get(userId);
+  if (!entry || entry.date !== today) return { allowed: true, remaining: max };
+  return { allowed: entry.count < max, remaining: Math.max(0, max - entry.count) };
+}
+
+function _incrementScanCount(userId: string, max = 5) {
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = _scanRateLimits.get(userId) ?? { count: 0, date: today };
+  if (entry.date !== today) { entry.count = 0; entry.date = today; }
+  entry.count++;
+  _scanRateLimits.set(userId, entry);
+  return Math.max(0, max - entry.count);
+}
+
+// ── Per-user idea generation (used by both cron and manual scan) ─────────────
+async function generateIdeasForUser(userId: string): Promise<number> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return 0;
+  try {
+    const [snapshots, profile] = await Promise.all([
+      storage.getRecentSnapshotsForUser(userId, 30),
+      storage.getCoachProfile(userId),
+    ]);
+    if (snapshots.length === 0) return 0;
+
+    const now = Date.now();
+    const ms14d = 14 * 24 * 3600 * 1000;
+
+    const competitorSummaries = snapshots.slice(0, 5).map((snap: any) => {
+      const posts: any[] = Array.isArray(snap.recent_posts) ? snap.recent_posts : [];
+      const avgViews = snap.avg_views || 0;
+      const topPosts = posts
+        .filter((p: any) => !p.timestamp || (now - new Date(p.timestamp).getTime()) < ms14d)
+        .filter((p: any) => avgViews === 0 || (p.views || p.likes || 0) > avgViews * 1.2)
+        .sort((a: any, b: any) => (b.views || b.likes || 0) - (a.views || a.likes || 0))
+        .slice(0, 3);
+      return {
+        handle: snap.handle,
+        avgViews: Math.round(avgViews),
+        avgLikes: Math.round(snap.avg_likes || 0),
+        topPosts: topPosts.map((p: any) => ({
+          caption: (p.caption || "").slice(0, 300),
+          views: p.views || 0,
+          likes: p.likes || 0,
+          type: p.type || "reel",
+        })),
+      };
+    }).filter((s: any) => s.topPosts.length > 0);
+
+    if (competitorSummaries.length === 0) return 0;
+
+    const niche = profile?.niche || "content creation";
+    const goal = profile?.goal || "grow audience";
+    const style = profile?.content_style || "educational";
+
+    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: "You are a world-class content strategist who reverse-engineers viral competitor content to create original winning ideas. Return ONLY valid JSON." },
+          { role: "user", content: `Based on what competitors are posting today, generate 3 original daily content ideas for a creator.\n\nCreator profile:\n- Niche: ${niche}\n- Goal: ${goal}\n- Style: ${style}\n\nCompetitor activity (last 14 days, above-avg posts only):\n${JSON.stringify(competitorSummaries, null, 2)}\n\nReturn EXACTLY this JSON structure:\n{\n  "patterns": ["pattern 1 from competitor data", "pattern 2", "pattern 3"],\n  "ideas": [\n    {\n      "topic": "Specific, concrete topic (not generic)",\n      "hook": "Exact first sentence — copy-paste ready, grabs attention instantly",\n      "format": "reel",\n      "structure": "Opening hook → 3 tips → Story → CTA",\n      "cta": "Exact call to action",\n      "rationale": "Why this will perform based on competitor signals",\n      "inspired_by": "@handle that inspired this angle",\n      "confidence": 85\n    }\n  ]\n}` },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 2000,
+        temperature: 0.6,
+      }),
+    });
+    if (!resp.ok) return 0;
+
+    const groqData: any = await resp.json();
+    const rawJson = groqData?.choices?.[0]?.message?.content || "{}";
+    let parsed: any = {};
+    try { parsed = JSON.parse(rawJson); } catch { return 0; }
+
+    const ideas: any[] = Array.isArray(parsed.ideas) ? parsed.ideas.slice(0, 3) : [];
+    let saved = 0;
+    for (const idea of ideas) {
+      if (!idea.topic || !idea.hook) continue;
+      await storage.createContentIdea({
+        userId,
+        sourcePostId: null,
+        competitorHandle: idea.inspired_by || snapshots[0]?.handle || "competitor",
+        topic: idea.topic,
+        hook: idea.hook,
+        format: idea.format || "reel",
+        structure: idea.structure || "",
+        cta: idea.cta || "",
+        rationale: idea.rationale || "",
+        status: "idea",
+      });
+      saved++;
+    }
+    return saved;
+  } catch { return 0; }
+}
+
+// ── Manual scan: user triggers scan of their entire watchlist ────────────────
+export async function scanWatchlistForUser(userId: string): Promise<{
+  competitors: Array<{ handle: string; success: boolean; newPosts: Array<{ url: string; views: number; caption: string; type: string; thumbnail: string | null }>; viralPosts: Array<{ url: string; views: number; caption: string }> }>;
+  totalNew: number;
+  totalViral: number;
+  ideasGenerated: number;
+  remaining: number;
+  scannedAt: string;
+}> {
+  const remaining = _incrementScanCount(userId);
+  const items = await storage.getUserWatchlistItems(userId);
+  const results: any[] = [];
+  const now = Date.now();
+  const ms14d = 14 * 24 * 3600 * 1000;
+
+  for (const item of items) {
+    try {
+      const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
+      if (!token) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
+
+      const apifyUrl = `https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${token}&timeout=60`;
+      const apResp = await fetch(apifyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usernames: [item.handle], proxy: { useApifyProxy: true } }),
+      });
+      if (!apResp.ok) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
+
+      const profileItems: any[] = await apResp.json();
+      if (!profileItems.length) { results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] }); continue; }
+
+      const profile = profileItems[0];
+      const rawPosts: any[] = profile.latestPosts || [];
+      const followerCount: number | null = profile.followersCount ?? null;
+      const avgViews = rawPosts.length > 0 ? rawPosts.reduce((s: number, p: any) => s + (p.videoViewCount || 0), 0) / rawPosts.length : 0;
+      const avgLikes = rawPosts.length > 0 ? rawPosts.reduce((s: number, p: any) => s + (p.likesCount || 0), 0) / rawPosts.length : 0;
+      const avgComments = rawPosts.length > 0 ? rawPosts.reduce((s: number, p: any) => s + (p.commentsCount || 0), 0) / rawPosts.length : 0;
+      const avgEngagement = followerCount && followerCount > 0 ? ((avgLikes + avgComments) / followerCount) * 100 : 0;
+
+      const mappedPosts = rawPosts.slice(0, 10).map((p: any) => ({
+        url: p.url || (p.shortCode ? `https://instagram.com/p/${p.shortCode}` : ""),
+        thumbnail: p.displayUrl || null,
+        views: p.videoViewCount || 0,
+        likes: p.likesCount || 0,
+        comments: p.commentsCount || 0,
+        caption: (p.caption || "").slice(0, 300),
+        timestamp: p.timestamp || null,
+        type: p.videoViewCount ? "reel" : "image",
+      }));
+
+      await storage.createCompetitorSnapshot({
+        watchlistId: item.id,
+        userId: item.userId,
+        followerCount,
+        followingCount: profile.followingCount ?? null,
+        postCount: profile.postsCount ?? null,
+        avgViews,
+        avgLikes,
+        avgComments,
+        avgEngagement,
+        bio: profile.biography || null,
+        recentPosts: mappedPosts,
+      });
+
+      await storage.updateWatchlistItem(item.id, {
+        lastScannedAt: new Date(),
+        displayName: profile.fullName || item.displayName,
+        avatarUrl: profile.profilePicUrl || item.avatarUrl,
+      });
+
+      const recentOnly = mappedPosts.filter((p: any) => !p.timestamp || (now - new Date(p.timestamp).getTime()) < ms14d);
+      const newPostsFound: any[] = [];
+      const viralPostsFound: any[] = [];
+
+      for (const p of recentOnly.slice(0, 8)) {
+        if (!p.url) continue;
+        if (p.views > avgViews * 1.2 && p.views > 0) {
+          viralPostsFound.push({ url: p.url, views: p.views, caption: p.caption, type: p.type });
+        }
+        const alreadyStored = await storage.postAlreadyDetected(item.id, p.url);
+        if (!alreadyStored) {
+          newPostsFound.push({ url: p.url, views: p.views, caption: p.caption, type: p.type, thumbnail: p.thumbnail });
+          try {
+            await storage.createDetectedPost({
+              userId: item.userId, watchlistId: item.id, handle: item.handle,
+              postUrl: p.url, caption: p.caption || null,
+              views: p.views || 0, likes: p.likes || 0, comments: p.comments || 0,
+              postType: p.type === "reel" ? "reel" : "post",
+              thumbnail: p.thumbnail || null,
+              postedAt: p.timestamp ? new Date(p.timestamp) : null,
+              aiAnalysis: null, ideasGenerated: false, isSeen: false,
+            });
+          } catch {}
+        }
+      }
+
+      results.push({ handle: item.handle, success: true, newPosts: newPostsFound, viralPosts: viralPostsFound });
+      log(`Scan-now: scanned @${item.handle} — ${newPostsFound.length} new, ${viralPostsFound.length} viral`, "cron");
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e: any) {
+      log(`Scan-now: error @${item.handle} — ${e.message}`, "cron");
+      results.push({ handle: item.handle, success: false, newPosts: [], viralPosts: [] });
+    }
+  }
+
+  let ideasGenerated = 0;
+  try { ideasGenerated = await generateIdeasForUser(userId); } catch {}
+
+  return {
+    competitors: results,
+    totalNew: results.reduce((s: number, r: any) => s + r.newPosts.length, 0),
+    totalViral: results.reduce((s: number, r: any) => s + r.viralPosts.length, 0),
+    ideasGenerated,
+    remaining,
+    scannedAt: new Date().toISOString(),
+  };
+}
+
 export function startCronJobs() {
   cron.schedule("0 3 * * *", runAutoSync, { timezone: "UTC" });
   cron.schedule("0 6 * * *", syncIgFollowerCounts, { timezone: "UTC" });
-  cron.schedule("0 8 * * *", scanCompetitorWatchlist, { timezone: "UTC" });
+  cron.schedule("0 */2 * * *", scanCompetitorWatchlist, { timezone: "UTC" });
+  cron.schedule("0 9 * * *", generateDailyContentIdeas, { timezone: "UTC" });
+  cron.schedule("0 9 * * 1", sendWeeklyDigest, { timezone: "UTC" }); // Monday 9AM
   cron.schedule("*/5 * * * *", processScheduledTweets);
   cron.schedule("*/5 * * * *", processScheduledLinkedinPosts);
   cron.schedule("*/5 * * * *", processScheduledYoutubePosts);
@@ -754,5 +1364,5 @@ export function startCronJobs() {
   cron.schedule("*/2 * * * *", processSmsSequences);
   cron.schedule("*/5 * * * *", processEmSendQueue);
   cron.schedule("*/5 * * * *", processBroadcastQueue);
-  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch 8AM; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
+  log("Cron jobs scheduled — auto-sync 3AM; IG tracker 6AM; competitor watch every 2h; daily ideas 9AM; weekly digest Monday 9AM; schedulers every 5 min; reminders + follow-ups every 15 min; email sequences hourly; SMS sequences every 2 min; em send queue every 5 min", "cron");
 }
