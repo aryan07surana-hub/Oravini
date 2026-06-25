@@ -742,6 +742,99 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] dialer_ai_call_quota skipped:", e.message);
   }
+
+  // ── Coach Agent: persistent profiles + score history ─────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS coach_profiles (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        niche TEXT,
+        platform TEXT NOT NULL DEFAULT 'instagram',
+        goal TEXT,
+        follower_tier TEXT NOT NULL DEFAULT 'nano',
+        content_style TEXT,
+        avg_hook_score REAL NOT NULL DEFAULT 0,
+        avg_clarity REAL NOT NULL DEFAULT 0,
+        avg_persuasion REAL NOT NULL DEFAULT 0,
+        avg_cta REAL NOT NULL DEFAULT 0,
+        avg_brand_voice REAL NOT NULL DEFAULT 0,
+        avg_overall REAL NOT NULL DEFAULT 0,
+        total_sessions INTEGER NOT NULL DEFAULT 0,
+        top_weakness TEXT,
+        top_strength TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_coach_profiles_user ON coach_profiles(user_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS coach_score_history (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        script_preview TEXT,
+        overall_score INTEGER NOT NULL DEFAULT 0,
+        clarity INTEGER NOT NULL DEFAULT 0,
+        persuasion INTEGER NOT NULL DEFAULT 0,
+        cta_strength INTEGER NOT NULL DEFAULT 0,
+        brand_voice INTEGER NOT NULL DEFAULT 0,
+        mode TEXT NOT NULL DEFAULT 'breakdown',
+        goal TEXT,
+        verdict TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_coach_score_history_user ON coach_score_history(user_id, created_at DESC)`);
+    console.log("[migration] coach agent tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] coach agent tables skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS competitor_detected_posts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        watchlist_id VARCHAR NOT NULL REFERENCES competitor_watchlist(id) ON DELETE CASCADE,
+        handle VARCHAR NOT NULL,
+        post_url TEXT NOT NULL,
+        short_code VARCHAR,
+        caption TEXT,
+        views INTEGER DEFAULT 0,
+        likes INTEGER DEFAULT 0,
+        comments INTEGER DEFAULT 0,
+        post_type VARCHAR NOT NULL DEFAULT 'reel',
+        thumbnail TEXT,
+        posted_at TIMESTAMP,
+        detected_at TIMESTAMP DEFAULT NOW(),
+        ai_analysis JSONB,
+        ideas_generated BOOLEAN NOT NULL DEFAULT false
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_cdp_user ON competitor_detected_posts(user_id, detected_at DESC)`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cdp_url ON competitor_detected_posts(watchlist_id, post_url)`);
+    await pool.query(`ALTER TABLE competitor_detected_posts ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS competitor_content_ideas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        source_post_id VARCHAR REFERENCES competitor_detected_posts(id) ON DELETE SET NULL,
+        competitor_handle VARCHAR NOT NULL,
+        topic TEXT NOT NULL,
+        hook TEXT NOT NULL,
+        format VARCHAR NOT NULL DEFAULT 'reel',
+        structure TEXT,
+        cta TEXT,
+        rationale TEXT,
+        status VARCHAR NOT NULL DEFAULT 'idea',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_cci_user ON competitor_content_ideas(user_id, created_at DESC)`);
+    console.log("[migration] competitor intelligence feed tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] competitor intelligence feed skipped:", e.message);
+  }
 }
 
 (async () => {

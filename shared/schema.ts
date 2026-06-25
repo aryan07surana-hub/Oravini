@@ -2818,6 +2818,47 @@ export const competitorAlerts = pgTable("competitor_alerts", {
 });
 export type CompetitorAlert = typeof competitorAlerts.$inferSelect;
 
+// ── Competitor Detected Posts ─────────────────────────────────────────────────
+export const competitorDetectedPosts = pgTable("competitor_detected_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  watchlistId: varchar("watchlist_id").notNull().references(() => competitorWatchlist.id, { onDelete: "cascade" }),
+  handle: varchar("handle").notNull(),
+  postUrl: text("post_url").notNull(),
+  shortCode: varchar("short_code"),
+  caption: text("caption"),
+  views: integer("views").default(0),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  postType: varchar("post_type").notNull().default("reel"), // reel | post | carousel
+  thumbnail: text("thumbnail"),
+  postedAt: timestamp("posted_at"),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  aiAnalysis: jsonb("ai_analysis"), // { hook, hookType, structure, emotion, viralityScore, whyItWorks, whatToSteal }
+  ideasGenerated: boolean("ideas_generated").notNull().default(false),
+  isSeen: boolean("is_seen").notNull().default(false),
+});
+export type CompetitorDetectedPost = typeof competitorDetectedPosts.$inferSelect;
+export type InsertCompetitorDetectedPost = typeof competitorDetectedPosts.$inferInsert;
+
+// ── Competitor Content Ideas ──────────────────────────────────────────────────
+export const competitorContentIdeas = pgTable("competitor_content_ideas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sourcePostId: varchar("source_post_id").references(() => competitorDetectedPosts.id, { onDelete: "set null" }),
+  competitorHandle: varchar("competitor_handle").notNull(),
+  topic: text("topic").notNull(),
+  hook: text("hook").notNull(),
+  format: varchar("format").notNull().default("reel"), // reel | carousel | post
+  structure: text("structure"),
+  cta: text("cta"),
+  rationale: text("rationale"),
+  status: varchar("status").notNull().default("idea"), // idea | drafted | published
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type CompetitorContentIdea = typeof competitorContentIdeas.$inferSelect;
+export type InsertCompetitorContentIdea = typeof competitorContentIdeas.$inferInsert;
+
 // ── DIALER ────────────────────────────────────────────────────────────────────
 
 export const dialerSettings = pgTable("dialer_settings", {
@@ -3088,3 +3129,67 @@ export const aiMemory = pgTable("ai_memory", {
 export const insertAiMemorySchema = createInsertSchema(aiMemory).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertAiMemory = z.infer<typeof insertAiMemorySchema>;
 export type AiMemory = typeof aiMemory.$inferSelect;
+
+// ── Scheduling: Group Events & Routing Forms & Workflows ────────────────────
+
+// Add group event fields via a separate tracking table
+// (meetingTypes already exists, we handle isGroupEvent/maxGroupSize in schedulingConfig JSON)
+
+export const routingForms = pgTable("routing_forms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  meetingTypeId: varchar("meeting_type_id").references(() => meetingTypes.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertRoutingFormSchema = createInsertSchema(routingForms).omit({ id: true, createdAt: true });
+export type InsertRoutingForm = z.infer<typeof insertRoutingFormSchema>;
+export type RoutingForm = typeof routingForms.$inferSelect;
+
+export const routingFormFields = pgTable("routing_form_fields", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull().references(() => routingForms.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  type: text("type").notNull().default("text"), // text | select | radio | checkbox | email | phone
+  options: text("options").default("[]"), // JSON array for select/radio
+  required: boolean("required").notNull().default(false),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+export const insertRoutingFormFieldSchema = createInsertSchema(routingFormFields).omit({ id: true });
+export type InsertRoutingFormField = z.infer<typeof insertRoutingFormFieldSchema>;
+export type RoutingFormField = typeof routingFormFields.$inferSelect;
+
+export const routingFormRules = pgTable("routing_form_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  formId: varchar("form_id").notNull().references(() => routingForms.id, { onDelete: "cascade" }),
+  fieldId: varchar("field_id").references(() => routingFormFields.id, { onDelete: "cascade" }),
+  operator: text("operator").notNull(), // equals | contains | not_equals | greater_than | less_than
+  value: text("value").notNull(),
+  action: text("action").notNull(), // route_to | block | show_message
+  targetMeetingTypeId: varchar("target_meeting_type_id").references(() => meetingTypes.id, { onDelete: "set null" }),
+  message: text("message"),
+  orderIndex: integer("order_index").notNull().default(0),
+});
+export const insertRoutingFormRuleSchema = createInsertSchema(routingFormRules).omit({ id: true });
+export type InsertRoutingFormRule = z.infer<typeof insertRoutingFormRuleSchema>;
+export type RoutingFormRule = typeof routingFormRules.$inferSelect;
+
+export const schedulingWorkflows = pgTable("scheduling_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  meetingTypeId: varchar("meeting_type_id").references(() => meetingTypes.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  trigger: text("trigger").notNull(), // booking.created | booking.cancelled | booking.completed | booking.no_show | booking.reminder_24h | booking.reminder_1h
+  triggerOffsetHours: integer("trigger_offset_hours").default(0),
+  action: text("action").notNull(), // send_email | webhook
+  emailSubject: text("email_subject"),
+  emailBody: text("email_body"),
+  webhookUrl: text("webhook_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSchedulingWorkflowSchema = createInsertSchema(schedulingWorkflows).omit({ id: true, createdAt: true });
+export type InsertSchedulingWorkflow = z.infer<typeof insertSchedulingWorkflowSchema>;
+export type SchedulingWorkflow = typeof schedulingWorkflows.$inferSelect;

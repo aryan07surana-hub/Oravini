@@ -134,8 +134,11 @@ import {
   webinarStreamDestinations,
   webinarResources,
   competitorWatchlist, competitorSnapshots, competitorAlerts,
+  competitorDetectedPosts, competitorContentIdeas,
   type CompetitorWatchlistItem, type InsertCompetitorWatchlistItem,
   type CompetitorSnapshot, type CompetitorAlert,
+  type CompetitorDetectedPost, type InsertCompetitorDetectedPost,
+  type CompetitorContentIdea, type InsertCompetitorContentIdea,
   dialerAiCallQuota,
 } from "@shared/schema";
 
@@ -299,6 +302,23 @@ export interface IStorage {
   createCompetitorAlert(data: Omit<CompetitorAlert, 'id' | 'createdAt'>): Promise<CompetitorAlert>;
   getCompetitorAlerts(userId: string, unreadOnly?: boolean): Promise<CompetitorAlert[]>;
   markAlertsRead(userId: string): Promise<void>;
+  // Competitor detected posts
+  createDetectedPost(data: InsertCompetitorDetectedPost): Promise<CompetitorDetectedPost>;
+  getActivityFeed(userId: string, limit?: number): Promise<CompetitorDetectedPost[]>;
+  getDetectedPost(id: string): Promise<CompetitorDetectedPost | null>;
+  updateDetectedPost(id: string, data: Partial<CompetitorDetectedPost>): Promise<void>;
+  postAlreadyDetected(watchlistId: string, postUrl: string): Promise<boolean>;
+  getDetectedPostByUrl(watchlistId: string, postUrl: string): Promise<CompetitorDetectedPost | null>;
+  getRecentDetectedPostsForUser(userId: string, sinceDate: Date): Promise<CompetitorDetectedPost[]>;
+  getUnseenFeedCount(userId: string): Promise<number>;
+  markFeedSeen(userId: string): Promise<void>;
+  // Competitor content ideas
+  createContentIdea(data: InsertCompetitorContentIdea): Promise<CompetitorContentIdea>;
+  getContentIdeas(userId: string): Promise<CompetitorContentIdea[]>;
+  updateContentIdeaStatus(id: string, status: string): Promise<void>;
+  deleteContentIdea(id: string): Promise<void>;
+  getLeaderboard(userId: string): Promise<any[]>;
+  getFormatBreakdown(userId: string): Promise<any[]>;
   getAllInstagramPostsWithUrls(): Promise<any[]>;
   getAllYouTubePostsWithUrls(): Promise<any[]>;
   // DM Tracker
@@ -1102,6 +1122,11 @@ class DatabaseStorage implements IStorage {
       .where(eq(competitorWatchlist.isActive, true));
   }
 
+  async getUserWatchlistItems(userId: string) {
+    return db.select().from(competitorWatchlist)
+      .where(and(eq(competitorWatchlist.userId, userId), eq(competitorWatchlist.isActive, true)));
+  }
+
   async addCompetitorToWatchlist(data: InsertCompetitorWatchlistItem) {
     const [item] = await db.insert(competitorWatchlist).values(data).returning();
     return item;
@@ -1157,6 +1182,82 @@ class DatabaseStorage implements IStorage {
       .where(eq(competitorAlerts.userId, userId));
   }
 
+  async createDetectedPost(data: InsertCompetitorDetectedPost) {
+    const [post] = await db.insert(competitorDetectedPosts).values(data as any).returning();
+    return post;
+  }
+
+  async getActivityFeed(userId: string, limit = 50) {
+    return db.select().from(competitorDetectedPosts)
+      .where(eq(competitorDetectedPosts.userId, userId))
+      .orderBy(desc(competitorDetectedPosts.detectedAt))
+      .limit(limit);
+  }
+
+  async getDetectedPost(id: string) {
+    const [post] = await db.select().from(competitorDetectedPosts)
+      .where(eq(competitorDetectedPosts.id, id));
+    return post ?? null;
+  }
+
+  async updateDetectedPost(id: string, data: Partial<CompetitorDetectedPost>) {
+    await db.update(competitorDetectedPosts).set(data as any).where(eq(competitorDetectedPosts.id, id));
+  }
+
+  async postAlreadyDetected(watchlistId: string, postUrl: string) {
+    const [existing] = await db.select({ id: competitorDetectedPosts.id })
+      .from(competitorDetectedPosts)
+      .where(and(eq(competitorDetectedPosts.watchlistId, watchlistId), eq(competitorDetectedPosts.postUrl, postUrl)));
+    return !!existing;
+  }
+
+  async getDetectedPostByUrl(watchlistId: string, postUrl: string) {
+    const [post] = await db.select().from(competitorDetectedPosts)
+      .where(and(eq(competitorDetectedPosts.watchlistId, watchlistId), eq(competitorDetectedPosts.postUrl, postUrl)));
+    return post ?? null;
+  }
+
+  async getRecentDetectedPostsForUser(userId: string, sinceDate: Date) {
+    return db.select().from(competitorDetectedPosts)
+      .where(and(
+        eq(competitorDetectedPosts.userId, userId),
+        sqlExpr`${competitorDetectedPosts.detectedAt} >= ${sinceDate}`
+      ))
+      .orderBy(desc(competitorDetectedPosts.detectedAt));
+  }
+
+  async getUnseenFeedCount(userId: string) {
+    const rows = await db.select({ id: competitorDetectedPosts.id })
+      .from(competitorDetectedPosts)
+      .where(and(eq(competitorDetectedPosts.userId, userId), eq(competitorDetectedPosts.isSeen, false)));
+    return rows.length;
+  }
+
+  async markFeedSeen(userId: string) {
+    await db.update(competitorDetectedPosts)
+      .set({ isSeen: true })
+      .where(and(eq(competitorDetectedPosts.userId, userId), eq(competitorDetectedPosts.isSeen, false)));
+  }
+
+  async createContentIdea(data: InsertCompetitorContentIdea) {
+    const [idea] = await db.insert(competitorContentIdeas).values(data as any).returning();
+    return idea;
+  }
+
+  async getContentIdeas(userId: string) {
+    return db.select().from(competitorContentIdeas)
+      .where(eq(competitorContentIdeas.userId, userId))
+      .orderBy(desc(competitorContentIdeas.createdAt));
+  }
+
+  async updateContentIdeaStatus(id: string, status: string) {
+    await db.update(competitorContentIdeas).set({ status }).where(eq(competitorContentIdeas.id, id));
+  }
+
+  async deleteContentIdea(id: string) {
+    await db.delete(competitorContentIdeas).where(eq(competitorContentIdeas.id, id));
+  }
+
   async createNicheAnalysis(data: InsertNicheAnalysis) {
     const [created] = await db.insert(nicheAnalyses).values(data).returning();
     return created;
@@ -1198,6 +1299,49 @@ class DatabaseStorage implements IStorage {
   }
   async deleteDmQuickReply(id: string) {
     await db.delete(dmQuickReplies).where(eq(dmQuickReplies.id, id));
+  }
+
+  async getLeaderboard(userId: string) {
+    const { rows } = await pool.query(`
+      SELECT
+        w.id, w.handle, w.display_name, w.avatar_url, w.niche,
+        s.follower_count, s.following_count, s.post_count,
+        s.avg_views, s.avg_likes, s.avg_comments, s.avg_engagement,
+        s.scanned_at,
+        prev.follower_count AS prev_follower_count
+      FROM competitor_watchlist w
+      LEFT JOIN LATERAL (
+        SELECT * FROM competitor_snapshots
+        WHERE watchlist_id = w.id
+        ORDER BY scanned_at DESC LIMIT 1
+      ) s ON true
+      LEFT JOIN LATERAL (
+        SELECT follower_count FROM competitor_snapshots
+        WHERE watchlist_id = w.id
+        ORDER BY scanned_at DESC LIMIT 1 OFFSET 1
+      ) prev ON true
+      WHERE w.user_id = $1 AND w.is_active = true
+      ORDER BY s.follower_count DESC NULLS LAST
+    `, [userId]);
+    return rows;
+  }
+
+  async getFormatBreakdown(userId: string) {
+    const { rows } = await pool.query(`
+      SELECT
+        handle,
+        post_type,
+        COUNT(*)::int AS count,
+        ROUND(AVG(views))::int AS avg_views,
+        ROUND(AVG(likes))::int AS avg_likes,
+        ROUND(AVG(comments))::int AS avg_comments
+      FROM competitor_detected_posts
+      WHERE user_id = $1
+        AND detected_at > NOW() - INTERVAL '30 days'
+      GROUP BY handle, post_type
+      ORDER BY handle, avg_views DESC
+    `, [userId]);
+    return rows;
   }
 
   async getAllInstagramPostsWithUrls() {
@@ -4113,6 +4257,110 @@ class DatabaseStorage implements IStorage {
       .set({ bonusCallsBalance: newBonus, updatedAt: new Date() })
       .where(eq(dialerAiCallQuota.userId, userId));
     return { bonus: newBonus };
+  }
+
+  // ── Coach Agent: Profile + Score History ─────────────────────────────────
+
+  async getCoachProfile(userId: string): Promise<any | null> {
+    const { rows } = await pool.query(`SELECT * FROM coach_profiles WHERE user_id=$1 LIMIT 1`, [userId]);
+    return rows[0] ?? null;
+  }
+
+  async upsertCoachProfile(userId: string, data: {
+    niche?: string; platform?: string; goal?: string; follower_tier?: string; content_style?: string;
+  }): Promise<any> {
+    const fields = Object.entries(data).filter(([, v]) => v !== undefined);
+    if (fields.length === 0) return this.getCoachProfile(userId);
+    const setClauses = fields.map(([k], i) => `${k}=\$${i + 2}`).join(", ");
+    const values = [userId, ...fields.map(([, v]) => v)];
+    const { rows } = await pool.query(`
+      INSERT INTO coach_profiles (user_id, ${fields.map(([k]) => k).join(", ")})
+      VALUES ($1, ${fields.map((_, i) => `$${i + 2}`).join(", ")})
+      ON CONFLICT (user_id) DO UPDATE SET ${setClauses}, updated_at=NOW()
+      RETURNING *
+    `, values);
+    return rows[0];
+  }
+
+  async addCoachScore(userId: string, data: {
+    script_preview?: string; overall_score: number; clarity: number; persuasion: number;
+    cta_strength: number; brand_voice: number; mode?: string; goal?: string; verdict?: string;
+  }): Promise<void> {
+    await pool.query(`
+      INSERT INTO coach_score_history
+        (user_id, script_preview, overall_score, clarity, persuasion, cta_strength, brand_voice, mode, goal, verdict)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `, [
+      userId, data.script_preview ?? null, data.overall_score, data.clarity,
+      data.persuasion, data.cta_strength, data.brand_voice,
+      data.mode ?? "breakdown", data.goal ?? null, data.verdict ?? null,
+    ]);
+
+    // Recalculate rolling averages + detect top weakness/strength
+    await pool.query(`
+      UPDATE coach_profiles SET
+        avg_overall   = sub.avg_overall,
+        avg_clarity   = sub.avg_clarity,
+        avg_persuasion= sub.avg_persuasion,
+        avg_cta       = sub.avg_cta,
+        avg_brand_voice=sub.avg_brand_voice,
+        total_sessions= sub.cnt,
+        updated_at    = NOW()
+      FROM (
+        SELECT
+          AVG(overall_score) AS avg_overall,
+          AVG(clarity)       AS avg_clarity,
+          AVG(persuasion)    AS avg_persuasion,
+          AVG(cta_strength)  AS avg_cta,
+          AVG(brand_voice)   AS avg_brand_voice,
+          COUNT(*)           AS cnt
+        FROM coach_score_history WHERE user_id=$1
+      ) sub
+      WHERE user_id=$1
+    `, [userId]);
+  }
+
+  async getCoachScores(userId: string, limit = 20): Promise<any[]> {
+    const { rows } = await pool.query(`
+      SELECT * FROM coach_score_history WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2
+    `, [userId, limit]);
+    return rows;
+  }
+
+  async getContentIdeaById(id: string): Promise<any | null> {
+    const { rows } = await pool.query(
+      "SELECT * FROM competitor_content_ideas WHERE id=$1 LIMIT 1", [id]
+    );
+    return rows[0] ?? null;
+  }
+
+  async getTodayContentIdeas(userId: string): Promise<any[]> {
+    const { rows } = await pool.query(`
+      SELECT * FROM competitor_content_ideas
+      WHERE user_id=$1 AND created_at >= CURRENT_DATE
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [userId]);
+    return rows;
+  }
+
+  async getRecentSnapshotsForUser(userId: string, hoursBack = 30): Promise<any[]> {
+    const { rows } = await pool.query(`
+      SELECT cs.*, cw.handle, cw.niche as watchlist_niche
+      FROM competitor_snapshots cs
+      JOIN competitor_watchlist cw ON cw.id = cs.watchlist_id
+      WHERE cs.user_id=$1
+        AND cs.scanned_at >= NOW() - INTERVAL '${hoursBack} hours'
+      ORDER BY cs.scanned_at DESC
+    `, [userId]);
+    return rows;
+  }
+
+  async getUserIdsWithWatchlist(): Promise<string[]> {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT user_id FROM competitor_watchlist WHERE is_active = true
+    `);
+    return rows.map((r: any) => r.user_id);
   }
 }
 

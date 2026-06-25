@@ -17,3 +17,4 @@ export { registerDialerRoutes, startSequenceRunner } from "./dialer";
 export { registerSmsMarketingRoutes, bootstrapSmsMarketing } from "./sms-marketing";
 export { registerPlatformChatRoutes } from "./platform-chat";
 export { registerAnalyticsRoutes } from "./analytics";
+export { registerAdminOverviewRoutes } from "./admin-overview";
