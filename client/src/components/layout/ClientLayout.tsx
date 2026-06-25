@@ -3,6 +3,7 @@ import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import PlatformChatbot from "@/components/PlatformChatbot";
 import NotificationCenter from "@/components/NotificationCenter";
+import CompetitorActivityBell from "@/components/CompetitorActivityBell";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -14,7 +15,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, Flame, BookOpen
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -208,6 +209,7 @@ const topNavItems = [
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
+  { href: "/content-hub", label: "Daily Intel Hub", icon: Flame },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
@@ -216,6 +218,7 @@ const topNavItems = [
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
+  { href: "/vault", label: "Cortex Vault", icon: BookOpen },
   { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
@@ -271,6 +274,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {!isAdmin && <CompetitorActivityBell />}
               {!isAdmin && <NotificationCenter />}
               <button onClick={() => setMobileOpen(false)} className="lg:hidden text-muted-foreground">
                 <X className="w-4 h-4" />

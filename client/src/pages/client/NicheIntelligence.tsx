@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { captureToVault } from "@/lib/vault";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -284,6 +285,35 @@ export default function NicheIntelligence() {
   const health = healthData || { healthScore: 0, healthLabel: "No Data", factors: {} };
   const rank = rankData || { percentile: 0, userAvgEngagement: 0, nicheAvgEngagement: 0, userAvgViralScore: 0, nicheAvgViralScore: 0, totalUsers: 0, rank: 0 };
 
+  // Auto-capture niche snapshot to Cortex when data first loads
+  const capturedNicheRef = useRef<string>("");
+  useEffect(() => {
+    if (!intelligence || !activeNiche) return;
+    const key = `${activeNiche}-${platform}`;
+    if (capturedNicheRef.current === key) return;
+    capturedNicheRef.current = key;
+
+    const factorLines = Object.entries(health.factors || {})
+      .map(([k, v]) => `- ${k}: ${v}`)
+      .join("\n");
+    const trendLines = trends.slice(0, 5)
+      .map((t) => `- **${t.trendType}**: ${t.trendValue} (${t.momentum})`)
+      .join("\n");
+    const strategyLines = strategies.slice(0, 5)
+      .map((s) => `### ${s.title}\n${s.description}`)
+      .join("\n\n");
+    const gapLines = gaps.slice(0, 3)
+      .map((g) => `- ${g.missing.join(", ")} — ${g.potentialImpact}`)
+      .join("\n");
+
+    captureToVault(
+      "niche_analysis",
+      `${activeNiche} — ${platform}`,
+      `## Health Score\n${health.healthScore}/100 — ${health.healthLabel}\n\n## Health Factors\n${factorLines}\n\n## Benchmarks\n- Avg Engagement: ${intelligence.avgEngagementRate.toFixed(1)}%\n- Viral Score: ${intelligence.avgViralScore.toFixed(1)}/10\n- Views/Post: ${formatNum(intelligence.avgViews)}\n- Likes/Post: ${formatNum(intelligence.avgLikes)}\n- 30d Trend: ${intelligence.trend30d > 0 ? "+" : ""}${intelligence.trend30d.toFixed(1)}%\n- Top Hook Type: ${intelligence.topHookType || "N/A"}\n- Top Format: ${intelligence.topContentType || "N/A"}\n- Top Structure: ${intelligence.topStructure || "N/A"}\n- Winning Patterns: ${intelligence.totalWinningPatterns}\n- Creators Analysed: ${intelligence.totalUsers}\n\n## Trends\n${trendLines}\n\n## Strategies\n${strategyLines}\n\n## Content Gaps\n${gapLines}`,
+      { platform, niche: activeNiche, healthLabel: health.healthLabel }
+    );
+  }, [intelligence, activeNiche, platform, health, trends, strategies, gaps]);
+
   // AI Insights
   const generateAiInsights = useCallback(async () => {
     if (!intelligence) return;
@@ -296,7 +326,19 @@ export default function NicheIntelligence() {
         topContentType: intelligence.topContentType, totalPosts: intelligence.totalPosts,
         totalUsers: intelligence.totalUsers,
       });
-      setAiInsights(Array.isArray(res) ? res : []);
+      const insights = Array.isArray(res) ? res : [];
+      setAiInsights(insights);
+      if (insights.length > 0) {
+        const body = insights
+          .map((ins: any) => `### ${ins.title ?? ins.type ?? "Insight"}\n${ins.description ?? ins.content ?? ""}`)
+          .join("\n\n");
+        captureToVault(
+          "niche_analysis",
+          `AI Insights — ${activeNiche} (${platform})`,
+          `## AI-Generated Insights\n\n${body}`,
+          { platform, niche: activeNiche, type: "ai-insights" }
+        );
+      }
     } catch { toast({ title: "Could not generate AI insights", variant: "destructive" });
     } finally { setLoadingInsights(false); }
   }, [intelligence, activeNiche, platform, health]);
@@ -310,7 +352,21 @@ export default function NicheIntelligence() {
         topHookType: intelligence.topHookType, topContentType: intelligence.topContentType,
         gaps: gaps.slice(0, 3),
       });
-      setContentIdeas(Array.isArray(res) ? res : []);
+      const ideas = Array.isArray(res) ? res : [];
+      setContentIdeas(ideas);
+      if (ideas.length > 0) {
+        const body = ideas
+          .map((idea: any, i: number) =>
+            `### Idea ${i + 1}: ${idea.title ?? idea.hook ?? "Untitled"}\n${idea.hook ? `**Hook:** ${idea.hook}\n` : ""}${idea.captionStarter ? `**Caption:** ${idea.captionStarter}\n` : ""}${idea.description ?? ""}`
+          )
+          .join("\n\n");
+        captureToVault(
+          "niche_ideas",
+          `Content Ideas — ${activeNiche} (${platform})`,
+          `## Niche-Generated Content Ideas\n\n${body}`,
+          { platform, niche: activeNiche }
+        );
+      }
     } catch { toast({ title: "Could not generate content ideas", variant: "destructive" });
     } finally { setLoadingIdeas(false); }
   }, [intelligence, activeNiche, platform, gaps]);
@@ -341,7 +397,13 @@ export default function NicheIntelligence() {
     try {
       await navigator.clipboard.writeText(h.hook);
       setCopiedHookId(h.id);
-      toast({ title: "Hook copied!", description: "Paste it into your next post" });
+      captureToVault(
+        "niche_hook",
+        `Hook: ${h.hookType} — ${activeNiche}`,
+        `${h.hook}\n\n- **Type:** ${h.hookType}\n- **Viral Score:** ${h.viralScore}/10\n- **Avg Views:** ${formatNum(h.avgViews)}\n- **Platform:** ${h.platform}\n- **Niche:** ${h.niche}`,
+        { platform: h.platform, niche: h.niche, hookType: h.hookType, viralScore: String(h.viralScore) }
+      );
+      toast({ title: "Hook copied + saved to Cortex!", description: "Paste it into your next post" });
       setTimeout(() => setCopiedHookId(null), 2000);
     } catch { toast({ title: "Could not copy", variant: "destructive" }); }
   };

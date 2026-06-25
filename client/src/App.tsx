@@ -47,6 +47,9 @@ import Onboarding from "@/pages/Onboarding";
 import VerifyPhone from "@/pages/VerifyPhone";
 import PublicForm from "@/pages/PublicForm";
 import PublicBooking from "@/pages/PublicBooking";
+import CancelBooking from "@/pages/CancelBooking";
+import RescheduleBooking from "@/pages/RescheduleBooking";
+import EmbedBooking from "@/pages/EmbedBooking";
 
 import ClientDashboard from "@/pages/client/Dashboard";
 import ClientDocuments from "@/pages/client/Documents";
@@ -115,10 +118,12 @@ import VideoMarketingAddon from "@/pages/client/VideoMarketingAddon";
 import Jarvis from "@/pages/client/Jarvis";
 import IgGrowthTracker from "@/pages/client/IgGrowthTracker";
 import ContentIntelligence from "@/pages/ContentIntelligence";
+import ContentIntelHub from "@/pages/client/ContentIntelHub";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
 import ClientCRM from "@/pages/client/CRM";
 import ClientScheduling from "@/pages/client/Scheduling";
 import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
+import Vault from "@/pages/client/Vault";
 import Analytics from "@/pages/client/Analytics";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -217,6 +222,9 @@ function Router() {
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/f/:slug">{() => <PublicForm />}</Route>
       <Route path="/book/:slug">{() => <PublicBooking />}</Route>
+      <Route path="/cancel/:bookingId">{() => <CancelBooking />}</Route>
+      <Route path="/reschedule/:bookingId">{() => <RescheduleBooking />}</Route>
+      <Route path="/book/embed/:slug">{() => <EmbedBooking />}</Route>
       <Route path="/watch/:code">{() => <WatchWebinar />}</Route>
       <Route path="/webinar-invite/:token">{() => <PanelistInvite />}</Route>
       <Route path="/webinar-panelist/:id">{() => <PanelistStudio />}</Route>
@@ -293,10 +301,12 @@ function Router() {
       <Route path="/meetings/:id">{(p) => <Guard component={MeetingDetail} id={p.id} />}</Route>
       <Route path="/meetings">{() => <Guard component={MeetingsHub} />}</Route>
       <Route path="/content-intelligence">{() => <Guard component={ContentIntelligence} />}</Route>
+      <Route path="/content-hub">{() => <Guard component={ContentIntelHub} />}</Route>
       <Route path="/project-tracker">{() => <Guard component={ClientProjectTracker} />}</Route>
       <Route path="/crm">{() => <Guard component={ClientCRM} />}</Route>
       <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
       <Route path="/knowledge-graph">{() => <Guard component={KnowledgeGraph} />}</Route>
+      <Route path="/vault">{() => <Guard component={Vault} />}</Route>
       <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}

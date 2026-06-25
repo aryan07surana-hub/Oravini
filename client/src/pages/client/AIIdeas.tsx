@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { captureToVault } from "@/lib/vault";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -1325,6 +1326,14 @@ export default function AIIdeas() {
       const exists = prev.some(i => i.title === idea.title);
       const next = exists ? prev.filter(i => i.title !== idea.title) : [idea, ...prev];
       saveLikedStorage(platform, next);
+      if (!exists) {
+        captureToVault(
+          'content_idea',
+          idea.title,
+          `## Hook\n${idea.hook ?? ''}\n\n## Caption Starter\n${idea.captionStarter ?? ''}\n\n## CTA\n${idea.cta ?? ''}`,
+          { platform, format: idea.format ?? '', angle: idea.angle ?? '' }
+        );
+      }
       return next;
     });
   };

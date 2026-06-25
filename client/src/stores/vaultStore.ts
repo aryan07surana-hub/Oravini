@@ -24,11 +24,13 @@ export interface VaultFolder {
 export type ViewMode = 'graph' | 'editor' | 'split'
 
 const DEFAULT_FOLDERS: VaultFolder[] = [
-  { id: 'f-niches',  name: 'Niches',  open: true  },
-  { id: 'f-content', name: 'Content', open: true  },
-  { id: 'f-daily',   name: 'Daily',   open: false },
-  { id: 'f-ideas',   name: 'Ideas',   open: false },
-  { id: 'f-research',name: 'Research',open: false },
+  { id: 'f-niches',     name: 'Niches',     open: true  },
+  { id: 'f-content',    name: 'Content',    open: true  },
+  { id: 'f-daily',      name: 'Daily',      open: false },
+  { id: 'f-ideas',      name: 'Ideas',      open: false },
+  { id: 'f-hooks',      name: 'Hooks',      open: false },
+  { id: 'f-research',   name: 'Research',   open: false },
+  { id: 'f-recordings', name: 'Recordings', open: false },
 ]
 
 const WELCOME_FILE: VaultFile = {

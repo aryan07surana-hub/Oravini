@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { captureToVault } from "@/lib/vault";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1392,8 +1393,15 @@ export default function ScreenRecorder() {
       if (!res.ok) throw new Error("Upload failed");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data: any, vars: { blob: Blob; title: string; description: string }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/screen-recordings"] });
+      const title = vars.title || `Recording ${new Date().toLocaleString()}`;
+      captureToVault(
+        'recording',
+        title,
+        `Screen recording saved.\n\n${vars.description ? `**Description:** ${vars.description}` : ''}`,
+        { recorded: new Date().toISOString().slice(0, 10) }
+      );
       setPreviewUrl(null);
       setRecordedBlob(null);
       setRecordingTitle("");
@@ -2064,6 +2072,22 @@ export default function ScreenRecorder() {
     return () => { cleanupStreams(); if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
+  // Wire camera stream to the DraggableCamBubble once it mounts (after setIsRecording(true))
+  // and launch Picture-in-Picture so user can see their face while working in any other window
+  useEffect(() => {
+    if (isRecording && camStreamRef.current && liveCamRef.current) {
+      const vid = liveCamRef.current;
+      vid.srcObject = camStreamRef.current;
+      vid.play().catch(() => {});
+      if ((recordingMode === "screen_cam" || recordingMode === "cam_only") && camEnabled) {
+        vid.requestPictureInPicture().catch(() => {});
+      }
+    }
+    if (!isRecording && document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+    }
+  }, [isRecording, recordingMode, camEnabled]);
+
   useEffect(() => {
     const handler = () => setContextMenu(null);
     if (contextMenu) { document.addEventListener("click", handler); return () => document.removeEventListener("click", handler); }
@@ -2480,10 +2504,16 @@ export default function ScreenRecorder() {
                   {/* Active tools indicators */}
                   <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
                     {micEnabled && <span className="text-[10px] px-2 py-1 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>🎙️ Mic</span>}
+                    {camEnabled && recordingMode !== "screen" && <span className="text-[10px] px-2 py-1 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>📷 Face Cam (floating)</span>}
                     {cursorHighlight && <span className="text-[10px] px-2 py-1 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>✨ Cursor Glow</span>}
                     {annotationsEnabled && <span className="text-[10px] px-2 py-1 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>✏️ Annotations</span>}
                     {showTeleprompter && <span className="text-[10px] px-2 py-1 rounded" style={{ background: `${GOLD}10`, color: GOLD }}>📜 Teleprompter</span>}
                   </div>
+                  {camEnabled && recordingMode !== "screen" && (
+                    <p className="text-[11px] mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      Your face cam is floating above all windows so you can see yourself while recording
+                    </p>
+                  )}
 
                   {camEnabled && recordingMode === "screen_cam" && (
                     <DraggableCamBubble
