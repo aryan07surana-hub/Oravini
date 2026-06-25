@@ -1181,6 +1181,7 @@ export default function AIContentCoach() {
   const isScriptMode = ["breakdown","pre-post"].includes(mode);
 
   return (
+    <>
     <ClientLayout>
       {showProfileModal && (
         <ProfileSetupModal
@@ -1569,5 +1570,6 @@ export default function AIContentCoach() {
 
     {/* ── Welcome Video Modal — shows once, user can reopen via "Watch intro" ── */}
     {showWelcome && <WelcomeVideoModal onClose={dismissWelcome}/>}
+    </>
   );
 }
