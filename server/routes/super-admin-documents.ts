@@ -53,12 +53,16 @@ export function registerSuperAdminDocumentRoutes(app: Express, requireAdmin: any
   app.patch("/api/super-admin/doc-files/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { name, parentId } = req.body;
+      const setClauses: string[] = [];
+      const params: any[] = [];
+      if (name !== undefined) { params.push(name); setClauses.push(`name = $${params.length}`); }
+      if (parentId !== undefined) { params.push(parentId); setClauses.push(`parent_id = $${params.length}`); }
+      if (!setClauses.length) return res.status(400).json({ error: "Nothing to update" });
+      params.push(req.params.id);
       const { rows } = await pool.query(
-        `UPDATE super_admin_doc_files
-         SET name = COALESCE($1, name), parent_id = $2
-         WHERE id = $3
+        `UPDATE super_admin_doc_files SET ${setClauses.join(", ")} WHERE id = $${params.length}
          RETURNING id, name, parent_id AS "parentId", created_at AS "createdAt"`,
-        [name ?? null, parentId ?? null, req.params.id]
+        params
       );
       if (!rows.length) return res.status(404).json({ error: "Not found" });
       res.json(rows[0]);

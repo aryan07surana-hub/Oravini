@@ -9,6 +9,8 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
+import { registerMetaAdsRoutes } from "./metaAdsRoutes";
+import { registerMetaAdsManagerRoutes } from "./metaAdsManagerRoutes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
@@ -835,6 +837,146 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] competitor intelligence feed skipped:", e.message);
   }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS client_meta_ads_connections (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        access_token TEXT,
+        ad_account_id TEXT NOT NULL,
+        ad_account_name TEXT,
+        connected_at TIMESTAMP DEFAULT NOW(),
+        last_synced_at TIMESTAMP,
+        token_expires_at TIMESTAMP,
+        fb_user_id TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        UNIQUE(client_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_campaigns_cache (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        campaign_id TEXT NOT NULL,
+        campaign_name TEXT,
+        status TEXT,
+        objective TEXT,
+        budget_daily BIGINT,
+        budget_lifetime BIGINT,
+        spend TEXT DEFAULT '0',
+        impressions INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        cpm TEXT DEFAULT '0',
+        cpc TEXT DEFAULT '0',
+        ctr TEXT DEFAULT '0',
+        reach INTEGER DEFAULT 0,
+        conversions INTEGER DEFAULT 0,
+        roas TEXT,
+        start_time TIMESTAMP,
+        end_time TIMESTAMP,
+        synced_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, campaign_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_macc_client ON meta_ads_campaigns_cache(client_id, synced_at DESC)`);
+    console.log("[migration] meta ads tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta ads tables skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_scaling_rules (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        condition_metric TEXT NOT NULL,
+        condition_operator TEXT NOT NULL,
+        condition_value NUMERIC NOT NULL,
+        condition_window_days INTEGER NOT NULL DEFAULT 3,
+        action_type TEXT NOT NULL,
+        action_value NUMERIC,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        last_triggered_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_daily_snapshots (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        campaign_id TEXT NOT NULL,
+        campaign_name TEXT,
+        snapshot_date DATE NOT NULL,
+        spend NUMERIC DEFAULT 0,
+        impressions INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        conversions INTEGER DEFAULT 0,
+        reach INTEGER DEFAULT 0,
+        ctr NUMERIC DEFAULT 0,
+        cpc NUMERIC DEFAULT 0,
+        roas NUMERIC,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id, campaign_id, snapshot_date)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_cogs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_name TEXT NOT NULL,
+        selling_price NUMERIC NOT NULL,
+        cogs_amount NUMERIC NOT NULL,
+        currency TEXT DEFAULT 'USD',
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(client_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_reports (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        report_date DATE NOT NULL,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        ai_summary TEXT,
+        metrics_snapshot JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_masr_client ON meta_ads_scaling_rules(client_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mads_client ON meta_ads_daily_snapshots(client_id, snapshot_date DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_maar_client ON meta_ads_reports(client_id, report_date DESC)`);
+    console.log("[migration] meta ads manager tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta ads manager tables skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS super_admin_doc_files (
+        id VARCHAR PRIMARY KEY,
+        name VARCHAR NOT NULL,
+        parent_id VARCHAR REFERENCES super_admin_doc_files(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS super_admin_docs (
+        id VARCHAR PRIMARY KEY,
+        file_id VARCHAR NOT NULL REFERENCES super_admin_doc_files(id) ON DELETE CASCADE,
+        name VARCHAR NOT NULL,
+        type VARCHAR NOT NULL DEFAULT 'link',
+        url TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log("[migration] super_admin_doc tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] super_admin_doc tables skipped:", e.message);
+  }
 }
 
 (async () => {
@@ -858,6 +1000,8 @@ async function runMigrations() {
 
   await registerRoutes(httpServer, app);
   registerOAuthRoutes(app);
+  registerMetaAdsRoutes(app);
+  registerMetaAdsManagerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
