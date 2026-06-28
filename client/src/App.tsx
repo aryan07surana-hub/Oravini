@@ -160,6 +160,7 @@ import PortalDailyRead from "@/pages/portal/DailyRead";
 import PortalProjectTracker from "@/pages/portal/ProjectTracker";
 import PortalSettings from "@/pages/portal/Settings";
 
+import SuperAdminOverview from "@/pages/super-admin/Overview";
 import SuperAdminClientList from "@/pages/super-admin/ClientList";
 import SuperAdminDocuments from "@/pages/super-admin/DocumentsList";
 import SuperAdminTodos from "@/pages/super-admin/TodoList";
@@ -198,7 +199,7 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
     </div>
   );
   if (!user) return <Redirect to="/login" />;
-  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/clients" />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/overview" />;
   if (adminOnly && (user as any).role !== "admin") return <Redirect to="/dashboard" />;
   if ((user as any).role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if ((user as any).role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -213,7 +214,7 @@ function HomeRedirect() {
     </div>
   );
   if (!user) return <OraviniLanding />;
-  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/clients" />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/overview" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -344,7 +345,8 @@ function Router() {
       <Route path="/super-admin/documents">{() => <SuperAdminGuard component={SuperAdminDocuments} />}</Route>
       <Route path="/super-admin/todos">{() => <SuperAdminGuard component={SuperAdminTodos} />}</Route>
       <Route path="/super-admin/daily-read">{() => <SuperAdminGuard component={SuperAdminDailyRead} />}</Route>
-      <Route path="/super-admin">{() => <Redirect to="/super-admin/clients" />}</Route>
+      <Route path="/super-admin/overview">{() => <SuperAdminGuard component={SuperAdminOverview} />}</Route>
+      <Route path="/super-admin">{() => <Redirect to="/super-admin/overview" />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>

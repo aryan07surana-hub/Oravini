@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { useAuth, useLogout } from "@/hooks/use-auth";
-import { Users, FolderOpen, CheckSquare, BookOpenCheck, LogOut, Menu, X, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, CheckSquare, BookOpenCheck, LogOut, Menu, X, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 const GOLD = "#d4b461";
 
 const navItems = [
+  { href: "/super-admin/overview", label: "Overview", icon: LayoutDashboard },
   { href: "/super-admin/clients", label: "Client List", icon: Users },
   { href: "/super-admin/documents", label: "Documents", icon: FolderOpen },
   { href: "/super-admin/todos", label: "To-Do List", icon: CheckSquare },
