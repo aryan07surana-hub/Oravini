@@ -977,6 +977,22 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] super_admin_doc tables skipped:", e.message);
   }
+
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS super_admin_inspiration_images (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        category TEXT NOT NULL,
+        url TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        caption TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[migration] super_admin_inspiration_images ensured");
+  } catch (e: any) {
+    console.warn("[migration] super_admin_inspiration_images skipped:", e.message);
+  }
 }
 
 (async () => {

@@ -16496,6 +16496,73 @@ Rules:
   // ── Super Admin Documents ─────────────────────────────────────────────────
   registerSuperAdminDocumentRoutes(app, requireAdmin);
 
+  // ── Super Admin Inspiration Images ───────────────────────────────────────
+  const inspirationUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, uploadsDir),
+      filename: (_req, file, cb) => {
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+        cb(null, `inspiration-${unique}${path.extname(file.originalname)}`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"];
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowed.includes(ext)) cb(null, true);
+      else cb(new Error("Only image files allowed"));
+    },
+  });
+
+  function requireSuperAdmin(req: Request, res: Response, next: Function) {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if ((req.user as any).email !== "oravini@gmail.com") return res.status(403).json({ message: "Forbidden" });
+    next();
+  }
+
+  app.get("/api/super-admin/inspiration", requireSuperAdmin, async (req: any, res: any) => {
+    try {
+      const { rows } = await pool.query(
+        "SELECT * FROM super_admin_inspiration_images ORDER BY created_at DESC"
+      );
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/super-admin/inspiration", requireSuperAdmin, inspirationUpload.single("image"), async (req: any, res: any) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      const category = req.body.category || "Quotes";
+      const caption = req.body.caption || "";
+      const url = `/uploads/${req.file.filename}`;
+      const { rows } = await pool.query(
+        "INSERT INTO super_admin_inspiration_images (category, url, filename, caption) VALUES ($1, $2, $3, $4) RETURNING *",
+        [category, url, req.file.filename, caption]
+      );
+      res.json(rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/super-admin/inspiration/:id", requireSuperAdmin, async (req: any, res: any) => {
+    try {
+      const { rows } = await pool.query(
+        "DELETE FROM super_admin_inspiration_images WHERE id = $1 RETURNING *",
+        [req.params.id]
+      );
+      if (rows[0]?.filename) {
+        const filePath = path.join(uploadsDir, rows[0].filename);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ── SMS Link Shortener redirect (public, no auth) ─────────────────────────
   app.get("/s/:code", async (req: any, res: any) => {
     try {

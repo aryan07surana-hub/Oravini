@@ -165,6 +165,7 @@ import SuperAdminClientList from "@/pages/super-admin/ClientList";
 import SuperAdminDocuments from "@/pages/super-admin/DocumentsList";
 import SuperAdminTodos from "@/pages/super-admin/TodoList";
 import SuperAdminDailyRead from "@/pages/super-admin/DailyRead";
+import SuperAdminInspiration from "@/pages/super-admin/Inspiration";
 
 function PortalGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -345,6 +346,7 @@ function Router() {
       <Route path="/super-admin/documents">{() => <SuperAdminGuard component={SuperAdminDocuments} />}</Route>
       <Route path="/super-admin/todos">{() => <SuperAdminGuard component={SuperAdminTodos} />}</Route>
       <Route path="/super-admin/daily-read">{() => <SuperAdminGuard component={SuperAdminDailyRead} />}</Route>
+      <Route path="/super-admin/inspiration">{() => <SuperAdminGuard component={SuperAdminInspiration} />}</Route>
       <Route path="/super-admin/overview">{() => <SuperAdminGuard component={SuperAdminOverview} />}</Route>
       <Route path="/super-admin">{() => <Redirect to="/super-admin/overview" />}</Route>
 
