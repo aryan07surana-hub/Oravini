@@ -22,6 +22,9 @@ export async function seedSuperAdminDocs() {
     const docs = [
       { id: "seed_doc_automation_sop", name: "Oravini Automation SOP", url: "https://docs.google.com/document/d/1MWxrIPdjpsD7EapxhexjTvK2DNvWQZIulBVAaMZHRvw/edit?usp=sharing" },
       { id: "seed_doc_consulting_sop", name: "Oravini Consulting SOP", url: "https://docs.google.com/document/d/1LKvtNM0nWlja8VrxkN3OfuPyjD0pMOcYDE_PBX-tdtc/edit?usp=sharing" },
+      { id: "seed_doc_software_sop", name: "Oravini Software SOP", url: "https://docs.google.com/document/d/1a0A-SA1mk2h-3vAPSxqZcVCx1jzY4idXzHcpRo3v8P8/edit?usp=sharing" },
+      { id: "seed_doc_webinar_sop", name: "Oravini Webinar SOP", url: "https://docs.google.com/document/d/1SrtCugSpKDDOZcccVlWj6nxIsbFjQrwRYJFO7gdl5j0/edit?usp=sharing" },
+      { id: "seed_doc_partnership_guide", name: "Oravini Client Partnership Guide", url: "https://docs.google.com/document/d/1qzimB0qHeoVE9_JSZ2JHPL1uCnpKx2KWGQhrMsIT060/edit?usp=sharing" },
     ];
 
     for (const doc of docs) {
