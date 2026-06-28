@@ -16536,10 +16536,29 @@ Rules:
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       const category = req.body.category || "Quotes";
       const caption = req.body.caption || "";
-      const url = `/uploads/${req.file.filename}`;
+
+      let finalFilename = req.file.filename;
+      let finalUrl = `/uploads/${req.file.filename}`;
+
+      if (path.extname(req.file.filename).toLowerCase() === ".pdf") {
+        const pdfPath = path.join(uploadsDir, req.file.filename);
+        const pngFilename = req.file.filename.replace(/\.pdf$/i, ".png");
+        const { execSync } = await import("child_process");
+        try {
+          execSync(`qlmanage -t -s 1920 -o "${uploadsDir}" "${pdfPath}"`, { stdio: "ignore" });
+          const qlOut = path.join(uploadsDir, req.file.filename + ".png");
+          if (fs.existsSync(qlOut)) {
+            fs.renameSync(qlOut, path.join(uploadsDir, pngFilename));
+            fs.unlinkSync(pdfPath);
+            finalFilename = pngFilename;
+            finalUrl = `/uploads/${pngFilename}`;
+          }
+        } catch { /* keep pdf if conversion fails */ }
+      }
+
       const { rows } = await pool.query(
         "INSERT INTO super_admin_inspiration_images (category, url, filename, caption) VALUES ($1, $2, $3, $4) RETURNING *",
-        [category, url, req.file.filename, caption]
+        [category, finalUrl, finalFilename, caption]
       );
       res.json(rows[0]);
     } catch (e: any) {
