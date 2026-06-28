@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   FolderOpen, Plus, Trash2, Link2, FileText, ArrowLeft,
   Search, X, ExternalLink, Folder, Folders, RefreshCw, Download, Upload,
+  Edit2, Check,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -71,6 +72,14 @@ export default function DocumentsList() {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [importing, setImporting] = useState(false);
   const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
+    name: "", type: "link", url: "", content: "",
+  });
+
+  const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
+  const [renamingFileName, setRenamingFileName] = useState("");
+  const [editingDoc, setEditingDoc] = useState<Doc | null>(null);
+  const [editDocFileId, setEditDocFileId] = useState<string | null>(null);
+  const [editDocForm, setEditDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
     name: "", type: "link", url: "", content: "",
   });
 
@@ -223,6 +232,40 @@ export default function DocumentsList() {
     }
   }
 
+  async function renameFile() {
+    if (!renamingFileId || !renamingFileName.trim()) return;
+    try {
+      await apiFetch(`/api/super-admin/doc-files/${renamingFileId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: renamingFileName.trim() }),
+      });
+      setFiles((prev) => prev.map((f) => f.id === renamingFileId ? { ...f, name: renamingFileName.trim() } : f));
+      setRenamingFileId(null);
+      toast({ title: "Renamed" });
+    } catch (e: any) {
+      toast({ title: "Failed to rename", description: e.message, variant: "destructive" });
+    }
+  }
+
+  async function updateDoc() {
+    if (!editingDoc || !editDocFileId) return;
+    if (!editDocForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
+    if (editDocForm.type === "link" && !editDocForm.url.trim()) { toast({ title: "URL required", variant: "destructive" }); return; }
+    try {
+      const doc: Doc = await apiFetch(`/api/super-admin/docs/${editingDoc.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(editDocForm),
+      });
+      setFiles((prev) => prev.map((f) =>
+        f.id === editDocFileId ? { ...f, docs: f.docs.map((d) => d.id === doc.id ? doc : d) } : f
+      ));
+      setEditingDoc(null);
+      toast({ title: "Document updated" });
+    } catch (e: any) {
+      toast({ title: "Failed to update", description: e.message, variant: "destructive" });
+    }
+  }
+
   async function deleteDoc(docId: string, fileId: string) {
     try {
       await apiFetch(`/api/super-admin/docs/${docId}`, { method: "DELETE" });
@@ -300,12 +343,20 @@ export default function DocumentsList() {
                     {doc.content && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-wrap">{doc.content}</p>}
                     <p className="text-[10px] text-muted-foreground/50 mt-1.5">{new Date(doc.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <button
-                    onClick={() => deleteDoc(doc.id, currentFile.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5">
+                    <button
+                      onClick={() => { setEditingDoc(doc); setEditDocFileId(currentFile.id); setEditDocForm({ name: doc.name, type: doc.type, url: doc.url, content: doc.content }); }}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteDoc(doc.id, currentFile.id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -344,6 +395,43 @@ export default function DocumentsList() {
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={() => setShowAddDoc(false)}>Cancel</Button>
                 <Button className="flex-1" onClick={addDoc}>Add Document</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!editingDoc} onOpenChange={(o) => { if (!o) setEditingDoc(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>Edit Document</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Document Name *</Label>
+                <Input value={editDocForm.name} onChange={(e) => setEditDocForm((f) => ({ ...f, name: e.target.value }))} placeholder="Name this document" autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Type</Label>
+                <div className="flex gap-2">
+                  {(["link", "text"] as DocType[]).map((t) => (
+                    <button key={t} onClick={() => setEditDocForm((f) => ({ ...f, type: t }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${editDocForm.type === t ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                      {t === "link" ? <Link2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {editDocForm.type === "link" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">URL *</Label>
+                  <Input value={editDocForm.url} onChange={(e) => setEditDocForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://..." type="url" />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">{editDocForm.type === "link" ? "Notes (optional)" : "Content *"}</Label>
+                <Textarea value={editDocForm.content} onChange={(e) => setEditDocForm((f) => ({ ...f, content: e.target.value }))} placeholder={editDocForm.type === "link" ? "Add notes..." : "Paste or type content..."} rows={4} />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setEditingDoc(null)}>Cancel</Button>
+                <Button className="flex-1" onClick={updateDoc}>Save Changes</Button>
               </div>
             </div>
           </DialogContent>
@@ -399,9 +487,14 @@ export default function DocumentsList() {
                         <p className="text-xs text-muted-foreground mt-0.5">{f.docs.length} {f.docs.length === 1 ? "document" : "documents"}</p>
                         <p className="text-[10px] text-muted-foreground/50 mt-1">{new Date(f.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                        <button onClick={(e) => { e.stopPropagation(); setRenamingFileId(f.id); setRenamingFileName(f.name); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </button>
                 );
@@ -421,6 +514,22 @@ export default function DocumentsList() {
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setShowNewFile(false)}>Cancel</Button>
                 <Button className="flex-1" onClick={createFile}>Create</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!renamingFileId} onOpenChange={(o) => { if (!o) setRenamingFileId(null); }}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader><DialogTitle>Rename File</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">New Name *</Label>
+                <Input value={renamingFileName} onChange={(e) => setRenamingFileName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && renameFile()} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setRenamingFileId(null)}>Cancel</Button>
+                <Button className="flex-1" onClick={renameFile}>Rename</Button>
               </div>
             </div>
           </DialogContent>
@@ -514,9 +623,14 @@ export default function DocumentsList() {
                       </p>
                       <p className="text-[10px] text-muted-foreground/50 mt-1">{new Date(f.createdAt).toLocaleDateString()}</p>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); setRenamingFileId(f.id); setRenamingFileName(f.name); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </button>
               );
@@ -524,6 +638,23 @@ export default function DocumentsList() {
           </div>
         )}
       </div>
+
+      {/* Rename File Dialog */}
+      <Dialog open={!!renamingFileId} onOpenChange={(o) => { if (!o) setRenamingFileId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Rename</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">New Name *</Label>
+              <Input value={renamingFileName} onChange={(e) => setRenamingFileName(e.target.value)} autoFocus onKeyDown={(e) => e.key === "Enter" && renameFile()} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setRenamingFileId(null)}>Cancel</Button>
+              <Button className="flex-1" onClick={renameFile}>Rename</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* New File Dialog */}
       <Dialog open={showNewFile} onOpenChange={setShowNewFile}>

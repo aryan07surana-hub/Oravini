@@ -130,6 +130,27 @@ export function registerSuperAdminDocumentRoutes(app: Express, requireAdmin: any
     }
   });
 
+  // Edit doc
+  app.patch("/api/super-admin/docs/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { name, type, url, content } = req.body;
+      const { rows } = await pool.query(
+        `UPDATE super_admin_docs
+         SET name = COALESCE($1, name),
+             type = COALESCE($2, type),
+             url = COALESCE($3, url),
+             content = COALESCE($4, content)
+         WHERE id = $5
+         RETURNING id, file_id AS "fileId", name, type, url, content, created_at AS "createdAt"`,
+        [name ?? null, type ?? null, url ?? null, content ?? null, req.params.id]
+      );
+      if (!rows.length) return res.status(404).json({ error: "Not found" });
+      res.json(rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Delete doc
   app.delete("/api/super-admin/docs/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
