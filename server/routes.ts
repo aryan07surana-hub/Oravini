@@ -16505,12 +16505,12 @@ Rules:
         cb(null, `inspiration-${unique}${path.extname(file.originalname)}`);
       },
     }),
-    limits: { fileSize: 20 * 1024 * 1024 },
+    limits: { fileSize: 50 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif"];
+      const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".pdf"];
       const ext = path.extname(file.originalname).toLowerCase();
       if (allowed.includes(ext)) cb(null, true);
-      else cb(new Error("Only image files allowed"));
+      else cb(new Error("Only image or PDF files allowed"));
     },
   });
 
@@ -16557,6 +16557,20 @@ Rules:
         const filePath = path.join(uploadsDir, rows[0].filename);
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       }
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/super-admin/inspiration/rename-category", requireSuperAdmin, async (req: any, res: any) => {
+    try {
+      const { oldName, newName } = req.body;
+      if (!oldName || !newName) return res.status(400).json({ message: "oldName and newName required" });
+      await pool.query(
+        "UPDATE super_admin_inspiration_images SET category = $1 WHERE category = $2",
+        [newName.trim(), oldName]
+      );
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
