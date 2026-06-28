@@ -6,7 +6,7 @@ export async function seedDatabase() {
     const admins = [
       { email: "admin@brandverse.com", name: "Oravini Admin Paddle", password: "Brandverse@2024" },
       { email: "admin1@brandverse.com", name: "Co-Founder Admin", password: "Brandverse2024" },
-      { email: "oravini@gmail.com", name: "Oravini", password: "oravini123" },
+      { email: "oravini@gmail.com", name: "Oravini", password: "Oravini123" },
     ];
 
     for (const admin of admins) {

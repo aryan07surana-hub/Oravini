@@ -146,6 +146,7 @@ import AdminScheduling from "@/pages/admin/AdminScheduling";
 import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
+import AdminMetaAdsManager from "@/pages/admin/AdminMetaAdsManager";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
 import AdminFeedback from "@/pages/admin/AdminFeedback";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
@@ -159,7 +160,25 @@ import PortalDailyRead from "@/pages/portal/DailyRead";
 import PortalProjectTracker from "@/pages/portal/ProjectTracker";
 import PortalSettings from "@/pages/portal/Settings";
 
+import SuperAdminClientList from "@/pages/super-admin/ClientList";
+import SuperAdminDocuments from "@/pages/super-admin/DocumentsList";
+import SuperAdminTodos from "@/pages/super-admin/TodoList";
+import SuperAdminDailyRead from "@/pages/super-admin/DailyRead";
+
 function PortalGuard({ component: Component, ...props }: any) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return (
+    <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
+      <div className="w-6 h-6 rounded-full border-2 animate-spin" style={{ borderColor: "#d4b461", borderTopColor: "transparent" }} />
+    </div>
+  );
+  if (!user) return <Redirect to="/login" />;
+  if (user.email !== "oravini@gmail.com") return <Redirect to="/login" />;
+  return <ErrorBoundary><Component {...props} /></ErrorBoundary>;
+
+}
+
+function SuperAdminGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#0a0910]">
@@ -179,7 +198,7 @@ function Guard({ component: Component, adminOnly = false, ...props }: any) {
     </div>
   );
   if (!user) return <Redirect to="/login" />;
-  if (user.email === "oravini@gmail.com") return <Redirect to="/portal/elite-members" />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/clients" />;
   if (adminOnly && (user as any).role !== "admin") return <Redirect to="/dashboard" />;
   if ((user as any).role !== "admin" && !(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if ((user as any).role !== "admin" && !user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -194,7 +213,7 @@ function HomeRedirect() {
     </div>
   );
   if (!user) return <OraviniLanding />;
-  if (user.email === "oravini@gmail.com") return <Redirect to="/portal/elite-members" />;
+  if (user.email === "oravini@gmail.com") return <Redirect to="/super-admin/clients" />;
   if ((user as any).role === "admin") return <Redirect to="/admin" />;
   if (!(user as any).surveyCompleted) return <Redirect to="/onboarding" />;
   if (!user.planConfirmed) return <Redirect to="/select-plan" />;
@@ -318,7 +337,14 @@ function Router() {
       <Route path="/portal/daily-read">{() => <PortalGuard component={PortalDailyRead} />}</Route>
       <Route path="/portal/projects">{() => <PortalGuard component={PortalProjectTracker} />}</Route>
       <Route path="/portal/settings">{() => <PortalGuard component={PortalSettings} />}</Route>
-      <Route path="/portal">{() => <Redirect to="/portal/elite-members" />}</Route>
+      <Route path="/portal">{() => <Redirect to="/super-admin/clients" />}</Route>
+
+      {/* Super Admin — oravini@gmail.com personal workspace */}
+      <Route path="/super-admin/clients">{() => <SuperAdminGuard component={SuperAdminClientList} />}</Route>
+      <Route path="/super-admin/documents">{() => <SuperAdminGuard component={SuperAdminDocuments} />}</Route>
+      <Route path="/super-admin/todos">{() => <SuperAdminGuard component={SuperAdminTodos} />}</Route>
+      <Route path="/super-admin/daily-read">{() => <SuperAdminGuard component={SuperAdminDailyRead} />}</Route>
+      <Route path="/super-admin">{() => <Redirect to="/super-admin/clients" />}</Route>
 
       {/* Admin — protected */}
       <Route path="/admin/clients/:id">{(p) => <Guard component={AdminClientDetail} adminOnly id={p.id} />}</Route>
@@ -326,6 +352,7 @@ function Router() {
       <Route path="/admin/chat">{() => <Guard component={AdminChat} adminOnly />}</Route>
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
+      <Route path="/admin/meta-ads">{() => <Guard component={AdminMetaAdsManager} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
       <Route path="/admin/video-editor">{() => <Guard component={AIVideoEditor} adminOnly useAdmin={true} />}</Route>
