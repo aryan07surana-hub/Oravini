@@ -315,25 +315,46 @@ export default function Overview() {
       <div className="max-w-3xl mx-auto space-y-8">
 
         {/* ── Live Header ─────────────────────────────────────────────────── */}
-        <div className="rounded-2xl border p-6 relative overflow-hidden" style={{ borderColor: `${cfg.color}40`, background: `${cfg.color}08` }}>
-          <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-5" style={{ background: cfg.color, transform: "translate(30%,-30%)" }} />
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${cfg.color}22` }}>
-                  <Icon className="w-4 h-4" style={{ color: cfg.color }} />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: cfg.color }}>{cfg.label}</span>
-              </div>
-              <h1 className="text-2xl font-bold text-foreground">{FULL_DAYS[dow]}, {MONTHS[now.getMonth()]} {now.getDate()}</h1>
-              <p className="text-muted-foreground text-sm mt-1">{cfg.sub}</p>
-              <p className="text-xs text-muted-foreground mt-2 max-w-md leading-relaxed">{cfg.description}</p>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-bold tabular-nums" style={{ color: cfg.color }}>{fmtTime(now)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {hour < 12 ? "Morning session" : hour < 17 ? "Afternoon session" : "Evening session"}
+        <div className="rounded-2xl border relative overflow-hidden" style={{ borderColor: `${cfg.color}40`, background: `${cfg.color}06` }}>
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-[0.04]" style={{ background: cfg.color, transform: "translate(35%,-35%)" }} />
+            <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-[0.03]" style={{ background: cfg.color, transform: "translate(-30%,30%)" }} />
+          </div>
+
+          <div className="px-8 pt-8 pb-6 relative">
+            {/* Date + clock row */}
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm font-medium text-muted-foreground tracking-wide">
+                {FULL_DAYS[dow]}, {MONTHS[now.getMonth()]} {now.getDate()}
               </p>
+              <div className="text-right">
+                <p className="text-sm font-bold tabular-nums" style={{ color: cfg.color }}>{fmtTime(now)}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening"}
+                </p>
+              </div>
+            </div>
+
+            {/* Big day label */}
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${cfg.color}20` }}>
+                <Icon className="w-5 h-5" style={{ color: cfg.color }} />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-[0.2em]" style={{ color: cfg.color }}>{cfg.label}</span>
+            </div>
+
+            <h1 className="text-5xl font-black tracking-tight leading-none text-foreground mb-3">
+              {dayType === "management" ? "Run The Machine." : dayType === "founder" ? "Build The Machine." : "Reflect & Recharge."}
+            </h1>
+
+            <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
+              {cfg.description}
+            </p>
+
+            {/* Focus pill */}
+            <div className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold" style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}30` }}>
+              <Icon className="w-4 h-4" />
+              Today's focus: {cfg.sub}
             </div>
           </div>
         </div>
