@@ -1,5 +1,42 @@
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
+import { pool } from "./storage";
+
+export async function seedSuperAdminDocs() {
+  try {
+    const SUPER_ID = "seed_oravini_super";
+    const SOPS_ID = "seed_oravini_sops";
+
+    await pool.query(`
+      INSERT INTO super_admin_doc_files (id, name, parent_id)
+      VALUES ($1, 'Oravini', NULL)
+      ON CONFLICT (id) DO NOTHING
+    `, [SUPER_ID]);
+
+    await pool.query(`
+      INSERT INTO super_admin_doc_files (id, name, parent_id)
+      VALUES ($1, 'Oravini SOPS', $2)
+      ON CONFLICT (id) DO NOTHING
+    `, [SOPS_ID, SUPER_ID]);
+
+    const docs = [
+      { id: "seed_doc_automation_sop", name: "Oravini Automation SOP", url: "https://docs.google.com/document/d/1MWxrIPdjpsD7EapxhexjTvK2DNvWQZIulBVAaMZHRvw/edit?usp=sharing" },
+      { id: "seed_doc_consulting_sop", name: "Oravini Consulting SOP", url: "https://docs.google.com/document/d/1LKvtNM0nWlja8VrxkN3OfuPyjD0pMOcYDE_PBX-tdtc/edit?usp=sharing" },
+    ];
+
+    for (const doc of docs) {
+      await pool.query(`
+        INSERT INTO super_admin_docs (id, file_id, name, type, url, content)
+        VALUES ($1, $2, $3, 'link', $4, '')
+        ON CONFLICT (id) DO NOTHING
+      `, [doc.id, SOPS_ID, doc.name, doc.url]);
+    }
+
+    console.log("[seed] Super admin docs seeded: Oravini > Oravini SOPS");
+  } catch (err) {
+    console.warn("[seed] Super admin docs seed skipped (tables may not exist yet):", (err as any).message);
+  }
+}
 
 export async function seedDatabase() {
   try {
