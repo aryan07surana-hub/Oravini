@@ -63,6 +63,27 @@ export async function seedSuperAdminDocs() {
       `, [doc.id, CONTENT_ID, doc.name, doc.url]);
     }
 
+    const CALLS_ID = "seed_oravini_client_calls_sops";
+    await pool.query(`
+      INSERT INTO super_admin_doc_files (id, name, parent_id)
+      VALUES ($1, 'Oravini Client Calls SOPS', $2)
+      ON CONFLICT (id) DO NOTHING
+    `, [CALLS_ID, SUPER_ID]);
+
+    const callsDocs = [
+      { id: "seed_calls_market_research", name: "Oravini Market Research", url: "https://docs.google.com/document/d/1RyoInm496GHjcK9EeUD8hclHa9CwlvttbFnN503bn0s/edit?usp=sharing" },
+      { id: "seed_calls_client_discovery", name: "Oravini Client Discovery", url: "https://docs.google.com/document/d/1fUbxOPJNVLnH4BJ1cSTaF7PeAQLAhCeQVqpyt11Oodo/edit?usp=sharing" },
+      { id: "seed_calls_consultation_sops", name: "Oravini Client Consultation SOPS", url: "https://docs.google.com/document/d/12sHOhvEb50hnjXSsjpM8G9QhwpljhEQKWbw3Em45WnE/edit?usp=sharing" },
+    ];
+
+    for (const doc of callsDocs) {
+      await pool.query(`
+        INSERT INTO super_admin_docs (id, file_id, name, type, url, content)
+        VALUES ($1, $2, $3, 'link', $4, '')
+        ON CONFLICT (id) DO NOTHING
+      `, [doc.id, CALLS_ID, doc.name, doc.url]);
+    }
+
     const docs = [
       { id: "seed_doc_automation_sop", name: "Oravini Automation SOP", url: "https://docs.google.com/document/d/1MWxrIPdjpsD7EapxhexjTvK2DNvWQZIulBVAaMZHRvw/edit?usp=sharing" },
       { id: "seed_doc_consulting_sop", name: "Oravini Consulting SOP", url: "https://docs.google.com/document/d/1LKvtNM0nWlja8VrxkN3OfuPyjD0pMOcYDE_PBX-tdtc/edit?usp=sharing" },
