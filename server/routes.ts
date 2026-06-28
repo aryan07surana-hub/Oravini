@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
 import { registerSchedulingRoutes } from "./schedulingRoutes";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes, registerAdminOverviewRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -16491,6 +16491,9 @@ Rules:
 
   // ── Admin Overview Stats ───────────────────────────────────────────────────
   registerAdminOverviewRoutes(app, requireAdmin);
+
+  // ── Super Admin Documents ─────────────────────────────────────────────────
+  registerSuperAdminDocumentRoutes(app, requireAdmin);
 
   // ── SMS Link Shortener redirect (public, no auth) ─────────────────────────
   app.get("/s/:code", async (req: any, res: any) => {

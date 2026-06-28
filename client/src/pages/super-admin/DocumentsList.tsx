@@ -1,5 +1,5 @@
 import SuperAdminLayout from "./Layout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   FolderOpen, Plus, Trash2, Link2, FileText, ArrowLeft,
-  Search, X, ExternalLink, Folder, Folders,
+  Search, X, ExternalLink, Folder, Folders, RefreshCw, Download, Upload,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
 const LS_KEY = "super_admin_documents_v1";
+const LS_MIGRATED_KEY = "super_admin_docs_migrated_v1";
 
 type DocType = "link" | "text";
 
@@ -39,11 +40,6 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-function load(): DocFile[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
-}
-function save(data: DocFile[]) { localStorage.setItem(LS_KEY, JSON.stringify(data)); }
-
 const FILE_COLORS = ["#d4b461","#3b82f6","#22c55e","#a855f7","#f97316","#ef4444","#06b6d4","#ec4899"];
 function fileColor(name: string) {
   let h = 0;
@@ -51,9 +47,16 @@ function fileColor(name: string) {
   return FILE_COLORS[h];
 }
 
+async function apiFetch(path: string, opts?: RequestInit) {
+  const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export default function DocumentsList() {
   const { toast } = useToast();
-  const [files, setFiles] = useState<DocFile[]>(load);
+  const [files, setFiles] = useState<DocFile[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedSuper, setSelectedSuper] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -66,78 +69,167 @@ export default function DocumentsList() {
   const [selectedForSuper, setSelectedForSuper] = useState<string[]>([]);
 
   const [showAddDoc, setShowAddDoc] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
     name: "", type: "link", url: "", content: "",
   });
 
-  useEffect(() => { save(files); }, [files]);
+  const loadFiles = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/super-admin/doc-files");
+      setFiles(data);
+    } catch (e: any) {
+      toast({ title: "Failed to load documents", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  // On mount: migrate localStorage data then load from server
+  useEffect(() => {
+    async function init() {
+      const alreadyMigrated = localStorage.getItem(LS_MIGRATED_KEY);
+      if (!alreadyMigrated) {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          try {
+            const localData = JSON.parse(raw);
+            if (Array.isArray(localData) && localData.length > 0) {
+              await apiFetch("/api/super-admin/doc-files/bulk-import", {
+                method: "POST",
+                body: JSON.stringify(localData),
+              });
+              toast({ title: `Recovered ${localData.length} file(s) from local storage` });
+            }
+          } catch {
+            // silently skip if migration fails
+          }
+        }
+        localStorage.setItem(LS_MIGRATED_KEY, "1");
+      }
+      await loadFiles();
+    }
+    init();
+  }, [loadFiles, toast]);
 
   const currentSuper = files.find((f) => f.id === selectedSuper) ?? null;
   const currentFile = files.find((f) => f.id === selectedFile) ?? null;
 
-  function createFile() {
+  async function createFile() {
     if (!newFileName.trim()) return;
-    const f: DocFile = {
-      id: uid(),
-      name: newFileName.trim(),
-      docs: [],
-      createdAt: new Date().toISOString(),
-      parentId: selectedSuper ?? null,
-    };
-    setFiles((prev) => [f, ...prev]);
-    setNewFileName("");
-    setShowNewFile(false);
-    setSelectedFile(f.id);
-    toast({ title: `"${f.name}" created` });
+    const id = uid();
+    try {
+      const f: DocFile = await apiFetch("/api/super-admin/doc-files", {
+        method: "POST",
+        body: JSON.stringify({ id, name: newFileName.trim(), parentId: selectedSuper ?? null }),
+      });
+      setFiles((prev) => [f, ...prev]);
+      setNewFileName("");
+      setShowNewFile(false);
+      setSelectedFile(f.id);
+      toast({ title: `"${f.name}" created` });
+    } catch (e: any) {
+      toast({ title: "Failed to create file", description: e.message, variant: "destructive" });
+    }
   }
 
-  function createSuperFile() {
+  async function createSuperFile() {
     if (!newSuperName.trim()) return;
     const id = uid();
-    const superFile: DocFile = {
-      id,
-      name: newSuperName.trim(),
-      docs: [],
-      createdAt: new Date().toISOString(),
-      parentId: null,
-    };
-    setFiles((prev) => {
-      const updated = prev.map((f) =>
-        selectedForSuper.includes(f.id) ? { ...f, parentId: id } : f
+    try {
+      const superFile: DocFile = await apiFetch("/api/super-admin/doc-files", {
+        method: "POST",
+        body: JSON.stringify({ id, name: newSuperName.trim(), parentId: null }),
+      });
+      // reparent selected files
+      await Promise.all(
+        selectedForSuper.map((fid) =>
+          apiFetch(`/api/super-admin/doc-files/${fid}`, {
+            method: "PATCH",
+            body: JSON.stringify({ parentId: id }),
+          })
+        )
       );
-      return [superFile, ...updated];
-    });
-    setNewSuperName("");
-    setSelectedForSuper([]);
-    setShowNewSuper(false);
-    toast({ title: `"${superFile.name}" created with ${selectedForSuper.length} file(s)` });
+      await loadFiles();
+      setNewSuperName("");
+      setSelectedForSuper([]);
+      setShowNewSuper(false);
+      toast({ title: `"${superFile.name}" created with ${selectedForSuper.length} file(s)` });
+    } catch (e: any) {
+      toast({ title: "Failed to create super file", description: e.message, variant: "destructive" });
+    }
   }
 
-  function deleteFile(id: string) {
-    setFiles((prev) =>
-      prev
-        .filter((f) => f.id !== id)
-        .map((f) => (f.parentId === id ? { ...f, parentId: null } : f))
-    );
-    if (selectedFile === id) setSelectedFile(null);
-    if (selectedSuper === id) setSelectedSuper(null);
+  async function deleteFile(id: string) {
+    try {
+      await apiFetch(`/api/super-admin/doc-files/${id}`, { method: "DELETE" });
+      setFiles((prev) => prev.filter((f) => f.id !== id).map((f) => f.parentId === id ? { ...f, parentId: null } : f));
+      if (selectedFile === id) setSelectedFile(null);
+      if (selectedSuper === id) setSelectedSuper(null);
+    } catch (e: any) {
+      toast({ title: "Failed to delete", description: e.message, variant: "destructive" });
+    }
   }
 
-  function addDoc() {
+  async function addDoc() {
     if (!docForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
     if (docForm.type === "link" && !docForm.url.trim()) { toast({ title: "URL required", variant: "destructive" }); return; }
-    const doc: Doc = {
-      id: uid(),
-      name: docForm.name.trim(),
-      type: docForm.type,
-      url: docForm.url.trim(),
-      content: docForm.content.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setFiles((prev) => prev.map((f) => f.id === selectedFile ? { ...f, docs: [doc, ...f.docs] } : f));
-    setDocForm({ name: "", type: "link", url: "", content: "" });
-    setShowAddDoc(false);
-    toast({ title: "Document added" });
+    const id = uid();
+    try {
+      const doc: Doc = await apiFetch(`/api/super-admin/doc-files/${selectedFile}/docs`, {
+        method: "POST",
+        body: JSON.stringify({ id, ...docForm }),
+      });
+      setFiles((prev) => prev.map((f) => f.id === selectedFile ? { ...f, docs: [doc, ...f.docs] } : f));
+      setDocForm({ name: "", type: "link", url: "", content: "" });
+      setShowAddDoc(false);
+      toast({ title: "Document added" });
+    } catch (e: any) {
+      toast({ title: "Failed to add document", description: e.message, variant: "destructive" });
+    }
+  }
+
+  function saveFilesToDisk() {
+    const blob = new Blob([JSON.stringify(files, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `oravini-docs-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `Saved ${files.length} file(s) to disk` });
+  }
+
+  async function importFromDisk(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data)) throw new Error("Invalid format");
+      await apiFetch("/api/super-admin/doc-files/bulk-import", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      await loadFiles();
+      toast({ title: `Imported ${data.length} file(s)` });
+    } catch (e: any) {
+      toast({ title: "Import failed", description: e.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  }
+
+  async function deleteDoc(docId: string, fileId: string) {
+    try {
+      await apiFetch(`/api/super-admin/docs/${docId}`, { method: "DELETE" });
+      setFiles((prev) => prev.map((f) => f.id === fileId ? { ...f, docs: f.docs.filter((d) => d.id !== docId) } : f));
+    } catch (e: any) {
+      toast({ title: "Failed to delete document", description: e.message, variant: "destructive" });
+    }
   }
 
   // ── Doc view ─────────────────────────────────────────────────────────────────
@@ -209,7 +301,7 @@ export default function DocumentsList() {
                     <p className="text-[10px] text-muted-foreground/50 mt-1.5">{new Date(doc.createdAt).toLocaleDateString()}</p>
                   </div>
                   <button
-                    onClick={() => setFiles((prev) => prev.map((f) => f.id === currentFile.id ? { ...f, docs: f.docs.filter((d) => d.id !== doc.id) } : f))}
+                    onClick={() => deleteDoc(doc.id, currentFile.id)}
                     className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -355,6 +447,20 @@ export default function DocumentsList() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={loadFiles} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+            <Button size="sm" variant="outline" onClick={saveFilesToDisk} disabled={files.length === 0}>
+              <Download className="w-4 h-4 mr-1" /> Save Files
+            </Button>
+            <label>
+              <Button size="sm" variant="outline" asChild disabled={importing}>
+                <span className="cursor-pointer">
+                  <Upload className="w-4 h-4 mr-1" /> {importing ? "Importing..." : "Import"}
+                </span>
+              </Button>
+              <input type="file" accept=".json" className="hidden" onChange={importFromDisk} />
+            </label>
             <Button size="sm" variant="outline" onClick={() => { setSelectedForSuper([]); setShowNewSuper(true); }}>
               <Folders className="w-4 h-4 mr-1" /> New Super File
             </Button>
@@ -368,7 +474,12 @@ export default function DocumentsList() {
           {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
         </div>
 
-        {filteredRoot.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-30" />
+            <p className="text-sm">Loading documents...</p>
+          </div>
+        ) : filteredRoot.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <Folder className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">{search ? "No files match" : 'No files yet. Create one with "New File".'}</p>

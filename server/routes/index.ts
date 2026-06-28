@@ -18,3 +18,4 @@ export { registerSmsMarketingRoutes, bootstrapSmsMarketing } from "./sms-marketi
 export { registerPlatformChatRoutes } from "./platform-chat";
 export { registerAnalyticsRoutes } from "./analytics";
 export { registerAdminOverviewRoutes } from "./admin-overview";
+export { registerSuperAdminDocumentRoutes } from "./super-admin-documents";
