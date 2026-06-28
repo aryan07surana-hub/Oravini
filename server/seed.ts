@@ -42,6 +42,27 @@ export async function seedSuperAdminDocs() {
       `, [doc.id, LEARNINGS_ID, doc.name, doc.url]);
     }
 
+    const CONTENT_ID = "seed_oravini_content";
+    await pool.query(`
+      INSERT INTO super_admin_doc_files (id, name, parent_id)
+      VALUES ($1, 'Oravini Content', $2)
+      ON CONFLICT (id) DO NOTHING
+    `, [CONTENT_ID, SUPER_ID]);
+
+    const contentDocs = [
+      { id: "seed_content_types", name: "Oravini Content Types", url: "https://docs.google.com/document/d/1ODmMFGgkxIG1PGIdxjpCAKKPHI8W26s_HS3517XrHWI/edit?usp=sharing" },
+      { id: "seed_content_brandverse_ideas", name: "Oravini (Brandverse) Content Ideas", url: "https://docs.google.com/document/d/1fkDNylIabxjGn9UTD1eA22veKFbO0VmKny-WRon0Ch0/edit?usp=sharing" },
+      { id: "seed_content_ideas", name: "Oravini Content Ideas", url: "https://docs.google.com/document/d/1WrklTl-OtXItoEnpiDTNFWLc591o64vmcwvJMt3z-HQ/edit?usp=sharing" },
+    ];
+
+    for (const doc of contentDocs) {
+      await pool.query(`
+        INSERT INTO super_admin_docs (id, file_id, name, type, url, content)
+        VALUES ($1, $2, $3, 'link', $4, '')
+        ON CONFLICT (id) DO NOTHING
+      `, [doc.id, CONTENT_ID, doc.name, doc.url]);
+    }
+
     const docs = [
       { id: "seed_doc_automation_sop", name: "Oravini Automation SOP", url: "https://docs.google.com/document/d/1MWxrIPdjpsD7EapxhexjTvK2DNvWQZIulBVAaMZHRvw/edit?usp=sharing" },
       { id: "seed_doc_consulting_sop", name: "Oravini Consulting SOP", url: "https://docs.google.com/document/d/1LKvtNM0nWlja8VrxkN3OfuPyjD0pMOcYDE_PBX-tdtc/edit?usp=sharing" },
