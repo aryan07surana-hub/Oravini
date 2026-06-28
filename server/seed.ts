@@ -19,6 +19,29 @@ export async function seedSuperAdminDocs() {
       ON CONFLICT (id) DO NOTHING
     `, [SOPS_ID, SUPER_ID]);
 
+    const LEARNINGS_ID = "seed_oravini_learnings";
+    await pool.query(`
+      INSERT INTO super_admin_doc_files (id, name, parent_id)
+      VALUES ($1, 'Oravini Learnings', $2)
+      ON CONFLICT (id) DO NOTHING
+    `, [LEARNINGS_ID, SUPER_ID]);
+
+    const learningDocs = [
+      { id: "seed_learn_trad_vs_organic", name: "Oravini Traditional Marketing vs Organic Marketing", url: "https://docs.google.com/document/d/1oS8fdxChF4so59ZUvjnx5JAkNeTxOlySojgpFG40sOY/edit?usp=sharing" },
+      { id: "seed_learn_offer_ladder", name: "Oravini 7 Level Offer Ladder", url: "https://docs.google.com/document/d/1KovMEhY30Zs969MveUVj48N5RBkokB6oaVv_vydfqCc/edit?usp=sharing" },
+      { id: "seed_learn_funnel_types", name: "Oravini Funnel Types", url: "https://docs.google.com/document/d/1b_1dsHBmWjpQQqeAhkTvl9C4JthllyHgnwkDu3uijyk/edit?usp=sharing" },
+      { id: "seed_learn_systems_ops", name: "Oravini Systems and Operations", url: "https://docs.google.com/document/d/1GY-sws12PKkQXFbmVnyoVHkNqrBTu0ELJzfPCXQ64Sk/edit?usp=sharing" },
+      { id: "seed_learn_profile_funnel", name: "Oravini Intro to Profile Funnel", url: "https://docs.google.com/document/d/15BWc8I2Eeij6BBpUa5Vcb16uq8RPqsnJLDQNVm41wzc/edit?usp=sharing" },
+    ];
+
+    for (const doc of learningDocs) {
+      await pool.query(`
+        INSERT INTO super_admin_docs (id, file_id, name, type, url, content)
+        VALUES ($1, $2, $3, 'link', $4, '')
+        ON CONFLICT (id) DO NOTHING
+      `, [doc.id, LEARNINGS_ID, doc.name, doc.url]);
+    }
+
     const docs = [
       { id: "seed_doc_automation_sop", name: "Oravini Automation SOP", url: "https://docs.google.com/document/d/1MWxrIPdjpsD7EapxhexjTvK2DNvWQZIulBVAaMZHRvw/edit?usp=sharing" },
       { id: "seed_doc_consulting_sop", name: "Oravini Consulting SOP", url: "https://docs.google.com/document/d/1LKvtNM0nWlja8VrxkN3OfuPyjD0pMOcYDE_PBX-tdtc/edit?usp=sharing" },
