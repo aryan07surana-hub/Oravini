@@ -141,7 +141,7 @@ export function registerDMAdvancedRoutes(app: Express) {
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 100, messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }] }),
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: 100, messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }] }),
       });
       const aiData: any = await aiRes.json();
       const text = aiData?.choices?.[0]?.message?.content ?? "";
@@ -405,7 +405,7 @@ export function registerDMAdvancedRoutes(app: Express) {
       const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.1-70b-versatile", max_tokens: 60, messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }] }),
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: 60, messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }] }),
       });
       const aiData: any = await aiRes.json();
       const text = aiData?.choices?.[0]?.message?.content ?? "";

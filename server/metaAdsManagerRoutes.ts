@@ -12,7 +12,7 @@ function requireAdmin(req: Request, res: Response, next: Function) {
 async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 4000, json = false): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"];
+  const models = ["llama-3.3-70b-versatile", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
   let lastError = "";
   for (const model of models) {
     try {

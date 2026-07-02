@@ -17,9 +17,9 @@ function twilioClient() {
 }
 
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {
-  const key = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+  const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("No AI key configured");
-  const model = process.env.GROQ_API_KEY ? "llama-3.3-70b-versatile" : "gpt-4o-mini";
+  const model = "llama-3.3-70b-versatile";
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },

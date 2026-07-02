@@ -1480,7 +1480,7 @@ export function registerCrmSuiteRoutes(app: Express, requireAuth: any) {
   /* ─────────────────────────────────────────────────────────
      AI PIPELINE BUILDER — describe what you sell, get a tailored
      pipeline with stages, names, colors, and probabilities.
-     Powered by Groq (llama-3.1-70b). Falls back to a sensible default
+     Powered by Groq (llama-3.3-70b). Falls back to a sensible default
      pipeline if the AI is unavailable.
   ───────────────────────────────────────────────────────── */
   app.post("/api/crm-suite/ai/build-pipeline", requireCrmAccess, async (req, res) => {
@@ -1519,7 +1519,7 @@ Rules:
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "llama-3.1-70b-versatile",
+              model: "llama-3.3-70b-versatile",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt },
@@ -1633,7 +1633,7 @@ Output ONLY this JSON shape:
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.1-70b-versatile",
+          model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: description.trim() },
@@ -1710,7 +1710,7 @@ Output ONLY this JSON shape:
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.1-70b-versatile",
+          model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: ctxBlock },
@@ -1780,7 +1780,7 @@ Rules:
         method: "POST",
         headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "llama-3.1-70b-versatile",
+          model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userBlock },
