@@ -83,6 +83,7 @@ interface VaultState {
   splitTabId: string | null
   viewMode: ViewMode
   sidebarWidth: number
+  pinnedIds: string[]
 
   createFile: (name: string, folder?: string, content?: string) => VaultFile
   createFolder: (name: string) => VaultFolder
@@ -101,6 +102,11 @@ interface VaultState {
   searchFiles: (q: string) => VaultFile[]
   getFileById: (id: string) => VaultFile | undefined
   setSidebarWidth: (w: number) => void
+  moveToFolder: (id: string, folder: string) => void
+  duplicateFile: (id: string) => VaultFile
+  getOutgoingLinks: (id: string) => VaultFile[]
+  getBacklinks: (id: string) => VaultFile[]
+  togglePin: (id: string) => void
 }
 
 function parseTags(content: string): string[] {
@@ -121,6 +127,7 @@ export const useVaultStore = create<VaultState>()(
       splitTabId: null,
       viewMode: 'editor',
       sidebarWidth: 240,
+      pinnedIds: [],
 
       createFile: (name, folder = '', content = '') => {
         const clean = name.endsWith('.md') ? name : `${name}.md`
@@ -231,6 +238,41 @@ export const useVaultStore = create<VaultState>()(
 
       getFileById: (id) => get().files.find((f) => f.id === id),
       setSidebarWidth: (w) => set({ sidebarWidth: w }),
+
+      moveToFolder: (id, folder) => {
+        set((s) => ({
+          files: s.files.map((f) => f.id === id ? { ...f, folder, updatedAt: new Date().toISOString() } : f),
+        }))
+      },
+
+      duplicateFile: (id) => {
+        const src = get().files.find((f) => f.id === id)
+        if (!src) throw new Error('File not found')
+        return get().createFile(`${src.name.replace('.md', '')} copy`, src.folder, src.content)
+      },
+
+      getOutgoingLinks: (id) => {
+        const file = get().files.find((f) => f.id === id)
+        if (!file) return []
+        const refs = new Set<string>()
+        const regex = /\[\[([^\]]+)\]\]/g
+        let m
+        while ((m = regex.exec(file.content)) !== null) refs.add(m[1].toLowerCase())
+        return get().files.filter((f) => refs.has(f.name.replace('.md', '').toLowerCase()))
+      },
+
+      togglePin: (id) => {
+        set((s) => ({
+          pinnedIds: s.pinnedIds.includes(id) ? s.pinnedIds.filter(p => p !== id) : [...s.pinnedIds, id],
+        }))
+      },
+
+      getBacklinks: (id) => {
+        const file = get().files.find((f) => f.id === id)
+        if (!file) return []
+        const title = file.name.replace('.md', '')
+        return get().files.filter((f) => f.id !== id && f.content.includes(`[[${title}]]`))
+      },
     }),
     {
       name: 'cortex-vault',
@@ -241,6 +283,7 @@ export const useVaultStore = create<VaultState>()(
         activeTabId: s.activeTabId,
         viewMode: s.viewMode,
         sidebarWidth: s.sidebarWidth,
+        pinnedIds: s.pinnedIds,
       }),
     }
   )

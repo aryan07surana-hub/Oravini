@@ -267,6 +267,12 @@ const STEPS = [
     multi: true, hasOther: false,
   },
   {
+    key: "socialLink",
+    title: "Drop your Instagram or YouTube link.",
+    sub: "Paste your profile URL below.",
+    multi: false, hasOther: false,
+  },
+  {
     key: "heardAbout",
     title: "How did you hear about Oravini?",
     sub: "Select all that apply — helps us understand how people find us.",
@@ -402,6 +408,7 @@ export default function Onboarding() {
   const [monthlyRevenue, setRevenue]          = useState("");
   const [primaryGoal, setGoal]                = useState("");
   const [platforms, setPlatforms]             = useState<string[]>([]);
+  const [socialLink, setSocialLink]           = useState("");
   const [heardAbout, setHeardAbout]           = useState<string[]>([]);
   const [otherHeard, setOtherHeard]           = useState("");
 
@@ -438,6 +445,7 @@ export default function Onboarding() {
         platform: platforms.join(", "),
         platforms,
         heardAbout: allHeard,
+        socialLink: socialLink.trim() || null,
       });
     },
     onSuccess: () => {
@@ -472,7 +480,8 @@ export default function Onboarding() {
       case 7:  return !!monthlyRevenue;
       case 8:  return !!primaryGoal;
       case 9:  return platforms.length > 0;
-      case 10: return heardAbout.length > 0 && !(heardAbout.includes("Other") && !otherHeard.trim());
+      case 10: return true; // socialLink is optional
+      case 11: return heardAbout.length > 0 && !(heardAbout.includes("Other") && !otherHeard.trim());
       default: return false;
     }
   };
@@ -484,7 +493,7 @@ export default function Onboarding() {
       return "Please fill in the text box above to continue";
     if (step === 4 && descriptor === "Other" && !otherDescriptor.trim())
       return "Please fill in the text box above to continue";
-    if (step === 10 && heardAbout.includes("Other") && !otherHeard.trim())
+    if (step === 11 && heardAbout.includes("Other") && !otherHeard.trim())
       return "Please fill in the text box above to continue";
     const s = STEPS[step];
     return s.multi ? "Select at least one option to continue" : "Choose an option to continue";
@@ -494,7 +503,7 @@ export default function Onboarding() {
     (step === 1 && fields.includes("Other") && !otherField.trim()) ||
     (step === 2 && struggles.includes("Other") && !otherStruggle.trim()) ||
     (step === 4 && descriptor === "Other" && !otherDescriptor.trim()) ||
-    (step === 10 && heardAbout.includes("Other") && !otherHeard.trim());
+    (step === 11 && heardAbout.includes("Other") && !otherHeard.trim());
 
   const handleNext = () => {
     if (!canAdvance()) return;
@@ -666,8 +675,28 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ── Step 10: How did you hear ── */}
+        {/* ── Step 10: Social link ── */}
         {step === 10 && (
+          <div>
+            <input
+              type="url"
+              value={socialLink}
+              onChange={e => setSocialLink(e.target.value)}
+              placeholder="https://instagram.com/yourhandle  or  https://youtube.com/@yourchannel"
+              style={{
+                width: "100%", padding: "14px 16px", borderRadius: 10,
+                border: `1.5px solid ${socialLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                background: "rgba(255,255,255,0.04)",
+                color: "#fff", fontSize: 14, outline: "none",
+                fontFamily: "inherit", boxSizing: "border-box" as const,
+                transition: "border-color 0.2s",
+              }}
+            />
+          </div>
+        )}
+
+        {/* ── Step 11: How did you hear ── */}
+        {step === 11 && (
           <div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {HEARD_OPTIONS.map(h => (

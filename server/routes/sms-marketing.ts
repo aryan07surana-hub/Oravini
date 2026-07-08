@@ -16,6 +16,14 @@ function twilioClient() {
   return twilio(accountSid, authToken);
 }
 
+async function skillsPrefix(userId: string, base: string): Promise<string> {
+  try {
+    const { buildSkillsPrompt } = await import("../skillsEngine");
+    const block = await buildSkillsPrompt(userId, { category: "sms" });
+    return block ? `${block}\n\n${base}` : base;
+  } catch { return base; }
+}
+
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("No AI key configured");
@@ -1065,12 +1073,13 @@ export function registerSmsMarketingRoutes(app: Express, requireAuth: any) {
       const { goal, tone, audience, cta, maxChars } = req.body;
       if (!goal) return void res.status(400).json({ ok: false, message: "goal required" });
       const max = maxChars || 160;
+      const smsUserId = uid(req);
       const text = await callAI([
         {
           role: "system",
-          content: `You are an expert SMS marketing copywriter. Write compelling, concise SMS messages.
+          content: await skillsPrefix(smsUserId, `You are an expert SMS marketing copywriter. Write compelling, concise SMS messages.
 Rules: under ${max} characters, no emoji unless requested, clear CTA, conversational tone.
-Always output ONLY the SMS text, nothing else.`,
+Always output ONLY the SMS text, nothing else.`),
         },
         {
           role: "user",
@@ -1267,7 +1276,7 @@ GETTING STARTED (recommended order):
 Be concise, practical, and specific to what the user is trying to do. If they haven't provisioned a number yet, always mention that as the first step. Use plain language, no jargon unless explaining a specific term.`;
 
       const reply = await callAI([
-        { role: "system", content: systemPrompt },
+        { role: "system", content: await skillsPrefix(userId, systemPrompt) },
         ...messages.map((m: any) => ({ role: m.role, content: m.content })),
       ]);
 

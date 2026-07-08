@@ -134,6 +134,76 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
+  // ── Meta Ads OAuth (ads_read scope — per-client token for ad account access) ──
+  app.get("/api/oauth/meta-ads/connect", requireAuth, (req: Request, res: Response) => {
+    const clientId = (req.query.clientId as string) || (req.user as any).id;
+    const appId = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID;
+    if (!appId) return res.status(500).json({ message: "Meta App not configured (META_APP_ID missing)" });
+
+    const redirectUri = `${getAppBase()}/api/oauth/meta-ads/callback`;
+    const scope = "ads_read,business_management,pages_show_list";
+    const state = Buffer.from(JSON.stringify({ clientId })).toString("base64");
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
+    res.redirect(authUrl);
+  });
+
+  app.get("/api/oauth/meta-ads/callback", async (req: Request, res: Response) => {
+    try {
+      const { code, state } = req.query;
+      if (!code || !state) return res.redirect("/admin/tracking?error=meta_ads_auth_failed");
+
+      const { clientId } = JSON.parse(Buffer.from(state as string, "base64").toString());
+      const appId = process.env.META_APP_ID || process.env.FACEBOOK_APP_ID;
+      const appSecret = process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET;
+      if (!appId || !appSecret) return res.redirect("/admin/tracking?error=meta_ads_not_configured");
+
+      const redirectUri = `${getAppBase()}/api/oauth/meta-ads/callback`;
+      const tokenResp = await fetch(
+        `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`
+      );
+      const tokenData = await tokenResp.json() as any;
+      if (!tokenData.access_token) return res.redirect("/admin/tracking?error=meta_ads_token_failed");
+
+      // Exchange for long-lived token (60 days)
+      let accessToken = tokenData.access_token;
+      try {
+        const llResp = await fetch(
+          `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${accessToken}`
+        );
+        const llData = await llResp.json() as any;
+        if (llData.access_token) accessToken = llData.access_token;
+      } catch { /* use short-lived if exchange fails */ }
+
+      // Fetch first ad account
+      const acctResp = await fetch(
+        `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name,currency,account_status&access_token=${accessToken}`
+      );
+      const acctData = await acctResp.json() as any;
+      const firstAccount = acctData?.data?.[0];
+      if (!firstAccount) return res.redirect("/admin/tracking?error=no_ad_accounts_found");
+
+      const { encryptToken } = await import("./security/tokenEncryption");
+      const encryptedToken = encryptToken(accessToken);
+      await pool.query(
+        `INSERT INTO client_meta_ads_connections
+           (client_id, access_token, ad_account_id, ad_account_name, is_active, connected_at)
+         VALUES ($1, $2, $3, $4, TRUE, NOW())
+         ON CONFLICT (client_id) DO UPDATE SET
+           access_token = EXCLUDED.access_token,
+           ad_account_id = EXCLUDED.ad_account_id,
+           ad_account_name = EXCLUDED.ad_account_name,
+           is_active = TRUE,
+           connected_at = NOW()`,
+        [clientId, encryptedToken, firstAccount.id, firstAccount.name]
+      );
+
+      res.redirect(`/admin/tracking?ads_connected=${clientId}`);
+    } catch (err: any) {
+      console.error("[meta-ads-oauth] callback error:", err);
+      res.redirect("/admin/tracking?error=meta_ads_callback_failed");
+    }
+  });
+
   // ── LinkedIn OAuth ────────────────────────────────────────────────────────
   app.get("/api/oauth/linkedin/connect", requireAuth, (req: Request, res: Response) => {
     const userId = (req.user as any).id;

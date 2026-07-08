@@ -19,3 +19,6 @@ export { registerPlatformChatRoutes } from "./platform-chat";
 export { registerAnalyticsRoutes } from "./analytics";
 export { registerAdminOverviewRoutes } from "./admin-overview";
 export { registerSuperAdminDocumentRoutes } from "./super-admin-documents";
+export { registerVaultRoutes } from "./vault";
+export { registerActivityRoutes } from "./activity";
+export { registerSkillsRoutes, bootstrapSkills } from "./skills";

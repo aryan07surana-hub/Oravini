@@ -1,17 +1,49 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "../storage";
 
-async function callAI(messages: { role: string; content: string }[]): Promise<string> {
+async function callAIStream(
+  messages: { role: string; content: string }[],
+  onToken: (token: string) => void
+): Promise<string> {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("No AI key configured");
-  const model = "llama-3.3-70b-versatile";
   const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1400 }),
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 0.7,
+      max_tokens: 1400,
+      stream: true,
+    }),
   });
-  const d = await r.json() as any;
-  return d.choices?.[0]?.message?.content || "";
+  if (!r.ok) {
+    const err = await r.json() as any;
+    throw new Error("AI error: " + (err?.error?.message || r.status));
+  }
+  const reader = r.body!.getReader();
+  const dec = new TextDecoder();
+  let full = "";
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (raw === "[DONE]") continue;
+      try {
+        const chunk = JSON.parse(raw);
+        const token: string = chunk.choices?.[0]?.delta?.content ?? "";
+        if (token) { full += token; onToken(token); }
+      } catch { /* ignore malformed chunks */ }
+    }
+  }
+  return full;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -678,7 +710,14 @@ export function registerPlatformChatRoutes(app: Express, requireAuth: any) {
         ...messages.slice(-14),
       ];
 
-      const raw = await callAI(aiMessages);
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      const raw = await callAIStream(aiMessages, (token) => {
+        res.write(`data: ${JSON.stringify({ t: token })}\n\n`);
+      });
+
       const suggestionsMatch = raw.match(/\nSUGGESTIONS:\s*(.+)$/m);
       const reply = suggestionsMatch
         ? raw.slice(0, suggestionsMatch.index).trim()
@@ -687,10 +726,16 @@ export function registerPlatformChatRoutes(app: Express, requireAuth: any) {
         ? suggestionsMatch[1].split("||").map((s: string) => s.trim()).filter(Boolean).slice(0, 3)
         : [];
 
-      res.json({ reply, followUps });
+      res.write(`data: ${JSON.stringify({ done: true, reply, followUps })}\n\n`);
+      res.end();
     } catch (err: any) {
       console.error("[platform-chat] error:", err.message);
-      res.status(500).json({ message: err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ message: err.message });
+      } else {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      }
     }
   });
 

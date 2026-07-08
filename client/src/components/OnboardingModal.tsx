@@ -222,11 +222,12 @@ const STEPS = [
   { key: "revenue", title: "What's your current monthly income from content?" },
   { key: "goal", title: "What's your primary goal right now?", sub: "Pick your main focus." },
   { key: "platforms", title: "Which platforms are you active on?", sub: "Select all you create content for." },
+  { key: "socialLink", title: "Drop your Instagram or YouTube link.", sub: "Paste your profile URL below." },
   { key: "awareness", title: "How aware are you of done-with-you growth programmes?", sub: "No wrong answer — helps us know how to support you." },
   { key: "heardAbout", title: "Where did you hear about us?", sub: "Select all that apply." },
 ];
 
-const LAST_STEP = 10;
+const LAST_STEP = 11;
 
 export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
   const [step, setStep] = useState(0);
@@ -245,6 +246,7 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     Array.isArray(existingSurvey?.platforms) ? existingSurvey.platforms :
     existingSurvey?.platform ? [existingSurvey.platform] : []
   );
+  const [socialLink, setSocialLink] = useState(existingSurvey?.social_link || "");
   const [awareness, setAwareness] = useState(existingSurvey?.awareness || "");
   const [heardAbout, setHeardAbout] = useState<string[]>(
     Array.isArray(existingSurvey?.heard_about) ? existingSurvey.heard_about :
@@ -270,6 +272,7 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
       primaryGoal,
       platform: platforms.join(", "),
       platforms,
+      socialLink: socialLink.trim() || null,
       awareness,
       heardAbout,
     }),
@@ -292,8 +295,9 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     if (step === 6) return !!monthlyRevenue;
     if (step === 7) return !!primaryGoal;
     if (step === 8) return platforms.length > 0;
-    if (step === 9) return !!awareness;
-    if (step === 10) return heardAbout.length > 0;
+    if (step === 9) return true; // socialLink is optional
+    if (step === 10) return !!awareness;
+    if (step === 11) return heardAbout.length > 0;
     return false;
   };
 
@@ -428,8 +432,28 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 9: Awareness — single radio */}
+          {/* Step 9: Social link */}
           {step === 9 && (
+            <div>
+              <input
+                type="url"
+                value={socialLink}
+                onChange={e => setSocialLink(e.target.value)}
+                placeholder="https://instagram.com/yourhandle  or  https://youtube.com/@yourchannel"
+                style={{
+                  width: "100%", padding: "14px 16px", borderRadius: 10,
+                  border: `1.5px solid ${socialLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#fff", fontSize: 14, outline: "none",
+                  fontFamily: "inherit", boxSizing: "border-box" as const,
+                  transition: "border-color 0.2s",
+                }}
+              />
+            </div>
+          )}
+
+          {/* Step 10: Awareness — single radio */}
+          {step === 10 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {AWARENESS_OPTIONS.map(o => (
                 <RadioRow key={o} label={o} selected={awareness === o} onClick={() => setAwareness(o)} />
@@ -437,8 +461,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 10: Heard about — multi-select chips */}
-          {step === 10 && (
+          {/* Step 11: Heard about — multi-select chips */}
+          {step === 11 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {HEARD_ABOUT_OPTIONS.map(h => (
                 <MultiChip key={h} label={h} selected={heardAbout.includes(h)} onClick={() => toggleItem(heardAbout, setHeardAbout, h)} />

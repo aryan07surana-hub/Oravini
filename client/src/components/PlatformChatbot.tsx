@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Bot, X, Send, Loader2, ChevronDown, ChevronUp, Copy, Check, ThumbsUp, ThumbsDown, MessageSquarePlus } from "lucide-react";
+import { Bot, X, Send, Loader2, ChevronDown, Copy, Check, ThumbsUp, ThumbsDown, MessageSquarePlus, Sparkles } from "lucide-react";
 
 const GOLD = "#d4b461";
 const SESSION_KEY = "oravi_chat_v2";
@@ -30,9 +30,13 @@ function clearSession() {
   try { sessionStorage.removeItem(SESSION_KEY); } catch { }
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
+// ── API (streaming) ───────────────────────────────────────────────────────────
 
-async function chatWithOravi(messages: { role: string; content: string }[], context: string) {
+async function chatWithOravi(
+  messages: { role: string; content: string }[],
+  context: string,
+  onToken: (token: string) => void
+): Promise<{ reply: string; followUps: string[] }> {
   const r = await fetch("/api/platform/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,7 +44,32 @@ async function chatWithOravi(messages: { role: string; content: string }[], cont
     body: JSON.stringify({ messages, context }),
   });
   if (!r.ok) throw new Error("Chat failed");
-  return r.json() as Promise<{ reply: string; followUps: string[] }>;
+  if (!r.body) throw new Error("No stream");
+
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let reply = "";
+  let followUps: string[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.t) onToken(parsed.t);
+        if (parsed.done) { reply = parsed.reply; followUps = parsed.followUps || []; }
+        if (parsed.error) throw new Error(parsed.error);
+      } catch { /* ignore parse errors on individual chunks */ }
+    }
+  }
+  return { reply, followUps };
 }
 
 async function sendFeedback(content: string, vote: "up" | "down", context: string) {
@@ -164,7 +193,6 @@ function getPageMeta(pathname: string): PageMeta {
       { category: "Strategy", qs: ["What keywords should I use?", "How do I use DMs to get leads?", "What should my auto-reply say?"] },
     ],
   };
-  if (pathname.startsWith("/sms-marketing")) return { label: "SMS Marketing", greeting: "", questions: [] };
   if (pathname.startsWith("/tracking") || pathname.startsWith("/content-analyser")) return {
     label: "Tracking & Analytics",
     greeting: "Tracking — let's look at what the numbers are telling you. Analysing your own account or a competitor?",
@@ -337,6 +365,25 @@ function Bubble({ role, content, context }: { role: "user" | "assistant"; conten
   );
 }
 
+// ── Streaming bubble — shows live tokens with blinking cursor ─────────────────
+
+function StreamingBubble({ content }: { content: string }) {
+  return (
+    <div className="flex items-end gap-1 justify-start">
+      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mb-0.5" style={{ background: `${GOLD}20` }}>
+        <Bot className="w-3 h-3" style={{ color: GOLD }} />
+      </div>
+      <div className="max-w-[80%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-xs leading-relaxed bg-zinc-800 text-zinc-300">
+        {renderMarkdown(content)}
+        <span
+          className="inline-block w-0.5 h-3 ml-0.5 align-middle rounded-full animate-pulse"
+          style={{ background: GOLD }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Follow-up chips ───────────────────────────────────────────────────────────
 
 function FollowUpChips({ chips, onSelect }: { chips: string[]; onSelect: (q: string) => void }) {
@@ -357,7 +404,7 @@ function FollowUpChips({ chips, onSelect }: { chips: string[]; onSelect: (q: str
   );
 }
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
+// ── Typing indicator (shown before first token arrives) ───────────────────────
 
 function TypingIndicator() {
   return (
@@ -382,8 +429,8 @@ export default function PlatformChatbot() {
   const [messages, setMessages] = useState<Message[]>(() => loadSession());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
   const [unread, setUnread] = useState(0);
-  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [dbLoaded, setDbLoaded] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -394,7 +441,6 @@ export default function PlatformChatbot() {
   const meta = getPageMeta(location);
   const hasMessages = messages.length > 0;
 
-  // Load from DB on first open — merges with sessionStorage (DB wins if it has more messages)
   useEffect(() => {
     if (open && !dbLoaded) {
       setDbLoaded(true);
@@ -407,7 +453,6 @@ export default function PlatformChatbot() {
     }
   }, [open]);
 
-  // Persist to both sessionStorage and DB whenever messages change
   useEffect(() => {
     if (messages.length === 0) return;
     saveSession(messages);
@@ -423,13 +468,12 @@ export default function PlatformChatbot() {
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading, open]);
+  }, [messages, streamingContent, loading, open]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
     clearSession();
     saveSessionToDB([]);
-    setOpenCategory(null);
     setInput("");
   }, []);
 
@@ -440,21 +484,27 @@ export default function PlatformChatbot() {
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
     setInput("");
-    setOpenCategory(null);
     setLoading(true);
+    let streamBuf = "";
+    setStreamingContent("");
     try {
       const d = await chatWithOravi(
         newMsgs.map(m => ({ role: m.role, content: m.content })),
-        meta.label
+        meta.label,
+        (token) => {
+          streamBuf += token;
+          setStreamingContent(streamBuf);
+        }
       );
-      const reply: Message = {
+      setStreamingContent("");
+      setMessages(prev => [...prev, {
         role: "assistant",
         content: d.reply,
         followUps: d.followUps || [],
-      };
-      setMessages(prev => [...prev, reply]);
+      }]);
       if (!open) setUnread(n => n + 1);
     } catch {
+      setStreamingContent("");
       setMessages(prev => [...prev, {
         role: "assistant",
         content: "Something went wrong. Try again — or contact **support@oravini.com** if it keeps happening.",
@@ -493,9 +543,16 @@ export default function PlatformChatbot() {
               <Bot className="w-4 h-4" style={{ color: GOLD }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-black">Oravi</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-white text-sm font-black">Oravi</p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: `${GOLD}20`, color: GOLD }}>AI</span>
+              </div>
               <p className="text-xs text-zinc-500 truncate">
-                {meta.label} · {hasMessages ? `${messages.length} msg${messages.length !== 1 ? "s" : ""}` : "Ask me anything"}
+                {loading
+                  ? <span style={{ color: GOLD }}>Thinking…</span>
+                  : hasMessages
+                    ? `${messages.length} message${messages.length !== 1 ? "s" : ""} · ${meta.label}`
+                    : `Ask me anything about ${meta.label}`}
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -510,20 +567,11 @@ export default function PlatformChatbot() {
             </div>
           </div>
 
-          {/* Context banner */}
-          {hasMessages && (
-            <div className="px-3 py-1.5 border-b border-zinc-800/60 flex items-center gap-2" style={{ background: `${GOLD}05` }}>
-              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: GOLD }} />
-              <p className="text-xs text-zinc-500">
-                Chat saved · on <span className="text-zinc-300 font-medium">{meta.label}</span>
-              </p>
-            </div>
-          )}
-
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {!hasMessages ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* Greeting bubble */}
                 <div className="flex items-end gap-1.5">
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${GOLD}20` }}>
                     <Bot className="w-3 h-3" style={{ color: GOLD }} />
@@ -532,27 +580,31 @@ export default function PlatformChatbot() {
                     <p className="text-xs text-zinc-300 leading-relaxed">{meta.greeting}</p>
                   </div>
                 </div>
-                <div className="space-y-1.5">
+
+                {/* Capabilities hint */}
+                <div className="flex items-center gap-2 px-1">
+                  <Sparkles className="w-3 h-3 flex-shrink-0" style={{ color: GOLD }} />
+                  <p className="text-[10px] text-zinc-600">I can answer questions, diagnose issues, and give strategy advice — just ask.</p>
+                </div>
+
+                {/* Flat questions by category — all visible, no accordion */}
+                <div className="space-y-3 pb-1">
                   {meta.questions.map(cat => (
-                    <div key={cat.category} className="rounded-xl border border-zinc-800 overflow-hidden">
-                      <button
-                        onClick={() => setOpenCategory(openCategory === cat.category ? null : cat.category)}
-                        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-zinc-900/50 transition-colors"
-                      >
-                        <span className="text-xs font-semibold text-zinc-400">{cat.category}</span>
-                        {openCategory === cat.category
-                          ? <ChevronUp className="w-3.5 h-3.5 text-zinc-600" />
-                          : <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />}
-                      </button>
-                      {openCategory === cat.category && (
-                        <div className="border-t border-zinc-800 divide-y divide-zinc-800/50">
-                          {cat.qs.map(q => (
-                            <button key={q} onClick={() => send(q)} className="w-full text-left px-3 py-2.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 transition-colors">
-                              {q}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    <div key={cat.category}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider px-1 mb-1.5" style={{ color: `${GOLD}80` }}>{cat.category}</p>
+                      <div className="space-y-1">
+                        {cat.qs.map(q => (
+                          <button
+                            key={q}
+                            onClick={() => send(q)}
+                            disabled={loading}
+                            className="w-full text-left text-xs px-3.5 py-2.5 rounded-xl border transition-all hover:border-yellow-500/30 hover:bg-zinc-800/80 active:scale-[0.99] text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{ borderColor: `${GOLD}18`, background: `${GOLD}04` }}
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -567,28 +619,30 @@ export default function PlatformChatbot() {
                     )}
                   </div>
                 ))}
-                {loading && <TypingIndicator />}
+                {streamingContent && <StreamingBubble content={streamingContent} />}
+                {loading && !streamingContent && <TypingIndicator />}
               </>
             )}
             <div ref={bottomRef} />
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-zinc-800 flex gap-2 flex-shrink-0">
+          <div className="p-3 border-t border-zinc-800 flex gap-2 flex-shrink-0" style={{ background: `${GOLD}03` }}>
             <input
               ref={inputRef}
-              placeholder={hasMessages ? "Ask a follow-up..." : `Ask anything about ${meta.label}...`}
+              placeholder={loading ? "Oravi is thinking…" : hasMessages ? "Ask a follow-up…" : `Ask anything about ${meta.label}…`}
               value={input}
               onChange={e => setInput(e.target.value)}
+              disabled={loading}
               onKeyDown={e => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
               }}
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:border-yellow-500/50 placeholder-zinc-600"
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:border-yellow-500/50 placeholder-zinc-600 disabled:opacity-50"
             />
             <button
               onClick={() => send()}
               disabled={!input.trim() || loading}
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-30 transition-opacity"
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-30 transition-all hover:scale-105 active:scale-95"
               style={{ background: `linear-gradient(135deg, ${GOLD}, #b8962e)` }}
             >
               {loading

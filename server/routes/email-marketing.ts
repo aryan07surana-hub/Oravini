@@ -21,6 +21,14 @@ function requirePlan(req: Request, res: Response): boolean {
   return true;
 }
 
+async function skillsPrefix(userId: string, base: string): Promise<string> {
+  try {
+    const { buildSkillsPrompt } = await import("../skillsEngine");
+    const block = await buildSkillsPrompt(userId, { category: "email" });
+    return block ? `${block}\n\n${base}` : base;
+  } catch { return base; }
+}
+
 async function callAI(messages: { role: string; content: string }[], json = false): Promise<string> {
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) throw new Error("No AI key configured");
@@ -430,7 +438,7 @@ Space the emails: day 0, day 2, day 4, day 7, day 10 etc. Make each email build 
 
     try {
       const raw = await callAI([
-        { role: "system", content: "You are an expert email marketing copywriter. Always return valid JSON." },
+        { role: "system", content: await skillsPrefix(uid(req), "You are an expert email marketing copywriter. Always return valid JSON.") },
         { role: "user", content: prompt },
       ], true);
 
@@ -1049,7 +1057,7 @@ If the user asks to create something (sequence, email, etc.), guide them to use 
       ).then(r => r.rows.reverse()).catch(() => []);
 
       const messages = [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: await skillsPrefix(userId, systemPrompt) },
         ...history.map((h: any) => ({ role: h.role, content: h.content })),
         { role: "user", content: message },
       ];

@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
-  Star, FileText, Clock, Plus, Trash2, Pencil, BarChart2, ArrowLeft, Bell, ChevronRight, RefreshCw, Crown
+  Star, FileText, Clock, Plus, Trash2, Pencil, BarChart2, ArrowLeft, Bell, ChevronRight, RefreshCw, Crown,
+  DollarSign, MousePointerClick, Target, Zap, Link, CheckCircle2, AlertTriangle, ExternalLink
 } from "lucide-react";
 import { format, subWeeks, isAfter } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -599,6 +600,324 @@ function ClientPostsPanel({ clientId, platform }: { clientId: string; platform: 
   );
 }
 
+// ── Meta Ads Status badges ─────────────────────────────────────────────────
+const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
+  ACTIVE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  PAUSED: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  DELETED: "bg-red-500/10 text-red-400 border-red-500/20",
+  ARCHIVED: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+};
+
+function fmtCurrency(v: string | number) {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(n)) return "$0";
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtRoas(v: string | null) {
+  if (!v) return "–";
+  const n = parseFloat(v);
+  if (isNaN(n)) return "–";
+  return n.toFixed(2) + "x";
+}
+
+function fmtPct(v: string | number) {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(n)) return "0%";
+  return n.toFixed(2) + "%";
+}
+
+// ── Admin Meta Ads Panel ────────────────────────────────────────────────────
+function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
+  const { toast } = useToast();
+  const [tokenInput, setTokenInput] = useState("");
+  const [accountIdInput, setAccountIdInput] = useState("");
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [fetchingAccounts, setFetchingAccounts] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const hasMetaApp = true; // set false if META_APP_ID not configured
+
+  const { data: status, isLoading: statusLoading } = useQuery<any>({
+    queryKey: ["/api/meta-ads/status", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/status/${clientId}`),
+    enabled: !!clientId,
+  });
+
+  const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<any[]>({
+    queryKey: ["/api/meta-ads/campaigns", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/campaigns/${clientId}`),
+    enabled: !!clientId && status?.connected,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: (data: { accessToken: string; adAccountId: string }) =>
+      apiRequest("POST", `/api/meta-ads/connect/${clientId}`, data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/status", clientId] });
+      toast({ title: `Connected — ${data.adAccountName}` });
+      setTokenInput(""); setAccountIdInput(""); setAccounts([]);
+    },
+    onError: (e: any) => toast({ title: "Connection failed", description: e.message, variant: "destructive" }),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/meta-ads/disconnect/${clientId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/status", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/campaigns", clientId] });
+      toast({ title: "Disconnected" });
+    },
+  });
+
+  async function handleFetchAccounts() {
+    if (!tokenInput.trim()) return;
+    setFetchingAccounts(true);
+    try {
+      const data = await apiRequest("POST", "/api/meta-ads/list-accounts", { accessToken: tokenInput.trim() });
+      setAccounts(data);
+      if (data.length === 1) setAccountIdInput(data[0].id);
+    } catch (e: any) {
+      toast({ title: "Failed to fetch accounts", description: e.message, variant: "destructive" });
+    } finally {
+      setFetchingAccounts(false);
+    }
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const data = await apiRequest("POST", `/api/meta-ads/sync/${clientId}`);
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/campaigns", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/status", clientId] });
+      toast({ title: `Synced — ${data.campaignsCount} campaigns` });
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const totalSpend = campaigns.reduce((s, c) => s + parseFloat(c.spend || "0"), 0);
+  const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0);
+  const totalClicks = campaigns.reduce((s, c) => s + (c.clicks || 0), 0);
+  const totalConversions = campaigns.reduce((s, c) => s + (c.conversions || 0), 0);
+  const avgRoas = campaigns.filter(c => c.roas).length > 0
+    ? campaigns.filter(c => c.roas).reduce((s, c) => s + parseFloat(c.roas), 0) / campaigns.filter(c => c.roas).length
+    : null;
+  const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+
+  if (statusLoading) {
+    return <div className="h-32 rounded-xl bg-muted/30 animate-pulse" />;
+  }
+
+  return (
+    <div className="space-y-4 border-t border-border pt-6 mt-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-blue-400" /> Meta Ads Tracker
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">Connect client's Meta Ads account to track performance</p>
+        </div>
+        {status?.connected && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={handleSync} disabled={syncing}>
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing..." : "Sync"}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 text-xs text-red-400 hover:text-red-300" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>
+              Disconnect
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Not connected — setup form */}
+      {!status?.connected && (
+        <Card className="border border-blue-500/20 bg-blue-500/5">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <Link className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Connect Meta Ads Account</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enter the client's Meta Ads access token and select their ad account. The token needs <code className="text-blue-400">ads_read</code> permission.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Access Token</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={tokenInput}
+                    onChange={e => setTokenInput(e.target.value)}
+                    placeholder="EAAj... (Meta Ads access token)"
+                    className="h-9 text-xs font-mono"
+                  />
+                  <Button size="sm" variant="outline" className="h-9 shrink-0 text-xs" onClick={handleFetchAccounts} disabled={!tokenInput.trim() || fetchingAccounts}>
+                    {fetchingAccounts ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Fetch Accounts"}
+                  </Button>
+                </div>
+              </div>
+
+              {accounts.length > 0 && (
+                <div>
+                  <Label className="text-xs">Ad Account</Label>
+                  <Select value={accountIdInput} onValueChange={setAccountIdInput}>
+                    <SelectTrigger className="mt-1 h-9 text-xs">
+                      <SelectValue placeholder="Select ad account..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((a: any) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name} — {a.id} ({a.currency})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {accounts.length === 0 && tokenInput && (
+                <div>
+                  <Label className="text-xs">Ad Account ID (manual)</Label>
+                  <Input
+                    value={accountIdInput}
+                    onChange={e => setAccountIdInput(e.target.value)}
+                    placeholder="act_123456789 or 123456789"
+                    className="mt-1 h-9 text-xs font-mono"
+                  />
+                </div>
+              )}
+
+              <Button
+                className="w-full h-9 text-xs"
+                disabled={!tokenInput.trim() || !accountIdInput.trim() || connectMutation.isPending}
+                onClick={() => connectMutation.mutate({ accessToken: tokenInput.trim(), adAccountId: accountIdInput.trim() })}
+              >
+                {connectMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-2" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-2" />}
+                {connectMutation.isPending ? "Connecting..." : "Save & Connect"}
+              </Button>
+            </div>
+
+            <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground/70">How to get the token:</p>
+              <p>1. Go to <span className="text-blue-400">Meta Business Manager → Settings → System Users</span></p>
+              <p>2. Create a System User with <code>ads_read</code> permission on the client's ad account</p>
+              <p>3. Generate an access token and paste it above</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Connected — show metrics */}
+      {status?.connected && (
+        <div className="space-y-4">
+          {/* Account info bar */}
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-foreground">{status.adAccountName || status.adAccountId}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {status.lastSyncedAt
+                  ? `Last synced ${format(new Date(status.lastSyncedAt), "MMM d, h:mm a")}`
+                  : "Not yet synced — click Sync above"}
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/20">Connected</Badge>
+          </div>
+
+          {/* Summary metric cards */}
+          {campaigns.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Total Spend (30d)", value: fmtCurrency(totalSpend), icon: DollarSign, color: "text-blue-400" },
+                { label: "Avg ROAS", value: avgRoas !== null ? fmtRoas(String(avgRoas)) : "–", icon: TrendingUp, color: "text-emerald-400" },
+                { label: "Conversions", value: totalConversions.toLocaleString(), icon: Target, color: "text-purple-400" },
+                { label: "Avg CTR", value: fmtPct(avgCtr), icon: MousePointerClick, color: "text-orange-400" },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <Card key={label} className="border border-card-border">
+                  <CardContent className="p-4">
+                    <Icon className={`w-4 h-4 ${color} mb-2`} />
+                    <p className="text-xl font-bold text-foreground">{value}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Campaign table */}
+          {campaignsLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-muted/30 animate-pulse" />)}</div>
+          ) : campaigns.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-blue-500/20 p-8 text-center">
+              <BarChart2 className="w-8 h-8 text-blue-400/30 mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">No campaigns yet — click Sync to pull data from Meta</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20">
+                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Campaign</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground hidden sm:table-cell">Status</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">Spend</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">Reach</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">CTR</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden lg:table-cell">CPC</th>
+                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((c: any) => (
+                    <tr key={c.campaign_id} className="border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-foreground truncate max-w-[180px]">{c.campaign_name || "Untitled"}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{c.objective?.toLowerCase().replace(/_/g, " ") || "—"}</p>
+                      </td>
+                      <td className="px-3 py-3 hidden sm:table-cell">
+                        <Badge variant="outline" className={`text-[10px] border ${CAMPAIGN_STATUS_COLORS[c.status] || "text-muted-foreground"}`}>
+                          {c.status || "–"}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold text-foreground">{fmtCurrency(c.spend || "0")}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{(c.reach || 0).toLocaleString()}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{fmtPct(c.ctr || "0")}</td>
+                      <td className="px-3 py-3 text-right text-muted-foreground hidden lg:table-cell">{fmtCurrency(c.cpc || "0")}</td>
+                      <td className="px-3 py-3 text-right font-semibold">
+                        <span className={parseFloat(c.roas) >= 2 ? "text-emerald-400" : parseFloat(c.roas) > 0 ? "text-yellow-400" : "text-muted-foreground"}>
+                          {fmtRoas(c.roas)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border bg-muted/10">
+                    <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Totals</td>
+                    <td className="px-4 py-2.5 text-xs font-semibold text-muted-foreground sm:hidden">Totals</td>
+                    <td className="px-3 py-2.5 text-right text-xs font-bold text-foreground">{fmtCurrency(totalSpend)}</td>
+                    <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{totalImpressions.toLocaleString()}</td>
+                    <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{fmtPct(avgCtr)}</td>
+                    <td className="px-3 py-2.5 hidden lg:table-cell" />
+                    <td className="px-3 py-2.5 text-right text-xs font-bold text-emerald-400">{avgRoas !== null ? fmtRoas(String(avgRoas)) : "–"}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminTracking() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
 
@@ -661,21 +980,18 @@ export default function AdminTracking() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Sales Tracking", desc: "Track deals and revenue pipeline", icon: TrendingUp },
-                { label: "Ad Tracking", desc: "Monitor paid ad performance and ROI", icon: BarChart2 },
-              ].map(({ label, desc, icon: Icon }) => (
-                <div key={label} className="p-4 rounded-xl border border-dashed border-border bg-card/50 flex items-center gap-3 opacity-60">
-                  <Clock className="w-8 h-8 text-muted-foreground opacity-40" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">{label}</p>
-                    <p className="text-xs text-muted-foreground">{desc}</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="p-4 rounded-xl border border-dashed border-border bg-card/50 flex items-center gap-3 opacity-60">
+                <Clock className="w-8 h-8 text-muted-foreground opacity-40" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Sales Tracking</p>
+                  <p className="text-xs text-muted-foreground">Track deals and revenue pipeline</p>
                 </div>
-              ))}
+                <Badge variant="outline" className="text-[10px]">Coming Soon</Badge>
+              </div>
             </div>
+
+            <AdminMetaAdsPanel clientId={selectedClientId} />
 
             <Tabs defaultValue="instagram">
               <TabsList className="mb-6 bg-card border border-card-border">

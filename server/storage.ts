@@ -1438,8 +1438,8 @@ class DatabaseStorage implements IStorage {
   async saveOnboardingSurvey(data: any): Promise<any> {
     const result = await pool.query(
       `INSERT INTO onboarding_surveys
-         (user_id, awareness, field, fields, struggles, content_types, descriptor, experience, follower_count, monthly_revenue, primary_goal, platform, platforms, heard_about, answers)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         (user_id, awareness, field, fields, struggles, content_types, descriptor, experience, follower_count, monthly_revenue, primary_goal, platform, platforms, heard_about, social_link, answers)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        ON CONFLICT (user_id) DO UPDATE SET
          awareness=EXCLUDED.awareness,
          field=EXCLUDED.field, fields=EXCLUDED.fields,
@@ -1449,6 +1449,7 @@ class DatabaseStorage implements IStorage {
          primary_goal=EXCLUDED.primary_goal,
          platform=EXCLUDED.platform, platforms=EXCLUDED.platforms,
          heard_about=EXCLUDED.heard_about,
+         social_link=EXCLUDED.social_link,
          answers=EXCLUDED.answers, completed_at=NOW()
        RETURNING *`,
       [
@@ -1466,6 +1467,7 @@ class DatabaseStorage implements IStorage {
         data.platform ?? null,
         data.platforms ?? null,
         data.heardAbout ?? null,
+        data.socialLink ?? null,
         JSON.stringify(data.answers ?? {}),
       ]
     );

@@ -993,6 +993,49 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] super_admin_inspiration_images skipped:", e.message);
   }
+
+  // ── Skills System ─────────────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "Skill" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL DEFAULT 'content',
+        platforms TEXT[] NOT NULL DEFAULT '{}',
+        instructions TEXT NOT NULL DEFAULT '',
+        icon TEXT NOT NULL DEFAULT '⚡',
+        tags TEXT[] NOT NULL DEFAULT '{}',
+        "isSystem" BOOLEAN NOT NULL DEFAULT FALSE,
+        "createdBy" TEXT,
+        "isPublic" BOOLEAN NOT NULL DEFAULT FALSE,
+        "usageCount" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "UserSkill" (
+        id TEXT PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "skillId" TEXT NOT NULL REFERENCES "Skill"(id) ON DELETE CASCADE,
+        "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+        "installedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        "lastUsedAt" TIMESTAMPTZ,
+        UNIQUE("userId", "skillId")
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE "UserSkill" ADD COLUMN IF NOT EXISTS "lastUsedAt" TIMESTAMPTZ
+    `);
+    await pool.query(`
+      ALTER TABLE "UserSkill" ADD COLUMN IF NOT EXISTS "useCount" INTEGER NOT NULL DEFAULT 0
+    `);
+    console.log("[migration] skills tables ensured");
+  } catch (e: any) {
+    console.warn("[migration] skills tables skipped:", e.message);
+  }
 }
 
 (async () => {

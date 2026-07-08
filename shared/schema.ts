@@ -3193,3 +3193,18 @@ export const schedulingWorkflows = pgTable("scheduling_workflows", {
 export const insertSchedulingWorkflowSchema = createInsertSchema(schedulingWorkflows).omit({ id: true, createdAt: true });
 export type InsertSchedulingWorkflow = z.infer<typeof insertSchedulingWorkflowSchema>;
 export type SchedulingWorkflow = typeof schedulingWorkflows.$inferSelect;
+
+// ── Cortex Activity Tracking ──────────────────────────────────────────────────
+export const userActivityEvents = pgTable("user_activity_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // page_view | feature_used | ai_prompt | content_created | note_created | tool_opened | vault_action
+  feature: text("feature"),               // which tool/page
+  action: text("action"),                 // what they did
+  metadata: jsonb("metadata"),            // arbitrary context (prompt excerpt, content type, etc.)
+  sessionId: text("session_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertUserActivityEventSchema = createInsertSchema(userActivityEvents).omit({ id: true, createdAt: true });
+export type InsertUserActivityEvent = z.infer<typeof insertUserActivityEventSchema>;
+export type UserActivityEvent = typeof userActivityEvents.$inferSelect;

@@ -1871,6 +1871,321 @@ const SinceJoiningOravani = memo(function SinceJoiningOravani({
 });
 
 /* ─────────────────────────────────────────────
+   TIER HERO BANNER
+───────────────────────────────────────────── */
+function TierHeroBanner({
+  plan, firstName, goal, lifetimeTotalActions, contentPostCount,
+  streak, monthActions, weekHistory, nicheIntel, projectTracker, tasks,
+}: {
+  plan: string; firstName: string; goal: any; lifetimeTotalActions: number;
+  contentPostCount: number; streak: number; monthActions: number;
+  weekHistory: { date: string; creditsUsed: number; actions: number }[];
+  nicheIntel?: any; projectTracker?: any; tasks?: any[];
+}) {
+
+  /* ── T1 FREE ── */
+  if (plan === "free") {
+    const steps = [
+      { label: "Set your income goal",   done: !!goal,                   href: "/",                 action: "Set Goal"  },
+      { label: "Use your first AI tool", done: lifetimeTotalActions > 0, href: "/ai-ideas",         action: "Try Now"   },
+      { label: "Track your first post",  done: contentPostCount > 0,     href: "/tracking/content", action: "Add Post"  },
+    ];
+    const doneCount = steps.filter(s => s.done).length;
+    const progress  = Math.round((doneCount / steps.length) * 100);
+
+    return (
+      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(113,113,122,0.12) 0%, rgba(113,113,122,0.03) 100%)", border: "1px solid rgba(113,113,122,0.25)" }}>
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: "#71717a", opacity: 0.07, transform: "translate(35%, -35%)" }} />
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500">Creator Foundation</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(113,113,122,0.15)", color: "#a1a1aa", border: "1px solid rgba(113,113,122,0.25)" }}>Tier 1 · Free</span>
+            </div>
+            <h2 className="text-2xl font-black text-white leading-tight mb-1.5">Welcome to Oravini, {firstName}.</h2>
+            <p className="text-sm text-zinc-400 mb-5 leading-relaxed">You're starting something real. Complete these steps to hit the ground running.</p>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: "linear-gradient(90deg, #71717a, #a1a1aa)" }} />
+              </div>
+              <span className="text-[10px] font-bold text-zinc-500 shrink-0">{doneCount}/{steps.length} complete</span>
+            </div>
+
+            <div className="space-y-2">
+              {steps.map((step, i) => (
+                <Link key={i} href={step.href}>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer hover:opacity-80" style={{ background: step.done ? "rgba(52,211,153,0.06)" : "rgba(255,255,255,0.03)", border: `1px solid ${step.done ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)"}` }}>
+                    {step.done
+                      ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      : <Circle className="w-4 h-4 text-zinc-600 shrink-0" />}
+                    <span className="text-xs font-medium flex-1 truncate" style={{ color: step.done ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)", textDecoration: step.done ? "line-through" : "none" }}>{step.label}</span>
+                    {!step.done && <span className="text-[10px] font-bold shrink-0 text-zinc-500">{step.action} →</span>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="lg:w-56 shrink-0">
+            <Link href="/settings/plan">
+              <div className="h-full rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity flex flex-col justify-between" style={{ background: "linear-gradient(135deg, rgba(129,140,248,0.12) 0%, rgba(99,102,241,0.05) 100%)", border: "1px solid rgba(129,140,248,0.25)" }}>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2" style={{ color: "#818cf8" }}>Unlock more</p>
+                  <p className="text-base font-black text-white mb-1.5">Upgrade to Starter</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed">30× more credits, advanced tools, and real creative output.</p>
+                </div>
+                <div className="flex items-center gap-1.5 mt-4 text-xs font-bold" style={{ color: "#818cf8" }}>
+                  <Zap className="w-3.5 h-3.5" /> From $29/mo →
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── T2 STARTER ── */
+  if (plan === "starter") {
+    const thisWeekActions = weekHistory.reduce((s, d) => s + d.actions, 0);
+    const weekTarget      = 15;
+    const weekProgress    = Math.min(100, Math.round((thisWeekActions / weekTarget) * 100));
+
+    return (
+      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(129,140,248,0.1) 0%, rgba(99,102,241,0.03) 100%)", border: "1px solid rgba(129,140,248,0.25)" }}>
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: "#818cf8", opacity: 0.07, transform: "translate(35%, -35%)" }} />
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "#818cf8" }}>Building Momentum</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(129,140,248,0.15)", color: "#818cf8", border: "1px solid rgba(129,140,248,0.25)" }}>Tier 2 · Starter</span>
+            </div>
+            <h2 className="text-2xl font-black text-white leading-tight mb-1.5">You're in. Now let's get consistent.</h2>
+            <p className="text-sm text-zinc-400 mb-5 leading-relaxed">Most creators quit in week 3. You won't — here's your weekly momentum score.</p>
+
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-zinc-400">Weekly activity target</span>
+                <span className="text-xs font-bold" style={{ color: "#818cf8" }}>{thisWeekActions} / {weekTarget} actions</span>
+              </div>
+              <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${weekProgress}%`, background: "linear-gradient(90deg, #818cf8, #a78bfa)" }} />
+              </div>
+              {weekProgress >= 100 && (
+                <p className="text-[10px] text-emerald-400 mt-1.5 font-semibold">✅ Weekly target smashed — you're building a real habit.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Day Streak",  value: streak === 0 ? "—" : `${streak}d`, color: "#fb923c" },
+                { label: "This Month",  value: monthActions,                        color: "#818cf8" },
+                { label: "Lifetime",    value: lifetimeTotalActions,                color: "#34d399" },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="rounded-xl p-3 text-center" style={{ background: `${color}0d`, border: `1px solid ${color}20` }}>
+                  <p className="text-xl font-bold text-white">{value}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="lg:w-56 shrink-0">
+            <Link href="/settings/plan">
+              <div className="h-full rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity flex flex-col justify-between" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.12) 0%, rgba(212,180,97,0.04) 100%)", border: "1px solid rgba(212,180,97,0.2)" }}>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2" style={{ color: GOLD }}>Level up</p>
+                  <p className="text-base font-black text-white mb-1.5">Upgrade to Growth</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed">2× more credits, niche benchmarks, and deeper analytics.</p>
+                </div>
+                <div className="flex items-center gap-1.5 mt-4 text-xs font-bold" style={{ color: GOLD }}>
+                  <TrendingUp className="w-3.5 h-3.5" /> From $59/mo →
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── T3 GROWTH ── */
+  if (plan === "growth") {
+    const intelligence  = nicheIntel?.intelligence;
+    const avgEngagement = intelligence?.avgEngagementRate != null ? `${intelligence.avgEngagementRate.toFixed(1)}%` : "—";
+    const avgViralScore = intelligence?.avgViralScore != null ? intelligence.avgViralScore.toFixed(1) : "—";
+    const trend30d      = intelligence?.trend30d ?? null;
+    const trendLabel    = trend30d === null ? "—" : trend30d > 0 ? `+${trend30d.toFixed(1)}%` : `${trend30d.toFixed(1)}%`;
+    const trendColor    = trend30d === null ? GOLD : trend30d > 0 ? "#34d399" : "#f87171";
+
+    return (
+      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)", border: "1px solid rgba(212,180,97,0.25)" }}>
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.07, transform: "translate(35%, -35%)" }} />
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Growth Phase</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>Tier 3 · Growth</span>
+            </div>
+            <h2 className="text-2xl font-black text-white leading-tight mb-1.5">You're in the growth phase — outpace your niche.</h2>
+            <p className="text-sm text-zinc-400 mb-5 leading-relaxed">Live benchmarks from your niche. Know where you stand, then go harder.</p>
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { label: "Niche Avg Engagement", value: avgEngagement, color: "#34d399" },
+                { label: "Avg Viral Score",       value: avgViralScore, color: "#a78bfa" },
+                { label: "30-Day Trend",          value: trendLabel,    color: trendColor },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="rounded-xl p-3.5 text-center" style={{ background: `${color}0d`, border: `1px solid ${color}22` }}>
+                  <p className="text-2xl font-black" style={{ color }}>{value}</p>
+                  <p className="text-[10px] text-zinc-500 mt-1 leading-tight">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 text-xs text-zinc-500 flex-wrap">
+              <span className="flex items-center gap-1.5"><Flame className="w-3 h-3" style={{ color: "#fb923c" }} />{streak > 0 ? `${streak}-day streak` : "No streak yet"}</span>
+              <span className="w-1 h-1 rounded-full bg-zinc-700" />
+              <span>{monthActions} actions this month</span>
+              {intelligence?.niche && <><span className="w-1 h-1 rounded-full bg-zinc-700" /><span className="capitalize">{intelligence.niche}</span></>}
+            </div>
+          </div>
+
+          <div className="lg:w-56 shrink-0">
+            <Link href="/settings/plan">
+              <div className="h-full rounded-2xl p-5 cursor-pointer hover:opacity-90 transition-opacity flex flex-col justify-between" style={{ background: "linear-gradient(135deg, rgba(52,211,153,0.1) 0%, rgba(52,211,153,0.04) 100%)", border: "1px solid rgba(52,211,153,0.2)" }}>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] mb-2" style={{ color: "#34d399" }}>Scale up</p>
+                  <p className="text-base font-black text-white mb-1.5">Upgrade to Pro</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed">700 credits, video tools, and personalised AI coaching.</p>
+                </div>
+                <div className="flex items-center gap-1.5 mt-4 text-xs font-bold" style={{ color: "#34d399" }}>
+                  <Rocket className="w-3.5 h-3.5" /> From $79/mo →
+                </div>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── T4 PRO ── */
+  if (plan === "pro") {
+    const performanceMsg = streak >= 7
+      ? `🔥 On fire — ${streak}-day streak. Keep the engine running.`
+      : streak > 0
+        ? `⚡ ${streak}-day streak alive. Don't break the chain.`
+        : monthActions >= 15
+          ? "💡 Solid month — push for a daily streak now."
+          : "💡 Ramp up your usage — the algorithm rewards consistency.";
+
+    return (
+      <div className="relative overflow-hidden rounded-3xl p-6" style={{ background: "linear-gradient(135deg, rgba(52,211,153,0.1) 0%, rgba(52,211,153,0.03) 100%)", border: "1px solid rgba(52,211,153,0.25)" }}>
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none" style={{ background: "#34d399", opacity: 0.07, transform: "translate(35%, -35%)" }} />
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: "#34d399" }}>Pro Command Center</span>
+          <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}>Tier 4 · Pro</span>
+        </div>
+        <h2 className="text-2xl font-black text-white leading-tight mb-1.5">Pro level. No excuses. Let's operate.</h2>
+        <p className="text-sm text-zinc-400 mb-5 leading-relaxed">Your content engine at a glance — what's moving and what needs attention.</p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+          {[
+            { label: "Posts Tracked",    value: contentPostCount,                       icon: FileText,  color: "#a78bfa" },
+            { label: "Day Streak",       value: streak === 0 ? "—" : `${streak}d`,      icon: Flame,     color: "#fb923c" },
+            { label: "Monthly Actions",  value: monthActions,                            icon: BarChart2, color: "#34d399" },
+            { label: "Lifetime Actions", value: lifetimeTotalActions,                    icon: Zap,       color: GOLD      },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="rounded-xl p-4 flex flex-col gap-2" style={{ background: `${color}0d`, border: `1px solid ${color}20` }}>
+              <Icon className="w-4 h-4" style={{ color }} />
+              <p className="text-2xl font-black text-white">{value}</p>
+              <p className="text-[10px] text-zinc-500 leading-tight">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <p className="text-xs text-zinc-500">{performanceMsg}</p>
+          <Link href="/settings/plan">
+            <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-2 transition-all hover:opacity-80" style={{ background: "rgba(212,180,97,0.12)", color: GOLD, border: "1px solid rgba(212,180,97,0.25)" }}>
+              <Crown className="w-3 h-3" /> Explore Elite →
+            </button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── T5 ELITE ── */
+  if (plan === "elite") {
+    const currentPhase = projectTracker?.currentPhase?.title || projectTracker?.summary?.currentPhaseTitle || "In Progress";
+    const completion   = projectTracker?.completion ?? 0;
+    const nextAction   = projectTracker?.tracker?.nextClientAction || "Awaiting team update";
+    const approvals    = projectTracker?.summary?.approvalCount ?? 0;
+    const blockers     = projectTracker?.summary?.blockerCount ?? 0;
+    const pendingCount = (tasks || []).filter((t: any) => !t.completed).length;
+
+    return (
+      <div className="relative overflow-hidden rounded-3xl" style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(0,0,0,0.5) 100%)", border: "1px solid rgba(212,180,97,0.3)", boxShadow: "0 0 80px rgba(212,180,97,0.07)" }}>
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.06, transform: "translate(35%, -35%)" }} />
+
+        {/* Header */}
+        <div className="relative px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(212,180,97,0.15)" }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Mission Briefing</span>
+                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}>Tier 5 · Elite</span>
+              </div>
+              <h2 className="text-2xl font-black text-white mb-1">{firstName}'s Mission Control</h2>
+              <p className="text-sm text-zinc-400">Current phase: <span className="font-semibold text-white">{currentPhase}</span></p>
+            </div>
+            <a href="https://calendly.com/brandversee/30min" target="_blank" rel="noreferrer">
+              <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95" style={{ background: `linear-gradient(135deg, ${GOLD}, #b89848)`, color: "#000", boxShadow: "0 4px 20px rgba(212,180,97,0.35)" }}>
+                <CalendarPlus className="w-4 h-4" /> Book a Call
+              </button>
+            </a>
+          </div>
+
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">Mission Progress</span>
+              <span className="text-xs font-black" style={{ color: GOLD }}>{completion}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${completion}%`, background: `linear-gradient(90deg, ${GOLD}, #34d399)` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="relative grid grid-cols-2 sm:grid-cols-4">
+          {[
+            { label: "Next Action",     value: nextAction,   isText: true,  color: "rgba(255,255,255,0.75)" },
+            { label: "Pending Tasks",   value: pendingCount, isText: false, color: "#a78bfa" },
+            { label: "Awaiting Review", value: approvals,    isText: false, color: "#60a5fa" },
+            { label: "Blockers",        value: blockers,     isText: false, color: blockers > 0 ? "#f87171" : "#34d399" },
+          ].map(({ label, value, isText, color }, i) => (
+            <div key={label} className="px-5 py-4" style={{ borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-600 mb-1.5">{label}</p>
+              {isText
+                ? <p className="text-xs font-semibold leading-relaxed" style={{ color }}>{value}</p>
+                : <p className="text-2xl font-black" style={{ color }}>{value}</p>
+              }
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/* ─────────────────────────────────────────────
    MAIN DASHBOARD
 ───────────────────────────────────────────── */
 export default function ClientDashboard() {
@@ -1942,6 +2257,14 @@ export default function ClientDashboard() {
     queryKey: ["/api/referral/my-stats"],
     enabled: !!user?.id,
     staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: nicheIntelData } = useQuery<any>({
+    queryKey: ["/api/niche-intelligence/my"],
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
     refetchOnWindowFocus: false,
   });
 
@@ -2096,6 +2419,23 @@ export default function ClientDashboard() {
               )}
             </div>
           </div>
+
+          {/* ── TIER HERO BANNER ── */}
+          {(user as any)?.plan && (
+            <TierHeroBanner
+              plan={(user as any).plan}
+              firstName={user?.name?.split(" ")[0] || "Creator"}
+              goal={goal}
+              lifetimeTotalActions={lifetimeTotalActions}
+              contentPostCount={(contentPosts || []).length}
+              streak={streak}
+              monthActions={monthActions}
+              weekHistory={weekHistory}
+              nicheIntel={nicheIntelData}
+              projectTracker={projectTracker}
+              tasks={tasks}
+            />
+          )}
 
           {/* ── VIDEO MARKETING ADD-ON UPGRADE BANNER ── */}
           {!vmBannerDismissed && (

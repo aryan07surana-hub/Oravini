@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { trackPageView } from "@/hooks/use-track-activity";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import PlatformChatbot from "@/components/PlatformChatbot";
@@ -15,7 +16,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, Flame, BookOpen
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, Flame, BookOpen, BrainCircuit, Repeat2, Anchor, PenLine
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -219,6 +220,10 @@ const topNavItems = [
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
   { href: "/vault", label: "Cortex Vault", icon: BookOpen },
+  { href: "/skills", label: "Skills", icon: BrainCircuit },
+  { href: "/repurpose", label: "Content Repurposer", icon: Repeat2 },
+  { href: "/hook-library", label: "Hook Library", icon: Anchor },
+  { href: "/caption-writer", label: "Caption Writer", icon: PenLine },
   { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
@@ -245,6 +250,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   });
 
   const unreadNotifs = (notifications || []).filter((n: any) => !n.read).length;
+
+  // Track page views in Cortex
+  useEffect(() => {
+    if (user) trackPageView(location);
+  }, [location, user]);
   const unreadMessages = unreadMsg?.count || 0;
 
   const initials = user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "U";

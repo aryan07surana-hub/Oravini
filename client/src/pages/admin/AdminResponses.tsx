@@ -784,6 +784,19 @@ export default function AdminResponses() {
                               color="#60a5fa"
                             />
                             <STagField label="How They Heard About Us" items={s.heard_about} color="#f472b6" />
+                            {s.social_link && (
+                              <div>
+                                <p className="text-[10px] text-zinc-500 mb-1 font-semibold uppercase tracking-wider">Instagram / YouTube</p>
+                                <a
+                                  href={s.social_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm font-medium text-sky-400 hover:text-sky-300 underline underline-offset-2 break-all"
+                                >
+                                  {s.social_link}
+                                </a>
+                              </div>
+                            )}
                           </div>
 
                           {s.completed_at && (
