@@ -819,6 +819,11 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            <a href="/video-clip-editor">
+              <Button size="sm" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 gap-1.5 font-bold" data-testid="btn-open-clip-editor">
+                <Scissors className="w-3.5 h-3.5" /> Clip Editor
+              </Button>
+            </a>
             <a href="/video-studio">
               <Button size="sm" className="bg-primary text-black hover:bg-primary/90 gap-1.5 font-black shadow-[0_0_12px_rgba(212,180,97,0.3)]" data-testid="btn-open-video-studio">
                 <Film className="w-3.5 h-3.5" /> Video Studio

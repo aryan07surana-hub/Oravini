@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import passport from "passport";
 import { registerSchedulingRoutes } from "./schedulingRoutes";
-import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes } from "./routes/index";
+import { registerWebinarPollRoutes, registerWebinarSeriesRoutes, registerVideoHostingRoutes, registerWebinarPanelistRoutes, registerWebinarBreakoutRoutes, registerWebinarEmailRoutes, registerWebinarSurveyRoutes, registerWebinarTemplateRoutes, registerWebinarCaptionRoutes, registerWebinarBackstageRoutes, registerWebinarAdvancedRoutes, registerCrmRoutes, registerCrmSuiteRoutes, bootstrapCrmSuite, registerCrmPublicApi, bootstrapCrmPublicApi, registerEmailMarketingRoutes, bootstrapEmailMarketing, registerDialerRoutes, startSequenceRunner, registerSmsMarketingRoutes, bootstrapSmsMarketing, registerPlatformChatRoutes, registerAnalyticsRoutes, registerAdminOverviewRoutes, registerSuperAdminDocumentRoutes, registerVaultRoutes, registerSkillsRoutes, bootstrapSkills, registerActivityRoutes } from "./routes/index";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
@@ -2604,6 +2604,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error(`Groq vision failed: ${lastError}`);
   }
 
+  async function withSkills(userId: string, basePrompt: string, context?: { category?: string; platform?: string }): Promise<string> {
+    try {
+      const { buildSkillsPrompt } = await import("./skillsEngine");
+      const skillsBlock = await buildSkillsPrompt(userId, context);
+      if (!skillsBlock) return basePrompt;
+      return `${skillsBlock}\n\n${basePrompt}`;
+    } catch {
+      return basePrompt;
+    }
+  }
+
   type IdeaContextPost = {
     title?: string;
     contentType?: string;
@@ -3247,7 +3258,8 @@ Requirements:
 - For LinkedIn, fill linkedinStructure for LinkedIn ideas.
 - For Instagram, make productionNotes useful for reels/carousels/captions.`;
 
-      const parsed = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 5000));
+      const enrichedSystemPrompt = await withSkills(_u.id, systemPrompt, { category: "content", platform });
+      const parsed = JSON.parse(await callGroqJson(enrichedSystemPrompt, userPrompt, 5000));
       if (!parsed || !Array.isArray(parsed.ideas)) {
         return res.status(500).json({ message: "Failed to build structured content workflow" });
       }
@@ -3360,7 +3372,7 @@ Requirements:
               messages: [
                 {
                   role: "system",
-                  content: "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.",
+                  content: await withSkills(_uHt.id, "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.", { category: "content", platform: "instagram" }),
                 },
                 {
                   role: "user",
@@ -3562,6 +3574,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
       if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
 
+      const skillsSystemPrompt = await withSkills(_u2.id, "You are a world-class scriptwriter for social media content.", { category: "content", platform });
       const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-8b-instant"];
       let script = "";
 
@@ -3572,7 +3585,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
             headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               model,
-              messages: [{ role: "user", content: prompt }],
+              messages: [{ role: "system", content: skillsSystemPrompt }, { role: "user", content: prompt }],
               max_tokens: isYt ? (ytDuration >= 15 ? 6000 : ytDuration >= 10 ? 4000 : 2500) : 2500,
               temperature: 0.8,
             }),
@@ -3603,7 +3616,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
       const creditResult = await storage.deductCredits(u.id, 5, "carousel", "AI Carousel text generation", u.plan || "free");
       if (!creditResult.success) return res.status(402).json({ message: creditResult.message, insufficientCredits: true, balance: creditResult.balance });
 
-      const systemPrompt = `You are a world-class Instagram carousel copywriter and marketing psychologist. You understand:
+      const systemPrompt = await withSkills(u.id, `You are a world-class Instagram carousel copywriter and marketing psychologist. You understand:
 - Curiosity gaps and pattern interrupts
 - Social proof and authority triggers
 - FOMO and scarcity psychology
@@ -3612,7 +3625,7 @@ Keep the entire reel script to 45-60 seconds when read aloud. Every single word 
 - Visual hierarchy and readability
 
 You write carousels that STOP the scroll, deliver massive value, and convert viewers into followers/customers.
-Return ONLY valid JSON — no markdown, no code fences.`;
+Return ONLY valid JSON — no markdown, no code fences.`, { category: "content", platform: "instagram" });
       
       const userPrompt = `Create a ${count}-slide Instagram carousel about: "${topic}"
 Tone: ${toneStr}
@@ -16397,6 +16410,16 @@ Rules:
   // ── Super Admin Documents ─────────────────────────────────────────────────
   registerSuperAdminDocumentRoutes(app, requireAdmin);
 
+  // ── Cortex Vault AI ───────────────────────────────────────────────────────
+  registerVaultRoutes(app, requireAuth);
+
+  // ── Activity Tracking ─────────────────────────────────────────────────────
+  registerActivityRoutes(app, requireAuth);
+
+  // ── Skills System ─────────────────────────────────────────────────────────
+  await bootstrapSkills().catch(err => console.error("[skills] bootstrap failed:", err));
+  registerSkillsRoutes(app, requireAuth);
+
   // ── Super Admin Inspiration Images ───────────────────────────────────────
   const inspirationUpload = multer({
     storage: multer.diskStorage({
@@ -16514,6 +16537,518 @@ Rules:
 
   // ── Scheduling (per-user calendly-replacement routes) ──────────────────────
   registerSchedulingRoutes(app);
+
+  // ── Video Clip Editor ──────────────────────────────────────────────────────
+  const CLIP_FFMPEG = process.env.FFMPEG_PATH || "/opt/homebrew/bin/ffmpeg";
+  const CLIP_UPLOADS = path.resolve("uploads");
+
+  function resolveClipPath(fp: string): string {
+    return path.isAbsolute(fp) ? fp : path.join(CLIP_UPLOADS, path.basename(fp));
+  }
+
+  function buildClipVFilters(clip: any, targetW: number, targetH: number): string[] {
+    const vf: string[] = [];
+    const spd = parseFloat(clip.speed) || 1;
+    if (spd !== 1) vf.push(`setpts=${(1 / spd).toFixed(4)}*PTS`);
+    if (clip.colorGrade === "warm")      vf.push("colorbalance=rs=.08:gs=.02:bs=-.06");
+    if (clip.colorGrade === "cool")      vf.push("colorbalance=rs=-.06:gs=.02:bs=.08");
+    if (clip.colorGrade === "cinematic") vf.push("curves=preset=strong_contrast,colorbalance=rs=-.04:gs=.02:bs=.05");
+    if (clip.colorGrade === "vivid")     vf.push("eq=saturation=1.4:contrast=1.08");
+    if (clip.colorGrade === "bw")        vf.push("hue=s=0");
+    // Ken Burns zoom/pan
+    if (clip.kenBurns?.enabled) {
+      const kb = clip.kenBurns;
+      const zs = parseFloat(kb.zoomStart) || 1;
+      const ze = parseFloat(kb.zoomEnd) || 1.3;
+      const pxs = parseFloat(kb.panXStart) || 0;
+      const pys = parseFloat(kb.panYStart) || 0;
+      const pxe = parseFloat(kb.panXEnd) || 0;
+      const pye = parseFloat(kb.panYEnd) || 0;
+      vf.push(
+        `zoompan=z='lerp(${zs},${ze},on/duration)':` +
+        `x='iw/2-(iw/zoom/2)+lerp(${pxs},${pxe},on/duration)*iw':` +
+        `y='ih/2-(ih/zoom/2)+lerp(${pys},${pye},on/duration)*ih':` +
+        `d=duration:s=${targetW}x${targetH}:fps=30`
+      );
+    }
+    // Text overlays with optional fade animation
+    for (const t of (clip.textOverlays || [])) {
+      const safeText = String(t.text || "").replace(/'/g, "\\'").replace(/:/g, "\\:");
+      const x = Math.round((parseFloat(t.x) || 0.5) * 100);
+      const y = Math.round((parseFloat(t.y) || 0.9) * 100);
+      const fs2 = Math.max(12, Math.min(120, parseInt(t.fontSize) || 40));
+      const color = String(t.color || "white").replace("#", "");
+      const tStart = parseFloat(t.startTime) || 0;
+      const tEnd   = parseFloat(t.endTime) || 9999;
+      const animDur = parseFloat(t.animDur) || 0.4;
+      const anim = t.animation || "none";
+      let alphaExpr = `between(t,${tStart},${tEnd})`;
+      if (anim === "fade")  alphaExpr = `between(t,${tStart},${tEnd})*min(1,(t-${tStart})/${animDur})`;
+      vf.push(`drawtext=text='${safeText}':fontsize=${fs2}:fontcolor=${color}@1:x=w*${x}/100-tw/2:y=h*${y}/100:alpha='${alphaExpr}'`);
+    }
+    if (!clip.kenBurns?.enabled) vf.push("scale=-2:1080");
+    vf.push(`pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`);
+    return vf;
+  }
+
+  function buildAudioFilters(clip: any): string[] {
+    const af: string[] = [];
+    const spd = parseFloat(clip.speed) || 1;
+    const tempoFilters: string[] = [];
+    if (spd !== 1) {
+      let rem = spd;
+      while (rem > 2) { tempoFilters.push("atempo=2.0"); rem /= 2; }
+      while (rem < 0.5) { tempoFilters.push("atempo=0.5"); rem /= 0.5; }
+      tempoFilters.push(`atempo=${rem.toFixed(4)}`);
+      af.push(...tempoFilters);
+    }
+    const vol = parseFloat(clip.volume ?? 1);
+    if (vol !== 1) af.push(`volume=${vol.toFixed(3)}`);
+    if (clip.noiseReduce) af.push("arnndn=m=cb.rnnn");
+    return af;
+  }
+
+  async function ffmpegRun(ffmpegBin: string, args: string[]): Promise<void> {
+    const { spawn: sp } = await import("child_process");
+    return new Promise<void>((resolve, reject) => {
+      const proc = sp(ffmpegBin, args);
+      proc.stderr.on("data", (d: Buffer) => process.stdout.write(`[clip-ffmpeg] ${d}`));
+      proc.on("close", (code: number) => code === 0 ? resolve() : reject(new Error(`FFmpeg exited ${code}`)));
+    });
+  }
+
+  async function ffmpegCapture(ffmpegBin: string, args: string[]): Promise<string> {
+    const { spawn: sp } = await import("child_process");
+    return new Promise((resolve, reject) => {
+      let out = "";
+      const proc = sp(ffmpegBin, args);
+      proc.stderr.on("data", (d: Buffer) => { out += d.toString(); });
+      proc.stdout.on("data", (d: Buffer) => { out += d.toString(); });
+      proc.on("close", (code: number) => code === 0 || code === 1 ? resolve(out) : reject(new Error(`FFmpeg exited ${code}\n${out.slice(-500)}`)));
+    });
+  }
+
+  // Upload endpoint (accepts video + audio)
+  app.post("/api/video-clip-editor/upload", requireAuth, videoUpload.single("video"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      res.json({ fileUrl: `/uploads/${req.file.filename}`, filePath: req.file.path, originalName: req.file.originalname, size: req.file.size });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Auto-caption via Groq Whisper
+  app.post("/api/video-clip-editor/transcribe", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filePath } = req.body;
+      if (!filePath) return res.status(400).json({ message: "filePath required" });
+      const absPath = resolveClipPath(filePath);
+      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const FormDataNode = (await import("form-data")).default;
+      const fd = new FormDataNode();
+      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
+      fd.append("model", "whisper-large-v3-turbo");
+      fd.append("response_format", "verbose_json");
+      fd.append("timestamp_granularities[]", "word");
+
+      const fetch2 = (await import("node-fetch")).default as any;
+      const resp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
+        body: fd,
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Groq transcription error: ${errText.slice(0, 200)}`);
+      }
+      const data: any = await resp.json();
+      const words = (data.words || []).map((w: any) => ({ word: w.word, start: w.start, end: w.end }));
+      res.json({ words, text: data.text || "" });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Silence detection via FFmpeg silencedetect
+  app.post("/api/video-clip-editor/detect-silence", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filePath, trimStart = 0, trimEnd, threshold = "-35dB", minDuration = 0.4 } = req.body;
+      if (!filePath) return res.status(400).json({ message: "filePath required" });
+      const absPath = resolveClipPath(filePath);
+      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+
+      const args: string[] = [];
+      if (trimStart > 0) args.push("-ss", String(trimStart));
+      args.push("-i", absPath);
+      if (trimEnd) args.push("-to", String(trimEnd - (trimStart || 0)));
+      args.push("-af", `silencedetect=n=${threshold}:d=${minDuration}`, "-f", "null", "-");
+
+      const output = await ffmpegCapture(CLIP_FFMPEG, args);
+      const silentRanges: { start: number; end: number }[] = [];
+      const startMatches = [...output.matchAll(/silence_start: ([\d.]+)/g)];
+      const endMatches   = [...output.matchAll(/silence_end: ([\d.]+)/g)];
+      const len = Math.min(startMatches.length, endMatches.length);
+      for (let i = 0; i < len; i++) {
+        const start = parseFloat(startMatches[i][1]) + (trimStart || 0);
+        const end   = parseFloat(endMatches[i][1])   + (trimStart || 0);
+        if (end - start >= minDuration) silentRanges.push({ start, end });
+      }
+      res.json({ silentRanges });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Scene change detection via FFmpeg
+  app.post("/api/video-clip-editor/detect-scenes", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filePath, threshold = 0.3 } = req.body;
+      if (!filePath) return res.status(400).json({ message: "filePath required" });
+      const absPath = resolveClipPath(filePath);
+      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+
+      const output = await ffmpegCapture(CLIP_FFMPEG, [
+        "-i", absPath,
+        "-vf", `select=gt(scene\\,${threshold}),showinfo`,
+        "-vsync", "vfr", "-f", "null", "-",
+      ]);
+
+      const timestamps: number[] = [];
+      const matches = [...output.matchAll(/pts_time:([\d.]+)/g)];
+      for (const m of matches) {
+        const t = parseFloat(m[1]);
+        if (!isNaN(t) && t > 0.5) timestamps.push(t);
+      }
+      res.json({ timestamps: [...new Set(timestamps)].sort((a, b) => a - b) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // Multi-clip export with transitions, Ken Burns, noise reduction, audio mix, B-roll overlay
+  app.post("/api/video-clip-editor/process", requireAuth, async (req: Request, res: Response) => {
+    const tmpFiles: string[] = [];
+    try {
+      const { clips = [], aspectRatio = "16:9", masterVolume = 1, audioTracks = [], brollClips = [] } = req.body;
+      if (!clips.length) return res.status(400).json({ message: "No clips provided" });
+
+      const [aw, ah] = aspectRatio === "9:16" ? [608, 1080] : aspectRatio === "1:1" ? [1080, 1080] : [1920, 1080];
+      const ts = Date.now();
+      const hasTransitions = clips.some((c: any) => c.transition?.type && c.transition.type !== "none");
+
+      // Step 1: process each clip to a normalized temp file
+      for (let i = 0; i < clips.length; i++) {
+        const clip = clips[i];
+        const inputPath = resolveClipPath(clip.filePath);
+        if (!fs.existsSync(inputPath)) throw new Error(`Clip ${i + 1} file not found`);
+        const tmpOut = path.join(CLIP_UPLOADS, `clip-tmp-${ts}-${i}.mp4`);
+        tmpFiles.push(tmpOut);
+
+        const vf = buildClipVFilters(clip, aw, ah);
+        const af = buildAudioFilters(clip);
+
+        const args: string[] = [];
+        if ((clip.trimStart ?? 0) > 0) args.push("-ss", String(clip.trimStart));
+        args.push("-i", inputPath);
+        if (clip.trimEnd && clip.trimEnd > (clip.trimStart ?? 0)) args.push("-to", String(clip.trimEnd - (clip.trimStart ?? 0)));
+        args.push("-vf", vf.join(","));
+        if (clip.muted) { args.push("-an"); }
+        else if (af.length) { args.push("-af", af.join(",")); }
+        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "22", "-r", "30");
+        args.push("-c:a", "aac", "-b:a", "128k");
+        args.push("-movflags", "+faststart", "-y", tmpOut);
+        await ffmpegRun(CLIP_FFMPEG, args);
+      }
+
+      const tmpClips = tmpFiles.filter(f => f.endsWith(".mp4"));
+      const outputName = `export-${ts}.mp4`;
+      const outputPath = path.join(CLIP_UPLOADS, outputName);
+
+      if (tmpClips.length === 1 && !audioTracks.length && !brollClips.length) {
+        fs.copyFileSync(tmpClips[0], outputPath);
+      } else if (!hasTransitions) {
+        // Simple concat (fast path)
+        const concatList = path.join(CLIP_UPLOADS, `concat-${ts}.txt`);
+        tmpFiles.push(concatList);
+        fs.writeFileSync(concatList, tmpClips.map(f => `file '${f}'`).join("\n"));
+
+        if (!audioTracks.length && !brollClips.length) {
+          await ffmpegRun(CLIP_FFMPEG, ["-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", "-movflags", "+faststart", "-y", outputPath]);
+        } else {
+          // Concat then mix audio tracks and overlay broll
+          const concatTmp = path.join(CLIP_UPLOADS, `concat-tmp-${ts}.mp4`);
+          tmpFiles.push(concatTmp);
+          await ffmpegRun(CLIP_FFMPEG, ["-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", "-y", concatTmp]);
+          await buildMixedOutput(concatTmp, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles);
+        }
+      } else {
+        // xfade transitions via filter_complex
+        const xfadeArgs: string[] = [];
+        for (const f of tmpClips) xfadeArgs.push("-i", f);
+
+        // Get durations of processed clips
+        const durations: number[] = [];
+        for (const f of tmpClips) {
+          const dur = await getVideoDuration(CLIP_FFMPEG, f);
+          durations.push(dur);
+        }
+
+        // Build xfade filter chain
+        let fc = "";
+        let vLabel = "[0:v]";
+        let aLabel = "[0:a]";
+        let offset = 0;
+        const xfadeMap: { [k: number]: { type: string; dur: number } } = {};
+        for (let i = 1; i < tmpClips.length; i++) {
+          const trans = clips[i].transition || { type: "none", duration: 0.5 };
+          xfadeMap[i] = { type: trans.type === "none" ? "fade" : trans.type, dur: parseFloat(trans.duration) || 0.5 };
+        }
+
+        for (let i = 1; i < tmpClips.length; i++) {
+          const { type, dur } = xfadeMap[i];
+          offset += durations[i - 1] - dur;
+          const ffmpegXType = type === "wipe-left" ? "wipeleft" : type === "wipe-right" ? "wiperight" : type === "slide-left" ? "slideleft" : type === "zoom" ? "zoomin" : type;
+          const ovLabel = i < tmpClips.length - 1 ? `[v${i}]` : "[vout]";
+          const oaLabel = i < tmpClips.length - 1 ? `[a${i}]` : "[aout]";
+          fc += `${vLabel}[${i}:v]xfade=transition=${ffmpegXType}:duration=${dur}:offset=${offset.toFixed(3)}${ovLabel};`;
+          fc += `${aLabel}[${i}:a]acrossfade=d=${dur}${oaLabel};`;
+          vLabel = ovLabel; aLabel = oaLabel;
+        }
+
+        const xfadeIntermediate = tmpClips.length > 1 ? path.join(CLIP_UPLOADS, `xfade-${ts}.mp4`) : tmpClips[0];
+        if (tmpClips.length > 1) {
+          tmpFiles.push(xfadeIntermediate);
+          await ffmpegRun(CLIP_FFMPEG, [
+            ...xfadeArgs,
+            "-filter_complex", fc.slice(0, -1),
+            "-map", "[vout]", "-map", "[aout]",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart", "-y", xfadeIntermediate,
+          ]);
+        }
+
+        if (!audioTracks.length && !brollClips.length) {
+          fs.copyFileSync(xfadeIntermediate, outputPath);
+        } else {
+          await buildMixedOutput(xfadeIntermediate, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles);
+        }
+      }
+
+      for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
+      res.json({ downloadUrl: `/uploads/${outputName}`, filename: outputName });
+    } catch (e: any) {
+      for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (_) {} }
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  async function getVideoDuration(ffmpegBin: string, filePath: string): Promise<number> {
+    const ffprobeBin = ffmpegBin.replace("ffmpeg", "ffprobe");
+    const { spawn: sp } = await import("child_process");
+    return new Promise((resolve) => {
+      let out = "";
+      const proc = sp(ffprobeBin, ["-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", filePath]);
+      proc.stdout.on("data", (d: Buffer) => out += d);
+      proc.on("close", () => resolve(parseFloat(out.trim()) || 10));
+    });
+  }
+
+  async function buildMixedOutput(
+    videoInput: string,
+    audioTracks: any[],
+    brollClips: any[],
+    outputPath: string,
+    aw: number, ah: number,
+    masterVolume: number,
+    ts: number,
+    tmpFiles: string[]
+  ): Promise<void> {
+    const args: string[] = ["-i", videoInput];
+    const validAudio = audioTracks.filter((a: any) => a.filePath && fs.existsSync(resolveClipPath(a.filePath)));
+    const validBroll = brollClips.filter((b: any)  => b.filePath && fs.existsSync(resolveClipPath(b.filePath)));
+
+    for (const a of validAudio) args.push("-i", resolveClipPath(a.filePath));
+    for (const b of validBroll) args.push("-i", resolveClipPath(b.filePath));
+
+    let fc = "";
+    let vChain = "[0:v]";
+    // Overlay each broll clip
+    const audioInputOffset = 1 + validAudio.length;
+    for (let bi = 0; bi < validBroll.length; bi++) {
+      const b = validBroll[bi];
+      const inputIdx = audioInputOffset + bi;
+      const bw = Math.round((parseFloat(b.width) || 0.3) * aw);
+      const bh = Math.round(bw * ah / aw);
+      const bx = Math.round((parseFloat(b.x) || 0.65) * aw);
+      const by = Math.round((parseFloat(b.y) || 0.05) * ah);
+      const bstart = parseFloat(b.startGlobal) || 0;
+      const bend   = parseFloat(b.endGlobal)   || 999;
+      const outLabel = bi < validBroll.length - 1 ? `[v_br${bi}]` : "[vout]";
+      fc += `${vChain}[${inputIdx}:v]scale=${bw}:${bh},setpts=PTS-STARTPTS+${bstart}/TB[b${bi}];`;
+      fc += `${vChain}[b${bi}]overlay=${bx}:${by}:enable='between(t,${bstart},${bend})'${outLabel};`;
+      vChain = outLabel;
+    }
+    if (validBroll.length === 0) fc += `[0:v]copy[vout];`;
+
+    // Mix audio
+    if (validAudio.length > 0) {
+      const mv = parseFloat(masterVolume) || 1;
+      let mixInputs = `[0:a]volume=${mv}[main_a];`;
+      const mixLabels = ["[main_a]"];
+      for (let ai = 0; ai < validAudio.length; ai++) {
+        const a = validAudio[ai];
+        const vol = parseFloat(a.volume ?? 0.7) * mv;
+        const offset = parseFloat(a.startOffset ?? 0);
+        const inputIdx = 1 + ai;
+        mixInputs += `[${inputIdx}:a]adelay=${Math.round(offset * 1000)}|${Math.round(offset * 1000)},volume=${vol.toFixed(3)}[mus${ai}];`;
+        mixLabels.push(`[mus${ai}]`);
+      }
+      fc += mixInputs;
+      fc += `${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:dropout_transition=0[aout]`;
+    } else {
+      const mv = parseFloat(masterVolume) || 1;
+      fc += `[0:a]volume=${mv}[aout]`;
+    }
+
+    const mapArgs = ["-map", "[vout]", "-map", "[aout]"];
+    await ffmpegRun(CLIP_FFMPEG, [
+      ...args,
+      "-filter_complex", fc,
+      ...mapArgs,
+      "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-r", "30",
+      "-c:a", "aac", "-b:a", "128k",
+      "-movflags", "+faststart", "-y", outputPath,
+    ]);
+  }
+
+  // ── Content Repurposing Engine ────────────────────────────────────────────
+  app.post("/api/ai/repurpose", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const _u = req.user as any;
+      const { content, platforms, tone } = req.body;
+      if (!content || content.trim().length < 20) {
+        return res.status(400).json({ message: "Provide content to repurpose (at least 20 chars)" });
+      }
+      if (!Array.isArray(platforms) || platforms.length === 0) {
+        return res.status(400).json({ message: "Select at least one platform" });
+      }
+
+      const toneNote = tone === "casual" ? "Make it more casual and conversational."
+        : tone === "professional" ? "Make it more professional and authoritative."
+        : "Match the original tone.";
+
+      const platformPrompts: Record<string, { label: string; icon: string; prompt: string }> = {
+        instagram: {
+          label: "Instagram Caption", icon: "📸",
+          prompt: `Rewrite as an Instagram caption. Hook in line 1. Value in lines 2-5. Line breaks every 1-2 sentences. End with CTA + 10-15 hashtags. ${toneNote}`,
+        },
+        twitter: {
+          label: "Twitter / X Thread", icon: "🐦",
+          prompt: `Rewrite as a Twitter/X thread. Tweet 1: bold hook (standalone). Tweets 2-7: one insight each, max 240 chars, numbered. Last tweet: summary + CTA. Format as numbered tweets. ${toneNote}`,
+        },
+        linkedin: {
+          label: "LinkedIn Post", icon: "💼",
+          prompt: `Rewrite as a LinkedIn post. Opening line ends with "..." to force the click. 1-line paragraphs, blank line every 3-4 lines. Close with a question. 150-250 words. ${toneNote}`,
+        },
+        youtube: {
+          label: "YouTube Short Script", icon: "🎬",
+          prompt: `Rewrite as a 45-60 second YouTube Shorts/Reel script. Format:\n[HOOK - 0-3s]: Opening line\n[BODY - 3-45s]: Core value, one idea per line\n[CTA - 45-60s]: Clear action. ${toneNote}`,
+        },
+        email: {
+          label: "Email Newsletter", icon: "📧",
+          prompt: `Rewrite as an email newsletter excerpt. Subject line (under 50 chars) + preview text (under 90 chars) + body (150-250 words, short paragraphs, one clear CTA). ${toneNote}`,
+        },
+        tiktok: {
+          label: "TikTok / Reel Hook", icon: "🎥",
+          prompt: `Write a TikTok hook + content outline. Hook: first 3 seconds (must stop scroll). Script: punchy, new idea every 3-5 seconds. Max 60 seconds total. ${toneNote}`,
+        },
+      };
+
+      const selected = platforms.filter((p: string) => platformPrompts[p]);
+      const skillsBlock = await withSkills(_u.id, "", { category: "content" });
+
+      const results = await Promise.all(
+        selected.map(async (platform: string) => {
+          const meta = platformPrompts[platform];
+          const systemPrompt = `${skillsBlock}You are a world-class content repurposing specialist. Repurpose the given content for the specified platform. Return only the repurposed content, no preamble.`;
+          const userPrompt = `ORIGINAL CONTENT:\n${content.slice(0, 3000)}\n\nTASK: ${meta.prompt}`;
+          try {
+            const output = await callGroq(systemPrompt, userPrompt, 1200);
+            return { platform, label: meta.label, icon: meta.icon, content: output.trim() };
+          } catch {
+            return { platform, label: meta.label, icon: meta.icon, content: "", error: true };
+          }
+        })
+      );
+
+      return res.json({ results });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Caption Writer (multi-variation) ─────────────────────────────────────
+  app.post("/api/ai/caption-writer", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const _u = req.user as any;
+      const { topic, context, platform, tone, goal, variations = 3 } = req.body;
+      if (!topic) return res.status(400).json({ message: "Topic is required" });
+
+      const skillsBlock = await withSkills(_u.id, "", { category: "content", platform });
+
+      const systemPrompt = `${skillsBlock}You are an elite social media caption writer. Generate ${variations} distinct caption variations for the same topic — each with a different angle, hook style, and structure. Make them genuinely different, not just paraphrases. Return ONLY valid JSON — no markdown.`;
+
+      const userPrompt = `Topic: ${topic}
+Platform: ${platform || "instagram"}
+Tone: ${tone || "engaging"}
+Goal: ${goal || "save and engagement"}
+${context ? `Context: ${context}` : ""}
+
+Return JSON:
+{
+  "captions": [
+    {
+      "angle": "e.g. Story-driven / Controversy / Tutorial / Question",
+      "hookType": "e.g. Curiosity gap / Bold claim / Relatable pain",
+      "caption": "Full caption with line breaks, emojis, CTA, hashtags",
+      "hookLine": "Just the first line"
+    }
+  ]
+}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 3000);
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed.captions)) throw new Error("Invalid response");
+      return res.json({ captions: parsed.captions });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── Hook customizer (for Hook Library) ───────────────────────────────────
+  app.post("/api/ai/customize-hook", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { template, niche, platform, examples } = req.body;
+      if (!template || !niche) return res.status(400).json({ message: "template and niche required" });
+
+      const systemPrompt = "You are a viral hook specialist. Adapt hook templates to specific niches. Return ONLY a JSON object.";
+      const userPrompt = `Hook template: "${template}"
+Niche: ${niche}
+Platform: ${platform || "instagram"}
+${examples ? `Example hooks from this niche: ${examples}` : ""}
+
+Generate 3 variations of this hook for this niche. Return JSON:
+{
+  "hooks": [
+    { "text": "the full hook", "angle": "what makes it different" }
+  ]
+}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 600);
+      const parsed = JSON.parse(raw);
+      return res.json(parsed);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
 
   return httpServer;
 }

@@ -101,7 +101,12 @@ import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
 import VideoEditorStudio from "@/pages/client/VideoEditorStudio";
+import VideoClipEditor from "@/pages/client/VideoClipEditor";
 import ScreenRecorder from "@/pages/client/ScreenRecorder";
+import SkillsPage from "@/pages/client/Skills";
+import RepurposePage from "@/pages/client/Repurpose";
+import HookLibraryPage from "@/pages/client/HookLibrary";
+import CaptionWriterPage from "@/pages/client/CaptionWriter";
 import WebinarStudio from "@/pages/client/WebinarStudio";
 import WebinarAnalytics from "@/pages/client/WebinarAnalytics";
 import WatchWebinar from "@/pages/public/WatchWebinar";
@@ -293,6 +298,7 @@ function Router() {
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
       <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
+      <Route path="/video-clip-editor">{() => <Guard component={VideoClipEditor} />}</Route>
       <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
       <Route path="/oravini-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
       <Route path="/webinar-studio/:id/analytics">{(p) => <Guard component={WebinarAnalytics} id={p.id} />}</Route>
@@ -328,6 +334,10 @@ function Router() {
       <Route path="/scheduling">{() => <Guard component={ClientScheduling} />}</Route>
       <Route path="/knowledge-graph">{() => <Guard component={KnowledgeGraph} />}</Route>
       <Route path="/vault">{() => <Guard component={Vault} />}</Route>
+      <Route path="/skills">{() => <Guard component={SkillsPage} />}</Route>
+      <Route path="/repurpose">{() => <Guard component={RepurposePage} />}</Route>
+      <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
+      <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
       <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}
