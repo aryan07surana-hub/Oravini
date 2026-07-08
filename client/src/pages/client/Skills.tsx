@@ -20,7 +20,8 @@ import {
   ArrowRight, BrainCircuit, Wand2, Globe,
   Shield, Mic2, Layers, Package, AlertTriangle,
   ChevronDown, ChevronUp, Clock, Send, Play,
-  FileText, Lightbulb, Activity,
+  FileText, Lightbulb, Activity, Anchor, PenLine,
+  Repeat2, Target, Dna, Clapperboard, ScanSearch,
 } from "lucide-react";
 
 /* ── Design tokens ─────────────────────────────────────────────── */
@@ -1036,6 +1037,56 @@ function BrowseTab({ skills, loading, onInstall, onUninstall, onPreview, install
       ) : (
         /* Grouped view */
         <div className="flex flex-col gap-8">
+
+          {/* ── Built-in Content Tools ── */}
+          {!search && (
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(167,139,250,0.12)" }}>
+                  <BrainCircuit className="w-3.5 h-3.5" style={{ color: "#a78bfa" }} />
+                  <span className="text-xs font-bold" style={{ color: "#a78bfa" }}>Content Tools</span>
+                </div>
+                <span className="text-xs text-zinc-600">Built-in AI tools — always active</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { icon: Anchor,      label: "Hook Library",       desc: "Generate scroll-stopping hooks for any content format and platform",     href: "/hook-library",       color: "#60a5fa" },
+                  { icon: Repeat2,     label: "Content Repurposer", desc: "Transform long-form content into short-form posts, reels, and threads",  href: "/repurpose",          color: "#f472b6" },
+                  { icon: PenLine,     label: "Caption Writer",     desc: "AI-powered captions optimised for reach, saves, and engagement",         href: "/caption-writer",     color: "#4ade80" },
+                  { icon: Target,      label: "Niche Intelligence", desc: "Deep research into your niche — trends, gaps, and audience psychology",  href: "/niche-intelligence", color: "#fb923c" },
+                  { icon: ScanSearch,  label: "Content Analyser",   desc: "Analyse top-performing content from any creator and extract insights",    href: "/content-analyser",   color: "#a78bfa" },
+                  { icon: Clapperboard,label: "AI Video Editor",    desc: "Clip editor with AI captions, silence removal, colour grading, and more", href: "/video-editor",       color: "#d4b461" },
+                  { icon: Dna,         label: "Upload DNA",         desc: "Train AI on your content style — voice, tone, hooks, and formatting",     href: "/skills#dna",         color: "#2dd4bf" },
+                ].map(t => (
+                  <a key={t.href} href={t.href}
+                    className="group rounded-2xl p-4 flex flex-col gap-3 transition-all hover:brightness-110 cursor-pointer"
+                    style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${t.color}18`, border: `1px solid ${t.color}30` }}>
+                        <t.icon className="w-4.5 h-4.5" style={{ color: t.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-white">{t.label}</p>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                            style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.25)" }}>
+                            Active
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">{t.desc}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] font-semibold mt-auto"
+                      style={{ color: t.color }}>
+                      Open tool <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Featured section */}
           {!search && featured.length > 0 && (
             <section>

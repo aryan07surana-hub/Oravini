@@ -624,27 +624,8 @@ export default function VideoEditorStudio() {
               </div>
             )}
 
-            {/* Transcribing */}
-            {activeJobId && isProcessing && (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="bg-card border border-blue-500/20 rounded-2xl p-10 text-center space-y-4 w-full max-w-sm mx-6">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto">
-                    <Mic className="w-7 h-7 text-blue-400 animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground">AI is reading your video…</p>
-                    <p className="text-xs text-muted-foreground mt-1">Whisper AI creates word-level timestamps. Takes 15–60 seconds.</p>
-                  </div>
-                  <Loader2 className="w-5 h-5 text-blue-400 animate-spin mx-auto" />
-                  <button onClick={() => setActiveJobId(null)} className="text-xs text-muted-foreground hover:text-foreground">
-                    Upload a different file
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── SPLIT-SCREEN EDITOR (transcribed) ── */}
-            {activeJobId && isReady && currentJob && (
+            {/* ── SPLIT-SCREEN EDITOR (transcribing or transcribed) ── */}
+            {activeJobId && (isProcessing || isReady) && currentJob && (
               <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_340px] min-h-0 overflow-hidden">
 
                 {/* LEFT: Video + Timeline + Transcript */}
@@ -665,6 +646,17 @@ export default function VideoEditorStudio() {
                     </button>
                   </div>
 
+                  {/* Transcribing banner */}
+                  {isProcessing && (
+                    <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-500/5 border-b border-blue-500/20 flex-shrink-0">
+                      <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-blue-300">AI is reading your video…</p>
+                        <p className="text-[10px] text-muted-foreground">Whisper AI creates word-level timestamps. Takes 15–60 seconds. You can already watch the clip.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Video player */}
                   <div className="bg-black flex-shrink-0 relative">
                     {videoUrl ? (
@@ -684,8 +676,8 @@ export default function VideoEditorStudio() {
                     )}
                   </div>
 
-                  {/* Silence timeline bar */}
-                  <div className="px-4 py-3 border-b border-zinc-800/40 flex-shrink-0 space-y-1.5">
+                  {/* Silence timeline bar — only when transcribed */}
+                  {isReady && <div className="px-4 py-3 border-b border-zinc-800/40 flex-shrink-0 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Timeline</p>
                       <span className="text-[10px] text-muted-foreground font-mono">{fmtTime(currentTime)} / {fmtTime(totalDuration)}</span>
@@ -713,10 +705,10 @@ export default function VideoEditorStudio() {
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-500/50 inline-block" /> Silence</span>
                       <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-white/70 inline-block" /> Playhead</span>
                     </div>
-                  </div>
+                  </div>}
 
-                  {/* Word-level transcript */}
-                  <div className="flex-1 overflow-y-auto px-4 py-3">
+                  {/* Word-level transcript — only when transcribed */}
+                  {isReady ? <div className="flex-1 overflow-y-auto px-4 py-3">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Transcript — click any word to seek</p>
                     {words.length > 0 ? (
                       <div className="leading-7">
@@ -751,7 +743,18 @@ export default function VideoEditorStudio() {
                     ) : (
                       <p className="text-xs text-muted-foreground">No word-level transcript available for this file.</p>
                     )}
-                  </div>
+                  </div> : (
+                    <div className="flex-1 flex items-center justify-center p-6">
+                      <div className="text-center space-y-3">
+                        <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
+                        <p className="text-xs font-bold text-foreground">Transcribing your video…</p>
+                        <p className="text-[10px] text-muted-foreground">Transcript & edit controls will appear once AI finishes reading.</p>
+                        <button onClick={() => setActiveJobId(null)} className="text-[10px] text-muted-foreground hover:text-foreground underline">
+                          Upload a different file
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* RIGHT: Edit controls + script reference */}

@@ -17050,5 +17050,71 @@ Generate 3 variations of this hook for this niche. Return JSON:
     }
   });
 
+  // ── Unified Skill Runner ─────────────────────────────────────────────────────
+  app.post("/api/skills/run", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { skillId, input, context } = req.body;
+      if (!skillId || !input?.trim()) return res.status(400).json({ message: "skillId and input required" });
+
+      const groqKey = process.env.GROQ_API_KEY;
+      if (!groqKey) return res.status(503).json({ message: "AI not available" });
+
+      type SkillDef = { system: string; userPrefix: string; credits: number };
+      const SKILL_DEFS: Record<string, SkillDef> = {
+        "hook-library": {
+          system: "You are a viral hook specialist who writes scroll-stopping opening lines for social media. Hooks must be direct, specific, and create immediate curiosity or urgency. Return ONLY valid JSON.",
+          userPrefix: `Write 5 powerful viral hooks for the following topic. Each must use a different style: curiosity, controversy, relatability, value-promise, challenge. Return JSON:
+{"hooks":[{"text":"the full hook","style":"style name","why":"one sentence why it works"}]}`,
+          credits: 1,
+        },
+        "caption-writer": {
+          system: "You are an elite social media caption writer. Write captions with personality, strong CTAs, and strategic structure. Match the brand voice. Return ONLY valid JSON.",
+          userPrefix: `Write 3 caption variations (short/punchy, medium/storytelling, long/educational). Each must end with a strong CTA. Return JSON:
+{"captions":[{"text":"full caption with hashtags","style":"short|medium|long","cta":"the call to action"}]}`,
+          credits: 1,
+        },
+        "content-repurposer": {
+          system: "You are a content repurposing expert. Adapt content for different platforms while preserving the core message. Optimize format, tone, and length per platform. Return ONLY valid JSON.",
+          userPrefix: `Repurpose this content for 5 platforms. Return JSON:
+{"repurposed":[{"platform":"Instagram|TikTok|Twitter|LinkedIn|YouTube","content":"adapted content","format":"Reel|Post|Thread|Article|Short","tip":"platform-specific tip"}]}`,
+          credits: 2,
+        },
+        "niche-intelligence": {
+          system: "You are a niche research expert. Identify content opportunities, audience pain points, and viral angles. Give actionable intelligence. Return ONLY valid JSON.",
+          userPrefix: `Analyse this niche/topic and give strategic intelligence. Return JSON:
+{"painPoints":["..."],"trendingAngles":["..."],"contentGaps":["..."],"audienceInsight":"...","topHooks":["..."]}`,
+          credits: 2,
+        },
+        "content-analyser": {
+          system: "You are a content performance analyst. Score content, identify what works, and give specific improvements. Return ONLY valid JSON.",
+          userPrefix: `Analyse this content and give a performance breakdown. Return JSON:
+{"score":0,"hookStrength":0,"retentionRisk":"low|medium|high","strengths":["..."],"improvements":["..."],"viralPotential":"...","rewrittenHook":"improved opening line"}`,
+          credits: 1,
+        },
+        "ai-video-editor": {
+          system: "You are an expert video editor and content director. Give precise editing instructions — cuts, pacing, overlays, music, hook optimization. Return ONLY valid JSON.",
+          userPrefix: `Create a detailed editing plan for this video. Return JSON:
+{"editingPlan":[{"timestamp":"0:00-0:03","action":"what to do","reason":"why"}],"hookEdit":"how to punch up opening 3s","pacing":"guidance","overlays":["text overlay suggestions"],"music":"mood/style"}`,
+          credits: 2,
+        },
+      };
+
+      const skill = SKILL_DEFS[skillId];
+      if (!skill) return res.status(400).json({ message: "Unknown skill: " + skillId });
+
+      const creditResult = await storage.deductCredits(user.id, skill.credits, `skill_${skillId}`, `Skill: ${skillId}`, user.plan || "free");
+      if (!creditResult.success) return res.status(402).json({ message: "Not enough credits", balance: creditResult.balance });
+
+      const contextStr = context ? `\n\nAdditional context: ${context}` : "";
+      const raw = await callGroqJson(skill.system, `${skill.userPrefix}\n\nInput:\n${input}${contextStr}`, 2000);
+      const result = JSON.parse(raw);
+
+      return res.json({ ...result, creditsUsed: skill.credits, balance: creditResult.balance });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || "Skill run failed" });
+    }
+  });
+
   return httpServer;
 }

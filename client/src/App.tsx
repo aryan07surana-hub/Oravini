@@ -296,7 +296,8 @@ function Router() {
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
-      <Route path="/video-editor">{() => <Guard component={AIVideoEditor} />}</Route>
+      <Route path="/video-editor">{() => <Guard component={VideoClipEditor} />}</Route>
+      <Route path="/ai-video-planner">{() => <Guard component={AIVideoEditor} />}</Route>
       <Route path="/video-studio">{() => <Guard component={VideoEditorStudio} />}</Route>
       <Route path="/video-clip-editor">{() => <Guard component={VideoClipEditor} />}</Route>
       <Route path="/screen-recorder">{() => <Guard component={ScreenRecorder} />}</Route>
@@ -369,7 +370,8 @@ function Router() {
       <Route path="/admin/meta-ads">{() => <Guard component={AdminMetaAdsManager} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
-      <Route path="/admin/video-editor">{() => <Guard component={AIVideoEditor} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/video-editor">{() => <Guard component={VideoClipEditor} adminOnly useAdmin={true} />}</Route>
+      <Route path="/admin/ai-video-planner">{() => <Guard component={AIVideoEditor} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/scheduling">{() => <Guard component={AdminScheduling} adminOnly />}</Route>
       <Route path="/admin/credits">{() => <Guard component={AdminCredits} adminOnly />}</Route>
       <Route path="/admin/crm">{() => <Redirect to="/admin/crm-suite" />}</Route>

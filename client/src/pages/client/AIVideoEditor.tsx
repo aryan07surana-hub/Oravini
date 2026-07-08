@@ -819,7 +819,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <a href="/video-clip-editor">
+            <a href="/video-editor">
               <Button size="sm" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10 gap-1.5 font-bold" data-testid="btn-open-clip-editor">
                 <Scissors className="w-3.5 h-3.5" /> Clip Editor
               </Button>

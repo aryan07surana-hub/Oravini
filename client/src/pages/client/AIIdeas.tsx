@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { captureToVault } from "@/lib/vault";
+import SkillQuickBar from "@/components/ui/SkillQuickBar";
 import { PageTourButton } from "@/components/ui/TourGuide";
 import CreditCostBadge from "@/components/CreditCostBadge";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -541,6 +542,14 @@ function IdeaCard({ idea, index, isLiked, onToggleLike, onGetScript, onPublish, 
                     <FileText className="w-3 h-3 text-primary/60" />
                   </button>
                 )}
+
+                {/* Inline skill quick-actions */}
+                <div className="pt-1 border-t border-border/50">
+                  <SkillQuickBar
+                    topic={idea.title || idea.concept || ""}
+                    content={idea.captionStarter || idea.concept || ""}
+                  />
+                </div>
               </div>
             )}
           </div>

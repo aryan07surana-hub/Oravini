@@ -3,6 +3,7 @@ import { trackPageView } from "@/hooks/use-track-activity";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import PlatformChatbot from "@/components/PlatformChatbot";
+import SkillPanel from "@/components/ui/SkillPanel";
 import NotificationCenter from "@/components/NotificationCenter";
 import CompetitorActivityBell from "@/components/CompetitorActivityBell";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, Flame, BookOpen, BrainCircuit, Repeat2, Anchor, PenLine
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, BookOpen, BrainCircuit
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -210,7 +211,6 @@ const topNavItems = [
   { href: "/tracking", label: "Tracking", icon: BarChart2 },
   { href: "/tracking/competitor", label: "Competitor Study", icon: Users },
   { href: "/ai-ideas", label: "Content Ideas", icon: Sparkles },
-  { href: "/content-hub", label: "Daily Intel Hub", icon: Flame },
   { href: "/ai-design", label: "Design Studio", icon: Layers },
   { href: "/ai-coach", label: "Content Coach", icon: Bot },
   { href: "/content-analyser", label: "Content Analyser", icon: ScanSearch },
@@ -221,9 +221,6 @@ const topNavItems = [
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
   { href: "/vault", label: "Cortex Vault", icon: BookOpen },
   { href: "/skills", label: "Skills", icon: BrainCircuit },
-  { href: "/repurpose", label: "Content Repurposer", icon: Repeat2 },
-  { href: "/hook-library", label: "Hook Library", icon: Anchor },
-  { href: "/caption-writer", label: "Caption Writer", icon: PenLine },
   { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
 
@@ -515,6 +512,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <FocusMusicPlayer />
         {!isAdmin && <UpgradeModal />}
         {!isAdmin && <PlatformChatbot />}
+        {!isAdmin && <SkillPanel />}
       </div>
     </>
   );

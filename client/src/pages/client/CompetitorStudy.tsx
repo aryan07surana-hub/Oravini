@@ -39,7 +39,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // ─── Cross-section context ────────────────────────────────────────────────────
 
-type SectionId = "competitor" | "niche" | "methodology" | "virality" | "watchlist" | "feed" | "ideas" | "growth" | "digest" | "leaderboard" | "gap";
+type SectionId = "competitor" | "niche" | "methodology" | "virality" | "watchlist" | "feed" | "ideas" | "growth" | "digest" | "leaderboard" | "gap" | "daily-intel";
 
 interface CompetitorCtxValue {
   setActiveSection: (s: SectionId | null) => void;
@@ -4804,6 +4804,7 @@ function LandingNav() {
         { key: "leaderboard" as SectionId, icon: Trophy, label: "Leaderboard", desc: "All accounts ranked by followers, avg views, engagement · format breakdown", color: "amber" },
         { key: "feed" as SectionId, icon: Activity, label: "Intelligence Feed", desc: "Every new post auto-detected · AI analysis · viral spike alerts", color: "emerald" },
         { key: "growth" as SectionId, icon: TrendingUp, label: "Growth Charts", desc: "Follower trends over time · avg views & likes per competitor", color: "blue" },
+        { key: "daily-intel" as SectionId, icon: Flame, label: "Daily Intel", desc: "Today's competitor signals · AI-generated ideas · ready to steal", color: "amber" },
       ],
     },
     {
@@ -4840,6 +4841,225 @@ function LandingNav() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Daily Intel Section ─────────────────────────────────────────────────────────
+
+interface ContentIdea {
+  id: string; topic: string; hook: string; format: string;
+  structure: string; cta: string; rationale: string;
+  competitor_handle: string; status: string; created_at: string;
+}
+
+interface IntelSignal {
+  id: string; handle: string; avg_views: number;
+  avg_likes: number; avg_engagement: number;
+  recent_posts: any[]; scanned_at: string;
+}
+
+interface HubData {
+  ideas: ContentIdea[]; signals: IntelSignal[];
+  profile: any; watchlistCount: number;
+}
+
+function fmtNum(n: number) {
+  if (!n) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return String(Math.round(n));
+}
+
+function timeAgo(d: string) {
+  if (!d) return "";
+  const h = Math.floor((Date.now() - new Date(d).getTime()) / 3_600_000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+const FORMAT_ICON: Record<string, string> = { reel: "🎬", carousel: "🖼️", post: "📸", story: "⏱️" };
+
+function DailyIntelSection() {
+  const { addIdeaToPipeline, setActiveSection } = useCompetitorCtx();
+  const { toast } = useToast();
+  const [copied, setCopied] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+
+  const { data, isLoading, refetch, isRefetching } = useQuery<HubData>({
+    queryKey: ["/api/content-intel/today"],
+    queryFn: () => apiRequest("GET", "/api/content-intel/today").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const ideas = data?.ideas ?? [];
+  const signals = data?.signals ?? [];
+  const watchlistCount = data?.watchlistCount ?? 0;
+
+  const copyHook = (hook: string, id: string) => {
+    navigator.clipboard.writeText(hook);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const handleAddIdea = async (idea: ContentIdea) => {
+    setAdding(idea.id);
+    try {
+      await addIdeaToPipeline({
+        topic: idea.topic,
+        hook: idea.hook,
+        format: idea.format,
+        structure: idea.structure,
+        cta: idea.cta,
+        rationale: idea.rationale,
+        competitorHandle: idea.competitor_handle,
+      });
+      toast({ title: "Added to pipeline", description: idea.topic });
+    } catch {
+      toast({ title: "Failed to add idea", variant: "destructive" });
+    } finally {
+      setAdding(null);
+    }
+  };
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+
+  if (!watchlistCount) return (
+    <div className="text-center py-20 space-y-4">
+      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
+        <Flame className="w-7 h-7 text-amber-400" />
+      </div>
+      <p className="text-base font-bold text-foreground">No competitors tracked yet</p>
+      <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+        Add accounts to your Watch List to get daily AI-generated intel and ideas.
+      </p>
+      <Button
+        size="sm"
+        onClick={() => setActiveSection("watchlist")}
+        className="bg-amber-500 hover:bg-amber-400 text-black font-bold"
+      >
+        Go to Watch List <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
+            <Flame className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-foreground">Today's Intel</p>
+            <p className="text-[10px] text-muted-foreground">{signals.length} competitor{signals.length !== 1 ? "s" : ""} scanned · {ideas.length} ideas ready</p>
+          </div>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isRefetching}
+          className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 px-3 py-1.5 rounded-lg transition-all"
+        >
+          <RefreshCw className={`w-3 h-3 ${isRefetching ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Competitor signals */}
+      {signals.length > 0 && (
+        <div>
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">Competitor Signals</p>
+          <div className="rounded-2xl border border-border bg-card divide-y divide-border overflow-hidden">
+            {signals.map(signal => {
+              const posts: any[] = Array.isArray(signal.recent_posts) ? signal.recent_posts : [];
+              const topPost = [...posts].sort((a, b) => (b.views || b.likes || 0) - (a.views || a.likes || 0))[0];
+              return (
+                <div key={signal.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-black text-amber-400">
+                      {signal.handle?.slice(0, 1).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground">@{signal.handle}</p>
+                    {topPost?.caption
+                      ? <p className="text-[10px] text-muted-foreground truncate mt-0.5">"{topPost.caption}"</p>
+                      : <p className="text-[10px] text-muted-foreground mt-0.5">scanned {timeAgo(signal.scanned_at)}</p>
+                    }
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-bold text-foreground">{fmtNum(signal.avg_views)}</p>
+                    <p className="text-[9px] text-muted-foreground">avg views</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Ideas */}
+      {ideas.length > 0 ? (
+        <div>
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-3">AI-Generated Ideas</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {ideas.map((idea, i) => (
+              <div key={idea.id} className="rounded-2xl border border-border bg-card p-5 flex flex-col gap-3 hover:border-amber-500/30 transition-all">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-muted text-muted-foreground">IDEA {i + 1}</span>
+                  <span className="text-sm">{FORMAT_ICON[idea.format] || "📱"}</span>
+                  <span className="text-[10px] text-muted-foreground capitalize">{idea.format}</span>
+                  {idea.status === "drafted" && (
+                    <span className="ml-auto text-[10px] font-bold text-green-400">✓ Scripted</span>
+                  )}
+                </div>
+                <h3 className="text-sm font-bold text-foreground leading-snug">{idea.topic}</h3>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                  <p className="text-[9px] font-black text-amber-400 tracking-widest mb-1.5">OPENING HOOK</p>
+                  <p className="text-sm font-semibold text-foreground leading-snug mb-2">"{idea.hook}"</p>
+                  <button
+                    onClick={() => copyHook(idea.hook, idea.id)}
+                    className="flex items-center gap-1.5 text-[10px] text-amber-500/70 hover:text-amber-400 transition-colors"
+                  >
+                    {copied === idea.id
+                      ? <><Check className="w-3 h-3 text-green-400" />Copied!</>
+                      : <><Copy className="w-3 h-3" />Copy hook</>
+                    }
+                  </button>
+                </div>
+                {idea.rationale && (
+                  <p className="text-xs text-muted-foreground leading-relaxed pl-3 border-l-2 border-border">{idea.rationale}</p>
+                )}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-muted-foreground">inspired by @{idea.competitor_handle}</span>
+                  <Button
+                    size="sm"
+                    disabled={adding === idea.id}
+                    onClick={() => handleAddIdea(idea)}
+                    className="h-8 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black"
+                  >
+                    {adding === idea.id
+                      ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Adding...</>
+                      : <><Zap className="w-3 h-3 mr-1.5" />Add to pipeline</>
+                    }
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-12 text-muted-foreground">
+          <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">No ideas generated yet. Check back after your competitors post.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -5466,6 +5686,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                   : activeSection === "digest" ? "Weekly Digest"
                   : activeSection === "leaderboard" ? "Leaderboard"
                   : activeSection === "gap" ? "Content Gap Detector"
+                  : activeSection === "daily-intel" ? "Daily Intel"
                   : "Competitor Study"}
               </h1>
             </div>
@@ -5481,6 +5702,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
                 : activeSection === "digest" ? "Monday summary · Top posts ranked · 5 ready-to-steal ideas"
                 : activeSection === "leaderboard" ? "All watchlist accounts ranked · Format breakdown · Follower growth"
                 : activeSection === "gap" ? "AI finds topics competitors aren't covering that you can own"
+                : activeSection === "daily-intel" ? "Today's competitor signals · AI-generated ideas · ready to steal"
                 : "Choose a module below"}
             </p>
           </div>
@@ -5713,6 +5935,7 @@ export default function CompetitorStudy({ useAdmin = false }: { useAdmin?: boole
         {activeSection === "digest" && <WeeklyDigestSection />}
         {activeSection === "leaderboard" && <LeaderboardSection />}
         {activeSection === "gap" && <ContentGapSection />}
+        {activeSection === "daily-intel" && <DailyIntelSection />}
 
       </div>
     </Layout>

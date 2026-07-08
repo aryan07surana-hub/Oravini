@@ -906,8 +906,8 @@ export default function VideoClipEditor() {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col">
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-800 bg-zinc-900">
-          <a href="/video-editor" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300">
-            <ChevronLeft className="w-3.5 h-3.5" /> AI Video Editor
+          <a href="/dashboard" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300">
+            <ChevronLeft className="w-3.5 h-3.5" /> Dashboard
           </a>
           <div className="w-px h-4 bg-zinc-700" />
           <p className="text-sm font-black text-white">Clip Editor</p>
@@ -960,11 +960,14 @@ export default function VideoClipEditor() {
         {/* ── Top bar ─────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900 flex-shrink-0 gap-3">
           <div className="flex items-center gap-2">
-            <a href="/video-editor" className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-              <ChevronLeft className="w-3.5 h-3.5" /> Back
+            <a href="/dashboard" className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
+              <ChevronLeft className="w-3.5 h-3.5" /> Dashboard
             </a>
             <div className="w-px h-4 bg-zinc-700" />
-            <p className="text-sm font-black text-white">Clip Editor</p>
+            <p className="text-sm font-black text-white">AI Clip Editor</p>
+            <a href="/ai-video-planner" className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-primary/30 text-primary hover:bg-primary/10 transition-colors ml-1">
+              <Wand2 className="w-3 h-3" /> AI Planner
+            </a>
             {isUploading && (
               <span className="flex items-center gap-1 text-xs text-primary/80">
                 <Loader2 className="w-3 h-3 animate-spin" /> {uploadQueue} uploading…
@@ -1030,7 +1033,7 @@ export default function VideoClipEditor() {
           <div className="flex-1 flex flex-col items-center justify-center bg-black min-w-0 gap-3 py-3">
             <div ref={previewRef}
               className="relative bg-black rounded-xl overflow-hidden shadow-2xl"
-              style={{ aspectRatio: previewAspect, maxHeight: "calc(100% - 60px)", maxWidth: "100%" }}
+              style={{ aspectRatio: previewAspect, height: "calc(100% - 60px)", maxWidth: "100%" }}
               onClick={() => { setSelectedClipId(null); setSelectedTextId(null); setSelectedBrollId(null); }}>
 
               {/* Double-buffered video */}
