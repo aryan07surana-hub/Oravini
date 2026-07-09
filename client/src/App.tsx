@@ -126,6 +126,16 @@ import ContentIntelligence from "@/pages/ContentIntelligence";
 import ContentIntelHub from "@/pages/client/ContentIntelHub";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
 import ClientCRM from "@/pages/client/CRM";
+import LandingPages from "@/pages/client/LandingPages";
+import LandingPageBuilder from "@/pages/client/LandingPageBuilder";
+import Funnels from "@/pages/client/Funnels";
+import FunnelBuilder from "@/pages/client/FunnelBuilder";
+import FunnelStepBuilder from "@/pages/client/FunnelStepBuilder";
+import FunnelAnalytics from "@/pages/client/FunnelAnalytics";
+import FunnelAutomations from "@/pages/client/FunnelAutomations";
+import FunnelDomain from "@/pages/client/FunnelDomain";
+import PublicFunnelDomain from "@/pages/public/PublicFunnelDomain";
+import PublicFunnelStep from "@/pages/public/PublicFunnelStep";
 import ClientScheduling from "@/pages/client/Scheduling";
 import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
 import Vault from "@/pages/client/Vault";
@@ -152,6 +162,9 @@ import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminMetaAdsManager from "@/pages/admin/AdminMetaAdsManager";
+import MetaAdsBulkLauncher from "@/pages/admin/MetaAdsBulkLauncher";
+import MetaAdsAnalytics from "@/pages/admin/MetaAdsAnalytics";
+import MetaAdsCampaignManager from "@/pages/admin/MetaAdsCampaignManager";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
 import AdminFeedback from "@/pages/admin/AdminFeedback";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
@@ -227,7 +240,14 @@ function HomeRedirect() {
   return <Redirect to="/dashboard" />;
 }
 
+// Known app hostnames — custom domain detection skips these
+const APP_HOSTNAMES = ["localhost", "oravini.com", "www.oravini.com", "app.oravini.com"];
+const isCustomDomain = !APP_HOSTNAMES.some(h => window.location.hostname === h || window.location.hostname.endsWith(`.${h}`));
+
 function Router() {
+  // Custom domain visitor — resolve domain → funnel slug and redirect
+  if (isCustomDomain) return <PublicFunnelDomain />;
+
   return (
     <Switch>
       {/* Public */}
@@ -293,6 +313,16 @@ function Router() {
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
       <Route path="/sms-marketing">{() => <Guard component={SmsMarketing} />}</Route>
+      <Route path="/landing-pages">{() => <Guard component={LandingPages} />}</Route>
+      <Route path="/landing-pages/:id/edit">{() => <Guard component={LandingPageBuilder} />}</Route>
+      <Route path="/funnels">{() => <Guard component={Funnels} />}</Route>
+      <Route path="/funnels/:id/edit">{() => <Guard component={FunnelBuilder} />}</Route>
+      <Route path="/funnels/:id/analytics">{() => <Guard component={FunnelAnalytics} />}</Route>
+      <Route path="/funnels/:id/automations">{() => <Guard component={FunnelAutomations} />}</Route>
+      <Route path="/funnels/:id/domain">{() => <Guard component={FunnelDomain} />}</Route>
+      <Route path="/funnels/:funnelId/steps/:stepId/edit">{() => <Guard component={FunnelStepBuilder} />}</Route>
+      <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>
+      <Route path="/f/:slug">{() => <PublicFunnelStep />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
       <Route path="/dm-hub">{() => <Guard component={DMHub} />}</Route>
       <Route path="/send-dm">{() => <Guard component={SendDM} />}</Route>
@@ -368,6 +398,9 @@ function Router() {
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/meta-ads">{() => <Guard component={AdminMetaAdsManager} adminOnly />}</Route>
+      <Route path="/admin/meta-ads/bulk-launch">{() => <Guard component={MetaAdsBulkLauncher} adminOnly />}</Route>
+      <Route path="/admin/meta-ads/analytics">{() => <Guard component={MetaAdsAnalytics} adminOnly />}</Route>
+      <Route path="/admin/meta-ads/campaigns">{() => <Guard component={MetaAdsCampaignManager} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
       <Route path="/admin/video-editor">{() => <Guard component={VideoClipEditor} adminOnly useAdmin={true} />}</Route>

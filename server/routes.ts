@@ -57,6 +57,54 @@ function requireAuth(req: Request, res: Response, next: Function) {
   next();
 }
 
+// ── Funnel automation executor ────────────────────────────────────────────────
+async function fireFunnelAutomation(automation: any, contact: { email: string; name?: string | null; phone?: string | null }, pool: any) {
+  const actions: any[] = Array.isArray(automation.actions) ? automation.actions : JSON.parse(automation.actions || "[]");
+  for (const action of actions) {
+    try {
+      if (action.type === "send_email") {
+        const nodemailer = (await import("nodemailer")).default;
+        const transport = nodemailer.createTransport({ service: "gmail", auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS } });
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+          await transport.sendMail({
+            from: `"${action.from_name || "Oravini"}" <${process.env.EMAIL_USER}>`,
+            to: contact.email,
+            subject: action.subject || "You're in!",
+            html: (action.body || "").replace(/\{\{name\}\}/gi, contact.name || "Friend").replace(/\{\{email\}\}/gi, contact.email),
+          });
+        }
+      } else if (action.type === "webhook") {
+        if (action.url) {
+          await fetch(action.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contact, automation_id: automation.id, trigger: automation.trigger_event }),
+          });
+        }
+      } else if (action.type === "add_tag") {
+        if (action.tag && contact.email) {
+          await pool.query(
+            `UPDATE funnel_contacts SET tags = array_append(tags, $1) WHERE email = $2 AND funnel_id = $3 AND NOT ($1 = ANY(tags))`,
+            [action.tag, contact.email, automation.funnel_id]
+          );
+        }
+      }
+      // SMS: requires Twilio credentials — log for now
+      else if (action.type === "send_sms") {
+        if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM && contact.phone) {
+          const twilio = (await import("twilio")).default;
+          await twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN).messages.create({
+            to: contact.phone, from: process.env.TWILIO_FROM,
+            body: (action.message || "").replace(/\{\{name\}\}/gi, contact.name || "Friend"),
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error(`[automation] action "${action.type}" failed:`, e.message);
+    }
+  }
+}
+
 function requireAdmin(req: Request, res: Response, next: Function) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
   if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
@@ -193,6 +241,122 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     console.log("[migration] Recording tables ready");
   } catch (e: any) {
     console.error("[migration] Failed to ensure recording tables:", e.message);
+  }
+
+  // ── Auto-migration for marketing landing pages (idempotent) ───────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS marketing_landing_pages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        slug VARCHAR NOT NULL UNIQUE,
+        title TEXT NOT NULL DEFAULT 'Untitled Page',
+        template VARCHAR NOT NULL DEFAULT 'vsl',
+        color_scheme VARCHAR NOT NULL DEFAULT 'gold',
+        sections JSONB NOT NULL DEFAULT '[]',
+        published BOOLEAN NOT NULL DEFAULT false,
+        views INTEGER NOT NULL DEFAULT 0,
+        leads INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_mlp_user ON marketing_landing_pages(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mlp_slug ON marketing_landing_pages(slug);
+    `);
+    console.log("[migration] Marketing landing pages table ready");
+  } catch (e: any) {
+    console.error("[migration] Failed to ensure marketing_landing_pages:", e.message);
+  }
+
+  // ── Funnels ──────────────────────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS funnels (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL DEFAULT 'Untitled Funnel',
+        slug VARCHAR NOT NULL UNIQUE,
+        status VARCHAR NOT NULL DEFAULT 'draft',
+        visits INTEGER NOT NULL DEFAULT 0,
+        leads INTEGER NOT NULL DEFAULT 0,
+        sales INTEGER NOT NULL DEFAULT 0,
+        revenue NUMERIC(10,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_funnels_user ON funnels(user_id);
+      CREATE INDEX IF NOT EXISTS idx_funnels_slug ON funnels(slug);
+
+      CREATE TABLE IF NOT EXISTS funnel_steps (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        funnel_id VARCHAR NOT NULL REFERENCES funnels(id) ON DELETE CASCADE,
+        name TEXT NOT NULL DEFAULT 'New Step',
+        type VARCHAR NOT NULL DEFAULT 'landing',
+        slug VARCHAR NOT NULL,
+        sections JSONB NOT NULL DEFAULT '[]',
+        color_scheme VARCHAR NOT NULL DEFAULT 'gold',
+        position INTEGER NOT NULL DEFAULT 0,
+        next_step_id VARCHAR,
+        yes_step_id VARCHAR,
+        no_step_id VARCHAR,
+        price NUMERIC(10,2),
+        product_name TEXT,
+        visits INTEGER NOT NULL DEFAULT 0,
+        conversions INTEGER NOT NULL DEFAULT 0,
+        canvas_x FLOAT DEFAULT 0,
+        canvas_y FLOAT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fsteps_funnel ON funnel_steps(funnel_id);
+      -- add canvas columns to existing tables if missing
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='funnel_steps' AND column_name='canvas_x') THEN
+          ALTER TABLE funnel_steps ADD COLUMN canvas_x FLOAT DEFAULT 0;
+          ALTER TABLE funnel_steps ADD COLUMN canvas_y FLOAT DEFAULT 0;
+        END IF;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS funnel_contacts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        funnel_id VARCHAR NOT NULL REFERENCES funnels(id) ON DELETE CASCADE,
+        step_id VARCHAR REFERENCES funnel_steps(id) ON DELETE SET NULL,
+        email TEXT NOT NULL,
+        name TEXT,
+        phone TEXT,
+        tags TEXT[] DEFAULT '{}',
+        data JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fcontacts_funnel ON funnel_contacts(funnel_id);
+      CREATE INDEX IF NOT EXISTS idx_fcontacts_email ON funnel_contacts(email);
+
+      CREATE TABLE IF NOT EXISTS funnel_automations (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        funnel_id VARCHAR NOT NULL REFERENCES funnels(id) ON DELETE CASCADE,
+        name TEXT NOT NULL DEFAULT 'Untitled Automation',
+        trigger_event TEXT NOT NULL DEFAULT 'lead_captured',
+        trigger_step_id VARCHAR REFERENCES funnel_steps(id) ON DELETE SET NULL,
+        actions JSONB NOT NULL DEFAULT '[]',
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fautomations_funnel ON funnel_automations(funnel_id);
+
+      CREATE TABLE IF NOT EXISTS funnel_custom_domains (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        funnel_id VARCHAR NOT NULL UNIQUE REFERENCES funnels(id) ON DELETE CASCADE,
+        domain TEXT NOT NULL UNIQUE,
+        dns_verified BOOLEAN NOT NULL DEFAULT false,
+        ssl_status TEXT NOT NULL DEFAULT 'pending',
+        verified_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fdomains_domain ON funnel_custom_domains(domain);
+    `);
+    console.log("[migration] Funnels tables ready");
+  } catch (e: any) {
+    console.error("[migration] Failed to ensure funnels:", e.message);
   }
 
   app.use("/uploads", (req, res, next) => {
@@ -859,6 +1023,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             primaryGoal: survey.primary_goal,
             platforms: survey.platforms,
             heardAbout: survey.heard_about,
+            instagramLink: survey.instagram_link,
+            youtubeLink: survey.youtube_link,
           });
           // Cache on session user for subsequent requests
           Object.assign(req.user as any, safeUser);
@@ -1377,7 +1543,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const platform = body.platform ?? existing?.platform;
       const platforms = body.platforms ?? existing?.platforms;
       const heardAbout = body.heardAbout ?? existing?.heard_about;
-      const socialLink = body.socialLink ?? existing?.social_link ?? null;
+      const instagramLink = body.instagramLink ?? existing?.instagram_link ?? null;
+      const youtubeLink = body.youtubeLink ?? existing?.youtube_link ?? null;
       const eliteInterest = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
 
       if (!experience || !monthlyRevenue || !primaryGoal) {
@@ -1387,12 +1554,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         userId,
         awareness, field, fields, struggles, contentTypes,
         descriptor, experience, followerCount, monthlyRevenue,
-        primaryGoal, platform, platforms, heardAbout, socialLink,
+        primaryGoal, platform, platforms, heardAbout, instagramLink, youtubeLink,
         answers: {
           ...(existing?.answers || {}),
           awareness, field, fields, struggles, contentTypes,
           descriptor, experience, followerCount, monthlyRevenue,
-          primaryGoal, platform, platforms, heardAbout, socialLink,
+          primaryGoal, platform, platforms, heardAbout, instagramLink, youtubeLink,
           eliteInterest,
         },
       });
@@ -15378,26 +15545,37 @@ Return JSON only:
 
   app.get("/api/lp/:slug", async (req: Request, res: Response) => {
     try {
+      // Try webinar landing page first
       const result = await storage.getWebinarLandingPageWithWebinar(p(req.params.slug));
-      if (!result) return res.status(404).json({ message: "Landing page not found" });
-      if (!result.landingPage.published) return res.status(404).json({ message: "Landing page not published" });
-      await storage.trackLandingPageView(result.landingPage.id);
-      res.json({
-        landingPage: result.landingPage,
-        webinar: {
-          id: result.webinar.id,
-          title: result.webinar.title,
-          description: result.webinar.description,
-          scheduledAt: result.webinar.scheduledAt,
-          durationMinutes: result.webinar.durationMinutes,
-          status: result.webinar.status,
-          meetingCode: result.webinar.meetingCode,
-          thumbnailUrl: result.webinar.thumbnailUrl,
-          presenterName: result.landingPage.presenterName,
-          presenterTitle: result.landingPage.presenterTitle,
-          presenterAvatarUrl: result.landingPage.presenterAvatarUrl,
-        }
-      });
+      if (result) {
+        if (!result.landingPage.published) return res.status(404).json({ message: "Landing page not published" });
+        await storage.trackLandingPageView(result.landingPage.id);
+        return res.json({
+          type: "webinar",
+          landingPage: result.landingPage,
+          webinar: {
+            id: result.webinar.id,
+            title: result.webinar.title,
+            description: result.webinar.description,
+            scheduledAt: result.webinar.scheduledAt,
+            durationMinutes: result.webinar.durationMinutes,
+            status: result.webinar.status,
+            meetingCode: result.webinar.meetingCode,
+            thumbnailUrl: result.webinar.thumbnailUrl,
+            presenterName: result.landingPage.presenterName,
+            presenterTitle: result.landingPage.presenterTitle,
+            presenterAvatarUrl: result.landingPage.presenterAvatarUrl,
+          }
+        });
+      }
+      // Fall through to marketing landing page
+      const { rows } = await pool.query(
+        "SELECT * FROM marketing_landing_pages WHERE slug = $1 AND published = true",
+        [p(req.params.slug)]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Landing page not found" });
+      await pool.query("UPDATE marketing_landing_pages SET views = views + 1 WHERE id = $1", [rows[0].id]);
+      return res.json({ type: "marketing", page: rows[0] });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -16549,12 +16727,33 @@ Rules:
   function buildClipVFilters(clip: any, targetW: number, targetH: number): string[] {
     const vf: string[] = [];
     const spd = parseFloat(clip.speed) || 1;
-    if (spd !== 1) vf.push(`setpts=${(1 / spd).toFixed(4)}*PTS`);
+    const ramp = clip.speedRamp || "none";
+    if (ramp !== "none") {
+      const expr = ramp === "ease-in"
+        ? `(1/(${(1/spd).toFixed(4)}*(0.5+0.5*cos(PI*(1-N/NB_FRAMES)))))*PTS`
+        : ramp === "ease-out"
+        ? `(1/(${(1/spd).toFixed(4)}*(0.5+0.5*cos(PI*N/NB_FRAMES))))*PTS`
+        : `(1/(${(1/spd).toFixed(4)}*(0.5+0.5*cos(PI*(0.5+N/NB_FRAMES)))))*PTS`;
+      vf.push(`setpts=${expr}`);
+    } else if (spd !== 1) {
+      vf.push(`setpts=${(1 / spd).toFixed(4)}*PTS`);
+    }
+    if (clip.reversed) vf.push("reverse");
     if (clip.colorGrade === "warm")      vf.push("colorbalance=rs=.08:gs=.02:bs=-.06");
     if (clip.colorGrade === "cool")      vf.push("colorbalance=rs=-.06:gs=.02:bs=.08");
     if (clip.colorGrade === "cinematic") vf.push("curves=preset=strong_contrast,colorbalance=rs=-.04:gs=.02:bs=.05");
     if (clip.colorGrade === "vivid")     vf.push("eq=saturation=1.4:contrast=1.08");
     if (clip.colorGrade === "bw")        vf.push("hue=s=0");
+    // HSL / brightness-contrast-saturation adjustments
+    const bri = parseFloat(clip.brightness ?? 0);
+    const con = parseFloat(clip.contrast ?? 1);
+    const sat = parseFloat(clip.saturation ?? 1);
+    const hue = parseFloat(clip.hue ?? 0);
+    if (bri !== 0 || con !== 1 || sat !== 1 || hue !== 0) {
+      vf.push(`eq=brightness=${bri.toFixed(3)}:contrast=${con.toFixed(3)}:saturation=${sat.toFixed(3)}`);
+      if (hue !== 0) vf.push(`hue=h=${hue.toFixed(1)}`);
+    }
+    if (clip.vignette) vf.push("vignette=PI/4");
     // Ken Burns zoom/pan
     if (clip.kenBurns?.enabled) {
       const kb = clip.kenBurns;
@@ -16602,6 +16801,7 @@ Rules:
       tempoFilters.push(`atempo=${rem.toFixed(4)}`);
       af.push(...tempoFilters);
     }
+    if (clip.reversed) af.push("areverse");
     const vol = parseFloat(clip.volume ?? 1);
     if (vol !== 1) af.push(`volume=${vol.toFixed(3)}`);
     if (clip.noiseReduce) af.push("arnndn=m=cb.rnnn");
@@ -16726,10 +16926,23 @@ Rules:
   app.post("/api/video-clip-editor/process", requireAuth, async (req: Request, res: Response) => {
     const tmpFiles: string[] = [];
     try {
-      const { clips = [], aspectRatio = "16:9", masterVolume = 1, audioTracks = [], brollClips = [] } = req.body;
+      const {
+        clips = [], aspectRatio = "16:9", masterVolume = 1,
+        audioTracks = [], brollClips = [],
+        exportQuality = "1080p", exportFps = 30,
+        watermarkPath = null, watermarkPos = "br", watermarkOpacity = 0.7,
+      } = req.body;
       if (!clips.length) return res.status(400).json({ message: "No clips provided" });
 
-      const [aw, ah] = aspectRatio === "9:16" ? [608, 1080] : aspectRatio === "1:1" ? [1080, 1080] : [1920, 1080];
+      // Determine output dimensions based on quality setting
+      const scaleH = exportQuality === "720p" ? 720 : exportQuality === "4k" ? 2160 : 1080;
+      const [aw, ah] = aspectRatio === "9:16"
+        ? [Math.round(scaleH * 9/16 / 2) * 2, scaleH]
+        : aspectRatio === "1:1"
+        ? [scaleH, scaleH]
+        : [Math.round(scaleH * 16/9 / 2) * 2, scaleH];
+      const crf = exportQuality === "4k" ? 20 : exportQuality === "720p" ? 26 : 22;
+      const fps = parseInt(String(exportFps)) || 30;
       const ts = Date.now();
       const hasTransitions = clips.some((c: any) => c.transition?.type && c.transition.type !== "none");
 
@@ -16751,7 +16964,7 @@ Rules:
         args.push("-vf", vf.join(","));
         if (clip.muted) { args.push("-an"); }
         else if (af.length) { args.push("-af", af.join(",")); }
-        args.push("-c:v", "libx264", "-preset", "fast", "-crf", "22", "-r", "30");
+        args.push("-c:v", "libx264", "-preset", "fast", "-crf", String(crf), "-r", String(fps));
         args.push("-c:a", "aac", "-b:a", "128k");
         args.push("-movflags", "+faststart", "-y", tmpOut);
         await ffmpegRun(CLIP_FFMPEG, args);
@@ -16819,7 +17032,7 @@ Rules:
             ...xfadeArgs,
             "-filter_complex", fc.slice(0, -1),
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+            "-c:v", "libx264", "-preset", "fast", "-crf", String(crf),
             "-c:a", "aac", "-b:a", "128k",
             "-movflags", "+faststart", "-y", xfadeIntermediate,
           ]);
@@ -16829,6 +17042,27 @@ Rules:
           fs.copyFileSync(xfadeIntermediate, outputPath);
         } else {
           await buildMixedOutput(xfadeIntermediate, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles);
+        }
+      }
+
+      // Watermark overlay
+      if (watermarkPath) {
+        const wmAbs = resolveClipPath(watermarkPath);
+        if (fs.existsSync(wmAbs)) {
+          const wmOut = path.join(CLIP_UPLOADS, `wm-${ts}.mp4`);
+          tmpFiles.push(wmOut);
+          const posMap: Record<string, string> = {
+            tl: "10:10", tr: "W-w-10:10", bl: "10:H-h-10", br: "W-w-10:H-h-10",
+          };
+          const overlay = posMap[watermarkPos] || "W-w-10:H-h-10";
+          await ffmpegRun(CLIP_FFMPEG, [
+            "-i", outputPath, "-i", wmAbs,
+            "-filter_complex", `[1:v]scale=iw*0.18:-1,format=rgba,colorchannelmixer=aa=${parseFloat(String(watermarkOpacity)).toFixed(2)}[wm];[0:v][wm]overlay=${overlay}`,
+            "-c:v", "libx264", "-preset", "fast", "-crf", String(crf),
+            "-c:a", "copy", "-movflags", "+faststart", "-y", wmOut,
+          ]);
+          fs.renameSync(wmOut, outputPath);
+          tmpFiles.splice(tmpFiles.indexOf(wmOut), 1);
         }
       }
 
@@ -17114,6 +17348,1225 @@ Generate 3 variations of this hook for this niche. Return JSON:
     } catch (err: any) {
       return res.status(500).json({ message: err.message || "Skill run failed" });
     }
+  });
+
+  // ── Marketing Landing Pages CRUD ─────────────────────────────────────────
+  app.get("/api/marketing-landing-pages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query(
+        "SELECT * FROM marketing_landing_pages WHERE user_id = $1 ORDER BY created_at DESC",
+        [user.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/marketing-landing-pages/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query(
+        "SELECT * FROM marketing_landing_pages WHERE id = $1 AND user_id = $2",
+        [req.params.id, user.id]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/marketing-landing-pages", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, template, colorScheme, sections } = req.body;
+      const base = (title || "my-page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      const slug = `${base}-${Date.now().toString(36)}`;
+      const { rows } = await pool.query(
+        `INSERT INTO marketing_landing_pages (user_id, title, template, color_scheme, sections, slug)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [user.id, title || "Untitled Page", template || "vsl", colorScheme || "gold", JSON.stringify(sections || []), slug]
+      );
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/marketing-landing-pages/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      const { title, sections, published, color_scheme, slug } = req.body;
+      // Validate slug uniqueness if changing
+      if (slug) {
+        const { rows: conflict } = await pool.query(
+          "SELECT id FROM marketing_landing_pages WHERE slug = $1 AND id != $2",
+          [slug, req.params.id]
+        );
+        if (conflict.length > 0) return res.status(400).json({ message: "Slug already in use" });
+      }
+      const { rows } = await pool.query(
+        `UPDATE marketing_landing_pages
+         SET title = COALESCE($1, title),
+             sections = COALESCE($2, sections),
+             published = COALESCE($3, published),
+             color_scheme = COALESCE($4, color_scheme),
+             slug = COALESCE($5, slug),
+             updated_at = now()
+         WHERE id = $6 AND user_id = $7 RETURNING *`,
+        [
+          title ?? null,
+          sections !== undefined ? JSON.stringify(sections) : null,
+          published !== undefined ? published : null,
+          color_scheme ?? null,
+          slug ?? null,
+          req.params.id,
+          user.id,
+        ]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/marketing-landing-pages/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+      await pool.query("DELETE FROM marketing_landing_pages WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // AI: generate full landing page copy from a description
+  app.post("/api/marketing-landing-pages/ai-generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { description, template } = req.body;
+      if (!description?.trim()) return res.status(400).json({ message: "Description required" });
+
+      const SECTION_SCHEMAS: Record<string, string> = {
+        hero:         `{ "badge": "short urgency label", "headline": "outcome-focused headline", "subheadline": "1-2 sentence elaboration", "ctaText": "action-verb CTA" }`,
+        video:        `{ "caption": "1-sentence teaser" }`,
+        benefits:     `{ "title": "section label", "items": ["specific benefit 1", "specific benefit 2", "specific benefit 3", "specific benefit 4"] }`,
+        testimonials: `{ "testimonials": [{"name":"First Last","role":"Title / Company","quote":"specific result quote with numbers"},{"name":"First Last","role":"Title / Company","quote":"specific result quote"},{"name":"First Last","role":"Title / Company","quote":"specific result quote"}] }`,
+        cta:          `{ "headline": "urgency headline", "subtext": "remove-friction subtext", "ctaText": "action-verb CTA" }`,
+        form:         `{ "formTitle": "compelling form headline", "formSubtext": "1 sentence of value", "buttonText": "action CTA", "fields": ["name","email"] }`,
+        countdown:    `{ "countdownTitle": "short label" }`,
+        pricing:      `{ "pricingTitle": "label", "price": "$X", "originalPrice": "$Y", "pricingFeatures": ["feature 1","feature 2","feature 3","feature 4","feature 5"], "ctaText": "action CTA" }`,
+        faq:          `{ "faqs": [{"question":"Q?","answer":"A."},{"question":"Q?","answer":"A."},{"question":"Q?","answer":"A."}] }`,
+        bio:          `{ "name": "Full Name", "role": "Title", "bio": "2-3 sentence bio establishing credibility" }`,
+      };
+
+      const TEMPLATE_SECTIONS: Record<string, string[]> = {
+        vsl:         ["hero", "video", "benefits", "testimonials", "cta"],
+        webinar:     ["hero", "benefits", "bio", "form"],
+        launch:      ["hero", "video", "pricing", "testimonials", "faq", "cta"],
+        lead_magnet: ["hero", "benefits", "form", "bio"],
+        waitlist:    ["hero", "countdown", "benefits", "form"],
+        link_bio:    ["bio", "cta", "cta", "cta"],
+      };
+
+      const sectionTypes = TEMPLATE_SECTIONS[template] || TEMPLATE_SECTIONS.vsl;
+      const sectionDocs = sectionTypes.map((t, i) => `  s${i+1}: type="${t}", data=${SECTION_SCHEMAS[t] || '{}'}`).join("\n");
+
+      const system = `You are an elite direct-response copywriter. Write compelling, specific landing page copy that converts. Use AIDA and PAS frameworks. Be concrete — use real-sounding numbers, timeframes, and outcomes. Never write generic placeholder text. Return only valid JSON.`;
+
+      const userMsg = `Generate landing page copy for this offer:
+
+OFFER: ${description.trim()}
+TEMPLATE: ${template || "vsl"}
+
+Return ONLY a valid JSON object with no extra text:
+{
+  "pageTitle": "short internal page title (3-6 words)",
+  "sections": [
+${sectionDocs}
+  ]
+}
+
+Rules:
+- Sections must be in this exact order with these types: ${sectionTypes.join(", ")}
+- Headlines: specific outcome, no buzzwords
+- CTAs: first-person ("I Want This!" style)
+- Testimonials: mention specific results with numbers and timeframes
+- Write for the target audience described in the offer
+- For countdown targetDate use: ${new Date(Date.now() + 7 * 86400000).toISOString()}`;
+
+      const raw = await callGroqJson(system, userMsg, 4000);
+      const parsed = JSON.parse(raw);
+
+      if (Array.isArray(parsed.sections)) {
+        parsed.sections = parsed.sections.map((s: any, i: number) => ({
+          ...s,
+          id: `ai${i + 1}_${Date.now().toString(36)}`,
+        }));
+      }
+
+      res.json(parsed);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "AI generation failed" });
+    }
+  });
+
+  // Public: record lead capture from marketing landing page
+  app.post("/api/lp/:slug/lead", async (req: Request, res: Response) => {
+    try {
+      const { name, email, phone } = req.body;
+      if (!name || !email) return res.status(400).json({ message: "Name and email required" });
+      const { rows } = await pool.query(
+        "SELECT id FROM marketing_landing_pages WHERE slug = $1 AND published = true",
+        [p(req.params.slug)]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      await pool.query("UPDATE marketing_landing_pages SET leads = leads + 1 WHERE id = $1", [rows[0].id]);
+      try {
+        await pool.query(
+          "INSERT INTO landing_leads (name, email, phone, source) VALUES ($1, $2, $3, $4)",
+          [name, email, phone || null, `lp:${p(req.params.slug)}`]
+        );
+      } catch {}
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // FUNNEL ROUTES
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // ── AI: Generate entire funnel from one description ───────────────────────
+  app.post("/api/funnels/ai-generate", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { description, template = "vsl" } = req.body;
+      if (!description?.trim()) return res.status(400).json({ message: "Description required" });
+
+      // Step 1: Fast strategy call — get hook, prices, audience
+      const strategyRaw = await callGroqJson(
+        `You are a world-class direct-response funnel strategist. Return JSON only. No commentary.`,
+        `Offer description: "${description}"
+Funnel template: ${template}
+
+Return this exact JSON structure with real, specific values (not placeholders):
+{
+  "funnelName": "compelling funnel name (5-8 words)",
+  "hook": "the main hook/angle for this offer",
+  "targetAudience": "specific target audience (2-3 words)",
+  "mainBenefit": "the core transformation promise (1 sentence)",
+  "mainPrice": 97,
+  "upsellPrice": 197,
+  "downsellPrice": 47,
+  "productName": "the main product name",
+  "upsellName": "upsell product name",
+  "urgency": "specific scarcity or urgency angle"
+}`,
+        600
+      );
+      const strategy = typeof strategyRaw === "string" ? JSON.parse(strategyRaw) : strategyRaw;
+
+      // Step 2: Template → step definitions
+      type StepDef = { name: string; type: string; sections: string[] };
+      const templateMap: Record<string, StepDef[]> = {
+        vsl: [
+          { name: "Sales Page",          type: "sales",        sections: ["hero","video","benefits","testimonials","pricing","faq","cta"] },
+          { name: "OTO 1 – Upsell",      type: "upsell",       sections: ["hero","benefits","pricing","cta"] },
+          { name: "OTO 1 – Downsell",    type: "downsell",     sections: ["hero","benefits","pricing","cta"] },
+          { name: "Order Confirmation",  type: "confirmation", sections: ["hero","benefits","cta"] },
+        ],
+        launch: [
+          { name: "Opt-in Page",         type: "landing",      sections: ["hero","benefits","form"] },
+          { name: "Sales Page",          type: "sales",        sections: ["hero","video","benefits","testimonials","pricing","faq","cta"] },
+          { name: "OTO 1 – Upsell",      type: "upsell",       sections: ["hero","benefits","pricing","cta"] },
+          { name: "OTO 2 – Downsell",    type: "downsell",     sections: ["hero","benefits","pricing","cta"] },
+          { name: "Thank You",           type: "confirmation", sections: ["hero","cta"] },
+        ],
+        webinar: [
+          { name: "Registration Page",   type: "landing",      sections: ["hero","bio","benefits","countdown","form"] },
+          { name: "Thank You Page",      type: "thank_you",    sections: ["hero","benefits","cta"] },
+          { name: "Replay / Sales Page", type: "sales",        sections: ["hero","video","benefits","testimonials","pricing","cta"] },
+        ],
+        lead: [
+          { name: "Lead Magnet Page",    type: "landing",      sections: ["hero","benefits","form"] },
+          { name: "Thank You Page",      type: "thank_you",    sections: ["hero","benefits","cta"] },
+        ],
+        tripwire: [
+          { name: "Landing Page",        type: "landing",      sections: ["hero","benefits","form"] },
+          { name: "Tripwire Offer",      type: "sales",        sections: ["hero","video","benefits","pricing","cta"] },
+          { name: "OTO 1 – Upsell",      type: "upsell",       sections: ["hero","benefits","pricing","cta"] },
+          { name: "OTO 2 – Downsell",    type: "downsell",     sections: ["hero","benefits","pricing","cta"] },
+          { name: "Order Confirmation",  type: "confirmation", sections: ["hero","cta"] },
+        ],
+      };
+
+      const stepDefs = templateMap[template] || templateMap.vsl;
+
+      // Step 3: Generate all step sections IN PARALLEL
+      const systemPrompt = `You are an elite direct-response copywriter. Generate landing page section content as JSON only.
+Return exactly: {"sections": [{id, type, data}]}
+Write real, specific, persuasive copy. NO placeholders. Match the offer exactly.
+The copy must be consistent in voice, hook, and promises across all pages of this funnel.`;
+
+      const sectionSchemas: Record<string, string> = {
+        hero: `{headline: string, subheadline: string, ctaText: string, badge?: string}`,
+        video: `{caption: string, videoUrl: ""}`,
+        benefits: `{title: string, items: string[5]}`,
+        testimonials: `{testimonials: [{name, role, quote}x3]}`,
+        pricing: `{pricingTitle: string, price: string, originalPrice: string, pricingFeatures: string[5], ctaText: string}`,
+        faq: `{faqs: [{question, answer}x4]}`,
+        cta: `{headline: string, subtext: string, ctaText: string}`,
+        form: `{formTitle: string, formSubtext: string, buttonText: string, fields: ["name","email"]}`,
+        countdown: `{countdownTitle: string, targetDate: "${new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 16)}"}`,
+        bio: `{name: string, role: string, bio: string}`,
+        divider: `{}`,
+      };
+
+      const stepGenerations = await Promise.all(
+        stepDefs.map(async (stepDef) => {
+          const sectionPrompts = stepDef.sections.map(s => `- ${s}: ${sectionSchemas[s] || "{}"}`).join("\n");
+          const priceToUse = stepDef.type === "upsell" ? strategy.upsellPrice :
+                             stepDef.type === "downsell" ? strategy.downsellPrice :
+                             strategy.mainPrice;
+          const productName = stepDef.type === "upsell" ? strategy.upsellName : strategy.productName;
+
+          const userPrompt = `Funnel offer: "${description}"
+Hook: ${strategy.hook}
+Target audience: ${strategy.targetAudience}
+Main benefit: ${strategy.mainBenefit}
+Product: ${productName}
+Price: $${priceToUse}
+Urgency: ${strategy.urgency}
+Page type: ${stepDef.type} (${stepDef.name})
+${stepDef.type === "upsell" ? "This is an upgrade offer — emphasize what they MISS without it. Make it irresistible." : ""}
+${stepDef.type === "downsell" ? "This is a stripped-down version at a lower price — still compelling, just less." : ""}
+${stepDef.type === "confirmation" ? "Welcome them, tell them what happens next, build excitement." : ""}
+
+Generate these sections in this exact order:
+${sectionPrompts}
+
+Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema above>}]}`;
+
+          try {
+            const raw = await callGroqJson(systemPrompt, userPrompt, 2500);
+            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            const sections = (parsed.sections || []).map((s: any, i: number) => ({
+              ...s,
+              id: Math.random().toString(36).slice(2, 10),
+              type: stepDef.sections[i] || s.type,
+            }));
+            return { ...stepDef, sections, price: priceToUse, product_name: productName };
+          } catch {
+            return { ...stepDef, sections: [], price: priceToUse, product_name: productName };
+          }
+        })
+      );
+
+      // Step 4: Create funnel + all steps in DB
+      const funnelSlug = `${(strategy.funnelName || "funnel").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
+      const { rows: funnelRows } = await pool.query(
+        `INSERT INTO funnels (user_id, name, slug, status) VALUES ($1, $2, $3, 'draft') RETURNING *`,
+        [user.id, strategy.funnelName || "AI Funnel", funnelSlug]
+      );
+      const funnel = funnelRows[0];
+
+      const createdSteps: any[] = [];
+      for (let i = 0; i < stepGenerations.length; i++) {
+        const gen = stepGenerations[i];
+        const stepSlug = `${gen.type}-${i + 1}-${Date.now().toString(36)}`;
+        const { rows: stepRows } = await pool.query(
+          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme, price, product_name)
+           VALUES ($1, $2, $3, $4, $5, $6, 'gold', $7, $8) RETURNING *`,
+          [funnel.id, gen.name, gen.type, stepSlug, i, JSON.stringify(gen.sections), gen.price || null, gen.product_name || null]
+        );
+        createdSteps.push(stepRows[0]);
+      }
+
+      // Step 5: Auto-wire routing: each step → next by position
+      // For sales/upsell pages: yes → next, no → step after next (downsell skip)
+      for (let i = 0; i < createdSteps.length; i++) {
+        const step = createdSteps[i];
+        const nextStep = createdSteps[i + 1] || null;
+        const stepAfterNext = createdSteps[i + 2] || nextStep;
+        if (["sales", "upsell", "downsell"].includes(step.type)) {
+          await pool.query(
+            "UPDATE funnel_steps SET yes_step_id = $1, no_step_id = $2 WHERE id = $3",
+            [nextStep?.id || null, stepAfterNext?.id || null, step.id]
+          );
+        } else {
+          await pool.query(
+            "UPDATE funnel_steps SET next_step_id = $1 WHERE id = $2",
+            [nextStep?.id || null, step.id]
+          );
+        }
+      }
+
+      const { rows: finalSteps } = await pool.query(
+        "SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position", [funnel.id]
+      );
+
+      res.json({ funnel, steps: finalSteps, strategy });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // List funnels
+  app.get("/api/funnels", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: funnels } = await pool.query(
+        "SELECT * FROM funnels WHERE user_id = $1 ORDER BY created_at DESC",
+        [user.id]
+      );
+      // attach step count
+      const ids = funnels.map((f: any) => f.id);
+      if (ids.length === 0) return res.json([]);
+      const { rows: counts } = await pool.query(
+        `SELECT funnel_id, COUNT(*)::int AS step_count FROM funnel_steps WHERE funnel_id = ANY($1) GROUP BY funnel_id`,
+        [ids]
+      );
+      const countMap: Record<string, number> = {};
+      counts.forEach((c: any) => { countMap[c.funnel_id] = c.step_count; });
+      res.json(funnels.map((f: any) => ({ ...f, step_count: countMap[f.id] || 0 })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get single funnel with steps
+  app.get("/api/funnels/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query("SELECT * FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      const { rows: steps } = await pool.query(
+        "SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position ASC",
+        [req.params.id]
+      );
+      res.json({ ...rows[0], steps });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Create funnel
+  app.post("/api/funnels", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name = "Untitled Funnel", template = "vsl" } = req.body;
+      const base = (name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "funnel";
+      const slug = `${base}-${Date.now().toString(36)}`;
+      const { rows } = await pool.query(
+        `INSERT INTO funnels (user_id, name, slug) VALUES ($1, $2, $3) RETURNING *`,
+        [user.id, name, slug]
+      );
+      const funnel = rows[0];
+
+      // auto-create first step based on template
+      const firstSteps: Record<string, { name: string; type: string }[]> = {
+        vsl:       [{ name: "Sales Page", type: "sales" }, { name: "Order Confirmation", type: "confirmation" }],
+        launch:    [{ name: "Landing Page", type: "landing" }, { name: "Sales Page", type: "sales" }, { name: "OTO 1 - Upsell", type: "upsell" }, { name: "Order Confirmation", type: "confirmation" }],
+        webinar:   [{ name: "Registration Page", type: "landing" }, { name: "Thank You", type: "thank_you" }, { name: "Webinar Room", type: "webinar" }],
+        lead:      [{ name: "Lead Magnet", type: "landing" }, { name: "Thank You", type: "thank_you" }],
+        tripwire:  [{ name: "Landing Page", type: "landing" }, { name: "Tripwire Offer", type: "sales" }, { name: "OTO 1 - Upsell", type: "upsell" }, { name: "OTO 1 - Downsell", type: "downsell" }, { name: "Thank You", type: "confirmation" }],
+      };
+      const steps = firstSteps[template] || firstSteps.vsl;
+      for (let i = 0; i < steps.length; i++) {
+        const stepSlug = `step-${i + 1}-${Date.now().toString(36)}`;
+        await pool.query(
+          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [funnel.id, steps[i].name, steps[i].type, stepSlug, i, JSON.stringify([]), "gold"]
+        );
+      }
+      const { rows: stepRows } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position", [funnel.id]);
+      res.status(201).json({ ...funnel, steps: stepRows });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Update funnel
+  app.patch("/api/funnels/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, status, slug } = req.body;
+      if (slug) {
+        const { rows: clash } = await pool.query("SELECT id FROM funnels WHERE slug = $1 AND id != $2", [slug, req.params.id]);
+        if (clash.length) return res.status(409).json({ message: "Slug taken" });
+      }
+      const { rows } = await pool.query(
+        `UPDATE funnels SET
+          name = COALESCE($1, name),
+          status = COALESCE($2, status),
+          slug = COALESCE($3, slug),
+          updated_at = now()
+         WHERE id = $4 AND user_id = $5 RETURNING *`,
+        [name, status, slug, req.params.id, user.id]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Delete funnel
+  app.delete("/api/funnels/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await pool.query("DELETE FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Add step
+  app.post("/api/funnels/:id/steps", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { name = "New Step", type = "landing" } = req.body;
+      const { rows: maxPos } = await pool.query("SELECT COALESCE(MAX(position), -1) AS pos FROM funnel_steps WHERE funnel_id = $1", [req.params.id]);
+      const pos = maxPos[0].pos + 1;
+      const stepSlug = `step-${pos + 1}-${Date.now().toString(36)}`;
+      const { rows } = await pool.query(
+        `INSERT INTO funnel_steps (funnel_id, name, type, slug, position)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [req.params.id, name, type, stepSlug, pos]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Update step
+  app.patch("/api/funnels/:id/steps/:stepId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { name, type, sections, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x, canvas_y } = req.body;
+      const { rows } = await pool.query(
+        `UPDATE funnel_steps SET
+          name = COALESCE($1, name),
+          type = COALESCE($2, type),
+          sections = COALESCE($3, sections),
+          color_scheme = COALESCE($4, color_scheme),
+          yes_step_id = COALESCE($5, yes_step_id),
+          no_step_id = COALESCE($6, no_step_id),
+          next_step_id = COALESCE($7, next_step_id),
+          price = COALESCE($8, price),
+          product_name = COALESCE($9, product_name),
+          position = COALESCE($10, position),
+          canvas_x = COALESCE($11, canvas_x),
+          canvas_y = COALESCE($12, canvas_y),
+          updated_at = now()
+         WHERE id = $13 AND funnel_id = $14 RETURNING *`,
+        [name, type, sections ? JSON.stringify(sections) : null, color_scheme, yes_step_id, no_step_id, next_step_id, price, product_name, position, canvas_x ?? null, canvas_y ?? null, req.params.stepId, req.params.id]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Delete step
+  app.delete("/api/funnels/:id/steps/:stepId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      await pool.query("DELETE FROM funnel_steps WHERE id = $1 AND funnel_id = $2", [req.params.stepId, req.params.id]);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Reorder steps
+  app.post("/api/funnels/:id/steps/reorder", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { order } = req.body as { order: string[] }; // array of step IDs
+      for (let i = 0; i < order.length; i++) {
+        await pool.query("UPDATE funnel_steps SET position = $1 WHERE id = $2 AND funnel_id = $3", [i, order[i], req.params.id]);
+      }
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // AI generate for funnel step
+  app.post("/api/funnels/:id/steps/:stepId/ai-generate", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { rows: stepRows } = await pool.query("SELECT * FROM funnel_steps WHERE id = $1", [req.params.stepId]);
+      if (!stepRows[0]) return res.status(404).json({ message: "Step not found" });
+      const step = stepRows[0];
+      const { description } = req.body;
+
+      const typeToSections: Record<string, string[]> = {
+        landing:      ["hero", "benefits", "form"],
+        sales:        ["hero", "video", "benefits", "testimonials", "pricing", "faq", "cta"],
+        upsell:       ["hero", "video", "benefits", "pricing", "cta"],
+        downsell:     ["hero", "benefits", "pricing", "cta"],
+        thank_you:    ["hero", "benefits", "cta"],
+        confirmation: ["hero", "cta"],
+        webinar:      ["hero", "bio", "benefits", "countdown", "form"],
+      };
+
+      const sectionTypes = typeToSections[step.type] || ["hero", "benefits", "cta"];
+      const systemPrompt = `You are an elite direct-response copywriter. Generate landing page sections as JSON only.
+Return exactly: {"pageTitle": string, "sections": [{id, type, data}]}
+Be specific, persuasive, benefit-focused. No placeholders. Real copy only.`;
+      const userPrompt = `Offer: ${description}
+Page type: ${step.type}
+Generate these sections in order: ${sectionTypes.join(", ")}
+Each section needs type-appropriate data fields filled with compelling copy.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      const result = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const sections = (result.sections || []).map((s: any, i: number) => ({
+        ...s,
+        id: Math.random().toString(36).slice(2, 10),
+        type: sectionTypes[i] || s.type,
+      }));
+
+      await pool.query("UPDATE funnel_steps SET sections = $1, updated_at = now() WHERE id = $2", [JSON.stringify(sections), req.params.stepId]);
+      res.json({ sections, pageTitle: result.pageTitle || step.name });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Custom Domain resolution (public, no auth) ─────────────────────────────
+
+  app.get("/api/public/domain/:domain", async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT f.slug, f.name, f.status, f.accent_color, fcd.ssl_status, fcd.dns_verified
+         FROM funnel_custom_domains fcd
+         JOIN funnels f ON f.id = fcd.funnel_id
+         WHERE fcd.domain = $1`,
+        [req.params.domain]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Domain not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Funnel Custom Domain CRUD ───────────────────────────────────────────────
+
+  app.get("/api/funnels/:id/domain", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { rows } = await pool.query("SELECT * FROM funnel_custom_domains WHERE funnel_id = $1", [req.params.id]);
+      res.json(rows[0] || null);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/funnels/:id/domain", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { domain } = req.body;
+      if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+        return res.status(400).json({ message: "Invalid domain format" });
+      }
+      const clean = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const { rows } = await pool.query(
+        `INSERT INTO funnel_custom_domains (funnel_id, domain)
+         VALUES ($1, $2)
+         ON CONFLICT (funnel_id) DO UPDATE SET domain = EXCLUDED.domain, dns_verified = false, ssl_status = 'pending', verified_at = NULL
+         RETURNING *`,
+        [req.params.id, clean]
+      );
+      res.json(rows[0]);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Domain already used by another funnel" });
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/funnels/:id/domain", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      await pool.query("DELETE FROM funnel_custom_domains WHERE funnel_id = $1", [req.params.id]);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/funnels/:id/domain/verify", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id, slug FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { rows: dRows } = await pool.query("SELECT * FROM funnel_custom_domains WHERE funnel_id = $1", [req.params.id]);
+      if (!dRows[0]) return res.status(404).json({ message: "No domain configured" });
+      const { domain } = dRows[0];
+      const appHost = (process.env.APP_URL || process.env.SITE_URL || "").replace(/^https?:\/\//, "").replace(/\/$/, "") || "app.oravini.com";
+      let dnsOk = false;
+      let dnsError: string | null = null;
+      try {
+        const dns = (await import("dns")).promises;
+        const cnames = await dns.resolveCname(domain);
+        dnsOk = cnames.some((c: string) => c === appHost || c.endsWith("." + appHost));
+        if (!dnsOk) dnsError = `CNAME resolves to: ${cnames.join(", ")} — expected: ${appHost}`;
+      } catch (e: any) {
+        dnsError = e.code === "ENODATA" ? "No CNAME record found" : e.message;
+      }
+      if (dnsOk) {
+        await pool.query(
+          "UPDATE funnel_custom_domains SET dns_verified = true, ssl_status = 'active', verified_at = NOW() WHERE funnel_id = $1",
+          [req.params.id]
+        );
+        res.json({ ok: true, dns_verified: true, ssl_status: "active", message: "DNS verified! Your custom domain is live." });
+      } else {
+        res.json({ ok: false, dns_verified: false, error: dnsError, expected_cname: appHost, domain });
+      }
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Public funnel routes ───────────────────────────────────────────────────
+
+  // Get first step of funnel
+  app.get("/api/f/:slug", async (req, res) => {
+    try {
+      const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1 AND status = 'active'", [req.params.slug]);
+      if (!funnels[0]) return res.status(404).json({ message: "Funnel not found" });
+      const funnel = funnels[0];
+      const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 ORDER BY position LIMIT 1", [funnel.id]);
+      if (!steps[0]) return res.status(404).json({ message: "No steps" });
+      await pool.query("UPDATE funnels SET visits = visits + 1 WHERE id = $1", [funnel.id]);
+      await pool.query("UPDATE funnel_steps SET visits = visits + 1 WHERE id = $1", [steps[0].id]);
+      res.json({ funnel, step: steps[0] });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get specific funnel step
+  app.get("/api/f/:slug/:stepSlug", async (req, res) => {
+    try {
+      const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1 AND status = 'active'", [req.params.slug]);
+      if (!funnels[0]) return res.status(404).json({ message: "Funnel not found" });
+      const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
+      if (!steps[0]) return res.status(404).json({ message: "Step not found" });
+      await pool.query("UPDATE funnel_steps SET visits = visits + 1 WHERE id = $1", [steps[0].id]);
+      res.json({ funnel: funnels[0], step: steps[0] });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Lead capture on funnel step
+  app.post("/api/f/:slug/:stepSlug/lead", async (req, res) => {
+    try {
+      const { name, email, phone } = req.body;
+      const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1", [req.params.slug]);
+      if (!funnels[0]) return res.status(404).json({ message: "Not found" });
+      const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
+      if (!steps[0]) return res.status(404).json({ message: "Not found" });
+      await pool.query("UPDATE funnel_steps SET conversions = conversions + 1 WHERE id = $1", [steps[0].id]);
+      await pool.query("UPDATE funnels SET leads = leads + 1 WHERE id = $1", [funnels[0].id]);
+      try {
+        await pool.query(
+          "INSERT INTO funnel_contacts (funnel_id, step_id, email, name, phone) VALUES ($1, $2, $3, $4, $5)",
+          [funnels[0].id, steps[0].id, email, name || null, phone || null]
+        );
+      } catch {}
+      // Fire active automations for lead_captured
+      try {
+        const { rows: autos } = await pool.query(
+          `SELECT * FROM funnel_automations WHERE funnel_id = $1 AND active = true
+           AND trigger_event = 'lead_captured'
+           AND (trigger_step_id IS NULL OR trigger_step_id = $2)`,
+          [funnels[0].id, steps[0].id]
+        );
+        for (const auto of autos) {
+          fireFunnelAutomation(auto, { email, name: name || null, phone: phone || null }, pool).catch(() => {});
+        }
+      } catch {}
+      // Return next step slug
+      let nextSlug: string | null = null;
+      if (steps[0].yes_step_id) {
+        const { rows: nextStep } = await pool.query("SELECT slug FROM funnel_steps WHERE id = $1", [steps[0].yes_step_id]);
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      } else if (steps[0].next_step_id) {
+        const { rows: nextStep } = await pool.query("SELECT slug FROM funnel_steps WHERE id = $1", [steps[0].next_step_id]);
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      } else {
+        // auto: next by position
+        const { rows: nextStep } = await pool.query(
+          "SELECT slug FROM funnel_steps WHERE funnel_id = $1 AND position > $2 ORDER BY position LIMIT 1",
+          [funnels[0].id, steps[0].position]
+        );
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      }
+      res.json({ ok: true, nextSlug, funnelSlug: funnels[0].slug });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Decline / no-thanks on upsell/downsell
+  app.post("/api/f/:slug/:stepSlug/decline", async (req, res) => {
+    try {
+      const { rows: funnels } = await pool.query("SELECT * FROM funnels WHERE slug = $1", [req.params.slug]);
+      if (!funnels[0]) return res.status(404).json({ message: "Not found" });
+      const { rows: steps } = await pool.query("SELECT * FROM funnel_steps WHERE funnel_id = $1 AND slug = $2", [funnels[0].id, req.params.stepSlug]);
+      if (!steps[0]) return res.status(404).json({ message: "Not found" });
+      let nextSlug: string | null = null;
+      if (steps[0].no_step_id) {
+        const { rows: nextStep } = await pool.query("SELECT slug FROM funnel_steps WHERE id = $1", [steps[0].no_step_id]);
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      } else if (steps[0].next_step_id) {
+        const { rows: nextStep } = await pool.query("SELECT slug FROM funnel_steps WHERE id = $1", [steps[0].next_step_id]);
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      } else {
+        const { rows: nextStep } = await pool.query(
+          "SELECT slug FROM funnel_steps WHERE funnel_id = $1 AND position > $2 ORDER BY position LIMIT 1",
+          [funnels[0].id, steps[0].position]
+        );
+        if (nextStep[0]) nextSlug = nextStep[0].slug;
+      }
+      res.json({ ok: true, nextSlug, funnelSlug: funnels[0].slug });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // AI Highlights — transcribe + LLM identifies best 30–90s clip section
+  app.post("/api/video-clip-editor/highlights", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { filePath } = req.body;
+      if (!filePath) return res.status(400).json({ message: "filePath required" });
+      const absPath = resolveClipPath(filePath);
+      if (!fs.existsSync(absPath)) return res.status(404).json({ message: "File not found" });
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const FormDataNode = (await import("form-data")).default;
+      const fd = new FormDataNode();
+      fd.append("file", fs.createReadStream(absPath), { filename: path.basename(absPath) });
+      fd.append("model", "whisper-large-v3-turbo");
+      fd.append("response_format", "verbose_json");
+      fd.append("timestamp_granularities[]", "segment");
+
+      const fetch2 = (await import("node-fetch")).default as any;
+      const tResp = await fetch2("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, ...fd.getHeaders() },
+        body: fd,
+      });
+      if (!tResp.ok) throw new Error("Transcription failed");
+      const tData: any = await tResp.json();
+      const fullText = tData.text || "";
+      const segments: any[] = tData.segments || [];
+      const totalDuration = segments.length ? segments[segments.length - 1].end : 60;
+
+      const chatResp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "system",
+            content: `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
+          }, {
+            role: "user",
+            content: `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${fullText}`,
+          }],
+          response_format: { type: "json_object" },
+          temperature: 0.2, max_tokens: 200,
+        }),
+      });
+      const cData: any = await chatResp.json();
+      const parsed = JSON.parse(cData.choices?.[0]?.message?.content || "{}");
+      res.json({
+        start: Math.max(0, parsed.start || 0),
+        end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
+        reason: parsed.reason || "Most engaging section",
+        totalDuration,
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // AI Chat editor — natural language → structured editing actions via Groq LLaMA
+  app.post("/api/video-clip-editor/ai-chat", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { message, context } = req.body;
+      if (!message) return res.status(400).json({ message: "message required" });
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const { clips = [], selectedClipId = null, currentTime = 0 } = context || {};
+
+      const clipSummary = clips.map((c: any, i: number) => ({
+        id: c.id,
+        index: i + 1,
+        name: c.name || `Clip ${i + 1}`,
+        duration: Math.round(c.duration * 10) / 10,
+        trimStart: Math.round((c.trimStart || 0) * 10) / 10,
+        trimEnd: Math.round((c.trimEnd || c.duration) * 10) / 10,
+        speed: c.speed || 1,
+        colorGrade: c.colorGrade || "none",
+        volume: c.volume ?? 1,
+        muted: !!c.muted,
+        noiseReduce: !!c.noiseReduce,
+        hasUploadedFile: !!c.hasFile,
+      }));
+
+      const systemPrompt = `You are an AI video editor assistant embedded in a video editor. The user will describe what they want to do to their video in natural language. Return a JSON object with two keys:
+- "response": a short friendly confirmation (1-2 sentences) of what you're doing
+- "actions": array of editing operations to perform
+
+AVAILABLE ACTION TYPES (use exact type strings):
+{ type: "set_speed", clipId: string, value: number }  — speed 0.3 to 3. 1=normal, 2=2x faster
+{ type: "set_color_grade", clipId: string, grade: "none"|"warm"|"cool"|"cinematic"|"vivid"|"bw" }
+{ type: "set_volume", clipId: string, value: number }  — 0 to 1
+{ type: "toggle_mute", clipId: string, muted: boolean }
+{ type: "trim_clip", clipId: string, trimStart: number, trimEnd: number }  — seconds
+{ type: "delete_clip", clipId: string }
+{ type: "duplicate_clip", clipId: string }
+{ type: "enable_noise_reduce", clipId: string, value: boolean }
+{ type: "add_transition", clipId: string, transType: "none"|"fade"|"dissolve"|"wipe-left"|"wipe-right"|"zoom"|"slide-left", duration: number }
+{ type: "reorder_clips", order: string[] }  — array of ALL clip IDs in desired order
+{ type: "add_captions", clipId: string }  — transcribes and adds word-level captions
+{ type: "remove_silences", clipId: string }  — auto-detects and cuts silent gaps
+{ type: "detect_scenes", clipId: string }  — splits at scene changes
+{ type: "remove_fillers", clipId: string }  — marks filler words (um, uh, etc.) for cutting
+
+CURRENT EDITOR STATE:
+Selected clip ID: ${selectedClipId || "none"}
+Current playhead time: ${currentTime}s
+Clips: ${JSON.stringify(clipSummary)}
+
+RULES:
+- If user says "clip 1" / "first clip" use the first clip's id. "clip 2" = second, etc.
+- If no specific clip mentioned, apply to selectedClipId if set, otherwise first clip
+- "all clips" = produce one action per clip
+- Return ONLY valid JSON, no markdown fences`;
+
+      const fetch2 = (await import("node-fetch")).default as any;
+      const resp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`Groq error: ${errText.slice(0, 300)}`);
+      }
+
+      const data: any = await resp.json();
+      const content = data.choices?.[0]?.message?.content || '{"response":"Done","actions":[]}';
+      const parsed = JSON.parse(content);
+      res.json({ response: parsed.response || "Done!", actions: parsed.actions || [] });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Translate captions ─────────────────────────────────────────────────────────
+  app.post("/api/video-clip-editor/translate-captions", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { captions, targetLanguage = "Spanish" } = req.body;
+      if (!Array.isArray(captions) || !captions.length) return res.status(400).json({ message: "captions required" });
+
+      const apiKey = process.env.GROQ_API_KEY;
+      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
+
+      const texts = captions.map((c: any, i: number) => `[${i}] ${c.text}`).join("\n");
+      const systemPrompt = `You are a professional subtitle translator. Translate the following numbered caption lines to ${targetLanguage}. Preserve meaning, tone, and naturalness. Return ONLY valid JSON: {"translations": [{"index": 0, "text": "translated text"}, ...]}`;
+
+      const fetch2 = (await import("node-fetch")).default as any;
+      const resp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: texts }],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+          max_tokens: 2048,
+        }),
+      });
+
+      if (!resp.ok) throw new Error(`Groq error: ${(await resp.text()).slice(0, 200)}`);
+      const d: any = await resp.json();
+      const parsed = JSON.parse(d.choices?.[0]?.message?.content || '{"translations":[]}');
+      const translations = (parsed.translations || []).map((t: any) => ({
+        id: captions[t.index]?.id,
+        text: t.text,
+      })).filter((t: any) => t.id);
+      res.json({ translations });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── Funnel Analytics ────────────────────────────────────────────────────────
+  app.get("/api/funnels/:id/analytics", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT * FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const funnel = f[0];
+
+      const { rows: steps } = await pool.query(
+        "SELECT id, name, type, slug, position, visits, conversions, price FROM funnel_steps WHERE funnel_id = $1 ORDER BY position ASC",
+        [req.params.id]
+      );
+
+      const { rows: contacts } = await pool.query(
+        `SELECT fc.id, fc.email, fc.name, fc.phone, fc.created_at, fs.name AS step_name, fs.type AS step_type
+         FROM funnel_contacts fc
+         LEFT JOIN funnel_steps fs ON fs.id = fc.step_id
+         WHERE fc.funnel_id = $1
+         ORDER BY fc.created_at DESC LIMIT 50`,
+        [req.params.id]
+      );
+
+      const { rows: dailyLeads } = await pool.query(
+        `SELECT DATE(created_at) AS day, COUNT(*)::int AS count
+         FROM funnel_contacts WHERE funnel_id = $1 AND created_at >= NOW() - INTERVAL '30 days'
+         GROUP BY day ORDER BY day ASC`,
+        [req.params.id]
+      );
+
+      // Per-step enrichment: CVR, drop-off vs previous step
+      const firstVisits = steps[0]?.visits || 0;
+      const enrichedSteps = steps.map((s: any, i: number) => {
+        const prevVisits = i === 0 ? s.visits : steps[i - 1].visits;
+        const cvr = s.visits > 0 ? ((s.conversions / s.visits) * 100) : 0;
+        const dropOff = prevVisits > 0 && i > 0 ? (100 - (s.visits / prevVisits) * 100) : 0;
+        const pctOfTop = firstVisits > 0 ? (s.visits / firstVisits) * 100 : 0;
+        const revenue = s.price && s.conversions ? s.price * s.conversions : 0;
+        return { ...s, cvr: parseFloat(cvr.toFixed(1)), dropOff: parseFloat(dropOff.toFixed(1)), pctOfTop: parseFloat(pctOfTop.toFixed(1)), stepRevenue: parseFloat(revenue.toFixed(2)) };
+      });
+
+      const totalRevenue = enrichedSteps.reduce((sum: number, s: any) => sum + (s.stepRevenue || 0), 0);
+      const aov = funnel.sales > 0 ? (Number(funnel.revenue) / funnel.sales) : 0;
+      const overallCvr = funnel.visits > 0 ? ((funnel.leads / funnel.visits) * 100) : 0;
+
+      res.json({
+        funnel: { ...funnel, revenue: Number(funnel.revenue) },
+        steps: enrichedSteps,
+        contacts,
+        dailyLeads,
+        summary: {
+          totalRevenue: parseFloat(Math.max(Number(funnel.revenue), totalRevenue).toFixed(2)),
+          aov: parseFloat(aov.toFixed(2)),
+          overallCvr: parseFloat(overallCvr.toFixed(1)),
+          totalLeads: funnel.leads,
+          totalVisits: funnel.visits,
+          totalSales: funnel.sales,
+        },
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Funnel contacts list
+  app.get("/api/funnels/:id/contacts", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const { rows } = await pool.query(
+        `SELECT fc.*, fs.name AS step_name, fs.type AS step_type
+         FROM funnel_contacts fc
+         LEFT JOIN funnel_steps fs ON fs.id = fc.step_id
+         WHERE fc.funnel_id = $1
+         ORDER BY fc.created_at DESC LIMIT $2 OFFSET $3`,
+        [req.params.id, limit, offset]
+      );
+      const { rows: total } = await pool.query("SELECT COUNT(*)::int AS n FROM funnel_contacts WHERE funnel_id = $1", [req.params.id]);
+      res.json({ contacts: rows, total: total[0].n });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Funnel Automations CRUD ─────────────────────────────────────────────────
+
+  app.get("/api/funnels/:id/automations", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { rows } = await pool.query(
+        `SELECT fa.*, fs.name AS trigger_step_name, fs.type AS trigger_step_type
+         FROM funnel_automations fa
+         LEFT JOIN funnel_steps fs ON fs.id = fa.trigger_step_id
+         WHERE fa.funnel_id = $1
+         ORDER BY fa.created_at ASC`,
+        [req.params.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/funnels/:id/automations", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { name, trigger_event, trigger_step_id, actions } = req.body;
+      const { rows } = await pool.query(
+        `INSERT INTO funnel_automations (funnel_id, name, trigger_event, trigger_step_id, actions)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [req.params.id, name || "Untitled Automation", trigger_event || "lead_captured", trigger_step_id || null, JSON.stringify(actions || [])]
+      );
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/funnels/:id/automations/:automId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { name, trigger_event, trigger_step_id, actions, active } = req.body;
+      const { rows } = await pool.query(
+        `UPDATE funnel_automations SET
+           name = COALESCE($1, name),
+           trigger_event = COALESCE($2, trigger_event),
+           trigger_step_id = $3,
+           actions = COALESCE($4, actions),
+           active = COALESCE($5, active)
+         WHERE id = $6 AND funnel_id = $7 RETURNING *`,
+        [name, trigger_event, trigger_step_id ?? null, actions ? JSON.stringify(actions) : null, active, req.params.automId, req.params.id]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/funnels/:id/automations/:automId", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      await pool.query("DELETE FROM funnel_automations WHERE id = $1 AND funnel_id = $2", [req.params.automId, req.params.id]);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Funnel Automation test-fire ─────────────────────────────────────────────
+  app.post("/api/funnels/:id/automations/:automId/test", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT * FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+      const { rows: aRows } = await pool.query("SELECT * FROM funnel_automations WHERE id = $1 AND funnel_id = $2", [req.params.automId, req.params.id]);
+      if (!aRows[0]) return res.status(404).json({ message: "Not found" });
+      const contact = { email: user.email, name: user.name || "Test Contact", phone: null };
+      await fireFunnelAutomation(aRows[0], contact, pool);
+      res.json({ ok: true, message: "Test fired — check your inbox" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI Chat Editor — edit any funnel step page via natural language ────────
+  app.post("/api/funnels/:id/steps/:stepId/ai-chat", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: f } = await pool.query("SELECT id FROM funnels WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!f[0]) return res.status(403).json({ message: "Forbidden" });
+
+      const { rows: stepRows } = await pool.query("SELECT * FROM funnel_steps WHERE id = $1 AND funnel_id = $2", [req.params.stepId, req.params.id]);
+      if (!stepRows[0]) return res.status(404).json({ message: "Step not found" });
+
+      const { message, sections, selectedSectionType, context } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "Message required" });
+
+      const currentSections = sections || stepRows[0].sections || [];
+      const step = stepRows[0];
+
+      const systemPrompt = `You are an elite direct-response copywriter and funnel page editor.
+You receive a funnel page's current sections (JSON) and a user request, then return the modified sections.
+
+RULES:
+- Return ALL sections (not just changed ones) — preserve section IDs exactly
+- Write real, specific, persuasive copy — zero placeholders
+- If adding a new section, generate a unique 8-char alphanumeric ID
+- Keep brand voice/offer consistent across all sections
+- "reply" should be 1-2 sentences max explaining what you changed
+- If request is unclear, make the most impactful change you can infer
+
+SECTION DATA SCHEMAS:
+hero: {headline, subheadline, ctaText, badge}
+video: {videoUrl, caption}
+benefits: {title, items: string[]}
+testimonials: {testimonials: [{name, role, quote}]}
+cta: {headline, subtext, ctaText, ctaUrl}
+form: {formTitle, formSubtext, buttonText, fields: ["name","email"]}
+countdown: {countdownTitle, targetDate}
+pricing: {pricingTitle, price, originalPrice, pricingFeatures: string[], ctaText}
+faq: {faqs: [{question, answer}]}
+bio: {name, role, bio}
+guarantee: {title, body, badgeText}
+order_bump: {title, description, price, ctaText}
+urgency_bar: {text, subtext}
+divider: {}
+
+Return ONLY valid JSON matching this structure:
+{
+  "sections": [...complete sections array with all changes applied...],
+  "reply": "Brief explanation of changes made",
+  "changes": ["specific change 1", "specific change 2"]
+}`;
+
+      const userPrompt = `Page type: ${step.type}
+${selectedSectionType ? `User is focused on: ${selectedSectionType} section` : ""}
+${context ? `Additional context: ${context}` : ""}
+
+Current sections:
+${JSON.stringify(currentSections, null, 2)}
+
+User request: "${message}"
+
+Apply the changes and return the full modified sections array.`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      const result = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+      const updatedSections = result.sections || currentSections;
+
+      // Persist to DB
+      await pool.query(
+        "UPDATE funnel_steps SET sections = $1, updated_at = now() WHERE id = $2",
+        [JSON.stringify(updatedSections), step.id]
+      );
+
+      res.json({
+        sections: updatedSections,
+        reply: result.reply || "Done!",
+        changes: result.changes || [],
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ── AI Chat Editor for standalone landing pages ────────────────────────────
+  app.post("/api/marketing-landing-pages/:id/ai-chat", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query("SELECT * FROM marketing_landing_pages WHERE id = $1 AND user_id = $2", [req.params.id, user.id]);
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+
+      const { message, sections, selectedSectionType } = req.body;
+      if (!message?.trim()) return res.status(400).json({ message: "Message required" });
+
+      const currentSections = sections || rows[0].sections || [];
+
+      const systemPrompt = `You are an elite direct-response copywriter and landing page editor.
+Edit the page based on the user's natural language request.
+Return ONLY valid JSON: {"sections": [...], "reply": "...", "changes": [...]}
+Preserve all section IDs. Write real copy, no placeholders.`;
+
+      const userPrompt = `${selectedSectionType ? `Focused section: ${selectedSectionType}\n` : ""}Current sections:\n${JSON.stringify(currentSections, null, 2)}\n\nRequest: "${message}"`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      const result = typeof raw === "string" ? JSON.parse(raw) : raw;
+      const updatedSections = result.sections || currentSections;
+
+      await pool.query(
+        "UPDATE marketing_landing_pages SET sections = $1, updated_at = now() WHERE id = $2",
+        [JSON.stringify(updatedSections), req.params.id]
+      );
+
+      res.json({ sections: updatedSections, reply: result.reply || "Done!", changes: result.changes || [] });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   return httpServer;
