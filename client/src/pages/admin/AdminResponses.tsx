@@ -784,17 +784,20 @@ export default function AdminResponses() {
                               color="#60a5fa"
                             />
                             <STagField label="How They Heard About Us" items={s.heard_about} color="#f472b6" />
-                            {s.social_link && (
-                              <div>
-                                <p className="text-[10px] text-zinc-500 mb-1 font-semibold uppercase tracking-wider">Instagram / YouTube</p>
-                                <a
-                                  href={s.social_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm font-medium text-sky-400 hover:text-sky-300 underline underline-offset-2 break-all"
-                                >
-                                  {s.social_link}
-                                </a>
+                            {(s.instagram_link || s.youtube_link) && (
+                              <div className="flex flex-col gap-1.5">
+                                {s.instagram_link && (
+                                  <div>
+                                    <p className="text-[10px] text-zinc-500 mb-0.5 font-semibold uppercase tracking-wider">Instagram</p>
+                                    <a href={s.instagram_link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-pink-400 hover:text-pink-300 underline underline-offset-2 break-all">{s.instagram_link}</a>
+                                  </div>
+                                )}
+                                {s.youtube_link && (
+                                  <div>
+                                    <p className="text-[10px] text-zinc-500 mb-0.5 font-semibold uppercase tracking-wider">YouTube</p>
+                                    <a href={s.youtube_link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-red-400 hover:text-red-300 underline underline-offset-2 break-all">{s.youtube_link}</a>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Zap, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3, BarChart2
+  LogOut, ChevronRight, Menu, X, Zap, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3, BarChart2, Rocket, LineChart, Layers
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +30,9 @@ const mainNavItems = [
   { href: "/admin/tool-heatmap", label: "Heatmap", icon: Flame },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/meta-ads", label: "Meta Ads", icon: BarChart2 },
+  { href: "/admin/meta-ads/campaigns", label: "Campaigns", icon: Layers },
+  { href: "/admin/meta-ads/bulk-launch", label: "Bulk Launcher", icon: Rocket },
+  { href: "/admin/meta-ads/analytics", label: "Ad Analytics", icon: LineChart },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

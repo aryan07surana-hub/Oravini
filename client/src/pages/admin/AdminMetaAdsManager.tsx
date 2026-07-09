@@ -16,7 +16,8 @@ import {
   Crown, BarChart2, Target, DollarSign, TrendingUp, TrendingDown, Zap, RefreshCw,
   Plus, Trash2, CheckCircle2, AlertTriangle, Brain, FileText, ChevronRight,
   MousePointerClick, Eye, Users, Activity, Lightbulb, Calendar, ArrowUpRight,
-  Copy, Check, Layers, Settings2
+  Copy, Check, Layers, Settings2, Rocket, Play, Pause, Send, MessageSquare,
+  Globe, History, ExternalLink, MoreHorizontal
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -56,6 +57,27 @@ function CampaignArchitectTab({ clientId }: { clientId: string }) {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const [launchResult, setLaunchResult] = useState<any>(null);
+  const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [launchCountries, setLaunchCountries] = useState("US");
+
+  async function handleLaunch() {
+    if (!result || !clientId) return;
+    setLaunching(true);
+    try {
+      const countries = launchCountries.split(",").map(c => c.trim().toUpperCase()).filter(Boolean);
+      const data = await apiRequest("POST", `/api/meta-ads/launch/${clientId}`, {
+        blueprint: result,
+        countries,
+      });
+      setLaunchResult(data);
+    } catch (e: any) {
+      setLaunchResult({ error: e.message, permissionRequired: e.message?.includes("ads_management") });
+    } finally {
+      setLaunching(false);
+    }
+  }
 
   async function handleGenerate() {
     if (!form.budget || !form.niche || !form.offer) {
@@ -300,9 +322,101 @@ function CampaignArchitectTab({ clientId }: { clientId: string }) {
                 </CardContent>
               </Card>
             )}
+
+            {/* Launch to Meta */}
+            <Card className="border border-blue-500/20 bg-blue-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-400 flex items-center gap-2">
+                      <Rocket className="w-4 h-4" /> Launch to Meta Ads Manager
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Creates all campaigns as PAUSED. Add creatives in Meta then activate.
+                    </p>
+                  </div>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white gap-2 shrink-0"
+                    onClick={() => { setLaunchResult(null); setShowLaunchModal(true); }}
+                  >
+                    <Rocket className="w-4 h-4" /> Launch Blueprint
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
+
+      {/* Launch Modal */}
+      <Dialog open={showLaunchModal} onOpenChange={setShowLaunchModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-blue-400" /> Launch Blueprint to Meta
+            </DialogTitle>
+          </DialogHeader>
+          {!launchResult ? (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs">Target Countries (comma-separated ISO codes)</Label>
+                <Input
+                  value={launchCountries}
+                  onChange={e => setLaunchCountries(e.target.value)}
+                  placeholder="US, CA, GB, AU"
+                  className="mt-1 h-9 text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">e.g. US, CA, GB, AU, IN</p>
+              </div>
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-xs text-amber-400">
+                Requires <strong>ads_management</strong> permission on your Meta app. All campaigns launch as PAUSED — nothing spends until you activate in Meta Ads Manager.
+              </div>
+              <div className="flex gap-2">
+                <Button className="flex-1 bg-blue-600 hover:bg-blue-700 gap-2" onClick={handleLaunch} disabled={launching}>
+                  {launching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+                  {launching ? "Creating campaigns..." : "Confirm Launch"}
+                </Button>
+                <Button variant="ghost" onClick={() => setShowLaunchModal(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : launchResult.error ? (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-xs text-red-400">
+                <p className="font-semibold mb-1">Launch Failed</p>
+                <p>{launchResult.error}</p>
+              </div>
+              {launchResult.permissionRequired && (
+                <div className="rounded-lg bg-card border border-border p-3 text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-foreground">How to get ads_management:</p>
+                  <p>1. Go to developers.facebook.com → your app</p>
+                  <p>2. Add Product → Marketing API</p>
+                  <p>3. Request permission: ads_management</p>
+                  <p>4. For your own account: works immediately in development mode</p>
+                  <p>5. For client accounts: requires Meta App Review (1–3 weeks)</p>
+                </div>
+              )}
+              <Button variant="ghost" className="w-full" onClick={() => setShowLaunchModal(false)}>Close</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-xs text-emerald-400">
+                <CheckCircle2 className="w-4 h-4 mb-2" />
+                <p className="font-semibold">{launchResult.message}</p>
+              </div>
+              {launchResult.created?.map((c: any, i: number) => (
+                <div key={i} className="rounded-lg border border-border p-3 text-xs space-y-1">
+                  <p className="font-semibold text-foreground">{c.campaignName}</p>
+                  <p className="text-muted-foreground">Campaign ID: {c.campaignId}</p>
+                  {c.adSets?.map((s: any) => (
+                    <p key={s.id} className="text-muted-foreground pl-2">↳ Ad Set: {s.name} ({s.id})</p>
+                  ))}
+                </div>
+              ))}
+              <Button className="w-full" onClick={() => setShowLaunchModal(false)}>Done</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -900,6 +1014,305 @@ function ReportsTab({ clientId, clientName }: { clientId: string; clientName?: s
   );
 }
 
+// ── Campaign Manager Tab ───────────────────────────────────────────────────
+function CampaignManagerTab({ clientId }: { clientId: string }) {
+  const { toast } = useToast();
+  const [agentInput, setAgentInput] = useState("");
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentMessages, setAgentMessages] = useState<Array<{ role: "user" | "assistant"; content: string; error?: boolean }>>([]);
+  const [scalingId, setScalingId] = useState<string | null>(null);
+  const [scaleBudget, setScaleBudget] = useState("");
+
+  const { data: campaigns = [], refetch: refetchCampaigns, isFetching } = useQuery<any[]>({
+    queryKey: ["/api/meta-ads/campaigns", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/campaigns/${clientId}`),
+    enabled: !!clientId,
+  });
+
+  const { data: launchLog = [] } = useQuery<any[]>({
+    queryKey: ["/api/meta-ads/launch-log", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/launch-log/${clientId}`),
+    enabled: !!clientId,
+  });
+
+  const updateCampaign = useMutation({
+    mutationFn: ({ campaignId, body }: { campaignId: string; body: any }) =>
+      apiRequest("PATCH", `/api/meta-ads/campaign/${clientId}/${campaignId}`, body),
+    onSuccess: () => { refetchCampaigns(); toast({ title: "Campaign updated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteCampaign = useMutation({
+    mutationFn: (campaignId: string) =>
+      apiRequest("DELETE", `/api/meta-ads/campaign/${clientId}/${campaignId}`),
+    onSuccess: () => { refetchCampaigns(); toast({ title: "Campaign deleted" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  async function handleAgentSend() {
+    if (!agentInput.trim() || agentLoading) return;
+    const instruction = agentInput.trim();
+    setAgentInput("");
+    setAgentMessages(m => [...m, { role: "user", content: instruction }]);
+    setAgentLoading(true);
+    try {
+      const data = await apiRequest("POST", `/api/meta-ads/agent/${clientId}`, { instruction });
+      const lines = [
+        data.explanation || "",
+        "",
+        ...data.created.map((c: any) =>
+          `✓ **${c.campaignName}** (PAUSED)\n` +
+          c.adSets.map((s: any) => `  └ ${s.name}`).join("\n")
+        ),
+        "",
+        data.message,
+      ].filter(l => l !== undefined).join("\n");
+      setAgentMessages(m => [...m, { role: "assistant", content: lines }]);
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/launch-log", clientId] });
+      refetchCampaigns();
+    } catch (e: any) {
+      const msg = e.message || "Failed";
+      const isPerm = msg.toLowerCase().includes("ads_management") || msg.toLowerCase().includes("permission");
+      setAgentMessages(m => [...m, {
+        role: "assistant",
+        content: isPerm
+          ? "⚠️ **ads_management permission required.**\n\nThis permission lets the platform create campaigns on behalf of ad accounts. To get it:\n1. Go to developers.facebook.com → your app\n2. Add Product → Marketing API\n3. Request: ads_management\n4. In development mode it works on your own accounts immediately\n5. For client accounts: Meta App Review needed (1–3 weeks)"
+          : `Error: ${msg}`,
+        error: true,
+      }]);
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
+  const STATUS_COLORS: Record<string, string> = {
+    ACTIVE: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    PAUSED: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    ARCHIVED: "bg-muted/30 text-muted-foreground border-border",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* AI Agent */}
+      <Card className="border border-card-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-purple-400" /> AI Campaign Creator
+            <Badge variant="outline" className="text-[10px] ml-auto border-purple-500/20 text-purple-400">Requires ads_management</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {agentMessages.length === 0 && (
+            <div className="rounded-lg bg-muted/20 border border-dashed border-border p-4 text-center">
+              <Brain className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">Describe a campaign in plain English</p>
+              <div className="flex flex-wrap gap-2 justify-center mt-3">
+                {[
+                  "Create a $50/day lead gen campaign for fitness coaching targeting women 25-45 in the US",
+                  "Launch a retargeting campaign with $20/day for website visitors, conversions objective",
+                  "Build a 3-adset cold traffic campaign, $100/day CBO, broad + interest + lookalike",
+                ].map(ex => (
+                  <button key={ex} onClick={() => setAgentInput(ex)}
+                    className="text-[10px] text-muted-foreground border border-border rounded-full px-3 py-1 hover:bg-accent/30 text-left transition-colors">
+                    {ex.slice(0, 60)}...
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {agentMessages.length > 0 && (
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {agentMessages.map((msg, i) => (
+                <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}>
+                  {msg.role === "assistant" && (
+                    <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Brain className="w-3 h-3 text-purple-400" />
+                    </div>
+                  )}
+                  <div className={`rounded-xl px-3 py-2 text-xs max-w-[80%] whitespace-pre-wrap leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-primary/10 border border-primary/20 text-foreground"
+                      : msg.error
+                      ? "bg-red-500/10 border border-red-500/20 text-red-300"
+                      : "bg-card border border-border text-muted-foreground"
+                  }`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {agentLoading && (
+                <div className="flex gap-2">
+                  <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <RefreshCw className="w-3 h-3 text-purple-400 animate-spin" />
+                  </div>
+                  <div className="bg-card border border-border rounded-xl px-3 py-2 text-xs text-muted-foreground">Creating campaign...</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Input
+              value={agentInput}
+              onChange={e => setAgentInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleAgentSend()}
+              placeholder="Describe a campaign to create... (e.g. $30/day lead gen for my coaching program, women 30-50 US)"
+              className="text-xs h-9"
+              disabled={agentLoading}
+            />
+            <Button size="sm" className="h-9 px-3 gap-1.5 shrink-0" onClick={handleAgentSend} disabled={!agentInput.trim() || agentLoading}>
+              <Send className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Live campaigns */}
+      <Card className="border border-card-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Live Campaigns</CardTitle>
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5" onClick={() => refetchCampaigns()} disabled={isFetching}>
+              <RefreshCw className={`w-3 h-3 ${isFetching ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        {campaigns.length === 0 ? (
+          <CardContent>
+            <p className="text-xs text-muted-foreground text-center py-4">No campaigns in cache. Sync from the Tracking page first.</p>
+          </CardContent>
+        ) : (
+          <CardContent className="p-0">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Campaign</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">Spend</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">ROAS</th>
+                  <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((c: any) => (
+                  <tr key={c.campaign_id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-foreground truncate max-w-[180px]">{c.campaign_name}</p>
+                      <p className="text-muted-foreground text-[10px]">{c.objective}</p>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-muted-foreground hidden md:table-cell">
+                      {fmtCurrency(parseFloat(c.spend || "0"))}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-semibold hidden md:table-cell ${parseFloat(c.roas) >= 2 ? "text-emerald-400" : parseFloat(c.roas) >= 1 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                      {fmtRoas(parseFloat(c.roas))}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <Badge variant="outline" className={`text-[10px] border ${STATUS_COLORS[c.status] || ""}`}>{c.status}</Badge>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        {c.status === "ACTIVE" ? (
+                          <button
+                            onClick={() => updateCampaign.mutate({ campaignId: c.campaign_id, body: { status: "PAUSED" } })}
+                            className="p-1.5 rounded hover:bg-yellow-500/10 text-yellow-400 hover:text-yellow-300 transition-colors"
+                            title="Pause"
+                          >
+                            <Pause className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => updateCampaign.mutate({ campaignId: c.campaign_id, body: { status: "ACTIVE" } })}
+                            className="p-1.5 rounded hover:bg-emerald-500/10 text-emerald-400 hover:text-emerald-300 transition-colors"
+                            title="Activate"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {scalingId === c.campaign_id ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={scaleBudget}
+                              onChange={e => setScaleBudget(e.target.value)}
+                              placeholder="$/day"
+                              className="w-16 h-7 text-xs px-1.5"
+                            />
+                            <button
+                              onClick={() => {
+                                if (scaleBudget) {
+                                  updateCampaign.mutate({ campaignId: c.campaign_id, body: { dailyBudget: parseFloat(scaleBudget) } });
+                                }
+                                setScalingId(null);
+                                setScaleBudget("");
+                              }}
+                              className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setScalingId(c.campaign_id)}
+                            className="p-1.5 rounded hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors"
+                            title="Set budget"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete "${c.campaign_name}"? This cannot be undone.`)) {
+                              deleteCampaign.mutate(c.campaign_id);
+                            }
+                          }}
+                          className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Launch history */}
+      {launchLog.length > 0 && (
+        <Card className="border border-card-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <History className="w-4 h-4 text-muted-foreground" /> Launch History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {launchLog.map((log: any) => {
+              const campaigns = log.campaigns_created as any[];
+              return (
+                <div key={log.id} className={`flex items-start gap-3 p-2.5 rounded-lg border text-xs ${log.status === "error" ? "border-red-500/20 bg-red-500/5" : "border-border"}`}>
+                  <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${log.status === "success" ? "bg-emerald-400" : "bg-red-400"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-muted-foreground truncate">{log.instruction}</p>
+                    {Array.isArray(campaigns) && log.status === "success" && (
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">{campaigns.length} campaign(s) created</p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                    {format(new Date(log.launched_at), "MMM d, h:mm a")}
+                  </span>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function AdminMetaAdsManager() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -974,6 +1387,9 @@ export default function AdminMetaAdsManager() {
               <TabsTrigger value="reports" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <FileText className="w-4 h-4" /> Reports
               </TabsTrigger>
+              <TabsTrigger value="manager" className="gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                <Rocket className="w-4 h-4" /> Campaign Manager
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="architect">
@@ -984,6 +1400,9 @@ export default function AdminMetaAdsManager() {
             </TabsContent>
             <TabsContent value="reports">
               <ReportsTab clientId={selectedClientId} clientName={selectedClient?.name} />
+            </TabsContent>
+            <TabsContent value="manager">
+              <CampaignManagerTab clientId={selectedClientId} />
             </TabsContent>
           </Tabs>
         )}

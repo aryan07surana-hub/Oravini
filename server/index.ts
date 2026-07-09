@@ -11,6 +11,13 @@ import { registerRoutes } from "./routes";
 import { registerOAuthRoutes } from "./oauth";
 import { registerMetaAdsRoutes } from "./metaAdsRoutes";
 import { registerMetaAdsManagerRoutes } from "./metaAdsManagerRoutes";
+import { registerMetaAdsCreationRoutes } from "./metaAdsCreationRoutes";
+import { registerMetaAdsAgentRoutes } from "./metaAdsAgentRoutes";
+import { runAgentForAllClients } from "./metaAdsAgent";
+import { registerMetaAdsBatchRoutes } from "./metaAdsBatchRoutes";
+import { registerMetaAdsAnalyticsRoutes } from "./metaAdsAnalyticsRoutes";
+import { registerMetaAdsCampaignManagerRoutes } from "./metaAdsCampaignManagerRoutes";
+import cron from "node-cron";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
@@ -1036,6 +1043,150 @@ async function runMigrations() {
   } catch (e: any) {
     console.warn("[migration] skills tables skipped:", e.message);
   }
+
+  // ── Meta Ads Launch Log ───────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_launch_log (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        launched_at TIMESTAMPTZ DEFAULT NOW(),
+        instruction TEXT,
+        campaigns_created JSONB,
+        status TEXT DEFAULT 'success'
+      )
+    `);
+    console.log("[migration] meta_ads_launch_log ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_launch_log skipped:", e.message);
+  }
+
+  // ── Meta Ads Agent Logs ───────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_agent_logs (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        ai_summary TEXT,
+        raw_data JSONB,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_agent_logs_client ON meta_ads_agent_logs(client_id, created_at DESC)`);
+    console.log("[migration] meta_ads_agent_logs ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_agent_logs skipped:", e.message);
+  }
+
+  // ── Meta Ads Ad-Level Cache ───────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_ads_cache (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        ad_id TEXT NOT NULL,
+        ad_name TEXT NOT NULL,
+        campaign_id TEXT,
+        campaign_name TEXT,
+        adset_id TEXT,
+        adset_name TEXT,
+        status TEXT,
+        creative_id TEXT,
+        creative_name TEXT,
+        thumbnail_url TEXT,
+        spend NUMERIC DEFAULT 0,
+        impressions INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        conversions INTEGER DEFAULT 0,
+        reach INTEGER DEFAULT 0,
+        ctr NUMERIC DEFAULT 0,
+        cpc NUMERIC DEFAULT 0,
+        cpm NUMERIC DEFAULT 0,
+        roas NUMERIC,
+        frequency NUMERIC DEFAULT 0,
+        synced_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(client_id, ad_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ads_cache_client ON meta_ads_ads_cache(client_id, spend DESC)`);
+    console.log("[migration] meta_ads_ads_cache ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_ads_cache skipped:", e.message);
+  }
+
+  // ── Meta Ads Ad-Level Time-Series Snapshots ───────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_ad_snapshots (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        ad_id TEXT NOT NULL,
+        ad_name TEXT,
+        campaign_id TEXT,
+        campaign_name TEXT,
+        adset_id TEXT,
+        adset_name TEXT,
+        snapshot_date DATE NOT NULL,
+        spend NUMERIC DEFAULT 0,
+        impressions INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        conversions INTEGER DEFAULT 0,
+        reach INTEGER DEFAULT 0,
+        ctr NUMERIC DEFAULT 0,
+        cpc NUMERIC DEFAULT 0,
+        cpm NUMERIC DEFAULT 0,
+        roas NUMERIC,
+        UNIQUE(client_id, ad_id, snapshot_date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ad_snapshots_client ON meta_ads_ad_snapshots(client_id, snapshot_date DESC)`);
+    console.log("[migration] meta_ads_ad_snapshots ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_ad_snapshots skipped:", e.message);
+  }
+
+  // ── Meta Ads Bulk Jobs ────────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_bulk_jobs (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        job_type TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        total_count INTEGER DEFAULT 0,
+        completed_count INTEGER DEFAULT 0,
+        failed_count INTEGER DEFAULT 0,
+        config JSONB,
+        results JSONB,
+        error TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ
+      )
+    `);
+    console.log("[migration] meta_ads_bulk_jobs ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_bulk_jobs skipped:", e.message);
+  }
+
+  // ── Meta Ads Campaign Templates ───────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meta_ads_templates (
+        id SERIAL PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        structure JSONB NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    console.log("[migration] meta_ads_templates ensured");
+  } catch (e: any) {
+    console.warn("[migration] meta_ads_templates skipped:", e.message);
+  }
 }
 
 (async () => {
@@ -1061,6 +1212,26 @@ async function runMigrations() {
   registerOAuthRoutes(app);
   registerMetaAdsRoutes(app);
   registerMetaAdsManagerRoutes(app);
+  registerMetaAdsCreationRoutes(app);
+  registerMetaAdsAgentRoutes(app);
+  registerMetaAdsBatchRoutes(app);
+  registerMetaAdsAnalyticsRoutes(app);
+  registerMetaAdsCampaignManagerRoutes(app);
+
+  // ── Meta Ads AI Agent — scheduled runs ───────────────────────────────────
+  // 24h update: every day at 8:00 AM
+  cron.schedule("0 8 * * *", () => {
+    runAgentForAllClients("24h_update").catch(err =>
+      console.error("[meta-ads-agent] cron 24h failed:", err)
+    );
+  });
+  // 72h creative alert: every 3 days at 9:00 AM (Mon, Thu)
+  cron.schedule("0 9 * * 1,4", () => {
+    runAgentForAllClients("72h_creative_alert").catch(err =>
+      console.error("[meta-ads-agent] cron 72h failed:", err)
+    );
+  });
+  console.log("[meta-ads-agent] Scheduled: 24h updates @ 8am daily, 72h creative alerts Mon+Thu @ 9am");
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

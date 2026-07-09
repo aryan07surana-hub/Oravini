@@ -222,7 +222,7 @@ const STEPS = [
   { key: "revenue", title: "What's your current monthly income from content?" },
   { key: "goal", title: "What's your primary goal right now?", sub: "Pick your main focus." },
   { key: "platforms", title: "Which platforms are you active on?", sub: "Select all you create content for." },
-  { key: "socialLink", title: "Drop your Instagram or YouTube link.", sub: "Paste your profile URL below." },
+  { key: "socialLinks", title: "Add your Instagram and YouTube.", sub: "Paste your profile links below." },
   { key: "awareness", title: "How aware are you of done-with-you growth programmes?", sub: "No wrong answer — helps us know how to support you." },
   { key: "heardAbout", title: "Where did you hear about us?", sub: "Select all that apply." },
 ];
@@ -246,7 +246,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
     Array.isArray(existingSurvey?.platforms) ? existingSurvey.platforms :
     existingSurvey?.platform ? [existingSurvey.platform] : []
   );
-  const [socialLink, setSocialLink] = useState(existingSurvey?.social_link || "");
+  const [instagramLink, setInstagramLink] = useState(existingSurvey?.instagram_link || "");
+  const [youtubeLink, setYoutubeLink] = useState(existingSurvey?.youtube_link || "");
   const [awareness, setAwareness] = useState(existingSurvey?.awareness || "");
   const [heardAbout, setHeardAbout] = useState<string[]>(
     Array.isArray(existingSurvey?.heard_about) ? existingSurvey.heard_about :
@@ -272,7 +273,8 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
       primaryGoal,
       platform: platforms.join(", "),
       platforms,
-      socialLink: socialLink.trim() || null,
+      instagramLink: instagramLink.trim() || null,
+      youtubeLink: youtubeLink.trim() || null,
       awareness,
       heardAbout,
     }),
@@ -432,23 +434,41 @@ export default function OnboardingModal({ onComplete, existingSurvey }: Props) {
             </div>
           )}
 
-          {/* Step 9: Social link */}
+          {/* Step 9: Social links */}
           {step === 9 && (
-            <div>
-              <input
-                type="url"
-                value={socialLink}
-                onChange={e => setSocialLink(e.target.value)}
-                placeholder="https://instagram.com/yourhandle  or  https://youtube.com/@yourchannel"
-                style={{
-                  width: "100%", padding: "14px 16px", borderRadius: 10,
-                  border: `1.5px solid ${socialLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
-                  background: "rgba(255,255,255,0.04)",
-                  color: "#fff", fontSize: 14, outline: "none",
-                  fontFamily: "inherit", boxSizing: "border-box" as const,
-                  transition: "border-color 0.2s",
-                }}
-              />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, letterSpacing: "0.06em", textTransform: "uppercase" }}>Instagram</label>
+                <input
+                  type="url"
+                  value={instagramLink}
+                  onChange={e => setInstagramLink(e.target.value)}
+                  placeholder="https://instagram.com/yourhandle"
+                  style={{
+                    width: "100%", padding: "12px 14px", borderRadius: 10,
+                    border: `1.5px solid ${instagramLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                    background: "rgba(255,255,255,0.04)", color: "#fff", fontSize: 14,
+                    outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const,
+                    transition: "border-color 0.2s",
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", marginBottom: 6, letterSpacing: "0.06em", textTransform: "uppercase" }}>YouTube</label>
+                <input
+                  type="url"
+                  value={youtubeLink}
+                  onChange={e => setYoutubeLink(e.target.value)}
+                  placeholder="https://youtube.com/@yourchannel"
+                  style={{
+                    width: "100%", padding: "12px 14px", borderRadius: 10,
+                    border: `1.5px solid ${youtubeLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                    background: "rgba(255,255,255,0.04)", color: "#fff", fontSize: 14,
+                    outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const,
+                    transition: "border-color 0.2s",
+                  }}
+                />
+              </div>
             </div>
           )}
 

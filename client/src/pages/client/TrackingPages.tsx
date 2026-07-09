@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useAuth } from "@/hooks/use-auth";
 import { PageTourButton } from "@/components/ui/TourGuide";
@@ -1604,7 +1604,8 @@ function MonthView({ posts, platform, monthKey, onBack, clientId }: { posts: any
 
 function InstagramSetupCard({ userId }: { userId: string }) {
   const { toast } = useToast();
-  const [url, setUrl] = useState("");
+  const { user } = useAuth();
+  const [url, setUrl] = useState((user as any)?.instagramLink || "");
   const [analyzing, setAnalyzing] = useState(false);
 
   const { data: saved, isLoading, refetch } = useQuery<any>({
@@ -2468,6 +2469,12 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
   const [importing, setImporting] = useState(false);
   const { toast } = useToast();
   const isYt = platform === "youtube";
+
+  useEffect(() => {
+    if (importOpen) {
+      setImportUrl(isYt ? ((user as any)?.youtubeLink || "") : ((user as any)?.instagramLink || ""));
+    }
+  }, [importOpen]);
 
   const normalizeInstagramInput = (value: string) => {
     const cleaned = value

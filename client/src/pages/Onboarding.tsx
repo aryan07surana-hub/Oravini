@@ -267,9 +267,9 @@ const STEPS = [
     multi: true, hasOther: false,
   },
   {
-    key: "socialLink",
-    title: "Drop your Instagram or YouTube link.",
-    sub: "Paste your profile URL below.",
+    key: "socialLinks",
+    title: "Add your Instagram and YouTube.",
+    sub: "Paste your profile links below.",
     multi: false, hasOther: false,
   },
   {
@@ -408,7 +408,8 @@ export default function Onboarding() {
   const [monthlyRevenue, setRevenue]          = useState("");
   const [primaryGoal, setGoal]                = useState("");
   const [platforms, setPlatforms]             = useState<string[]>([]);
-  const [socialLink, setSocialLink]           = useState("");
+  const [instagramLink, setInstagramLink]     = useState("");
+  const [youtubeLink, setYoutubeLink]         = useState("");
   const [heardAbout, setHeardAbout]           = useState<string[]>([]);
   const [otherHeard, setOtherHeard]           = useState("");
 
@@ -445,7 +446,8 @@ export default function Onboarding() {
         platform: platforms.join(", "),
         platforms,
         heardAbout: allHeard,
-        socialLink: socialLink.trim() || null,
+        instagramLink: instagramLink.trim() || null,
+        youtubeLink: youtubeLink.trim() || null,
       });
     },
     onSuccess: () => {
@@ -675,23 +677,47 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ── Step 10: Social link ── */}
+        {/* ── Step 10: Social links ── */}
         {step === 10 && (
-          <div>
-            <input
-              type="url"
-              value={socialLink}
-              onChange={e => setSocialLink(e.target.value)}
-              placeholder="https://instagram.com/yourhandle  or  https://youtube.com/@yourchannel"
-              style={{
-                width: "100%", padding: "14px 16px", borderRadius: 10,
-                border: `1.5px solid ${socialLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
-                background: "rgba(255,255,255,0.04)",
-                color: "#fff", fontSize: 14, outline: "none",
-                fontFamily: "inherit", boxSizing: "border-box" as const,
-                transition: "border-color 0.2s",
-              }}
-            />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                Instagram
+              </label>
+              <input
+                type="url"
+                value={instagramLink}
+                onChange={e => setInstagramLink(e.target.value)}
+                placeholder="https://instagram.com/yourhandle"
+                style={{
+                  width: "100%", padding: "14px 16px", borderRadius: 10,
+                  border: `1.5px solid ${instagramLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#fff", fontSize: 14, outline: "none",
+                  fontFamily: "inherit", boxSizing: "border-box" as const,
+                  transition: "border-color 0.2s",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                YouTube
+              </label>
+              <input
+                type="url"
+                value={youtubeLink}
+                onChange={e => setYoutubeLink(e.target.value)}
+                placeholder="https://youtube.com/@yourchannel"
+                style={{
+                  width: "100%", padding: "14px 16px", borderRadius: 10,
+                  border: `1.5px solid ${youtubeLink.trim() ? GOLD : "rgba(255,255,255,0.18)"}`,
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#fff", fontSize: 14, outline: "none",
+                  fontFamily: "inherit", boxSizing: "border-box" as const,
+                  transition: "border-color 0.2s",
+                }}
+              />
+            </div>
           </div>
         )}
 

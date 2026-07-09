@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import ClientLayout from "@/components/layout/ClientLayout";
 import GeneratingScreen from "@/components/ui/GeneratingScreen";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export default function BioGenerator() {
   const [selectedLine2, setSelectedLine2] = useState(0);
   const [selectedLine3, setSelectedLine3] = useState(0);
 
-  // Pull niche from onboarding survey
+  // Pull niche + social links from onboarding survey
   const { data: meData } = useQuery<any>({ queryKey: ["/api/auth/me"] });
   const surveyNiche: string = (meData as any)?.fields?.[0] || "";
 
@@ -82,6 +83,13 @@ export default function BioGenerator() {
     cta: "",
     linkUrl: "",
   });
+
+  useEffect(() => {
+    if (meData && !form.linkUrl) {
+      const link = (meData as any).instagramLink || (meData as any).youtubeLink || "";
+      if (link) setF("linkUrl", link);
+    }
+  }, [meData]);
 
   const setF = (k: keyof BioForm, v: string) => setForm(f => ({ ...f, [k]: v }));
 

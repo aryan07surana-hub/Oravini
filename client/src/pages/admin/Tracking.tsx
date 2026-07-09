@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
   Star, FileText, Clock, Plus, Trash2, Pencil, BarChart2, ArrowLeft, Bell, ChevronRight, RefreshCw, Crown,
-  DollarSign, MousePointerClick, Target, Zap, Link, CheckCircle2, AlertTriangle, ExternalLink
+  DollarSign, MousePointerClick, Target, Zap, Link, CheckCircle2, AlertTriangle, ExternalLink,
+  Send, MessageSquare, Play, Pause, Brain, History, Rocket, Check
 } from "lucide-react";
 import { format, subWeeks, isAfter } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -635,7 +636,18 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [fetchingAccounts, setFetchingAccounts] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const hasMetaApp = true; // set false if META_APP_ID not configured
+
+  // AI agent (campaign creator) state
+  const [agentInput, setAgentInput] = useState("");
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentMessages, setAgentMessages] = useState<Array<{ role: "user" | "assistant"; content: string; error?: boolean }>>([]);
+
+  // Scheduled agent alerts state
+  const [runningAlert, setRunningAlert] = useState<"24h_update" | "72h_creative_alert" | null>(null);
+
+  // Campaign action state
+  const [scalingId, setScalingId] = useState<string | null>(null);
+  const [scaleBudget, setScaleBudget] = useState("");
 
   const { data: status, isLoading: statusLoading } = useQuery<any>({
     queryKey: ["/api/meta-ads/status", clientId],
@@ -643,11 +655,31 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
     enabled: !!clientId,
   });
 
-  const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<any[]>({
+  const { data: campaigns = [], isLoading: campaignsLoading, refetch: refetchCampaigns } = useQuery<any[]>({
     queryKey: ["/api/meta-ads/campaigns", clientId],
     queryFn: () => apiRequest("GET", `/api/meta-ads/campaigns/${clientId}`),
     enabled: !!clientId && status?.connected,
   });
+
+  const { data: launchLog = [] } = useQuery<any[]>({
+    queryKey: ["/api/meta-ads/launch-log", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/launch-log/${clientId}`),
+    enabled: !!clientId && status?.connected,
+  });
+
+  const { data: agentLogs = [], refetch: refetchAgentLogs } = useQuery<any[]>({
+    queryKey: ["/api/meta-ads/agent-logs", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/agent-logs/${clientId}?limit=20`),
+    enabled: !!clientId && status?.connected,
+    refetchInterval: 60_000, // poll every minute after manual runs
+  });
+
+  const { data: unreadData, refetch: refetchUnread } = useQuery<{ count: number }>({
+    queryKey: ["/api/meta-ads/agent-logs/unread", clientId],
+    queryFn: () => apiRequest("GET", `/api/meta-ads/agent-logs/${clientId}/unread-count`),
+    enabled: !!clientId && status?.connected,
+  });
+  const unreadCount = unreadData?.count || 0;
 
   const connectMutation = useMutation({
     mutationFn: (data: { accessToken: string; adAccountId: string }) =>
@@ -667,6 +699,20 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/campaigns", clientId] });
       toast({ title: "Disconnected" });
     },
+  });
+
+  const updateCampaign = useMutation({
+    mutationFn: ({ campaignId, body }: { campaignId: string; body: any }) =>
+      apiRequest("PATCH", `/api/meta-ads/campaign/${clientId}/${campaignId}`, body),
+    onSuccess: () => { refetchCampaigns(); toast({ title: "Campaign updated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteCampaign = useMutation({
+    mutationFn: (campaignId: string) =>
+      apiRequest("DELETE", `/api/meta-ads/campaign/${clientId}/${campaignId}`),
+    onSuccess: () => { refetchCampaigns(); toast({ title: "Campaign deleted" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
   async function handleFetchAccounts() {
@@ -697,6 +743,62 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
     }
   }
 
+  async function handleRunAlert(type: "24h_update" | "72h_creative_alert") {
+    setRunningAlert(type);
+    try {
+      await apiRequest("POST", `/api/meta-ads/agent-run/${clientId}`, { type });
+      refetchAgentLogs();
+      refetchUnread();
+      toast({ title: type === "24h_update" ? "24h update generated" : "Creative alert generated" });
+    } catch (e: any) {
+      toast({ title: "Agent run failed", description: e.message, variant: "destructive" });
+    } finally {
+      setRunningAlert(null);
+    }
+  }
+
+  async function handleMarkAllRead() {
+    await apiRequest("PATCH", `/api/meta-ads/agent-logs/${clientId}/read-all`, {});
+    refetchAgentLogs();
+    refetchUnread();
+  }
+
+  async function handleAgentSend() {
+    if (!agentInput.trim() || agentLoading) return;
+    const instruction = agentInput.trim();
+    setAgentInput("");
+    setAgentMessages(m => [...m, { role: "user", content: instruction }]);
+    setAgentLoading(true);
+    try {
+      const data = await apiRequest("POST", `/api/meta-ads/agent/${clientId}`, { instruction });
+      const lines = [
+        data.explanation || "",
+        "",
+        ...(data.created || []).map((c: any) =>
+          `✓ ${c.campaignName} (PAUSED)\n` +
+          (c.adSets || []).map((s: any) => `  └ ${s.name}`).join("\n")
+        ),
+        "",
+        data.message,
+      ].join("\n").trim();
+      setAgentMessages(m => [...m, { role: "assistant", content: lines }]);
+      queryClient.invalidateQueries({ queryKey: ["/api/meta-ads/launch-log", clientId] });
+      refetchCampaigns();
+    } catch (e: any) {
+      const msg = e.message || "Failed";
+      const isPerm = msg.toLowerCase().includes("ads_management") || msg.toLowerCase().includes("permission");
+      setAgentMessages(m => [...m, {
+        role: "assistant",
+        content: isPerm
+          ? "⚠️ ads_management permission required.\n\n1. Go to developers.facebook.com → your app\n2. Add Product → Marketing API\n3. Request: ads_management\n4. Works immediately on your own account in dev mode\n5. Client accounts: Meta App Review needed (1–3 weeks)"
+          : `Error: ${msg}`,
+        error: true,
+      }]);
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
   const totalSpend = campaigns.reduce((s, c) => s + parseFloat(c.spend || "0"), 0);
   const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0);
   const totalClicks = campaigns.reduce((s, c) => s + (c.clicks || 0), 0);
@@ -716,9 +818,11 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-blue-400" /> Meta Ads Tracker
+            <BarChart2 className="w-4 h-4 text-blue-400" /> Meta Ads
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">Connect client's Meta Ads account to track performance</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {status?.connected ? "Track performance & manage campaigns with AI" : "Connect client's Meta Ads account"}
+          </p>
         </div>
         {status?.connected && (
           <div className="flex items-center gap-2">
@@ -744,78 +848,54 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
               <div>
                 <p className="text-sm font-semibold text-foreground">Connect Meta Ads Account</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Enter the client's Meta Ads access token and select their ad account. The token needs <code className="text-blue-400">ads_read</code> permission.
+                  Enter the client's Meta Ads access token. Needs <code className="text-blue-400">ads_read</code> to track, <code className="text-blue-400">ads_management</code> to create & manage.
                 </p>
               </div>
             </div>
-
             <div className="space-y-3">
               <div>
                 <Label className="text-xs">Access Token</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input
-                    value={tokenInput}
-                    onChange={e => setTokenInput(e.target.value)}
-                    placeholder="EAAj... (Meta Ads access token)"
-                    className="h-9 text-xs font-mono"
-                  />
+                  <Input value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="EAAj... (Meta Ads access token)" className="h-9 text-xs font-mono" />
                   <Button size="sm" variant="outline" className="h-9 shrink-0 text-xs" onClick={handleFetchAccounts} disabled={!tokenInput.trim() || fetchingAccounts}>
                     {fetchingAccounts ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : "Fetch Accounts"}
                   </Button>
                 </div>
               </div>
-
               {accounts.length > 0 && (
                 <div>
                   <Label className="text-xs">Ad Account</Label>
                   <Select value={accountIdInput} onValueChange={setAccountIdInput}>
-                    <SelectTrigger className="mt-1 h-9 text-xs">
-                      <SelectValue placeholder="Select ad account..." />
-                    </SelectTrigger>
+                    <SelectTrigger className="mt-1 h-9 text-xs"><SelectValue placeholder="Select ad account..." /></SelectTrigger>
                     <SelectContent>
-                      {accounts.map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name} — {a.id} ({a.currency})
-                        </SelectItem>
-                      ))}
+                      {accounts.map((a: any) => <SelectItem key={a.id} value={a.id}>{a.name} — {a.id} ({a.currency})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               )}
-
               {accounts.length === 0 && tokenInput && (
                 <div>
                   <Label className="text-xs">Ad Account ID (manual)</Label>
-                  <Input
-                    value={accountIdInput}
-                    onChange={e => setAccountIdInput(e.target.value)}
-                    placeholder="act_123456789 or 123456789"
-                    className="mt-1 h-9 text-xs font-mono"
-                  />
+                  <Input value={accountIdInput} onChange={e => setAccountIdInput(e.target.value)} placeholder="act_123456789 or 123456789" className="mt-1 h-9 text-xs font-mono" />
                 </div>
               )}
-
-              <Button
-                className="w-full h-9 text-xs"
-                disabled={!tokenInput.trim() || !accountIdInput.trim() || connectMutation.isPending}
-                onClick={() => connectMutation.mutate({ accessToken: tokenInput.trim(), adAccountId: accountIdInput.trim() })}
-              >
+              <Button className="w-full h-9 text-xs" disabled={!tokenInput.trim() || !accountIdInput.trim() || connectMutation.isPending}
+                onClick={() => connectMutation.mutate({ accessToken: tokenInput.trim(), adAccountId: accountIdInput.trim() })}>
                 {connectMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-2" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-2" />}
                 {connectMutation.isPending ? "Connecting..." : "Save & Connect"}
               </Button>
             </div>
-
             <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
               <p className="font-semibold text-foreground/70">How to get the token:</p>
-              <p>1. Go to <span className="text-blue-400">Meta Business Manager → Settings → System Users</span></p>
-              <p>2. Create a System User with <code>ads_read</code> permission on the client's ad account</p>
-              <p>3. Generate an access token and paste it above</p>
+              <p>1. Meta Business Manager → Settings → System Users</p>
+              <p>2. Create System User with <code>ads_read</code> + <code>ads_management</code> on client's ad account</p>
+              <p>3. Generate access token and paste above</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Connected — show metrics */}
+      {/* Connected — tabbed view */}
       {status?.connected && (
         <div className="space-y-4">
           {/* Account info bar */}
@@ -824,9 +904,7 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-foreground">{status.adAccountName || status.adAccountId}</p>
               <p className="text-[10px] text-muted-foreground">
-                {status.lastSyncedAt
-                  ? `Last synced ${format(new Date(status.lastSyncedAt), "MMM d, h:mm a")}`
-                  : "Not yet synced — click Sync above"}
+                {status.lastSyncedAt ? `Last synced ${format(new Date(status.lastSyncedAt), "MMM d, h:mm a")}` : "Not yet synced — click Sync above"}
               </p>
             </div>
             <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/20">Connected</Badge>
@@ -852,66 +930,352 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
             </div>
           )}
 
-          {/* Campaign table */}
-          {campaignsLoading ? (
-            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-muted/30 animate-pulse" />)}</div>
-          ) : campaigns.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-blue-500/20 p-8 text-center">
-              <BarChart2 className="w-8 h-8 text-blue-400/30 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">No campaigns yet — click Sync to pull data from Meta</p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20">
-                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Campaign</th>
-                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground hidden sm:table-cell">Status</th>
-                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">Spend</th>
-                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">Reach</th>
-                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">CTR</th>
-                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden lg:table-cell">CPC</th>
-                    <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">ROAS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c: any) => (
-                    <tr key={c.campaign_id} className="border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-foreground truncate max-w-[180px]">{c.campaign_name || "Untitled"}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{c.objective?.toLowerCase().replace(/_/g, " ") || "—"}</p>
-                      </td>
-                      <td className="px-3 py-3 hidden sm:table-cell">
-                        <Badge variant="outline" className={`text-[10px] border ${CAMPAIGN_STATUS_COLORS[c.status] || "text-muted-foreground"}`}>
-                          {c.status || "–"}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-3 text-right font-semibold text-foreground">{fmtCurrency(c.spend || "0")}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{(c.reach || 0).toLocaleString()}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{fmtPct(c.ctr || "0")}</td>
-                      <td className="px-3 py-3 text-right text-muted-foreground hidden lg:table-cell">{fmtCurrency(c.cpc || "0")}</td>
-                      <td className="px-3 py-3 text-right font-semibold">
-                        <span className={parseFloat(c.roas) >= 2 ? "text-emerald-400" : parseFloat(c.roas) > 0 ? "text-yellow-400" : "text-muted-foreground"}>
-                          {fmtRoas(c.roas)}
+          {/* Tabs: Overview | Manage */}
+          <Tabs defaultValue="overview">
+            <TabsList className="bg-card border border-card-border">
+              <TabsTrigger value="overview" className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <BarChart2 className="w-3.5 h-3.5" /> Overview
+              </TabsTrigger>
+              <TabsTrigger value="manage" className="text-xs gap-1.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                <Rocket className="w-3.5 h-3.5" /> Manage & Create
+              </TabsTrigger>
+              <TabsTrigger value="alerts" className="text-xs gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white relative">
+                <Bell className="w-3.5 h-3.5" /> AI Alerts
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Overview tab: read-only campaign table ── */}
+            <TabsContent value="overview" className="mt-4">
+              {campaignsLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-muted/30 animate-pulse" />)}</div>
+              ) : campaigns.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-blue-500/20 p-8 text-center">
+                  <BarChart2 className="w-8 h-8 text-blue-400/30 mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">No campaigns yet — click Sync to pull data from Meta</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/20">
+                        <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Campaign</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground hidden sm:table-cell">Status</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">Spend</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">Reach</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">CTR</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden lg:table-cell">CPC</th>
+                        <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">ROAS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campaigns.map((c: any) => (
+                        <tr key={c.campaign_id} className="border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground truncate max-w-[180px]">{c.campaign_name || "Untitled"}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{c.objective?.toLowerCase().replace(/_/g, " ") || "—"}</p>
+                          </td>
+                          <td className="px-3 py-3 hidden sm:table-cell">
+                            <Badge variant="outline" className={`text-[10px] border ${CAMPAIGN_STATUS_COLORS[c.status] || "text-muted-foreground"}`}>{c.status || "–"}</Badge>
+                          </td>
+                          <td className="px-3 py-3 text-right font-semibold text-foreground">{fmtCurrency(c.spend || "0")}</td>
+                          <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{(c.reach || 0).toLocaleString()}</td>
+                          <td className="px-3 py-3 text-right text-muted-foreground hidden md:table-cell">{fmtPct(c.ctr || "0")}</td>
+                          <td className="px-3 py-3 text-right text-muted-foreground hidden lg:table-cell">{fmtCurrency(c.cpc || "0")}</td>
+                          <td className="px-3 py-3 text-right font-semibold">
+                            <span className={parseFloat(c.roas) >= 2 ? "text-emerald-400" : parseFloat(c.roas) > 0 ? "text-yellow-400" : "text-muted-foreground"}>
+                              {fmtRoas(c.roas)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-border bg-muted/10">
+                        <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Totals</td>
+                        <td className="px-4 py-2.5 text-xs font-semibold text-muted-foreground sm:hidden">Totals</td>
+                        <td className="px-3 py-2.5 text-right text-xs font-bold text-foreground">{fmtCurrency(totalSpend)}</td>
+                        <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{totalImpressions.toLocaleString()}</td>
+                        <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{fmtPct(avgCtr)}</td>
+                        <td className="px-3 py-2.5 hidden lg:table-cell" />
+                        <td className="px-3 py-2.5 text-right text-xs font-bold text-emerald-400">{avgRoas !== null ? fmtRoas(String(avgRoas)) : "–"}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* ── Manage & Create tab ── */}
+            <TabsContent value="manage" className="mt-4 space-y-5">
+
+              {/* AI Agent */}
+              <Card className="border border-purple-500/20 bg-purple-500/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-400" /> AI Campaign Creator
+                    <Badge variant="outline" className="text-[10px] ml-auto border-purple-500/20 text-purple-400">Requires ads_management</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {agentMessages.length === 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Create a $50/day lead gen campaign, women 25-45 in US",
+                        "Launch retargeting campaign $20/day, conversions objective",
+                        "3-adset cold traffic $100/day CBO: broad + interest + lookalike",
+                      ].map(ex => (
+                        <button key={ex} onClick={() => setAgentInput(ex)}
+                          className="text-[10px] text-muted-foreground border border-border rounded-full px-2.5 py-1 hover:bg-accent/30 transition-colors">
+                          {ex}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {agentMessages.length > 0 && (
+                    <div className="space-y-2.5 max-h-48 overflow-y-auto">
+                      {agentMessages.map((msg, i) => (
+                        <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}>
+                          {msg.role === "assistant" && (
+                            <div className="w-5 h-5 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Brain className="w-2.5 h-2.5 text-purple-400" />
+                            </div>
+                          )}
+                          <div className={`rounded-xl px-3 py-2 text-xs max-w-[85%] whitespace-pre-wrap leading-relaxed ${
+                            msg.role === "user" ? "bg-primary/10 border border-primary/20 text-foreground"
+                            : msg.error ? "bg-red-500/10 border border-red-500/20 text-red-300"
+                            : "bg-card border border-border text-muted-foreground"
+                          }`}>{msg.content}</div>
+                        </div>
+                      ))}
+                      {agentLoading && (
+                        <div className="flex gap-2">
+                          <div className="w-5 h-5 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                            <RefreshCw className="w-2.5 h-2.5 text-purple-400 animate-spin" />
+                          </div>
+                          <div className="bg-card border border-border rounded-xl px-3 py-2 text-xs text-muted-foreground">Creating campaign...</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      value={agentInput}
+                      onChange={e => setAgentInput(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleAgentSend()}
+                      placeholder="e.g. Create a $30/day lead gen campaign, women 30-50, US"
+                      className="text-xs h-9"
+                      disabled={agentLoading}
+                    />
+                    <Button size="sm" className="h-9 px-3 shrink-0" onClick={handleAgentSend} disabled={!agentInput.trim() || agentLoading}>
+                      <Send className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Campaign controls */}
+              {campaigns.length > 0 && (
+                <Card className="border border-card-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Campaign Controls</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Campaign</th>
+                          <th className="text-center px-3 py-2.5 font-semibold text-muted-foreground">Status</th>
+                          <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">Spend</th>
+                          <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground hidden md:table-cell">ROAS</th>
+                          <th className="text-right px-3 py-2.5 font-semibold text-muted-foreground">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaigns.map((c: any) => (
+                          <tr key={c.campaign_id} className="border-b border-border last:border-0">
+                            <td className="px-4 py-2.5">
+                              <p className="font-medium text-foreground truncate max-w-[160px]">{c.campaign_name}</p>
+                              <p className="text-[10px] text-muted-foreground capitalize">{c.objective?.toLowerCase().replace(/_/g, " ")}</p>
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <Badge variant="outline" className={`text-[10px] border ${CAMPAIGN_STATUS_COLORS[c.status] || ""}`}>{c.status}</Badge>
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground hidden md:table-cell">{fmtCurrency(c.spend || "0")}</td>
+                            <td className={`px-3 py-2.5 text-right font-semibold hidden md:table-cell ${parseFloat(c.roas) >= 2 ? "text-emerald-400" : parseFloat(c.roas) > 0 ? "text-yellow-400" : "text-muted-foreground"}`}>
+                              {fmtRoas(c.roas)}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center justify-end gap-1">
+                                {c.status === "ACTIVE" ? (
+                                  <button onClick={() => updateCampaign.mutate({ campaignId: c.campaign_id, body: { status: "PAUSED" } })}
+                                    className="p-1.5 rounded hover:bg-yellow-500/10 text-yellow-400 transition-colors" title="Pause">
+                                    <Pause className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button onClick={() => updateCampaign.mutate({ campaignId: c.campaign_id, body: { status: "ACTIVE" } })}
+                                    className="p-1.5 rounded hover:bg-emerald-500/10 text-emerald-400 transition-colors" title="Activate">
+                                    <Play className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {scalingId === c.campaign_id ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input value={scaleBudget} onChange={e => setScaleBudget(e.target.value)} placeholder="$/day" className="w-16 h-7 text-xs px-1.5" />
+                                    <button onClick={() => {
+                                      if (scaleBudget) updateCampaign.mutate({ campaignId: c.campaign_id, body: { dailyBudget: parseFloat(scaleBudget) } });
+                                      setScalingId(null); setScaleBudget("");
+                                    }} className="p-1.5 rounded hover:bg-primary/10 text-primary transition-colors">
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setScalingId(c.campaign_id)}
+                                    className="p-1.5 rounded hover:bg-muted/30 text-muted-foreground hover:text-foreground transition-colors" title="Set budget">
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button onClick={() => {
+                                  if (confirm(`Delete "${c.campaign_name}"?`)) deleteCampaign.mutate(c.campaign_id);
+                                }} className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors" title="Delete">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Launch log */}
+              {launchLog.length > 0 && (
+                <Card className="border border-card-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <History className="w-4 h-4 text-muted-foreground" /> Launch History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {launchLog.slice(0, 8).map((log: any) => (
+                      <div key={log.id} className={`flex items-start gap-3 p-2.5 rounded-lg border text-xs ${log.status === "error" ? "border-red-500/20 bg-red-500/5" : "border-border"}`}>
+                        <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${log.status === "success" ? "bg-emerald-400" : "bg-red-400"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-muted-foreground truncate">{log.instruction}</p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                          {format(new Date(log.launched_at), "MMM d, h:mm a")}
                         </span>
-                      </td>
-                    </tr>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* ── AI Alerts tab ── */}
+            <TabsContent value="alerts" className="mt-4 space-y-4">
+              {/* Controls */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">AI Performance Alerts</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Auto-runs daily at 8am (account update) and Mon+Thu at 9am (creative analysis). Trigger manually anytime.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {unreadCount > 0 && (
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={handleMarkAllRead}>
+                      Mark all read
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5"
+                    onClick={() => handleRunAlert("24h_update")}
+                    disabled={!!runningAlert}
+                  >
+                    {runningAlert === "24h_update" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-yellow-400" />}
+                    24h Update
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5"
+                    onClick={() => handleRunAlert("72h_creative_alert")}
+                    disabled={!!runningAlert}
+                  >
+                    {runningAlert === "72h_creative_alert" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5 text-purple-400" />}
+                    Creative Alert
+                  </Button>
+                </div>
+              </div>
+
+              {runningAlert && (
+                <div className="rounded-xl bg-purple-500/5 border border-purple-500/20 p-4 text-xs text-purple-400 flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" />
+                  {runningAlert === "24h_update"
+                    ? "Pulling account data + generating performance update..."
+                    : "Analyzing all creatives, hook rates, ROAS per ad... (may take 30s)"}
+                </div>
+              )}
+
+              {agentLogs.length === 0 && !runningAlert ? (
+                <div className="rounded-xl border border-dashed border-border p-10 text-center">
+                  <Bell className="w-8 h-8 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No alerts yet</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Auto-runs daily. Click "24h Update" or "Creative Alert" above to run now.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {agentLogs.map((log: any) => (
+                    <Card key={log.id} className={`border transition-colors ${log.is_read ? "border-border" : "border-purple-500/30 bg-purple-500/3"}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                            log.type === "72h_creative_alert"
+                              ? "bg-purple-500/15"
+                              : "bg-yellow-500/15"
+                          }`}>
+                            {log.type === "72h_creative_alert"
+                              ? <Brain className="w-4 h-4 text-purple-400" />
+                              : <Zap className="w-4 h-4 text-yellow-400" />
+                            }
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              <span className={`text-[10px] font-semibold uppercase tracking-wide ${
+                                log.type === "72h_creative_alert" ? "text-purple-400" : "text-yellow-400"
+                              }`}>
+                                {log.type === "72h_creative_alert" ? "Creative Alert" : "Daily Update"}
+                              </span>
+                              {!log.is_read && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
+                              )}
+                              <span className="ml-auto text-[10px] text-muted-foreground">
+                                {format(new Date(log.created_at), "MMM d, yyyy · h:mm a")}
+                              </span>
+                            </div>
+                            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                              {log.ai_summary}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-border bg-muted/10">
-                    <td colSpan={2} className="px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Totals</td>
-                    <td className="px-4 py-2.5 text-xs font-semibold text-muted-foreground sm:hidden">Totals</td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-foreground">{fmtCurrency(totalSpend)}</td>
-                    <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{totalImpressions.toLocaleString()}</td>
-                    <td className="px-3 py-2.5 text-right text-xs text-muted-foreground hidden md:table-cell">{fmtPct(avgCtr)}</td>
-                    <td className="px-3 py-2.5 hidden lg:table-cell" />
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-emerald-400">{avgRoas !== null ? fmtRoas(String(avgRoas)) : "–"}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
