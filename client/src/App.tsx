@@ -160,6 +160,7 @@ import AdminCommunity from "@/pages/admin/AdminCommunity";
 import AdminScheduling from "@/pages/admin/AdminScheduling";
 import AdminVideoMarketing from "@/pages/admin/AdminVideoMarketing";
 import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
+import AdminContentTracker from "@/pages/admin/AdminContentTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminMetaAdsManager from "@/pages/admin/AdminMetaAdsManager";
 import MetaAdsBulkLauncher from "@/pages/admin/MetaAdsBulkLauncher";
@@ -417,6 +418,7 @@ function Router() {
       <Route path="/admin/responses">{() => <Guard component={AdminResponses} adminOnly />}</Route>
       <Route path="/admin/community">{() => <Guard component={AdminCommunity} adminOnly />}</Route>
       <Route path="/admin/daily-tracker">{() => <Guard component={AdminDailyTracker} adminOnly />}</Route>
+      <Route path="/admin/content-tracker">{() => <Guard component={AdminContentTracker} adminOnly />}</Route>
       <Route path="/admin/tool-heatmap">{() => <Guard component={AdminToolHeatmap} adminOnly />}</Route>
       <Route path="/admin/project-tracker">{() => <Guard component={ProjectTracker} adminOnly />}</Route>
       <Route path="/admin/feedback">{() => <Guard component={AdminFeedback} adminOnly />}</Route>

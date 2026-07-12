@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   LayoutDashboard, Users, MessageSquare, Settings,
-  LogOut, ChevronRight, Menu, X, Zap, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3, BarChart2, Rocket, LineChart, Layers
+  LogOut, ChevronRight, Menu, X, Zap, ClipboardList, Users2, Mail, TrendingDown, Gift, Star, Flame, BarChart3, BarChart2, Rocket, LineChart, Layers, CalendarCheck
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ const mainNavItems = [
   { href: "/admin/community", label: "Community", icon: Users2 },
   { href: "/admin/chat", label: "Messages", icon: MessageSquare },
   { href: "/admin/tool-heatmap", label: "Heatmap", icon: Flame },
+  { href: "/admin/content-tracker", label: "Content Tracker", icon: CalendarCheck },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/meta-ads", label: "Meta Ads", icon: BarChart2 },
   { href: "/admin/meta-ads/campaigns", label: "Campaigns", icon: Layers },
