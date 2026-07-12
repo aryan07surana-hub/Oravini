@@ -75,78 +75,104 @@ function FunnelWaterfall({ steps, onStepClick, selectedStepId }: {
   selectedStepId: string | null;
 }) {
   if (!steps.length) return null;
-  const maxVisits = steps[0]?.visits || 1;
+  const maxVisits = Math.max(steps[0]?.visits || 1, 1);
+  const MIN_WIDTH = 30; // minimum trapezoid width %
 
   return (
     <div className="p-6 rounded-2xl" style={{ background: CARD, border: `1px solid ${PANEL_BORDER}` }}>
-      <p className="text-xs font-black uppercase tracking-wider text-zinc-500 mb-6">Conversion Funnel</p>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-xs font-black uppercase tracking-wider text-zinc-500">Conversion Funnel</p>
+        <p className="text-[10px] text-zinc-600">{steps[0]?.visits.toLocaleString()} entered · {steps[steps.length - 1]?.conversions.toLocaleString()} converted</p>
+      </div>
 
-      <div className="space-y-3">
+      <div className="space-y-0">
         {steps.map((step, i) => {
           const color = STEP_COLORS[step.type] || GOLD;
-          const barPct = maxVisits > 0 ? (step.visits / maxVisits) * 100 : 0;
           const isSelected = selectedStepId === step.id;
-          const prevVisits = i === 0 ? step.visits : steps[i - 1].visits;
-          const entryRate = prevVisits > 0 ? (step.visits / prevVisits * 100).toFixed(0) : "100";
+          const pct = maxVisits > 0 ? (step.visits / maxVisits) * 100 : 0;
+          const widthPct = Math.max(MIN_WIDTH, pct);
+          const nextWidthPct = i < steps.length - 1 ? Math.max(MIN_WIDTH, (steps[i + 1].visits / maxVisits) * 100) : widthPct;
+          const margin = (100 - widthPct) / 2;
+          const nextMargin = (100 - nextWidthPct) / 2;
+          const dropOff = i > 0 ? step.dropOff : 0;
+          const entryRate = i === 0 ? 100 : steps[i - 1].visits > 0 ? (step.visits / steps[i - 1].visits * 100) : 0;
 
           return (
-            <motion.div key={step.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.06 }}
-              onClick={() => onStepClick(step.id)}
-              className="cursor-pointer group"
-            >
-              {/* Drop-off arrow between steps */}
-              {i > 0 && step.dropOff > 0 && (
-                <div className="flex items-center gap-2 mb-1 ml-2">
-                  <div className="w-px h-3" style={{ background: "rgba(255,255,255,0.1)" }} />
-                  <p className="text-[10px] text-red-400 font-bold">
-                    -{step.dropOff.toFixed(0)}% dropped off
-                  </p>
-                </div>
+            <div key={step.id}>
+              {/* Drop-off connector */}
+              {i > 0 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.1 }}
+                  className="flex items-center justify-center py-1 relative"
+                  style={{ marginLeft: `${Math.min(margin, nextMargin)}%`, marginRight: `${Math.min(margin, nextMargin)}%` }}>
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-between px-2">
+                    <div className="text-[9px] font-black" style={{ color: dropOff > 30 ? "#ef4444" : dropOff > 15 ? GOLD : "#52525b" }}>
+                      {dropOff > 0 ? `−${dropOff.toFixed(0)}% drop` : ""}
+                    </div>
+                    <div className="text-[9px] font-black text-zinc-600">{entryRate.toFixed(0)}% continued</div>
+                  </div>
+                  <ArrowRight className="w-3 h-3 text-zinc-700 rotate-90" />
+                </motion.div>
               )}
 
-              <div className={`rounded-xl overflow-hidden transition-all ${isSelected ? "ring-2" : ""}`}
-                style={{ ringColor: color, border: `1px solid ${isSelected ? color + "50" : "rgba(255,255,255,0.06)"}` }}>
-                <div className="flex items-center gap-3 px-4 py-3" style={{ background: isSelected ? `${color}10` : "transparent" }}>
-                  {/* Bar */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider" style={{ color }}>{step.type.replace(/_/g, " ")}</span>
-                        <span className="text-xs font-bold text-white truncate max-w-[160px]">{step.name}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px] font-black">
-                        <span className="text-white">{step.visits.toLocaleString()}</span>
-                        <span style={{ color: step.cvr > 20 ? "#22c55e" : step.cvr > 10 ? GOLD : "#ef4444" }}>
-                          {step.cvr.toFixed(1)}% CVR
-                        </span>
-                        {step.stepRevenue > 0 && (
-                          <span style={{ color: GOLD }}>${step.stepRevenue.toLocaleString()}</span>
-                        )}
+              {/* Trapezoid bar */}
+              <motion.div
+                initial={{ opacity: 0, scaleY: 0 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                transition={{ delay: i * 0.1, duration: 0.4, ease: "easeOut" }}
+                style={{ marginLeft: `${margin}%`, marginRight: `${margin}%` }}
+                onClick={() => onStepClick(step.id)}
+                className="cursor-pointer group relative"
+              >
+                <div className="relative h-14 rounded-xl overflow-hidden transition-all"
+                  style={{
+                    background: isSelected ? `${color}22` : `${color}0e`,
+                    border: `1px solid ${isSelected ? color + "55" : color + "25"}`,
+                    boxShadow: isSelected ? `0 0 20px ${color}20` : "none",
+                  }}>
+                  {/* Fill bar */}
+                  <div className="absolute inset-0 opacity-30"
+                    style={{ background: `linear-gradient(90deg, ${color}50 0%, transparent 100%)` }} />
+
+                  <div className="relative h-full flex items-center justify-between px-4 gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-wider" style={{ color }}>{step.type.replace(/_/g, " ")}</p>
+                        <p className="text-xs font-black text-white truncate">{step.name}</p>
                       </div>
                     </div>
-                    <div className="h-5 rounded-lg overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${barPct}%` }}
-                        transition={{ duration: 0.7, delay: i * 0.08, ease: "easeOut" }}
-                        className="h-full rounded-lg"
-                        style={{ background: `linear-gradient(90deg, ${color}80, ${color}40)` }}
-                      />
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-zinc-600">
-                      <span>{step.conversions} converted</span>
-                      {i > 0 && <span>{entryRate}% entered from prev step</span>}
-                      <span className="ml-auto">{step.pctOfTop.toFixed(0)}% of top</span>
+                    <div className="flex items-center gap-4 flex-shrink-0 text-right">
+                      <div>
+                        <p className="text-sm font-black text-white">{step.visits.toLocaleString()}</p>
+                        <p className="text-[9px] text-zinc-600">visitors</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-black" style={{ color: step.cvr > 20 ? "#22c55e" : step.cvr > 10 ? GOLD : "#ef4444" }}>
+                          {step.cvr.toFixed(1)}%
+                        </p>
+                        <p className="text-[9px] text-zinc-600">CVR</p>
+                      </div>
+                      {step.stepRevenue > 0 && (
+                        <div>
+                          <p className="text-sm font-black" style={{ color: GOLD }}>${step.stepRevenue.toLocaleString()}</p>
+                          <p className="text-[9px] text-zinc-600">revenue</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
           );
         })}
+      </div>
+
+      {/* Bottom summary */}
+      <div className="mt-4 pt-4 border-t flex items-center justify-between text-[10px]" style={{ borderColor: PANEL_BORDER }}>
+        <span className="text-zinc-600">Overall conversion</span>
+        <span className="font-black" style={{ color: GOLD }}>
+          {steps.length > 0 ? ((steps[steps.length - 1].pctOfTop).toFixed(1)) : 0}% of visitors converted
+        </span>
       </div>
     </div>
   );

@@ -353,6 +353,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         created_at TIMESTAMP DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_fdomains_domain ON funnel_custom_domains(domain);
+
+      CREATE TABLE IF NOT EXISTS domain_registrations (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        domain TEXT NOT NULL,
+        tld TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        registered_at TIMESTAMP DEFAULT now(),
+        expires_at TIMESTAMP,
+        auto_renew BOOLEAN DEFAULT true,
+        funnel_id VARCHAR REFERENCES funnels(id) ON DELETE SET NULL,
+        dns_records JSONB DEFAULT '[]',
+        nameservers JSONB DEFAULT '["ns1.oravini.com","ns2.oravini.com"]',
+        price_paid NUMERIC(10,2),
+        registrar TEXT DEFAULT 'oravini',
+        created_at TIMESTAMP DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_domreg_user ON domain_registrations(user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_domreg_domain ON domain_registrations(domain);
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='funnels' AND column_name='is_page') THEN
+          ALTER TABLE funnels ADD COLUMN is_page BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='funnels' AND column_name='accent_color') THEN
+          ALTER TABLE funnels ADD COLUMN accent_color VARCHAR NOT NULL DEFAULT 'gold';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='funnels' AND column_name='description') THEN
+          ALTER TABLE funnels ADD COLUMN description TEXT DEFAULT '';
+        END IF;
+      END $$;
     `);
     console.log("[migration] Funnels tables ready");
   } catch (e: any) {
@@ -16928,6 +16959,7 @@ Rules:
     try {
       const {
         clips = [], aspectRatio = "16:9", masterVolume = 1,
+        audioDuckEnabled = false, audioDuckLevel = 0.3,
         audioTracks = [], brollClips = [],
         exportQuality = "1080p", exportFps = 30,
         watermarkPath = null, watermarkPos = "br", watermarkOpacity = 0.7,
@@ -16989,7 +17021,7 @@ Rules:
           const concatTmp = path.join(CLIP_UPLOADS, `concat-tmp-${ts}.mp4`);
           tmpFiles.push(concatTmp);
           await ffmpegRun(CLIP_FFMPEG, ["-f", "concat", "-safe", "0", "-i", concatList, "-c", "copy", "-y", concatTmp]);
-          await buildMixedOutput(concatTmp, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles);
+          await buildMixedOutput(concatTmp, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles, audioDuckEnabled, audioDuckLevel);
         }
       } else {
         // xfade transitions via filter_complex
@@ -17041,7 +17073,7 @@ Rules:
         if (!audioTracks.length && !brollClips.length) {
           fs.copyFileSync(xfadeIntermediate, outputPath);
         } else {
-          await buildMixedOutput(xfadeIntermediate, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles);
+          await buildMixedOutput(xfadeIntermediate, audioTracks, brollClips, outputPath, aw, ah, masterVolume, ts, tmpFiles, audioDuckEnabled, audioDuckLevel);
         }
       }
 
@@ -17093,7 +17125,9 @@ Rules:
     aw: number, ah: number,
     masterVolume: number,
     ts: number,
-    tmpFiles: string[]
+    tmpFiles: string[],
+    audioDuckEnabled: boolean = false,
+    audioDuckLevel: number = 0.3
   ): Promise<void> {
     const args: string[] = ["-i", videoInput];
     const validAudio = audioTracks.filter((a: any) => a.filePath && fs.existsSync(resolveClipPath(a.filePath)));
@@ -17125,11 +17159,12 @@ Rules:
     // Mix audio
     if (validAudio.length > 0) {
       const mv = parseFloat(masterVolume) || 1;
+      const duckMult = (audioDuckEnabled && validAudio.length > 0) ? (parseFloat(audioDuckLevel) || 0.3) : 1;
       let mixInputs = `[0:a]volume=${mv}[main_a];`;
       const mixLabels = ["[main_a]"];
       for (let ai = 0; ai < validAudio.length; ai++) {
         const a = validAudio[ai];
-        const vol = parseFloat(a.volume ?? 0.7) * mv;
+        const vol = parseFloat(a.volume ?? 0.7) * mv * duckMult;
         const offset = parseFloat(a.startOffset ?? 0);
         const inputIdx = 1 + ai;
         mixInputs += `[${inputIdx}:a]adelay=${Math.round(offset * 1000)}|${Math.round(offset * 1000)},volume=${vol.toFixed(3)}[mus${ai}];`;
@@ -17708,7 +17743,7 @@ Return: {"sections": [{id: "<random 8 chars>", type: "<type>", data: <schema abo
     try {
       const user = req.user as any;
       const { rows: funnels } = await pool.query(
-        "SELECT * FROM funnels WHERE user_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM funnels WHERE user_id = $1 AND is_page = false ORDER BY created_at DESC",
         [user.id]
       );
       // attach step count
@@ -18376,6 +18411,170 @@ RULES:
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // All contacts across all user funnels
+  app.get("/api/contacts", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const search = (req.query.search as string) || "";
+      const funnelId = (req.query.funnelId as string) || "";
+      const limit = Math.min(parseInt(req.query.limit as string) || 200, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const conditions: string[] = ["f.user_id = $1"];
+      const params: any[] = [user.id];
+      let p = 2;
+      if (search) { conditions.push(`(fc.email ILIKE $${p} OR fc.name ILIKE $${p})`); params.push(`%${search}%`); p++; }
+      if (funnelId) { conditions.push(`fc.funnel_id = $${p}`); params.push(funnelId); p++; }
+      const where = conditions.join(" AND ");
+      const { rows } = await pool.query(
+        `SELECT fc.id, fc.email, fc.name, fc.phone, fc.tags, fc.created_at,
+                f.id AS funnel_id, f.name AS funnel_name, f.slug AS funnel_slug,
+                fs.name AS step_name, fs.type AS step_type
+         FROM funnel_contacts fc
+         JOIN funnels f ON f.id = fc.funnel_id
+         LEFT JOIN funnel_steps fs ON fs.id = fc.step_id
+         WHERE ${where}
+         ORDER BY fc.created_at DESC LIMIT $${p} OFFSET $${p+1}`,
+        [...params, limit, offset]
+      );
+      const { rows: tot } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM funnel_contacts fc JOIN funnels f ON f.id = fc.funnel_id WHERE ${where}`,
+        params
+      );
+      res.json({ contacts: rows, total: tot[0].n });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Pages API (is_page=true funnels) ───────────────────────────────────────
+
+  // List pages
+  app.get("/api/pages", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query(
+        `SELECT f.*, fs.id AS step_id, fs.sections, fs.color_scheme, fs.slug AS step_slug
+         FROM funnels f
+         LEFT JOIN funnel_steps fs ON fs.funnel_id = f.id AND fs.position = 0
+         WHERE f.user_id = $1 AND f.is_page = true
+         ORDER BY f.created_at DESC`,
+        [user.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Create page or funnel from template
+  app.post("/api/pages/from-template", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, accent = "gold", isPage = false, steps: templateSteps = [] } = req.body;
+      if (!name || !templateSteps.length) return res.status(400).json({ message: "name and steps required" });
+
+      const base = (name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "page";
+      const slug = `${base}-${Date.now().toString(36)}`;
+
+      const { rows: fRows } = await pool.query(
+        `INSERT INTO funnels (user_id, name, slug, is_page, accent_color)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [user.id, name, slug, !!isPage, accent]
+      );
+      const funnel = fRows[0];
+
+      const createdSteps: any[] = [];
+      for (let i = 0; i < templateSteps.length; i++) {
+        const tStep = templateSteps[i];
+        const stepSlug = `${tStep.type || "step"}-${i + 1}-${Date.now().toString(36)}`;
+        const { rows: sRows } = await pool.query(
+          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [funnel.id, tStep.name || `Step ${i + 1}`, tStep.type || "landing", stepSlug, i,
+           JSON.stringify(tStep.sections || []), accent]
+        );
+        createdSteps.push(sRows[0]);
+      }
+
+      res.status(201).json({ funnel, steps: createdSteps, stepId: createdSteps[0]?.id });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── AI Page/Funnel Generator ────────────────────────────────────────────────
+
+  app.post("/api/pages/ai-generate", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { description, pageType = "page", goal = "leads", accent = "gold" } = req.body;
+      if (!description) return res.status(400).json({ message: "description required" });
+
+      const sectionTypes = ["hero","video","benefits","testimonials","cta","form","countdown","pricing","faq","bio","guarantee","order_bump","urgency_bar","stats","press","comparison","two_step_form","social_proof_popup","sticky_cta","exit_intent"];
+
+      const systemPrompt = `You are an expert conversion-focused page builder. Generate a complete page/funnel structure as JSON.
+
+Available section types: ${sectionTypes.join(", ")}
+
+Rules:
+- Return ONLY valid JSON, no markdown
+- For a "page" type: return 1 step with 4-8 sections
+- For a "funnel" type: return 2-4 steps each with 3-6 sections
+- Each section.data must have realistic, specific, conversion-optimized copy (not placeholders)
+- Headlines must be benefit-driven and specific to the business described
+- Testimonials must have real-sounding names, roles, and measurable results
+- Pricing must have specific dollar amounts
+- CTAs must be action-oriented and specific`;
+
+      const userPrompt = `Create a ${pageType === "funnel" ? "sales funnel" : "landing page"} for: "${description}"
+Goal: ${goal}
+
+Return JSON exactly like this:
+{
+  "name": "Page/funnel name",
+  "accent": "${accent}",
+  "isPage": ${pageType === "page"},
+  "steps": [
+    {
+      "name": "Step name",
+      "type": "landing",
+      "sections": [
+        {
+          "type": "hero",
+          "data": { "headline": "...", "subheadline": "...", "ctaText": "...", "badge": "..." }
+        }
+      ]
+    }
+  ]
+}`;
+
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
+      const template = JSON.parse(raw);
+
+      if (!template.steps?.length) return res.status(422).json({ message: "AI returned invalid structure" });
+
+      const name = template.name || description.slice(0, 50);
+      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "ai-page";
+      const slug = `${base}-${Date.now().toString(36)}`;
+
+      const { rows: fRows } = await pool.query(
+        `INSERT INTO funnels (user_id, name, slug, is_page, accent_color)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [user.id, name, slug, !!template.isPage, template.accent || accent]
+      );
+      const funnel = fRows[0];
+
+      const createdSteps: any[] = [];
+      for (let i = 0; i < template.steps.length; i++) {
+        const tStep = template.steps[i];
+        const stepSlug = `${tStep.type || "step"}-${i + 1}-${Date.now().toString(36)}`;
+        const { rows: sRows } = await pool.query(
+          `INSERT INTO funnel_steps (funnel_id, name, type, slug, position, sections, color_scheme)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [funnel.id, tStep.name || `Step ${i + 1}`, tStep.type || "landing", stepSlug, i,
+           JSON.stringify(tStep.sections || []), template.accent || accent]
+        );
+        createdSteps.push(sRows[0]);
+      }
+
+      res.status(201).json({ funnel, steps: createdSteps, stepId: createdSteps[0]?.id, isPage: !!template.isPage });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // ── Funnel Automations CRUD ─────────────────────────────────────────────────
 
   app.get("/api/funnels/:id/automations", requireAuth, async (req, res) => {
@@ -18566,6 +18765,212 @@ Preserve all section IDs. Write real copy, no placeholders.`;
       );
 
       res.json({ sections: updatedSections, reply: result.reply || "Done!", changes: result.changes || [] });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Domain OS ─────────────────────────────────────────────────────────────────
+
+  const TLD_PRICING: Record<string, number> = {
+    "com": 11.99, "io": 39.99, "co": 29.99, "net": 13.99, "org": 12.99,
+    "ai": 79.99, "app": 19.99, "dev": 14.99, "xyz": 9.99, "shop": 24.99,
+    "store": 29.99, "online": 14.99, "me": 19.99, "us": 9.99, "biz": 14.99,
+    "info": 9.99, "site": 14.99, "tech": 24.99, "pro": 19.99, "agency": 29.99,
+  };
+
+  async function checkDomainAvailability(domain: string): Promise<boolean> {
+    try {
+      const r = await fetch(`https://rdap.org/domain/${domain}`, {
+        signal: AbortSignal.timeout(4000),
+        headers: { "Accept": "application/json" }
+      });
+      return r.status === 404; // 404 = not registered = available
+    } catch {
+      // Fallback: try DNS resolve
+      try {
+        const dns = (await import("dns")).promises;
+        await dns.resolve(domain);
+        return false; // resolves = taken
+      } catch {
+        return true; // DNS error likely means available
+      }
+    }
+  }
+
+  // Domain search — check availability across TLDs
+  app.get("/api/domains/search", requireAuth, async (req, res) => {
+    try {
+      const q = (req.query.q as string || "").toLowerCase().trim().replace(/[^a-z0-9-]/g, "");
+      if (!q || q.length < 2) return res.status(400).json({ message: "Query too short" });
+
+      const tlds = ["com","io","co","net","org","ai","app","dev","xyz","shop","me","tech"];
+      const results = await Promise.allSettled(
+        tlds.map(async tld => {
+          const domain = `${q}.${tld}`;
+          const available = await checkDomainAvailability(domain);
+          return { domain, tld, available, price: TLD_PRICING[tld] || 14.99 };
+        })
+      );
+
+      const domains = results
+        .filter(r => r.status === "fulfilled")
+        .map(r => (r as PromiseFulfilledResult<any>).value);
+
+      res.json({ query: q, results: domains });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get user's registered domains
+  app.get("/api/domains/registered", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query(
+        `SELECT dr.*, f.name AS funnel_name, f.slug AS funnel_slug
+         FROM domain_registrations dr
+         LEFT JOIN funnels f ON f.id = dr.funnel_id
+         WHERE dr.user_id = $1 ORDER BY dr.created_at DESC`,
+        [user.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Register a domain (mock registration — real implementation requires registrar API)
+  app.post("/api/domains/register", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { domain, years = 1 } = req.body;
+      if (!domain) return res.status(400).json({ message: "domain required" });
+
+      const parts = domain.split(".");
+      if (parts.length < 2) return res.status(400).json({ message: "invalid domain" });
+      const tld = parts.slice(1).join(".");
+      const pricePerYear = TLD_PRICING[tld] || 14.99;
+      const totalPrice = pricePerYear * years;
+
+      // Check if already registered by someone
+      const { rows: existing } = await pool.query(
+        "SELECT id FROM domain_registrations WHERE domain = $1", [domain]
+      );
+      if (existing.length) return res.status(409).json({ message: "Domain already registered" });
+
+      const expiresAt = new Date();
+      expiresAt.setFullYear(expiresAt.getFullYear() + years);
+
+      const defaultDns = [
+        { type: "A",     name: "@",    value: "76.76.21.21",              ttl: 3600 },
+        { type: "CNAME", name: "www",  value: domain,                     ttl: 3600 },
+        { type: "CNAME", name: "mail", value: `mail.${domain}`,           ttl: 3600 },
+        { type: "MX",    name: "@",    value: `mail.${domain}`,           ttl: 3600, priority: 10 },
+        { type: "TXT",   name: "@",    value: `v=spf1 include:_spf.${domain} ~all`, ttl: 3600 },
+      ];
+
+      const { rows } = await pool.query(
+        `INSERT INTO domain_registrations
+         (user_id, domain, tld, status, expires_at, dns_records, price_paid)
+         VALUES ($1, $2, $3, 'active', $4, $5, $6) RETURNING *`,
+        [user.id, domain, tld, expiresAt, JSON.stringify(defaultDns), totalPrice]
+      );
+
+      res.status(201).json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Get a single registered domain
+  app.get("/api/domains/registered/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows } = await pool.query(
+        `SELECT dr.*, f.name AS funnel_name, f.slug AS funnel_slug
+         FROM domain_registrations dr
+         LEFT JOIN funnels f ON f.id = dr.funnel_id
+         WHERE dr.id = $1 AND dr.user_id = $2`,
+        [req.params.id, user.id]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Update DNS records
+  app.patch("/api/domains/registered/:id/dns", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rows: check } = await pool.query(
+        "SELECT id FROM domain_registrations WHERE id = $1 AND user_id = $2",
+        [req.params.id, user.id]
+      );
+      if (!check[0]) return res.status(403).json({ message: "Forbidden" });
+
+      const { dns_records } = req.body;
+      await pool.query(
+        "UPDATE domain_registrations SET dns_records = $1 WHERE id = $2",
+        [JSON.stringify(dns_records), req.params.id]
+      );
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Connect domain to funnel (sets CNAME for funnel)
+  app.post("/api/domains/registered/:id/connect-funnel", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { funnel_id } = req.body;
+      const { rows: check } = await pool.query(
+        "SELECT * FROM domain_registrations WHERE id = $1 AND user_id = $2",
+        [req.params.id, user.id]
+      );
+      if (!check[0]) return res.status(403).json({ message: "Forbidden" });
+
+      const domain = check[0];
+      // Add/update CNAME record for funnel
+      const dns: any[] = Array.isArray(domain.dns_records) ? domain.dns_records : [];
+      const appHost = "app.oravini.com";
+      const existingIdx = dns.findIndex((r: any) => r.type === "CNAME" && r.name === "@");
+      const cnameRecord = { type: "CNAME", name: "@", value: appHost, ttl: 300 };
+      if (existingIdx >= 0) dns[existingIdx] = cnameRecord;
+      else dns.unshift(cnameRecord);
+
+      await pool.query(
+        "UPDATE domain_registrations SET funnel_id = $1, dns_records = $2 WHERE id = $3",
+        [funnel_id || null, JSON.stringify(dns), req.params.id]
+      );
+
+      if (funnel_id) {
+        // Also register in funnel_custom_domains for public routing
+        await pool.query(
+          `INSERT INTO funnel_custom_domains (funnel_id, domain, dns_verified, ssl_status)
+           VALUES ($1, $2, true, 'active')
+           ON CONFLICT (funnel_id) DO UPDATE SET domain = $2, dns_verified = true, ssl_status = 'active'`,
+          [funnel_id, domain.domain]
+        );
+      }
+
+      res.json({ ok: true, dns_records: dns });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Delete domain registration
+  app.delete("/api/domains/registered/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await pool.query(
+        "DELETE FROM domain_registrations WHERE id = $1 AND user_id = $2",
+        [req.params.id, user.id]
+      );
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Toggle auto-renew
+  app.patch("/api/domains/registered/:id/auto-renew", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { auto_renew } = req.body;
+      await pool.query(
+        "UPDATE domain_registrations SET auto_renew = $1 WHERE id = $2 AND user_id = $3",
+        [!!auto_renew, req.params.id, user.id]
+      );
+      res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

@@ -31,9 +31,6 @@ const mainNavItems = [
   { href: "/admin/content-tracker", label: "Content Tracker", icon: CalendarCheck },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/meta-ads", label: "Meta Ads", icon: BarChart2 },
-  { href: "/admin/meta-ads/campaigns", label: "Campaigns", icon: Layers },
-  { href: "/admin/meta-ads/bulk-launch", label: "Bulk Launcher", icon: Rocket },
-  { href: "/admin/meta-ads/analytics", label: "Ad Analytics", icon: LineChart },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

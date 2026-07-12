@@ -15,7 +15,7 @@ import {
   Instagram, Youtube, Eye, Heart, MessageCircle, Bookmark, Users, TrendingUp,
   Star, FileText, Clock, Plus, Trash2, Pencil, BarChart2, ArrowLeft, Bell, ChevronRight, RefreshCw, Crown,
   DollarSign, MousePointerClick, Target, Zap, Link, CheckCircle2, AlertTriangle, ExternalLink,
-  Send, MessageSquare, Play, Pause, Brain, History, Rocket, Check
+  Send, MessageSquare, Play, Pause, Brain, History, Check
 } from "lucide-react";
 import { format, subWeeks, isAfter } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -930,16 +930,16 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
             </div>
           )}
 
-          {/* Tabs: Overview | Manage */}
+          {/* Tabs: Overview | Campaigns | Bulk Launch | Analytics | Manage | AI Alerts */}
           <Tabs defaultValue="overview">
-            <TabsList className="bg-card border border-card-border">
+            <TabsList className="bg-card border border-card-border flex-wrap h-auto gap-1 p-1">
               <TabsTrigger value="overview" className="text-xs gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <BarChart2 className="w-3.5 h-3.5" /> Overview
               </TabsTrigger>
-              <TabsTrigger value="manage" className="text-xs gap-1.5 data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-                <Rocket className="w-3.5 h-3.5" /> Manage & Create
+              <TabsTrigger value="manage" className="text-xs gap-1.5 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+                <Brain className="w-3.5 h-3.5" /> AI Create
               </TabsTrigger>
-              <TabsTrigger value="alerts" className="text-xs gap-1.5 data-[state=active]:bg-purple-600 data-[state=active]:text-white relative">
+              <TabsTrigger value="alerts" className="text-xs gap-1.5 data-[state=active]:bg-orange-600 data-[state=active]:text-white relative">
                 <Bell className="w-3.5 h-3.5" /> AI Alerts
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">
@@ -1009,6 +1009,7 @@ function AdminMetaAdsPanel({ clientId }: { clientId: string }) {
                 </div>
               )}
             </TabsContent>
+
 
             {/* ── Manage & Create tab ── */}
             <TabsContent value="manage" className="mt-4 space-y-5">

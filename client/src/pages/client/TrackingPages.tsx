@@ -2855,6 +2855,7 @@ export function ContentTrackingIndex() {
 export function TrackingHome() {
   const { user } = useAuth();
   const isElite = (user as any)?.plan === "elite";
+  const isProOrElite = (user as any)?.plan === "pro" || isElite;
   const [salesExpanded, setSalesExpanded] = useState(false);
 
   return (
@@ -2921,16 +2922,31 @@ export function TrackingHome() {
               )}
             </div>
 
-            <div data-testid="card-tracking-ads" className="p-6 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
-              <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Activity className="w-6 h-6 text-muted-foreground" />
+            {isProOrElite ? (
+              <Link href="/tracking/ads">
+                <div data-testid="card-tracking-ads" className="group cursor-pointer p-6 rounded-2xl border border-blue-500/30 bg-blue-500/5 hover:border-blue-500/60 hover:bg-blue-500/10 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] text-center">
+                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/20 transition-colors">
+                    <Activity className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <h3 className="font-semibold text-foreground text-sm">Ad Metrics</h3>
+                  <p className="text-[11px] text-muted-foreground mt-1">Paid ad performance</p>
+                  <div className="mt-2.5 flex items-center justify-center gap-1 text-[11px] text-blue-500">
+                    <span>Open</span><ChevronRight className="w-3 h-3" />
+                  </div>
+                </div>
+              </Link>
+            ) : (
+              <div data-testid="card-tracking-ads" className="p-6 rounded-2xl border border-dashed border-border bg-card/50 opacity-60 text-center cursor-not-allowed">
+                <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Activity className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <h3 className="font-semibold text-foreground text-sm">Ad Metrics</h3>
+                <p className="text-[11px] text-muted-foreground mt-1">Paid ad performance</p>
+                <div className="mt-2.5">
+                  <Badge variant="outline" className="text-[10px]">Pro+</Badge>
+                </div>
               </div>
-              <h3 className="font-semibold text-foreground text-sm">Ad Metrics</h3>
-              <p className="text-[11px] text-muted-foreground mt-1">Paid ad performance</p>
-              <div className="mt-2.5">
-                <Badge variant="outline" className="text-[10px]">Soon</Badge>
-              </div>
-            </div>
+            )}
 
             {isElite && (
               <Link href="/progress">

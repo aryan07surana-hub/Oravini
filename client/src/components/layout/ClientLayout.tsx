@@ -17,7 +17,7 @@ import {
 import FocusMusicPlayer from "@/components/ui/FocusMusicPlayer";
 import {
   LayoutDashboard, FileText,
-  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, BookOpen, BrainCircuit, LayoutTemplate
+  LogOut, ChevronRight, Menu, X, CalendarPlus, BarChart2, Sparkles, Users, Bot, Clapperboard, Zap, Layers, Settings, ArrowUpRight, TrendingUp, ScanSearch, Wrench, Mic, Film, Scissors, Instagram, Users2, Gift, Copy, Check, NotebookPen, MonitorPlay, Workflow, Activity, Database, Mail, Smartphone, BookOpen, BrainCircuit, LayoutTemplate, Globe
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 const oraviniLogoPath = "/oravini-logo.png";
@@ -218,6 +218,8 @@ const topNavItems = [
   { href: "/oravini-recorder", label: "Oravini Recorder", icon: MonitorPlay },
   { href: "/clip-finder", label: "Clip Finder", icon: Scissors },
   { href: "/video-marketing", label: "Video Marketing", icon: MonitorPlay },
+  { href: "/pages", label: "Pages & Funnels", icon: Layers },
+  { href: "/domains", label: "Domains", icon: Globe },
   { href: "/landing-pages", label: "Landing Pages", icon: LayoutTemplate },
   { href: "/funnels", label: "Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },

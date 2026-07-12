@@ -17,6 +17,8 @@ import { runAgentForAllClients } from "./metaAdsAgent";
 import { registerMetaAdsBatchRoutes } from "./metaAdsBatchRoutes";
 import { registerMetaAdsAnalyticsRoutes } from "./metaAdsAnalyticsRoutes";
 import { registerMetaAdsCampaignManagerRoutes } from "./metaAdsCampaignManagerRoutes";
+import { registerMetaAdsMyRoutes } from "./metaAdsMyRoutes";
+import { registerMetaAdsAIAdvisorRoutes } from "./metaAdsAIAdvisorRoutes";
 import cron from "node-cron";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -1217,6 +1219,8 @@ async function runMigrations() {
   registerMetaAdsBatchRoutes(app);
   registerMetaAdsAnalyticsRoutes(app);
   registerMetaAdsCampaignManagerRoutes(app);
+  registerMetaAdsMyRoutes(app);
+  await registerMetaAdsAIAdvisorRoutes(app);
 
   // ── Meta Ads AI Agent — scheduled runs ───────────────────────────────────
   // 24h update: every day at 8:00 AM

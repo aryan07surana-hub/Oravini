@@ -57,6 +57,7 @@ import ClientChat from "@/pages/client/Chat";
 import ClientProgress from "@/pages/client/Progress";
 import ClientCalls from "@/pages/client/Calls";
 import { TrackingHome, ContentTrackingIndex, InstagramTracking, YouTubeTracking } from "@/pages/client/TrackingPages";
+import MetaAdsTracking from "@/pages/client/MetaAdsTracking";
 import ContentCalendar from "@/pages/client/ContentCalendar";
 import AIIdeas from "@/pages/client/AIIdeas";
 import CarouselStudio from "@/pages/client/CarouselStudio";
@@ -131,6 +132,8 @@ import LandingPageBuilder from "@/pages/client/LandingPageBuilder";
 import Funnels from "@/pages/client/Funnels";
 import FunnelBuilder from "@/pages/client/FunnelBuilder";
 import FunnelStepBuilder from "@/pages/client/FunnelStepBuilder";
+import Pages from "@/pages/client/Pages";
+import Domains from "@/pages/client/Domains";
 import FunnelAnalytics from "@/pages/client/FunnelAnalytics";
 import FunnelAutomations from "@/pages/client/FunnelAutomations";
 import FunnelDomain from "@/pages/client/FunnelDomain";
@@ -163,9 +166,6 @@ import AdminDailyTracker from "@/pages/admin/AdminDailyTracker";
 import AdminContentTracker from "@/pages/admin/AdminContentTracker";
 import AdminToolHeatmap from "@/pages/admin/AdminToolHeatmap";
 import AdminMetaAdsManager from "@/pages/admin/AdminMetaAdsManager";
-import MetaAdsBulkLauncher from "@/pages/admin/MetaAdsBulkLauncher";
-import MetaAdsAnalytics from "@/pages/admin/MetaAdsAnalytics";
-import MetaAdsCampaignManager from "@/pages/admin/MetaAdsCampaignManager";
 import ProjectTracker from "@/pages/admin/ProjectTracker";
 import AdminFeedback from "@/pages/admin/AdminFeedback";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
@@ -309,6 +309,7 @@ function Router() {
       <Route path="/tracking/content/calendar">{() => <Guard component={ContentCalendar} />}</Route>
       <Route path="/tracking/content">{() => <Guard component={ContentTrackingIndex} />}</Route>
       <Route path="/tracking/competitor">{() => <Guard component={CompetitorStudy} />}</Route>
+      <Route path="/tracking/ads">{() => <Guard component={MetaAdsTracking} />}</Route>
       <Route path="/tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/content-tracking">{() => <Guard component={TrackingHome} />}</Route>
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
@@ -322,6 +323,9 @@ function Router() {
       <Route path="/funnels/:id/automations">{() => <Guard component={FunnelAutomations} />}</Route>
       <Route path="/funnels/:id/domain">{() => <Guard component={FunnelDomain} />}</Route>
       <Route path="/funnels/:funnelId/steps/:stepId/edit">{() => <Guard component={FunnelStepBuilder} />}</Route>
+      <Route path="/pages">{() => <Guard component={Pages} />}</Route>
+      <Route path="/pages/:funnelId/step/:stepId">{() => <Guard component={FunnelStepBuilder} />}</Route>
+      <Route path="/domains">{() => <Guard component={Domains} />}</Route>
       <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>
       <Route path="/f/:slug">{() => <PublicFunnelStep />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
@@ -399,9 +403,6 @@ function Router() {
       <Route path="/admin/settings">{() => <Guard component={AdminSettings} adminOnly />}</Route>
       <Route path="/admin/tracking">{() => <Guard component={AdminTracking} adminOnly />}</Route>
       <Route path="/admin/meta-ads">{() => <Guard component={AdminMetaAdsManager} adminOnly />}</Route>
-      <Route path="/admin/meta-ads/bulk-launch">{() => <Guard component={MetaAdsBulkLauncher} adminOnly />}</Route>
-      <Route path="/admin/meta-ads/analytics">{() => <Guard component={MetaAdsAnalytics} adminOnly />}</Route>
-      <Route path="/admin/meta-ads/campaigns">{() => <Guard component={MetaAdsCampaignManager} adminOnly />}</Route>
       <Route path="/admin/competitor-study">{() => <Guard component={CompetitorStudy} adminOnly useAdmin={true} />}</Route>
       <Route path="/admin/ai-ideas">{() => <Guard component={AdminAIIdeas} adminOnly />}</Route>
       <Route path="/admin/video-editor">{() => <Guard component={VideoClipEditor} adminOnly useAdmin={true} />}</Route>

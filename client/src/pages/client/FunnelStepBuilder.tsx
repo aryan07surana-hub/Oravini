@@ -752,9 +752,12 @@ const COLOR_OPTIONS = [
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function FunnelStepBuilder() {
-  const [,params] = useRoute("/funnels/:funnelId/steps/:stepId/edit");
+  const [matchFunnel, funnelParams] = useRoute("/funnels/:funnelId/steps/:stepId/edit");
+  const [matchPage, pageParams]     = useRoute("/pages/:funnelId/step/:stepId");
+  const params   = matchFunnel ? funnelParams : pageParams;
   const funnelId = params?.funnelId ?? "";
-  const stepId = params?.stepId ?? "";
+  const stepId   = params?.stepId ?? "";
+  const backUrl  = matchPage ? "/pages" : `/funnels/${funnelId}/edit`;
   const [,nav] = useLocation();
   const qc = useQueryClient();
 
@@ -842,7 +845,7 @@ export default function FunnelStepBuilder() {
       <div className="w-[200px] flex-shrink-0 flex flex-col" style={{ background:SIDEBAR_BG, borderRight:`1px solid ${PANEL_BORDER}` }}>
         {/* Back + title */}
         <div className="px-3 py-3 border-b flex items-center gap-2" style={{ borderColor:PANEL_BORDER }}>
-          <button onClick={() => nav(`/funnels/${funnelId}/edit`)} className="text-zinc-500 hover:text-white transition-colors flex-shrink-0"><ArrowLeft className="w-4 h-4" /></button>
+          <button onClick={() => nav(backUrl)} className="text-zinc-500 hover:text-white transition-colors flex-shrink-0"><ArrowLeft className="w-4 h-4" /></button>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-black uppercase tracking-wider truncate" style={{ color:`${GOLD}50` }}>{data?.name}</p>
             <p className="text-xs font-black text-white truncate">{step.name}</p>
