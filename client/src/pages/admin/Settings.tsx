@@ -437,7 +437,7 @@ export default function AdminSettings() {
                         {isExpanded && (
                           <div className="px-4 pb-4 pt-1 border-t border-zinc-800 space-y-4 bg-zinc-900/50">
                             {/* Info row */}
-                            <div className="grid grid-cols-3 gap-3 text-xs pt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2">
                               <div>
                                 <p className="text-zinc-500 mb-0.5">Email</p>
                                 <p className="text-zinc-200 break-all">{client.email}</p>

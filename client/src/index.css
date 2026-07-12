@@ -304,13 +304,16 @@
 }
 
 /* Mobile Optimization */
+html, body {
+  overflow-x: hidden;
+}
+
 @media (max-width: 768px) {
   html {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   body {
-    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -331,5 +334,16 @@
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* Improve touch targets for interactive elements without breaking icon sizes */
+  button:not(.icon-btn):not([class*="w-"]):not([class*="h-"]),
+  a:not(.icon-link):not([class*="w-"]):not([class*="h-"]) {
+    min-height: 36px;
+  }
+
+  /* Input touch optimization */
+  input, select, textarea {
+    font-size: 16px !important;
   }
 }

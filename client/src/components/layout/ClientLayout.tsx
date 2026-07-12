@@ -503,7 +503,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
           {!isAdmin && <LowCreditsBanner />}
           <main
-            className="flex-1 overflow-auto"
+            className="flex-1 overflow-auto overflow-x-hidden"
             style={!isAdmin ? { userSelect: "none" } : undefined}
           >
             {children}

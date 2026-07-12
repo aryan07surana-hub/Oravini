@@ -580,6 +580,84 @@ const PRICING_TIERS = [
   { tier: "Tier 4", name: "Pro", price: "$59", period: "/mo", credits: "500 credits / month", accent: "#34d399", bg: "rgba(52,211,153,0.05)", border: "rgba(52,211,153,0.22)", highlight: false, features: ["500 AI credits / month", "Everything in Growth", "Full Video Marketing Suite INCLUDED", "Unlimited video hosting + VSL pages", "Unlimited webinars + CRM + reminders", "AI Clip Finder + white-label pages", "AI Video Editor — 2 credits/msg", "AI Content Coach — 2 credits/msg", "SOP Generator — 7 credits", "AI Content Planner — 7 credits", "DM Tracker", "Direct team messaging", "AI Voice Dialer — 200 calls/month", "Webinar → Lead CRM → AI Follow-up", "Priority support"], cta: "Go Pro" },
 ];
 
+// ── Follower Growth Chart ─────────────────────────────────────────────────────
+function FollowerChart() {
+  const pathRef = useRef<SVGPathElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const path = pathRef.current;
+    if (!path) return;
+    const length = path.getTotalLength();
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = `${length}`;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true;
+        requestAnimationFrame(() => {
+          path.style.transition = "stroke-dashoffset 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s";
+          path.style.strokeDashoffset = "0";
+        });
+      }
+    }, { threshold: 0.3 });
+    obs.observe(path);
+    return () => obs.disconnect();
+  }, []);
+
+  const W = 360, H = 138;
+  const padX = 28, padY = 14;
+  const pts: [number, number][] = [[0, 15], [12, 65], [24, 90], [48, 278]];
+  const maxV = 295;
+  const px = (w: number) => padX + (w / 48) * (W - padX * 2);
+  const py = (v: number) => H - padY - (v / maxV) * (H - padY * 2);
+  const linePath = pts.map(([w, v], i) => `${i ? "L" : "M"} ${px(w).toFixed(1)} ${py(v).toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L ${px(48)} ${H - padY} L ${px(0)} ${H - padY} Z`;
+
+  return (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "18px 16px 14px", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: GOLD, letterSpacing: "0.12em", textTransform: "uppercase" }}>Follower Growth</span>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.32)", fontWeight: 500 }}>↑ 278K at week 48</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H + 14}`} style={{ width: "100%", display: "block", overflow: "visible" }}>
+        <defs>
+          <linearGradient id="fgAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={GOLD} stopOpacity="0.16" />
+            <stop offset="100%" stopColor={GOLD} stopOpacity="0.01" />
+          </linearGradient>
+          <linearGradient id="fgLineGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#b8962e" />
+            <stop offset="100%" stopColor={GOLD_BRIGHT} />
+          </linearGradient>
+        </defs>
+        {[65, 90, 278].map(v => (
+          <line key={v} x1={padX} y1={py(v)} x2={W - padX} y2={py(v)}
+            stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="4 5" />
+        ))}
+        <path d={areaPath} fill="url(#fgAreaGrad)" />
+        <path ref={pathRef} d={linePath} fill="none"
+          stroke="url(#fgLineGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map(([w, v]) => (
+          <circle key={w} cx={px(w)} cy={py(v)} r="4.5"
+            fill="#080808" stroke={GOLD} strokeWidth="2" />
+        ))}
+        {pts.map(([w, v]) => (
+          <text key={`v${w}`} x={px(w)} y={py(v) - 10} textAnchor="middle"
+            fill="rgba(255,255,255,0.38)" fontSize="9" fontFamily="Inter,sans-serif" fontWeight="600">
+            {v === 15 ? "" : `${v}K`}
+          </text>
+        ))}
+        {pts.map(([w]) => (
+          <text key={`x${w}`} x={px(w)} y={H + 12} textAnchor="middle"
+            fill="rgba(255,255,255,0.25)" fontSize="9" fontFamily="Inter,sans-serif">
+            {w === 0 ? "Start" : `Wk ${w}`}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ── Hero Background Video (3 plays then freeze) ───────────────────────────────
 function HeroVideo() {
   const ref = useRef<HTMLVideoElement>(null);
@@ -705,6 +783,7 @@ export default function OraviniLanding() {
         @keyframes orbFloat2 { 0%,100%{ transform:translate(0,0) scale(1); } 40%{ transform:translate(-50px,60px) scale(1.15); } 70%{ transform:translate(40px,-30px) scale(0.85); } }
         @keyframes orbFloat3 { 0%,100%{ transform:translate(0,0); } 50%{ transform:translate(30px,-60px) scale(1.08); } }
         @keyframes bvExpand { from{ opacity:0; transform:translateY(-20px); } to{ opacity:1; transform:translateY(0); } }
+        @keyframes glowPulse { 0%,100%{ filter:drop-shadow(0 0 14px rgba(240,200,75,0.45)); } 50%{ filter:drop-shadow(0 0 32px rgba(240,200,75,0.85)) drop-shadow(0 0 60px rgba(240,200,75,0.35)); } }
         .hero-title { animation: fadeUp 1s ease 0.3s both; }
         .hero-sub { animation: fadeUp 1s ease 0.6s both; }
         .hero-powered { animation: fadeUp 1s ease 0.9s both; }
@@ -1227,7 +1306,7 @@ export default function OraviniLanding() {
           <Anim from="translateX(-40px)">
             <div style={{ fontSize: 11, letterSpacing: "0.3em", color: GOLD, textTransform: "uppercase", marginBottom: 14 }}>Real Outcomes</div>
             <h2 style={{ fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 900, lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: 24 }}>
-              Stop guessing.<br />Start <span style={{ color: GOLD }}>growing.</span>
+              Stop guessing.<br />Start <span style={{ background: `linear-gradient(135deg, ${GOLD_BRIGHT} 0%, #fff8c0 40%, ${GOLD} 70%, #f0c84b 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 18px rgba(240,200,75,0.55))", animation: "glowPulse 2.8s ease-in-out infinite" }}>glowing.</span>
             </h2>
             <p style={{ fontSize: 15, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, marginBottom: 32 }}>
               Every creator in Oravini gets a personalized system built around their niche, platform, and goals. No fluff. No templates. Real frameworks that work.
@@ -1238,27 +1317,39 @@ export default function OraviniLanding() {
             </button>
           </Anim>
           <Anim from="translateX(40px)">
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {[
-                { label: "Average Engagement Boost", val: 78 },
-                { label: "Content Consistency", val: 92 },
-                { label: "Follower Growth Speed", val: 65 },
-                { label: "Strategy Clarity Score", val: 95 },
-              ].map(({ label, val }) => (
-                <div key={label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "18px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <FollowerChart />
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {([
+                { label: "Strategy Clarity Score", val: 95, duration: 1500, easing: "cubic-bezier(0.23, 1, 0.32, 1)", delay: 0, barH: 5 },
+                { label: "Follower Growth Speed", val: 94, duration: 1100, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", delay: 180, barH: 6 },
+                { label: "Average Engagement Boost", val: 89, duration: 850, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)", delay: 60, barH: 5 },
+                { label: "Content Consistency", val: 88, duration: 2200, easing: "linear", delay: 300, barH: 4 },
+              ] as const).map(({ label, val, duration, easing, delay, barH }) => (
+                <div key={label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "16px 20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
                     <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{label}</span>
                     <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{val}%</span>
                   </div>
-                  <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
-                    <div data-anim="1" style={{ height: "100%", width: 0, background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 99, transition: `width 1.2s ease`, opacity: 0 }}
+                  <div style={{ height: barH, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+                    <div
                       ref={el => {
                         if (!el) return;
+                        let fired = false;
                         const obs = new IntersectionObserver(([e]) => {
-                          if (e.isIntersecting) { el.style.width = val + "%"; el.style.opacity = "1"; }
+                          if (e.isIntersecting && !fired) {
+                            fired = true;
+                            setTimeout(() => {
+                              el.style.transition = `width ${duration}ms ${easing}`;
+                              el.style.width = `${val}%`;
+                              el.style.opacity = "1";
+                            }, delay);
+                            obs.disconnect();
+                          }
                         }, { threshold: 0.5 });
                         obs.observe(el);
-                      }} />
+                      }}
+                      style={{ height: "100%", width: 0, background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 99, opacity: 0 }}
+                    />
                   </div>
                 </div>
               ))}

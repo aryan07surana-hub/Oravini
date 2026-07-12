@@ -222,7 +222,8 @@ export default function Credits() {
         </div>
 
         {/* Plan comparison */}
-        <div className="rounded-xl overflow-hidden border border-zinc-800 mt-2">
+        <div className="rounded-xl overflow-x-auto border border-zinc-800 mt-2">
+          <div className="min-w-[400px]">
           <div className="grid grid-cols-5 text-center text-[10px] font-bold uppercase tracking-wider text-zinc-500 bg-zinc-900 px-4 py-2 border-b border-zinc-800">
             <span className="text-left">Plan</span>
             <span>Price</span>
@@ -245,6 +246,7 @@ export default function Credits() {
               <span className="text-zinc-500">{best}</span>
             </div>
           ))}
+          </div>
         </div>
       </div>
 

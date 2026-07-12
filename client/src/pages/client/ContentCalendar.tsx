@@ -86,7 +86,7 @@ export default function ContentCalendar() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           <Sparkles className="w-8 h-8 text-yellow-500" />
@@ -203,7 +203,7 @@ export default function ContentCalendar() {
                   <Target className="w-5 h-5" />
                   Strategy Overview
                 </h2>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div>
                     <div className="text-sm text-gray-400">TOFU</div>
                     <div className="text-2xl font-bold text-blue-400">

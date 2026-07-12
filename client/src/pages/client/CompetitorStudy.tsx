@@ -519,7 +519,7 @@ function OverviewSection({ report, analysis }: { report: any; analysis: any }) {
       </div>
 
       {/* Engagement pie + content types */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center justify-center">
           <p className="text-xs font-semibold text-foreground mb-3">Engagement Rate</p>
           <PieChart width={120} height={120}>
@@ -1294,7 +1294,7 @@ function AIPatternsSection({ report, analysis }: { report: any; analysis: any })
         <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><Lightbulb className="w-4 h-4 text-yellow-400" />Competitor's Winning Patterns</p>
         <div className="grid grid-cols-1 gap-3">
           {patterns.map((p: any, i: number) => (
-            <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-4">
+            <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="col-span-2">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <p className="text-sm font-semibold text-foreground">{p.pattern}</p>
@@ -1327,7 +1327,7 @@ function AIPatternsSection({ report, analysis }: { report: any; analysis: any })
                   <Pill text={v.emotion ?? "—"} map={{}} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                 <div className="bg-muted/20 rounded-xl p-3">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Hook</p>
                   <p className="text-xs italic leading-relaxed">"{v.hook}"</p>
@@ -1375,7 +1375,7 @@ function GapAnalysisSection({ report }: { report: any }) {
       <CollapsibleReelCompare />
 
       {/* Summary + pie */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {ga.summary && (
           <div className="col-span-2 p-5 rounded-2xl bg-red-500/10 border border-red-500/20 flex flex-col justify-center">
             <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Bottom Line</p>
@@ -1640,7 +1640,7 @@ function PostingStrategySection({ report, analysis }: { report: any; analysis: a
         {/* Day heatmap */}
         <div className="bg-card border border-card-border rounded-2xl p-5">
           <p className="text-sm font-semibold text-foreground mb-4">Best Days to Post</p>
-          <div className="grid grid-cols-7 gap-1 mb-2">
+          <div className="overflow-x-auto"><div className="grid grid-cols-7 gap-1 mb-2 min-w-[280px]">
             {DAYS.map(day => {
               const isActive = (ps.bestDays || []).some((d: string) => d.toLowerCase().includes(day.toLowerCase()));
               return (
@@ -1650,7 +1650,7 @@ function PostingStrategySection({ report, analysis }: { report: any; analysis: a
                 </div>
               );
             })}
-          </div>
+          </div></div>
           <div className="flex flex-wrap gap-1.5 mt-3">
             {(ps.bestDays || []).map((d: string) => (
               <Badge key={d} className="bg-primary/15 text-primary border-primary/30 border text-xs">{d}</Badge>
@@ -1714,7 +1714,7 @@ function PostingStrategySection({ report, analysis }: { report: any; analysis: a
       )}
 
       {/* Additional insights */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label: "Posting Gap", val: `You post ${Math.abs((cm.postsPerWeek ?? 0) - (comp.postsPerWeek ?? 0)).toFixed(1)}x ${(cm.postsPerWeek ?? 0) >= (comp.postsPerWeek ?? 0) ? "more" : "less"}`, icon: BarChart2, color: "text-blue-400" },
           { label: "Peak Day Overlap", val: (ps.bestDays || []).slice(0, 2).join(", ") || "See above", icon: Calendar, color: "text-cyan-400" },
@@ -1759,7 +1759,7 @@ function AudienceSection({ report, analysis }: { report: any; analysis: any }) {
       )}
 
       {/* Engagement comparison */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="col-span-1 bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center">
           <p className="text-xs font-semibold text-foreground mb-3">Audience Engagement</p>
           <PieChart width={110} height={110}>
@@ -1792,7 +1792,7 @@ function AudienceSection({ report, analysis }: { report: any; analysis: any }) {
       </div>
 
       {/* Loves, Pain Points, Desires — 3 columns */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-green-500/8 border border-green-500/20 rounded-2xl p-4">
           <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-3 flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" />Audience Loves</p>
           <ul className="space-y-2">
@@ -1920,7 +1920,7 @@ function ScorecardSection({ report, analysis }: { report: any; analysis: any }) 
       <SectionHeader icon={Trophy} title="Scorecard" desc="Head-to-head score across every metric" color="from-primary/20 to-primary/5" />
 
       {/* Hero score */}
-      <div className="grid grid-cols-3 gap-4 items-center">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
         <div className={`text-center p-6 rounded-2xl border-2 ${youWin > compWin ? "border-primary bg-primary/10" : "border-border bg-card"}`}>
           <p className={`text-5xl font-black ${youWin > compWin ? "text-primary" : "text-foreground"}`}>{youWin}</p>
           <p className="text-xs text-muted-foreground mt-1">{analysis.clientHandle}</p>
@@ -2087,7 +2087,7 @@ function StealStrategySection({ analysis, onGenerate, generating }: { analysis: 
       {ss.ctaStrategy && (
         <div className="p-5 rounded-2xl bg-primary/10 border border-primary/25">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-4">CTA & Conversion Strategy</p>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             {(ss.ctaStrategy.topCTAs || []).map((cta: string, i: number) => (
               <div key={i} className="bg-card border border-card-border rounded-xl p-3 flex items-center justify-between gap-2">
                 <p className="text-xs text-foreground flex-1">"{cta}"</p>
@@ -2108,7 +2108,7 @@ function StealStrategySection({ analysis, onGenerate, generating }: { analysis: 
       {ss.postingSchedule && (
         <div className="bg-card border border-card-border rounded-2xl p-5">
           <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" />Your New Posting Schedule</p>
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
             {[
               { label: "Frequency", val: ss.postingSchedule.frequency },
               { label: "Days", val: (ss.postingSchedule.days || []).join(", ") },
@@ -2428,7 +2428,7 @@ function FullReport({ analysis, onDelete }: { analysis: any; onDelete: () => voi
       </div>
 
       {/* Section grid */}
-      <div className="grid grid-cols-3 gap-3" data-tour="competitor-sections">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-tour="competitor-sections">
         {SECTIONS.map((sec) => {
           const Icon = sec.icon;
           const isActive = activeSection === sec.id;
@@ -2705,7 +2705,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
             <p className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Bottom Line</p>
             <p className="text-sm text-foreground leading-relaxed">{nt.summary}</p>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-card border border-card-border rounded-2xl p-4">
               <p className="text-xs font-bold text-foreground mb-3 flex items-center gap-2"><Layers className="w-3.5 h-3.5 text-blue-400" />Dominant Formats</p>
               <ul className="space-y-2">{(nt.dominantFormats || []).map((f: string, i: number) => (
@@ -2750,7 +2750,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
           )}
           <div className="space-y-3">
             {clusters.map((c: any, i: number) => (
-              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-4">
+              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="col-span-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Badge className="bg-purple-500/15 text-purple-300 border-purple-500/30 border text-xs capitalize">{c.theme}</Badge>
@@ -2790,7 +2790,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
               <p className="text-sm text-foreground leading-relaxed">{sa.summary}</p>
             </div>
           )}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {pieData.length > 0 && (
               <div className="bg-card border border-card-border rounded-2xl p-4 flex flex-col items-center justify-center">
                 <PieChart width={110} height={110}>
@@ -3002,7 +3002,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {formats.map(f => {
               const data = fb[f.key] || {};
               return (
@@ -3048,7 +3048,7 @@ function NicheReportSection({ sectionId, report, niche }: { sectionId: string; r
           <div className="space-y-3">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Competitor Positions</p>
             {posMap.map((c: any, i: number) => (
-              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-3 gap-3">
+              <div key={i} className="bg-card border border-card-border rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-xs font-bold text-foreground">{c.handle}</p>
                   <p className="text-[10px] text-muted-foreground">Primary</p>
@@ -3164,7 +3164,7 @@ function NicheGrowthPlaybook({ report, niche }: { report: any; niche: string }) 
         <div className="bg-card border border-card-border rounded-2xl p-5">
           <p className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><Target className="w-4 h-4 text-green-400" />30-Day Growth Playbook for {niche}</p>
           <p className="text-sm text-muted-foreground mb-4">{gp.summary}</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[gp.phase1, gp.phase2, gp.phase3].filter(Boolean).map((phase: any, i: number) => (
               <div key={i} className="bg-muted/20 border border-border rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -3219,7 +3219,7 @@ function NicheGrowthPlaybook({ report, niche }: { report: any; niche: string }) 
                     <span className="text-[10px] text-muted-foreground">/10</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mb-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
                   {[["Hook", v.hookScore, "text-yellow-400"], ["Retention", v.retentionScore, "text-blue-400"], ["Engagement", v.engagementScore, "text-green-400"]].map(([label, score, color]) => (
                     <div key={label} className="text-center">
                       <p className={`text-sm font-bold ${color}`}>{score}/10</p>
@@ -3382,7 +3382,7 @@ function NicheIntelligenceSection({ useAdmin, activeClientId, user }: { useAdmin
           <div className="border border-primary/40 rounded-2xl overflow-hidden">
             <div className="p-4 space-y-5">
               {/* Section grid */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {NICHE_SECTIONS.map((sec) => {
                   const Icon = sec.icon;
                   const isSecActive = activeNicheSection === sec.id;

@@ -623,7 +623,7 @@ export default function LeadMagnetGenerator() {
           {/* Goal */}
           <div className="space-y-3">
             <label className="text-sm font-semibold text-white">Goal</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {GOAL_OPTIONS.map(opt => (
                 <button key={opt.id} data-testid={`goal-${opt.id}`} onClick={() => setF("goal", opt.id)}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${form.goal === opt.id ? "border-primary bg-primary/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>

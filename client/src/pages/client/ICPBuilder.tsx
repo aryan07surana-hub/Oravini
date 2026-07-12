@@ -729,7 +729,7 @@ export default function ICPBuilder() {
 
               {/* Average scores summary */}
               {painChartData.length > 0 && painChartData.some(d => d.Severity > 0) && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {[
                     { label: "Avg Severity", key: "Severity" as const, color: "#f87171", desc: "How painful this audience finds their problems" },
                     { label: "Avg Urgency", key: "Urgency" as const, color: "#fb923c", desc: "How quickly they want a solution" },

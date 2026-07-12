@@ -596,7 +596,7 @@ export default function AdminAIIdeas() {
                     <p className="text-sm font-semibold text-foreground">Recommended Content Mix</p>
                     {selectedClient && <span className="text-xs text-muted-foreground">— for {selectedClient.name}</span>}
                   </div>
-                  <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                     {[
                       { label: "Growth", value: contentMix.growth, color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
                       { label: "Value", value: contentMix.value, color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },

@@ -691,7 +691,7 @@ export default function WebinarStudio() {
 
           <div>
             <p className="text-xs font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Video Quality</p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               {(Object.keys(QUALITY_PRESETS) as Quality[]).map(q => (
                 <button key={q} onClick={() => changeQuality(q)}
                   className="py-2 rounded-xl text-xs font-black transition-all"

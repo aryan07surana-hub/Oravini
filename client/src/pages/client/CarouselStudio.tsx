@@ -1196,7 +1196,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
           {/* Goal */}
           <div className="space-y-3">
             <label className="text-sm font-semibold text-white">Goal <span className="text-red-400">*</span></label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {CAROUSEL_GOALS.map(opt => (
                 <button key={opt.id} onClick={() => setCarouselGoal(opt.id)}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${carouselGoal === opt.id ? "border-primary bg-primary/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
@@ -1294,7 +1294,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
             {/* Visual style */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-zinc-400">Visual style</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {CAROUSEL_STYLES.map(s => (
                   <button key={s.id} onClick={() => setVisualStyle(s.id)}
                     className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${visualStyle === s.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
@@ -1309,7 +1309,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
             {/* Tone */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-zinc-400">Tone of voice</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {TONES.map(tn => (
                   <button key={tn} onClick={() => setTone(tn)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${tone === tn ? "border-primary bg-primary/10 text-primary" : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500"}`}>
@@ -1339,7 +1339,7 @@ export default function CarouselStudio({ embedded = false }: { embedded?: boolea
             {/* Content Depth */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-zinc-400">Content depth</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {CAROUSEL_DEPTH.map(d => (
                   <button key={d.id} onClick={() => setContentDepth(d.id)}
                     className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-center transition-all ${contentDepth === d.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>

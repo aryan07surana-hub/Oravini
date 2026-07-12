@@ -284,7 +284,7 @@ function YouTubePanel({ clientId, posts }: { clientId: string; posts: any[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Videos Posted", value: ytPosts.length, icon: Youtube, color: "text-red-400" },
           { label: "Total Views", value: totalViews.toLocaleString(), icon: Eye, color: "text-blue-400" },
@@ -392,37 +392,39 @@ function CalendarPanel({ posts }: { posts: any[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-          <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-2">{d}</div>
-        ))}
-        {Array(startPad).fill(null).map((_, i) => <div key={`pad-${i}`} />)}
-        {days.map(day => {
-          const dayPosts = postsOnDay(day);
-          const isSelected = selectedDay && isSameDay(day, selectedDay);
-          const isToday = isSameDay(day, new Date());
-          return (
-            <button
-              key={day.toISOString()}
-              onClick={() => setSelectedDay(isSelected ? null : day)}
-              className={`relative p-1.5 rounded-lg min-h-[44px] flex flex-col items-center gap-0.5 border transition-colors ${
-                isSelected ? "bg-primary border-primary" : isToday ? "border-primary/40 bg-primary/5" : "border-transparent hover:border-border hover:bg-accent"
-              }`}
-            >
-              <span className={`text-xs font-medium ${isSelected ? "text-primary-foreground" : isToday ? "text-primary" : "text-foreground"}`}>
-                {format(day, "d")}
-              </span>
-              {dayPosts.length > 0 && (
-                <div className="flex items-center gap-0.5 flex-wrap justify-center">
-                  {dayPosts.slice(0, 3).map((p, i) => (
-                    <span key={i} className={`w-1.5 h-1.5 rounded-full ${platformDot(p.platform)}`} />
-                  ))}
-                  {dayPosts.length > 3 && <span className="text-[9px] text-muted-foreground">+{dayPosts.length - 3}</span>}
-                </div>
-              )}
-            </button>
-          );
-        })}
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-7 gap-1 min-w-[320px]">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+            <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-2">{d}</div>
+          ))}
+          {Array(startPad).fill(null).map((_, i) => <div key={`pad-${i}`} />)}
+          {days.map(day => {
+            const dayPosts = postsOnDay(day);
+            const isSelected = selectedDay && isSameDay(day, selectedDay);
+            const isToday = isSameDay(day, new Date());
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => setSelectedDay(isSelected ? null : day)}
+                className={`relative p-1.5 rounded-lg min-h-[44px] flex flex-col items-center gap-0.5 border transition-colors ${
+                  isSelected ? "bg-primary border-primary" : isToday ? "border-primary/40 bg-primary/5" : "border-transparent hover:border-border hover:bg-accent"
+                }`}
+              >
+                <span className={`text-xs font-medium ${isSelected ? "text-primary-foreground" : isToday ? "text-primary" : "text-foreground"}`}>
+                  {format(day, "d")}
+                </span>
+                {dayPosts.length > 0 && (
+                  <div className="flex items-center gap-0.5 flex-wrap justify-center">
+                    {dayPosts.slice(0, 3).map((p, i) => (
+                      <span key={i} className={`w-1.5 h-1.5 rounded-full ${platformDot(p.platform)}`} />
+                    ))}
+                    {dayPosts.length > 3 && <span className="text-[9px] text-muted-foreground">+{dayPosts.length - 3}</span>}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Legend */}
@@ -585,7 +587,7 @@ export default function ContentTracking() {
 
   return (
     <ClientLayout>
-      <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground">Content Tracking</h1>
           <p className="text-muted-foreground mt-1">Log and track your Instagram and YouTube content performance</p>

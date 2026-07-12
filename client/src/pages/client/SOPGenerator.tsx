@@ -685,7 +685,7 @@ export default function SOPGenerator() {
                   </div>
                   <div className="divide-y divide-white/5">
                     {result.optimizationLoop.metricsToTrack.map((m, i) => (
-                      <div key={i} className="px-5 py-4 grid grid-cols-4 gap-3 text-xs">
+                      <div key={i} className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                         <div><p className="font-bold text-white">{m.metric}</p><p className="text-zinc-600 text-[10px] mt-0.5">{m.why}</p></div>
                         <div><p className="text-zinc-500 text-[10px] mb-1">Target</p><p className="text-zinc-300">{m.target}</p></div>
                         <div><p className="text-zinc-500 text-[10px] mb-1">Check</p><p className="text-zinc-300">{m.frequency}</p></div>

@@ -815,7 +815,7 @@ export default function NicheIntelligence() {
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {[
                         { label: "Avg Likes", value: formatNum(intelligence.avgLikes), icon: Heart, color: "#f472b6" },
                         { label: "Avg Comments", value: formatNum(intelligence.avgComments), icon: MessageCircle, color: "#60a5fa" },

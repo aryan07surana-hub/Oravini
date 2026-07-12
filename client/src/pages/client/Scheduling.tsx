@@ -237,7 +237,7 @@ function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Duration</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[15, 30, 45, 60].map(d => (
                     <button key={d} onClick={() => setDuration(d)}
                       className="py-2.5 rounded-xl text-sm font-bold transition-all"
@@ -279,7 +279,7 @@ function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
                 <h2 className="text-lg font-black text-white mb-1">Where will you meet?</h2>
                 <p className="text-zinc-500 text-sm">Paste your meeting link. It's sent automatically with every booking.</p>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { name: "Zoom", hint: "zoom.us", color: "#2D8CFF", Icon: Video },
                   { name: "Google Meet", hint: "meet.google", color: "#34A853", Icon: Monitor },
@@ -2203,7 +2203,7 @@ export default function ClientScheduling() {
                     Edit Link
                   </Button>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                   {[
                     { name: "Zoom", hint: "zoom.us", color: "#2D8CFF", Icon: Video },
                     { name: "Google Meet", hint: "meet.google", color: "#34A853", Icon: Monitor },

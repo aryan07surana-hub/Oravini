@@ -486,7 +486,7 @@ function ClientPostsPanel({ clientId, platform }: { clientId: string; platform: 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border border-card-border">
           <CardContent className="p-4">
             {isYt ? <Youtube className="w-5 h-5 text-red-400 mb-2" /> : <Instagram className="w-5 h-5 text-pink-400 mb-2" />}

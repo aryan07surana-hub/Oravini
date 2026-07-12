@@ -2560,7 +2560,7 @@ export default function ClientDashboard() {
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">World Time</p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-3">
               <CityClockCard city="Your Time" timezone={timezone} flag="🕐" color={GOLD} />
               {WORLD_CITIES.filter(c => c.timezone !== timezone).slice(0, 2).map(c => (
                 <CityClockCard key={c.city} city={c.city} timezone={c.timezone} flag={c.flag} color={c.color} />

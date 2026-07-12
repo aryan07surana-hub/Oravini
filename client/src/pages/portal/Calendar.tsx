@@ -68,7 +68,8 @@ export default function PortalCalendar() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="rounded-xl border border-border bg-card overflow-x-auto">
+              <div className="min-w-[320px]">
               <div className="grid grid-cols-7 border-b border-border">
                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
                   <div key={d} className="py-2 text-center text-[11px] font-semibold text-muted-foreground">{d}</div>
@@ -104,6 +105,7 @@ export default function PortalCalendar() {
                     </button>
                   );
                 })}
+              </div>
               </div>
             </div>
 

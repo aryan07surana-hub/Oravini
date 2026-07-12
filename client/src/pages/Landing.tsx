@@ -185,7 +185,7 @@ function EmailCaptureStrip({ onCapture }: { onCapture: () => void }) {
     <section style={{ padding: "80px 24px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
       <div style={{ maxWidth: 680, margin: "0 auto" }}>
         <FadeIn>
-          <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20`, borderRadius: 20, padding: "44px 40px", textAlign: "center" }}>
+          <div style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}20`, borderRadius: 20, padding: "clamp(28px, 5vw, 44px) clamp(20px, 5vw, 40px)", textAlign: "center" }}>
             {status === "done" ? (
               <>
                 <div style={{ fontSize: 48, marginBottom: 14 }}>🎉</div>
@@ -604,12 +604,12 @@ export default function Landing() {
 
       {/* ── Plan Required Banner ─────────────────────────────────────────────── */}
       {needsPlan && (
-        <div style={{ position: "sticky", top: 0, zIndex: 200, background: `linear-gradient(90deg, ${GOLD}22, ${GOLD}14)`, borderBottom: `1px solid ${GOLD}40`, padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, backdropFilter: "blur(12px)" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 200, background: `linear-gradient(90deg, ${GOLD}22, ${GOLD}14)`, borderBottom: `1px solid ${GOLD}40`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, backdropFilter: "blur(12px)", flexWrap: "wrap" as const }}>
           <span style={{ fontSize: 18 }}>👋</span>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>
-            Hey <span style={{ color: GOLD }}>{user?.name?.split(" ")[0]}</span> — you're signed in! Pick a plan below to unlock your portal.
+          <p style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0, textAlign: "center" as const }}>
+            Hey <span style={{ color: GOLD }}>{user?.name?.split(" ")[0]}</span> — you're signed in! Pick a plan to unlock your portal.
           </p>
-          <a href="#pricing" style={{ textDecoration: "none" }}>
+          <a href="#pricing" style={{ textDecoration: "none", flexShrink: 0 }}>
             <span style={{ background: GOLD, color: "#000", fontWeight: 800, fontSize: 12, padding: "6px 16px", borderRadius: 100, cursor: "pointer", whiteSpace: "nowrap" as const }}>
               Choose Plan ↓
             </span>
@@ -868,7 +868,7 @@ export default function Landing() {
 
         <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}>
           <FadeIn>
-            <div style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${GOLD}22`, borderRadius: 24, padding: "60px 48px" }}>
+            <div style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${GOLD}22`, borderRadius: 24, padding: "clamp(32px, 6vw, 60px) clamp(20px, 5vw, 48px)" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: GOLD, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 20 }}>⚡ Limited Spots Available</div>
               <h2 style={{ fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 900, letterSpacing: "-0.03em", color: "#fff", lineHeight: 1.15, marginBottom: 20 }}>
                 Ready to Build Your Content System?

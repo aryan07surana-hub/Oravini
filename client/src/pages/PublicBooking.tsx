@@ -70,7 +70,8 @@ function MiniCalendar({
   isSelectable: (d: Date) => boolean; onSelect: (d: Date) => void;
 }) {
   return (
-    <div>
+    <div className="overflow-x-auto">
+      <div className="min-w-[280px]">
       {/* Month nav */}
       <div className="flex items-center justify-between mb-5">
         <button
@@ -150,6 +151,7 @@ function MiniCalendar({
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );

@@ -148,7 +148,7 @@ export default function FormsHub() {
 
         {/* Stats row */}
         {formsList.length > 0 && (
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             {[
               { label: "Total Forms", value: formsList.length, icon: FileText },
               { label: "Published", value: formsList.filter((f: any) => f.status === "published").length, icon: CheckCircle2 },

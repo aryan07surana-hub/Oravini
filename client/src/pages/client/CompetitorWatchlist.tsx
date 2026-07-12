@@ -198,7 +198,7 @@ function WatchlistCard({
 
       {/* Quick stats row */}
       {latest && (
-        <div className="grid grid-cols-5 divide-x divide-border border-t border-border px-2 py-2">
+        <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-border border-t border-border px-2 py-2">
           <StatChip icon={Users} val={latest.followerCount ? `${(latest.followerCount / 1000).toFixed(1)}k` : "—"} label="Followers" color="text-primary" />
           <StatChip icon={Eye} val={latest.avgViews ? `${Math.round(latest.avgViews).toLocaleString()}` : "—"} label="Avg Views" color="text-blue-400" />
           <StatChip icon={Heart} val={latest.avgLikes ? Math.round(latest.avgLikes).toLocaleString() : "—"} label="Avg Likes" color="text-pink-400" />
@@ -224,7 +224,7 @@ function WatchlistCard({
           {latest?.recentPosts?.length > 0 && (
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Recent Posts</p>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {(latest.recentPosts as any[]).slice(0, 5).map((post: any, i: number) => (
                   <a
                     key={i}

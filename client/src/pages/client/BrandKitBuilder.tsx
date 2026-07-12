@@ -600,7 +600,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
                   </div>
                   <p className="text-xs text-zinc-500 mt-3 leading-relaxed">{kit.visualIdentity.colorPalette.emotionalImpact}</p>
                 </div>
-                <div className="border-t border-zinc-800 pt-4 grid grid-cols-3 gap-4">
+                <div className="border-t border-zinc-800 pt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {[
                     { label: "Heading Font", data: kit.visualIdentity.typography.heading },
                     { label: "Body Font", data: kit.visualIdentity.typography.body },
@@ -615,7 +615,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
                 </div>
                 <div className="border-t border-zinc-800 pt-4 space-y-3">
                   <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Design Style Direction</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
                       { label: "Aesthetic", value: kit.visualIdentity.designStyle.aesthetic },
                       { label: "Layout", value: kit.visualIdentity.designStyle.layout },
@@ -633,7 +633,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
 
             {/* 3. Social Media */}
             <Section icon={Layout} title="Social Media Design System">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
                   { label: "Post Style", icon: "📸", data: kit.socialMedia.postStyle, fields: [["Look", "look"], ["Text Placement", "textPlacement"], ["Colors & Spacing", "colorsSpacing"]] },
                   { label: "Carousel Style", icon: "🔄", data: kit.socialMedia.carouselStyle, fields: [["Structure", "structure"], ["Font Hierarchy", "fontHierarchy"], ["Visual Flow", "visualFlow"]] },
@@ -696,7 +696,7 @@ export default function BrandKitBuilder({ embedded = false }: { embedded?: boole
 
             {/* 5. Lead Magnet Style */}
             <Section icon={FileText} title="Lead Magnet Style">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-wider">Recommended Types</p>
                   <div className="flex flex-wrap gap-1.5">

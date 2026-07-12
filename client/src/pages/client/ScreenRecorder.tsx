@@ -672,7 +672,7 @@ function AIStudioModal({ recording, onClose }: { recording: Recording; onClose: 
                     <div className="text-4xl font-black" style={{ color: GOLD }}>{aiCoach.overallScore}/100</div>
                   </div>
                   {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <div className="p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                       <Activity className="w-4 h-4 mb-1" style={{ color: GOLD }} />
                       <div className="text-lg font-bold text-white">{aiCoach.wpm}</div>

@@ -382,7 +382,7 @@ export default function ClientProgress() {
                     </svg>
                   </div>
                   <p className="text-xs text-zinc-500 mt-3 uppercase tracking-[0.2em]">Mission Progress</p>
-                  <div className="grid grid-cols-3 gap-2 mt-4 w-full">
+                  <div className="grid grid-cols-3 gap-2 mt-4 w-full sm:grid-cols-3">
                     <div className="text-center">
                       <p className="text-lg font-semibold text-white">{data.summary.clientQueueCount}</p>
                       <p className="text-[9px] uppercase tracking-[0.15em] text-zinc-500">For You</p>

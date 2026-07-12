@@ -3607,7 +3607,7 @@ function SmsMarketingTab() {
       <div className="h-px" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}25, transparent)` }} />
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Total Sent", value: stats.stats.totalSent, icon: Send, color: "#60a5fa" },
           { label: "Sent Today", value: stats.stats.sentToday, icon: Phone, color: "#34d399" },
@@ -5408,7 +5408,7 @@ function DialerTab() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Calls Today", value: stats?.callsToday ?? 0 },
           { label: "Connected",   value: stats?.connected ?? 0 },

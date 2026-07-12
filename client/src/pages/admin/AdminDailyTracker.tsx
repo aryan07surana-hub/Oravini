@@ -215,7 +215,7 @@ export default function AdminDailyTracker() {
               <ChevronRight className="w-4 h-4 text-zinc-400" />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="overflow-x-auto"><div className="grid grid-cols-7 gap-1.5 min-w-[400px]">
             {weekDays.map(d => {
               const k = dateKey(d);
               const dd = data[k];
@@ -238,7 +238,7 @@ export default function AdminDailyTracker() {
                 </button>
               );
             })}
-          </div>
+          </div></div>
         </div>
 
         {/* Selected date label */}
@@ -417,7 +417,7 @@ export default function AdminDailyTracker() {
         {activeTab === "progress" && (
           <div className="space-y-6">
             {/* Today's summary */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { label: "Tasks", value: `${taskPct}%`, sub: `${doneTasks}/${totalTasks} done`, color: "text-blue-400" },
                 { label: "Habits", value: `${habitPct}%`, sub: `${doneHabits}/${habits.length} done`, color: "text-emerald-400" },

@@ -756,7 +756,7 @@ export default function InstagramStoryGenerator() {
               <label className="text-sm font-semibold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />Choose Platform
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(Object.entries(PLATFORM_CONFIG) as [StoryPlatform, typeof pConfig][]).map(([key, cfg]) => {
                   const Icon = cfg.icon;
                   const isActive = form.platform === key;
@@ -811,7 +811,7 @@ export default function InstagramStoryGenerator() {
             {/* Goal */}
             <div className="space-y-3">
               <label className="text-sm font-semibold text-white">Goal <span className="text-red-400">*</span></label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {GOAL_OPTIONS.map(opt => (
                   <button key={opt.id} data-testid={`goal-${opt.id}`} onClick={() => setF("goal", opt.id)}
                     className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${form.goal === opt.id ? "border-primary bg-primary/10" : "border-zinc-800 bg-zinc-900 hover:border-zinc-600"}`}>
@@ -897,7 +897,7 @@ export default function InstagramStoryGenerator() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400">Visual style</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {STYLE_OPTIONS.map(s => (
                     <button key={s.id} onClick={() => setF("style", s.id)}
                       className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${form.style === s.id ? "border-primary bg-primary/10" : "border-zinc-700 bg-zinc-900 hover:border-zinc-600"}`}>
@@ -912,7 +912,7 @@ export default function InstagramStoryGenerator() {
               {/* Tone */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400">Tone of voice</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {TONE_OPTIONS.map(t => (
                     <button key={t.id} onClick={() => setF("tone", t.id)}
                       data-testid={`tone-${t.id}`}
@@ -944,7 +944,7 @@ export default function InstagramStoryGenerator() {
               {/* Content Depth */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-400">Content depth</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {DEPTH_OPTIONS.map(d => (
                     <button key={d.id} onClick={() => setF("contentDepth", d.id)}
                       data-testid={`depth-${d.id}`}

@@ -724,7 +724,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
                   {isYt ? "YouTube" : "Instagram"}
                 </Badge>
               </div>
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                 {[
                   { label: "Posts Available", value: posts.length, color: "text-primary" },
                   { label: "Filtered Posts", value: filteredForReport.length, color: "text-sky-400" },
@@ -740,7 +740,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-left">Quick Range</p>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { label: "1 Week", days: 7 },
                       { label: "2 Weeks", days: 14 },
@@ -835,7 +835,7 @@ function AIReportGenerator({ posts, platform }: { posts: any[]; platform: "insta
               <span>Crunching performance data</span>
               <span>{progress}% complete</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 pt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
               {["Stats", "Patterns", "Strategy"].map((label, idx) => (
                 <div key={label} className={`rounded-2xl border px-3 py-2 text-[11px] uppercase tracking-[0.18em] ${progress >= (idx + 1) * 30 ? "border-primary/30 bg-primary/10 text-primary" : "border-white/10 bg-white/[0.03] text-muted-foreground"}`}>
                   {label}
@@ -2088,7 +2088,7 @@ function FollowerReportDialog({ open, onClose }: { open: boolean; onClose: () =>
 
         {/* Summary bar */}
         {profiles.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 pt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
             <div className="rounded-xl bg-pink-500/5 border border-pink-500/20 p-3 text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total Followers</p>
               <p className="text-2xl font-bold text-foreground">{fmtFollowers(totalCurrentFollowers)}</p>
@@ -2672,7 +2672,7 @@ function PlatformTracking({ platform }: { platform: "instagram" | "youtube" }) {
         {/* Follower Growth Tracker — Instagram only */}
         {!isYt && <IgFollowerPanel />}
 
-        <div data-tour="ig-tracker-add" className="grid grid-cols-3 gap-3">
+        <div data-tour="ig-tracker-add" className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Card className="border border-card-border">
             <CardContent className="p-3">
               {isYt ? <Youtube className="w-4 h-4 text-red-400 mb-1.5" /> : <Instagram className="w-4 h-4 text-pink-400 mb-1.5" />}

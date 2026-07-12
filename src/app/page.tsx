@@ -373,7 +373,11 @@ export default function Home() {
       <section className={styles.pricingSection}>
         <div className={styles.pricingHeader}>
           <h2>Choose Your Plan</h2>
-          <p>Select the perfect tier for your needs</p>
+          <p>Start free. Add AI video models whenever you&apos;re ready.</p>
+        </div>
+
+        <div className={styles.freeVideoCallout}>
+          🎬 <strong>Every account gets 2 free AI video generations per week</strong> — no credit card needed.
         </div>
 
         <div className={styles.pricingGrid}>
@@ -381,46 +385,50 @@ export default function Home() {
             <h3>Free</h3>
             <p className={styles.price}>$0<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ 20 AI credits/month</li>
+              <li>✓ 150 AI credits/month</li>
+              <li>✓ 2 free AI videos/week</li>
               <li>✓ AI Day Planner</li>
               <li>✓ Basic scheduling</li>
               <li>✓ Community support</li>
             </ul>
-            <a href="/pricing" className={styles.pricingButton}>Get Started</a>
+            <a href="/pricing" className={styles.pricingButton}>Get Started Free</a>
           </div>
 
           <div className={styles.pricingCard}>
             <h3>Starter</h3>
             <p className={styles.price}>$19<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ 100 AI credits/month</li>
+              <li>✓ 400 AI credits/month</li>
               <li>✓ Unlimited daily plans</li>
               <li>✓ Full audit access</li>
+              <li>✓ AI Video Models (add-on)</li>
               <li>✓ Email support</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
 
-          <div className={`${styles.pricingCard} ${styles.featured}`}>
-            <span className={styles.popularBadge}>Most Popular</span>
+          <div className={styles.pricingCard}>
             <h3>Growth</h3>
             <p className={styles.price}>$49<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ 250 AI credits/month</li>
-              <li>✓ Video Marketing (+$20/mo)</li>
+              <li>✓ 1,000 AI credits/month</li>
+              <li>✓ AI Video Models (add-on)</li>
+              <li>✓ Video Marketing (add-on)</li>
               <li>✓ API access</li>
               <li>✓ Priority support</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
           </div>
 
-          <div className={styles.pricingCard}>
+          <div className={`${styles.pricingCard} ${styles.featured}`}>
+            <span className={styles.popularBadge}>Best Value</span>
             <h3>Pro</h3>
-            <p className={styles.price}>$59<span>/mo</span></p>
+            <p className={styles.price}>$69<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ 500 AI credits/month</li>
-              <li>✓ Video Marketing FREE</li>
-              <li>✓ Unlimited team members</li>
+              <li>✓ 2,500 AI credits/month</li>
+              <li>✓ AI Video Models — FREE</li>
+              <li>✓ Kling 2.6 · Seedance 2.0 · Wan 2.6 · Cinema Studio</li>
+              <li>✓ Video Marketing — FREE</li>
               <li>✓ Dedicated manager</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Get Started</a>
@@ -428,15 +436,29 @@ export default function Home() {
 
           <div className={styles.pricingCard}>
             <h3>Enterprise</h3>
-            <p className={styles.price}>Custom</p>
+            <p className={styles.price}>$99<span>/mo</span></p>
             <ul className={styles.features}>
-              <li>✓ Unlimited AI credits</li>
-              <li>✓ Video Marketing Included</li>
+              <li>✓ 7,000 AI credits/month</li>
+              <li>✓ All AI video models included</li>
+              <li>✓ Video Marketing included</li>
               <li>✓ White-glove onboarding</li>
-              <li>✓ Custom development</li>
+              <li>✓ Custom SLA</li>
             </ul>
             <a href="/pricing" className={styles.pricingButton}>Work With Us</a>
           </div>
+        </div>
+
+        <div className={styles.modelsShowcase}>
+          <p className={styles.modelsLabel}>AI Video Models — powered by Higgsfield</p>
+          <div className={styles.modelPills}>
+            <span>Kling 2.6 · from 24cr · cinematic motion</span>
+            <span>Seedance 2.0 · from 30cr · 4K identity</span>
+            <span>Seedance Mini · from 18cr · fast &amp; budget</span>
+            <span>Wan 2.6 · from 17cr · stylized creative</span>
+            <span>Minimax Hailuo · from 33cr · natural physics</span>
+            <span>Cinema Studio 3.0 · from 40cr · premium film</span>
+          </div>
+          <p className={styles.modelsNote}>1 credit = $0.01 · Pay only for what you generate · Audio generation included</p>
         </div>
       </section>
     </main>

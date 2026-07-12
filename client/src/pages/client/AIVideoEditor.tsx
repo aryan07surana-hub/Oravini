@@ -1255,7 +1255,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                       )}
 
                       {/* ── Quick AI Actions ──────────────────────────────── */}
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {[
                           { icon: Scissors, label: "Cut Points", msg: "Analyze this video and tell me the best places to make cuts for maximum engagement" },
                           { icon: Zap, label: "Hook Analysis", msg: "Rate the opening 3 seconds and rewrite a stronger hook" },
@@ -1985,7 +1985,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     {/* ── Style Selector ────────────────────────────────────── */}
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-foreground">Caption Style</p>
-                      <div className="grid grid-cols-5 gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                         {CAPTION_STYLES.map(style => (
                           <button key={style.id} onClick={() => setCaptionStyle(style.id)}
                             className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-center transition-all ${captionStyle === style.id ? "bg-primary/15 border-primary/50 shadow-[0_0_12px_rgba(212,180,97,0.2)]" : "bg-muted/5 border-muted/20 hover:border-muted/40"}`}
@@ -2001,7 +2001,7 @@ export default function AIVideoEditor({ useAdmin }: { useAdmin?: boolean }) {
                     {/* ── Variation Tabs ────────────────────────────────────── */}
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-foreground">Text Variation</p>
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {CAPTION_VARIATIONS.map(v => (
                           <button key={v.id} onClick={() => setCaptionVariation(v.id as any)}
                             className={`py-2 px-2 rounded-xl text-[10px] font-semibold border transition-all ${captionVariation === v.id ? "bg-primary/15 border-primary/50 text-primary" : "bg-muted/5 border-muted/20 text-muted-foreground hover:border-muted/40"}`}

@@ -1247,7 +1247,7 @@ export default function AdminScheduling() {
                 <Eye className="w-4 h-4 text-zinc-400" />
                 <p className="text-sm font-bold text-white">Schedule Preview</p>
               </div>
-              <div className="grid grid-cols-7 gap-2">
+              <div className="overflow-x-auto"><div className="grid grid-cols-7 gap-2 min-w-[350px]">
                 {rules.map((rule, i) => (
                   <div key={i} className={`rounded-lg p-2 text-center ${rule.isEnabled ? "bg-zinc-800 border border-zinc-700" : "bg-zinc-950 border border-zinc-800/30"}`}>
                     <p className={`text-[10px] font-bold ${rule.isEnabled ? "text-white" : "text-zinc-600"}`}>{DAYS_SHORT[i]}</p>
@@ -1262,7 +1262,7 @@ export default function AdminScheduling() {
                     )}
                   </div>
                 ))}
-              </div>
+              </div></div>
             </div>
           </div>
         )}

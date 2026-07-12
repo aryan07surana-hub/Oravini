@@ -216,7 +216,7 @@ export default function SelectPlan() {
   return (
     <div style={{ minHeight: "100vh", background: "#060606", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
       {/* Top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 32px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)", flexWrap: "wrap" as const, gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <img src={oraviniLogoPath} alt="Oravini" style={{ height: 36, width: 36, objectFit: "cover", objectPosition: "50% 32%", borderRadius: 6 }} />
           <button
@@ -510,7 +510,7 @@ export default function SelectPlan() {
         </div>
 
         {/* Tier 5 special card */}
-        <div style={{ width: "100%", maxWidth: 1100, background: `linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)`, border: `1px solid ${GOLD}55`, borderRadius: 24, padding: "44px 48px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 28, position: "relative", overflow: "hidden", boxShadow: `0 0 80px rgba(212,180,97,0.1)` }}>
+        <div style={{ width: "100%", maxWidth: 1100, background: `linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(212,180,97,0.03) 100%)`, border: `1px solid ${GOLD}55`, borderRadius: 24, padding: "clamp(28px, 4vw, 44px) clamp(20px, 4vw, 48px)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 28, position: "relative", overflow: "hidden", boxShadow: `0 0 80px rgba(212,180,97,0.1)` }}>
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${GOLD_BRIGHT}, ${GOLD}, transparent)` }} />
           <div style={{ flex: 1, minWidth: 240 }}>
             <div style={{ display: "inline-block", fontSize: 9, fontWeight: 800, color: "#000", background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, borderRadius: 99, padding: "3px 12px", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14 }}>Tier 5 — Exclusive</div>
@@ -598,7 +598,7 @@ export default function SelectPlan() {
             </button>
 
             {/* Header */}
-            <div style={{ padding: "40px 40px 28px", borderBottom: `1px solid ${decisionTier === 'pro' ? '#34d39920' : `${GOLD}20`}`, background: "#060606" }}>
+            <div style={{ padding: "clamp(24px, 4vw, 40px) clamp(16px, 4vw, 40px) clamp(18px, 3vw, 28px)", borderBottom: `1px solid ${decisionTier === 'pro' ? '#34d39920' : `${GOLD}20`}`, background: "#060606" }}>
               <div style={{
                 display: "inline-block",
                 background: decisionTier === 'pro' ? "rgba(52,211,153,0.12)" : `${GOLD}18`,
@@ -626,7 +626,7 @@ export default function SelectPlan() {
             </div>
 
             {/* Feature preview */}
-            <div style={{ padding: "32px 40px 24px", flex: 1 }}>
+            <div style={{ padding: "clamp(20px, 3vw, 32px) clamp(16px, 4vw, 40px) clamp(16px, 3vw, 24px)", flex: 1 }}>
               {decisionTier === 'pro' && (
                 <div style={{
                   marginBottom: 22,
@@ -646,7 +646,7 @@ export default function SelectPlan() {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 14 }}>
                 {/* Webinar Hosting */}
                 <div style={{
                   background: "linear-gradient(135deg, rgba(212,180,97,0.08), rgba(212,180,97,0.02))",
@@ -777,7 +777,7 @@ export default function SelectPlan() {
 
             {/* Footer CTA */}
             <div style={{
-              padding: "22px 40px 28px",
+              padding: "clamp(16px, 3vw, 22px) clamp(16px, 4vw, 40px) clamp(18px, 3vw, 28px)",
               borderTop: `1px solid ${decisionTier === 'pro' ? '#34d39920' : `${GOLD}20`}`,
               background: "#060606",
               position: "sticky",
@@ -898,7 +898,7 @@ export default function SelectPlan() {
             </button>
 
             {/* Header */}
-            <div style={{ padding: "40px 40px 30px", borderBottom: `1px solid ${GOLD}20` }}>
+            <div style={{ padding: "clamp(24px, 4vw, 40px) clamp(16px, 4vw, 40px) clamp(18px, 3vw, 30px)", borderBottom: `1px solid ${GOLD}20` }}>
               <div style={{ display: "inline-block", background: `${GOLD}20`, border: `1px solid ${GOLD}40`, borderRadius: 99, padding: "4px 12px", marginBottom: 12 }}>
                 <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   {previewTier === 'growth' ? 'Growth Tier Add-On' : 'Pro Tier - Included FREE'}
@@ -913,7 +913,7 @@ export default function SelectPlan() {
             </div>
 
             {/* Feature Slides */}
-            <div style={{ padding: 40 }}>
+            <div style={{ padding: "clamp(20px, 4vw, 40px)" }}>
               {/* Slide 1: Webinar Hosting */}
               <div style={{ marginBottom: 40 }}>
                 <div style={{
@@ -1045,7 +1045,7 @@ export default function SelectPlan() {
 
             {/* Footer CTA */}
             <div style={{
-              padding: "30px 40px",
+              padding: "clamp(20px, 3vw, 30px) clamp(16px, 4vw, 40px)",
               borderTop: `1px solid ${GOLD}20`,
               background: "rgba(0,0,0,0.3)",
               display: "flex",
@@ -1062,7 +1062,7 @@ export default function SelectPlan() {
                   {previewTier === 'growth' ? '+$20/month' : 'Worth $20/month - yours at no extra cost'}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const }}>
                 <button
                   onClick={() => setShowVideoPreview(false)}
                   style={{

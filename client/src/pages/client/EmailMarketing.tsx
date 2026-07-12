@@ -758,7 +758,7 @@ function SequencesSection() {
 
         {/* Enrollment stats */}
         {(enrollments as any[]).length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-xl p-3 text-center" style={{ background: `${GOLD}08`, border: `1px solid ${GOLD}15` }}>
               <p className="text-xl font-black" style={{ color: GOLD }}>{(enrollments as any[]).length}</p>
               <p className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Total Enrolled</p>
@@ -1297,7 +1297,7 @@ function ContactsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard label="Total" value={(contacts as any[]).length} icon={Users} />
         <StatCard label="Subscribed" value={subscribed} color="#22c55e" icon={CheckCircle} />
         <StatCard label="Unsubscribed" value={(contacts as any[]).length - subscribed} color="#ef4444" icon={XCircle} />
@@ -2352,8 +2352,8 @@ function SmtpSection() {
 
       {/* Connection settings */}
       <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-3">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2">
             <label className="block text-xs font-bold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>SMTP Host</label>
             <input value={form.host} onChange={e => setForm(f => ({ ...f, host: e.target.value }))}
               placeholder="smtp.example.com"
@@ -2946,7 +2946,7 @@ function EmailMarketingPlatform() {
       </svg>
 
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 flex flex-col relative z-10"
+      <aside className="hidden sm:flex w-60 flex-shrink-0 flex-col relative z-10"
         style={{ background: BG, borderRight: `1px solid ${GOLD}15`, minHeight: "100vh" }}>
         {/* Logo */}
         <div className="px-4 py-3" style={{ borderBottom: `1px solid ${GOLD}15` }}>
@@ -3015,7 +3015,7 @@ function EmailMarketingPlatform() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         {/* Top bar */}
-        <div className="sticky top-0 z-20 px-6 py-3 flex items-center gap-3"
+        <div className="sticky top-0 z-20 px-4 sm:px-6 py-3 flex items-center gap-3"
           style={{ background: "rgba(4,4,6,0.97)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${GOLD}14` }}>
           <div className="flex gap-0.5 mr-2">
             {[...Array(5)].map((_, i) => (
@@ -3037,7 +3037,7 @@ function EmailMarketingPlatform() {
         </div>
 
         {/* Content */}
-        <div className="px-6 py-8">
+        <div className="px-4 sm:px-6 py-8">
           {renderSection()}
         </div>
       </main>

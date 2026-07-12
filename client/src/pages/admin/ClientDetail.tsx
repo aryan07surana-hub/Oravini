@@ -236,7 +236,7 @@ export default function AdminClientDetail({ id }: { id: string }) {
         </div>
 
         <Tabs defaultValue="progress" className="space-y-6">
-          <TabsList className="grid grid-cols-7 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-4 sm:grid-cols-7 w-full max-w-2xl">
             <TabsTrigger value="progress" className="gap-1.5"><TrendingUp className="w-3.5 h-3.5" /><span className="hidden sm:inline">Progress</span></TabsTrigger>
             <TabsTrigger value="documents" className="gap-1.5"><FileText className="w-3.5 h-3.5" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
             <TabsTrigger value="calls" className="gap-1.5"><Phone className="w-3.5 h-3.5" /><span className="hidden sm:inline">Calls</span></TabsTrigger>

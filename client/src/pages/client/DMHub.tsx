@@ -176,7 +176,7 @@ export default function DMHub({ useAdmin = false }: { useAdmin?: boolean }) {
 
         {/* Main Tabs */}
         <Tabs defaultValue="automation">
-          <TabsList className="grid grid-cols-6 w-full">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full">
             <TabsTrigger value="automation" className="gap-1.5 text-xs">
               <Workflow className="w-3.5 h-3.5" />Automation
             </TabsTrigger>
