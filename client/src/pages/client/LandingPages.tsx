@@ -231,6 +231,7 @@ export function LandingPagesContent() {
   };
 
   return (
+    <>
     <div className="min-h-screen" style={{ background: BG }}>
       {/* Header */}
       <div className="border-b px-6 py-5 flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
@@ -331,6 +332,7 @@ export function LandingPagesContent() {
         </div>
     </div>
     {showPicker && <TemplatePickerModal onClose={() => setShowPicker(false)} onCreate={handleCreate} />}
+    </>
   );
 }
 
