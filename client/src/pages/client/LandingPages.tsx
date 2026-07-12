@@ -168,7 +168,7 @@ function TemplatePickerModal({ onClose, onCreate }: { onClose: () => void; onCre
   );
 }
 
-export default function LandingPages() {
+export function LandingPagesContent() {
   const { user } = useAuth();
   const [, nav] = useLocation();
   const qc = useQueryClient();
@@ -231,10 +231,9 @@ export default function LandingPages() {
   };
 
   return (
-    <ClientLayout>
-      <div className="min-h-screen" style={{ background: BG }}>
-        {/* Header */}
-        <div className="border-b px-6 py-5 flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="min-h-screen" style={{ background: BG }}>
+      {/* Header */}
+      <div className="border-b px-6 py-5 flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em]" style={{ color: `${GOLD}60` }}>Marketing</p>
             <h1 className="text-2xl font-black text-white mt-0.5">Landing Pages</h1>
@@ -330,8 +329,15 @@ export default function LandingPages() {
             </div>
           )}
         </div>
-      </div>
-      {showPicker && <TemplatePickerModal onClose={() => setShowPicker(false)} onCreate={handleCreate} />}
+    </div>
+    {showPicker && <TemplatePickerModal onClose={() => setShowPicker(false)} onCreate={handleCreate} />}
+  );
+}
+
+export default function LandingPages() {
+  return (
+    <ClientLayout>
+      <LandingPagesContent />
     </ClientLayout>
   );
 }

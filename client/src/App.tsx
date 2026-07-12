@@ -128,6 +128,7 @@ import ContentIntelHub from "@/pages/client/ContentIntelHub";
 import ClientProjectTracker from "@/pages/client/ProjectTracker";
 import ClientCRM from "@/pages/client/CRM";
 import LandingPages from "@/pages/client/LandingPages";
+import PagesHub from "@/pages/client/PagesHub";
 import LandingPageBuilder from "@/pages/client/LandingPageBuilder";
 import Funnels from "@/pages/client/Funnels";
 import FunnelBuilder from "@/pages/client/FunnelBuilder";
@@ -315,17 +316,18 @@ function Router() {
       <Route path="/dm-automation">{() => <Guard component={DMAutomation} />}</Route>
       <Route path="/email-marketing">{() => <Guard component={EmailMarketing} />}</Route>
       <Route path="/sms-marketing">{() => <Guard component={SmsMarketing} />}</Route>
-      <Route path="/landing-pages">{() => <Guard component={LandingPages} />}</Route>
+      <Route path="/pages-hub">{() => <Guard component={PagesHub} />}</Route>
+      <Route path="/landing-pages">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/landing-pages/:id/edit">{() => <Guard component={LandingPageBuilder} />}</Route>
-      <Route path="/funnels">{() => <Guard component={Funnels} />}</Route>
+      <Route path="/funnels">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/funnels/:id/edit">{() => <Guard component={FunnelBuilder} />}</Route>
       <Route path="/funnels/:id/analytics">{() => <Guard component={FunnelAnalytics} />}</Route>
       <Route path="/funnels/:id/automations">{() => <Guard component={FunnelAutomations} />}</Route>
       <Route path="/funnels/:id/domain">{() => <Guard component={FunnelDomain} />}</Route>
       <Route path="/funnels/:funnelId/steps/:stepId/edit">{() => <Guard component={FunnelStepBuilder} />}</Route>
-      <Route path="/pages">{() => <Guard component={Pages} />}</Route>
+      <Route path="/pages">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/pages/:funnelId/step/:stepId">{() => <Guard component={FunnelStepBuilder} />}</Route>
-      <Route path="/domains">{() => <Guard component={Domains} />}</Route>
+      <Route path="/domains">{() => <Redirect to="/pages-hub" />}</Route>
       <Route path="/f/:slug/:stepSlug">{() => <PublicFunnelStep />}</Route>
       <Route path="/f/:slug">{() => <PublicFunnelStep />}</Route>
       <Route path="/dm-tracker">{() => <Guard component={DMTracker} />}</Route>
