@@ -590,7 +590,8 @@ function FollowerChart() {
     const length = path.getTotalLength();
     path.style.strokeDasharray = `${length}`;
 
-    const DRAW = 2600, HOLD = 900, FADE = 350;
+    const DRAW = 3600, HOLD = 900, RESET = 420;
+    const CYCLE = DRAW + HOLD + RESET + 260;
     let t1: ReturnType<typeof setTimeout>, t2: ReturnType<typeof setTimeout>;
 
     function cycle() {
@@ -598,12 +599,12 @@ function FollowerChart() {
       path!.style.strokeDashoffset = `${length}`;
       path!.style.opacity = "1";
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        path!.style.transition = `stroke-dashoffset ${DRAW}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+        path!.style.transition = `stroke-dashoffset ${DRAW}ms linear`;
         path!.style.strokeDashoffset = "0";
         t1 = setTimeout(() => {
-          path!.style.transition = `opacity ${FADE}ms ease`;
+          path!.style.transition = `opacity ${RESET}ms ease`;
           path!.style.opacity = "0";
-          t2 = setTimeout(() => { path!.style.opacity = "1"; cycle(); }, FADE + 200);
+          t2 = setTimeout(() => { path!.style.opacity = "1"; cycle(); }, RESET + 260);
         }, DRAW + HOLD);
       }));
     }
@@ -665,7 +666,7 @@ function FollowerChart() {
   );
 }
 
-// ── Outcome Metrics (sequential looping bars) ────────────────────────────────
+// ── Outcome Metrics (all bars grow together, loop) ───────────────────────────
 const OUTCOME_METRICS = [
   { label: "Strategy Clarity Score", val: 95, barH: 5 },
   { label: "Follower Growth Speed", val: 94, barH: 6 },
@@ -678,10 +679,8 @@ function OutcomeMetrics() {
 
   useEffect(() => {
     const bars = barRefs.current;
-    const FILL = 1800, HOLD = 700, SHRINK = 320, GAP = 350;
-    const SLOT = FILL + HOLD + SHRINK + GAP;
-    const CYCLE = SLOT * OUTCOME_METRICS.length + 500;
-    let timers: ReturnType<typeof setTimeout>[] = [];
+    const FILL = 3600, HOLD = 900, SHRINK = 420;
+    let t1: ReturnType<typeof setTimeout>, t2: ReturnType<typeof setTimeout>;
 
     function resetAll() {
       bars.forEach(b => {
@@ -692,36 +691,31 @@ function OutcomeMetrics() {
       });
     }
 
-    function runSlot(i: number) {
-      const b = bars[i];
-      if (!b) return;
-      b.style.transition = `width ${FILL}ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease`;
-      b.style.width = `${OUTCOME_METRICS[i].val}%`;
-      b.style.opacity = "1";
-      const t = setTimeout(() => {
-        b.style.transition = `width ${SHRINK}ms ease-in, opacity ${SHRINK}ms ease`;
-        b.style.width = "0%";
-        b.style.opacity = "0.22";
-      }, FILL + HOLD);
-      timers.push(t);
-    }
-
-    function runCycle() {
+    function cycle() {
       resetAll();
-      OUTCOME_METRICS.forEach((_, i) => {
-        const t = setTimeout(() => runSlot(i), i * SLOT + 150);
-        timers.push(t);
-      });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        // All bars fill simultaneously at the same pace
+        OUTCOME_METRICS.forEach(({ val }, i) => {
+          const b = bars[i];
+          if (!b) return;
+          b.style.transition = `width ${FILL}ms linear, opacity 250ms ease`;
+          b.style.width = `${val}%`;
+          b.style.opacity = "1";
+        });
+        t1 = setTimeout(() => {
+          bars.forEach(b => {
+            if (!b) return;
+            b.style.transition = `width ${SHRINK}ms ease-in, opacity ${SHRINK}ms ease`;
+            b.style.width = "0%";
+            b.style.opacity = "0.22";
+          });
+          t2 = setTimeout(cycle, SHRINK + 260);
+        }, FILL + HOLD);
+      }));
     }
 
-    runCycle();
-    const interval = setInterval(() => {
-      timers.forEach(clearTimeout);
-      timers = [];
-      runCycle();
-    }, CYCLE);
-
-    return () => { timers.forEach(clearTimeout); clearInterval(interval); };
+    cycle();
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   return (
