@@ -583,25 +583,32 @@ const PRICING_TIERS = [
 // ── Follower Growth Chart ─────────────────────────────────────────────────────
 function FollowerChart() {
   const pathRef = useRef<SVGPathElement>(null);
-  const started = useRef(false);
 
   useEffect(() => {
     const path = pathRef.current;
     if (!path) return;
     const length = path.getTotalLength();
     path.style.strokeDasharray = `${length}`;
-    path.style.strokeDashoffset = `${length}`;
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && !started.current) {
-        started.current = true;
-        requestAnimationFrame(() => {
-          path.style.transition = "stroke-dashoffset 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s";
-          path.style.strokeDashoffset = "0";
-        });
-      }
-    }, { threshold: 0.3 });
-    obs.observe(path);
-    return () => obs.disconnect();
+
+    const DRAW = 2600, HOLD = 900, FADE = 350;
+    let t1: ReturnType<typeof setTimeout>, t2: ReturnType<typeof setTimeout>;
+
+    function cycle() {
+      path!.style.transition = "none";
+      path!.style.strokeDashoffset = `${length}`;
+      path!.style.opacity = "1";
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        path!.style.transition = `stroke-dashoffset ${DRAW}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+        path!.style.strokeDashoffset = "0";
+        t1 = setTimeout(() => {
+          path!.style.transition = `opacity ${FADE}ms ease`;
+          path!.style.opacity = "0";
+          t2 = setTimeout(() => { path!.style.opacity = "1"; cycle(); }, FADE + 200);
+        }, DRAW + HOLD);
+      }));
+    }
+    cycle();
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   const W = 360, H = 138;
@@ -654,6 +661,85 @@ function FollowerChart() {
           </text>
         ))}
       </svg>
+    </div>
+  );
+}
+
+// ── Outcome Metrics (sequential looping bars) ────────────────────────────────
+const OUTCOME_METRICS = [
+  { label: "Strategy Clarity Score", val: 95, barH: 5 },
+  { label: "Follower Growth Speed", val: 94, barH: 6 },
+  { label: "Average Engagement Boost", val: 89, barH: 5 },
+  { label: "Content Consistency", val: 88, barH: 4 },
+] as const;
+
+function OutcomeMetrics() {
+  const barRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    const bars = barRefs.current;
+    const FILL = 1800, HOLD = 700, SHRINK = 320, GAP = 350;
+    const SLOT = FILL + HOLD + SHRINK + GAP;
+    const CYCLE = SLOT * OUTCOME_METRICS.length + 500;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+
+    function resetAll() {
+      bars.forEach(b => {
+        if (!b) return;
+        b.style.transition = "none";
+        b.style.width = "0%";
+        b.style.opacity = "0.22";
+      });
+    }
+
+    function runSlot(i: number) {
+      const b = bars[i];
+      if (!b) return;
+      b.style.transition = `width ${FILL}ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease`;
+      b.style.width = `${OUTCOME_METRICS[i].val}%`;
+      b.style.opacity = "1";
+      const t = setTimeout(() => {
+        b.style.transition = `width ${SHRINK}ms ease-in, opacity ${SHRINK}ms ease`;
+        b.style.width = "0%";
+        b.style.opacity = "0.22";
+      }, FILL + HOLD);
+      timers.push(t);
+    }
+
+    function runCycle() {
+      resetAll();
+      OUTCOME_METRICS.forEach((_, i) => {
+        const t = setTimeout(() => runSlot(i), i * SLOT + 150);
+        timers.push(t);
+      });
+    }
+
+    runCycle();
+    const interval = setInterval(() => {
+      timers.forEach(clearTimeout);
+      timers = [];
+      runCycle();
+    }, CYCLE);
+
+    return () => { timers.forEach(clearTimeout); clearInterval(interval); };
+  }, []);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {OUTCOME_METRICS.map(({ label, val, barH }, i) => (
+        <div key={label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "16px 20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{label}</span>
+            <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{val}%</span>
+          </div>
+          <div style={{ height: barH, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
+            <div
+              ref={el => { barRefs.current[i] = el; }}
+              style={{ height: "100%", width: "0%", background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 99, opacity: 0.22 }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1318,42 +1404,7 @@ export default function OraviniLanding() {
           </Anim>
           <Anim from="translateX(40px)">
             <FollowerChart />
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {([
-                { label: "Strategy Clarity Score", val: 95, duration: 1500, easing: "cubic-bezier(0.23, 1, 0.32, 1)", delay: 0, barH: 5 },
-                { label: "Follower Growth Speed", val: 94, duration: 1100, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", delay: 180, barH: 6 },
-                { label: "Average Engagement Boost", val: 89, duration: 850, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)", delay: 60, barH: 5 },
-                { label: "Content Consistency", val: 88, duration: 2200, easing: "linear", delay: 300, barH: 4 },
-              ] as const).map(({ label, val, duration, easing, delay, barH }) => (
-                <div key={label} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "16px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 9 }}>
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: 13, color: GOLD, fontWeight: 700 }}>{val}%</span>
-                  </div>
-                  <div style={{ height: barH, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
-                    <div
-                      ref={el => {
-                        if (!el) return;
-                        let fired = false;
-                        const obs = new IntersectionObserver(([e]) => {
-                          if (e.isIntersecting && !fired) {
-                            fired = true;
-                            setTimeout(() => {
-                              el.style.transition = `width ${duration}ms ${easing}`;
-                              el.style.width = `${val}%`;
-                              el.style.opacity = "1";
-                            }, delay);
-                            obs.disconnect();
-                          }
-                        }, { threshold: 0.5 });
-                        obs.observe(el);
-                      }}
-                      style={{ height: "100%", width: 0, background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 99, opacity: 0 }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <OutcomeMetrics />
           </Anim>
         </div>
         <style>{`@media(max-width:768px){ .outcomes-grid{ grid-template-columns:1fr !important; gap:40px !important; } }`}</style>
