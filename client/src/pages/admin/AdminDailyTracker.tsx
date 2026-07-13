@@ -18,12 +18,28 @@ const STORAGE_KEY = import.meta.env.VITE_DAILY_TRACKER_STORAGE_KEY ?? "admin_dai
 const BUSINESS_STORAGE_KEY = "admin_business_tracker_v1";
 const CONTENT_CALENDAR_KEY = "admin_content_calendar_v1";
 
-type Task = { id: string; text: string; done: boolean; category: "work" | "health" | "personal" | "business" };
+type Task = { id: string; text: string; done: boolean; sectionId: string };
+type Section = { id: string; name: string };
+type MainTab = { id: string; name: string; emoji: string; sections: Section[] };
 type Habit = { id: string; name: string; emoji: string };
 type ContentItem = { id: string; title: string; platform: string; scheduledTime: string; status: "pending" | "published" | "draft"; description: string };
 type BusinessTask = { id: string; text: string; done: boolean; priority: "high" | "medium" | "low"; dueDate?: string };
 type DayData = { tasks: Task[]; habits: Record<string, boolean>; note: string; aiPlan: string; businessTasks: BusinessTask[]; contentCalendar: ContentItem[]; aiContentPrompt: string };
 type TrackerData = Record<string, DayData>;
+
+const DEFAULT_TABS: MainTab[] = [
+  { id: "consulting", name: "Consulting", emoji: "🤝", sections: [] },
+  { id: "software",   name: "Software",   emoji: "💻", sections: [] },
+];
+
+function loadTabs(): MainTab[] {
+  try { return JSON.parse(localStorage.getItem("admin_main_tabs_v1") || "null") || DEFAULT_TABS; }
+  catch { return DEFAULT_TABS; }
+}
+
+function saveTabs(t: MainTab[]) {
+  localStorage.setItem("admin_main_tabs_v1", JSON.stringify(t));
+}
 
 type ContentCalendarDay = {
   date: string;
@@ -45,11 +61,6 @@ const DEFAULT_HABITS: Habit[] = [
   { id: "sleep", name: "Sleep 8hrs", emoji: "😴" },
 ];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  work: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  health: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  personal: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-};
 
 function dateKey(d: Date) {
   return format(d, "yyyy-MM-dd");
@@ -79,24 +90,46 @@ export default function AdminDailyTracker() {
       return JSON.parse(localStorage.getItem("admin_habits_v1") || "null") || DEFAULT_HABITS;
     } catch { return DEFAULT_HABITS; }
   });
-  const [newTask, setNewTask] = useState("");
-  const [newTaskCat, setNewTaskCat] = useState<Task["category"]>("work");
+  const [mainTabs, setMainTabs] = useState<MainTab[]>(loadTabs);
+  const [activeMainTabId, setActiveMainTabId] = useState<string>(() => loadTabs()[0]?.id ?? "consulting");
+  const [sectionInputs, setSectionInputs] = useState<Record<string, string>>({});
+  const [newSectionName, setNewSectionName] = useState("");
+  const [showAddSection, setShowAddSection] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  const [newTabEmoji, setNewTabEmoji] = useState("📁");
+  const [showAddTab, setShowAddTab] = useState(false);
   const [newHabitName, setNewHabitName] = useState("");
   const [newHabitEmoji, setNewHabitEmoji] = useState("⭐");
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"tasks" | "habits" | "progress">("tasks");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const key = dateKey(selectedDate);
   const day: DayData = data[key] || emptyDay();
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function persistData(updated: TrackerData) {
+    setSaveStatus("saving");
+    saveData(updated);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaveStatus("saved"), 300);
+  }
+
   function updateDay(patch: Partial<DayData>) {
     const updated = { ...data, [key]: { ...day, ...patch } };
     setData(updated);
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveData(updated), 400);
+    saveTimer.current = setTimeout(() => persistData(updated), 400);
+  }
+
+  function manualSave() {
+    persistData(data);
+    saveTabs(mainTabs);
+    localStorage.setItem("admin_habits_v1", JSON.stringify(habits));
   }
 
   useEffect(() => {
@@ -129,11 +162,51 @@ export default function AdminDailyTracker() {
     return count;
   }, [data, habits]);
 
-  function addTask() {
-    if (!newTask.trim()) return;
-    const task: Task = { id: Date.now().toString(), text: newTask.trim(), done: false, category: newTaskCat };
+  const activeMainTab = mainTabs.find(t => t.id === activeMainTabId) ?? mainTabs[0];
+
+  function updateTabs(next: MainTab[]) {
+    setMainTabs(next);
+    saveTabs(next);
+  }
+
+  function addTab() {
+    if (!newTabName.trim()) return;
+    const tab: MainTab = { id: Date.now().toString(), name: newTabName.trim(), emoji: newTabEmoji, sections: [] };
+    const next = [...mainTabs, tab];
+    updateTabs(next);
+    setActiveMainTabId(tab.id);
+    setNewTabName(""); setNewTabEmoji("📁"); setShowAddTab(false);
+  }
+
+  function deleteTab(tabId: string) {
+    const tab = mainTabs.find(t => t.id === tabId);
+    const sectionIds = tab?.sections.map(s => s.id) ?? [];
+    const next = mainTabs.filter(t => t.id !== tabId);
+    updateTabs(next);
+    if (activeMainTabId === tabId) setActiveMainTabId(next[0]?.id ?? "");
+    updateDay({ tasks: day.tasks.filter(t => !sectionIds.includes(t.sectionId)) });
+  }
+
+  function addSection() {
+    if (!newSectionName.trim() || !activeMainTab) return;
+    const sec: Section = { id: Date.now().toString(), name: newSectionName.trim() };
+    const next = mainTabs.map(t => t.id === activeMainTab.id ? { ...t, sections: [...t.sections, sec] } : t);
+    updateTabs(next);
+    setNewSectionName(""); setShowAddSection(false);
+  }
+
+  function deleteSection(sectionId: string) {
+    const next = mainTabs.map(t => ({ ...t, sections: t.sections.filter(s => s.id !== sectionId) }));
+    updateTabs(next);
+    updateDay({ tasks: day.tasks.filter(t => t.sectionId !== sectionId) });
+  }
+
+  function addTaskToSection(sectionId: string) {
+    const text = (sectionInputs[sectionId] || "").trim();
+    if (!text) return;
+    const task: Task = { id: Date.now().toString(), text, done: false, sectionId };
     updateDay({ tasks: [...day.tasks, task] });
-    setNewTask("");
+    setSectionInputs(prev => ({ ...prev, [sectionId]: "" }));
   }
 
   function toggleTask(id: string) {
@@ -198,9 +271,22 @@ export default function AdminDailyTracker() {
             <h1 className="text-2xl font-bold text-white">Daily Tracker</h1>
             <p className="text-zinc-400 text-sm mt-0.5">Plan your day, track habits, measure progress</p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
-            <Flame className="w-3.5 h-3.5" />
-            {streak} day streak
+          <div className="flex items-center gap-3">
+            {saveStatus !== "idle" && (
+              <span className={`text-xs font-medium transition-all ${saveStatus === "saved" ? "text-emerald-400" : "text-zinc-500"}`}>
+                {saveStatus === "saving" ? "Saving..." : "✓ Saved"}
+              </span>
+            )}
+            <button
+              onClick={manualSave}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white transition-all"
+            >
+              Save
+            </button>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
+              <Flame className="w-3.5 h-3.5" />
+              {streak} day streak
+            </div>
           </div>
         </div>
 
@@ -286,7 +372,7 @@ export default function AdminDailyTracker() {
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${activeTab === tab ? "bg-primary text-primary-foreground" : "text-zinc-400 hover:text-white"}`}
             >
-              {tab === "tasks" ? <span className="flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" />{tab}</span>
+              {tab === "tasks" ? <span className="flex items-center gap-1.5"><ListTodo className="w-3.5 h-3.5" />Goals</span>
                 : tab === "habits" ? <span className="flex items-center gap-1.5"><Target className="w-3.5 h-3.5" />{tab}</span>
                   : <span className="flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5" />{tab}</span>}
             </button>
@@ -295,58 +381,163 @@ export default function AdminDailyTracker() {
 
         {/* TASKS TAB */}
         {activeTab === "tasks" && (
-          <div className="space-y-4">
-            {/* Progress bar */}
+          <div className="space-y-5">
+            {/* Progress */}
             <div className="flex items-center gap-3">
               <Progress value={taskPct} className="flex-1 h-2" />
               <span className="text-xs text-zinc-400 w-16 text-right">{doneTasks}/{totalTasks} done</span>
             </div>
 
-            {/* Add task */}
-            <div className="flex gap-2">
-              <select
-                value={newTaskCat}
-                onChange={e => setNewTaskCat(e.target.value as Task["category"])}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 px-2 py-2 outline-none"
-              >
-                <option value="work">Work</option>
-                <option value="health">Health</option>
-                <option value="personal">Personal</option>
-              </select>
-              <Input
-                value={newTask}
-                onChange={e => setNewTask(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addTask()}
-                placeholder="Add a task..."
-                className="flex-1 bg-zinc-800/60 border-zinc-700 text-sm"
-              />
-              <Button onClick={addTask} size="sm" variant="outline" className="border-zinc-700">
-                <Plus className="w-4 h-4" />
-              </Button>
+            {/* Main tab selector row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {mainTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveMainTabId(tab.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                    activeMainTabId === tab.id
+                      ? "text-black border-transparent"
+                      : "text-zinc-400 border-zinc-800 hover:border-zinc-600 hover:text-white bg-zinc-900/40"
+                  }`}
+                  style={activeMainTabId === tab.id ? { background: GOLD, borderColor: GOLD } : {}}
+                >
+                  <span>{tab.emoji}</span>
+                  <span>{tab.name}</span>
+                </button>
+              ))}
+
+              {/* Add tab button */}
+              {showAddTab ? (
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-1">
+                  <Input
+                    value={newTabEmoji}
+                    onChange={e => setNewTabEmoji(e.target.value)}
+                    className="w-10 bg-transparent border-0 text-center text-base p-0 h-6 focus-visible:ring-0"
+                    maxLength={2}
+                  />
+                  <Input
+                    autoFocus
+                    value={newTabName}
+                    onChange={e => setNewTabName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addTab(); if (e.key === "Escape") setShowAddTab(false); }}
+                    placeholder="Tab name..."
+                    className="bg-transparent border-0 text-xs text-white p-0 h-6 w-28 focus-visible:ring-0"
+                  />
+                  <button onClick={addTab} className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ background: GOLD, color: "#000" }}>Add</button>
+                  <button onClick={() => setShowAddTab(false)} className="text-zinc-500 hover:text-zinc-300"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddTab(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-500 border border-dashed border-zinc-700 hover:border-zinc-500 hover:text-zinc-300 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add tab
+                </button>
+              )}
+
+              {/* Delete active tab */}
+              {mainTabs.length > 1 && activeMainTab && (
+                <button
+                  onClick={() => deleteTab(activeMainTab.id)}
+                  className="ml-auto text-zinc-700 hover:text-red-400 transition-colors"
+                  title={`Delete "${activeMainTab.name}" tab`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Task list */}
-            {day.tasks.length === 0 ? (
-              <div className="text-center py-10 text-zinc-600">
-                <ListTodo className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No tasks yet. Add one above or use AI Planner.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {day.tasks.map(task => (
-                  <div key={task.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${task.done ? "border-zinc-800 bg-zinc-900/20 opacity-60" : "border-zinc-800 bg-zinc-900/40"}`}>
-                    <button onClick={() => toggleTask(task.id)} className="flex-shrink-0">
-                      {task.done
-                        ? <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                        : <Circle className="w-5 h-5 text-zinc-600 hover:text-zinc-400 transition-colors" />}
-                    </button>
-                    <span className={`flex-1 text-sm ${task.done ? "line-through text-zinc-500" : "text-zinc-200"}`}>{task.text}</span>
-                    <Badge className={`text-[10px] border ${CATEGORY_COLORS[task.category]}`}>{task.category}</Badge>
-                    <button onClick={() => deleteTask(task.id)} className="text-zinc-700 hover:text-red-400 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+            {/* Active tab content */}
+            {activeMainTab && (
+              <div className="space-y-4">
+                {/* Sections inside active tab */}
+                {activeMainTab.sections.length === 0 && !showAddSection && (
+                  <div className="py-8 text-center text-zinc-700 text-sm border border-dashed border-zinc-800 rounded-2xl">
+                    No sections yet — add one below
                   </div>
-                ))}
+                )}
+
+                {activeMainTab.sections.map(sec => {
+                  const secTasks = day.tasks.filter(t => t.sectionId === sec.id);
+                  const secDone = secTasks.filter(t => t.done).length;
+                  const inputVal = sectionInputs[sec.id] || "";
+
+                  return (
+                    <div key={sec.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+                      {/* Section header */}
+                      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-zinc-800/60 bg-zinc-900/50">
+                        <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex-1">{sec.name}</p>
+                        <span className="text-[10px] text-zinc-600">{secDone}/{secTasks.length}</span>
+                        <button onClick={() => deleteSection(sec.id)} className="text-zinc-700 hover:text-red-400 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Tasks */}
+                      <div className="px-4 py-2 space-y-0.5">
+                        {secTasks.length === 0 && (
+                          <p className="text-xs text-zinc-700 py-2">No tasks yet</p>
+                        )}
+                        {secTasks.map(task => (
+                          <div
+                            key={task.id}
+                            className={`flex items-center gap-3 py-2 border-b border-zinc-800/30 last:border-0 ${task.done ? "opacity-50" : ""}`}
+                          >
+                            <button onClick={() => toggleTask(task.id)} className="flex-shrink-0">
+                              {task.done
+                                ? <CheckCircle2 style={{ width: 17, height: 17 }} className="text-emerald-400" />
+                                : <Circle style={{ width: 17, height: 17 }} className="text-zinc-600 hover:text-zinc-400 transition-colors" />}
+                            </button>
+                            <span className={`flex-1 text-sm ${task.done ? "line-through text-zinc-500" : "text-zinc-200"}`}>{task.text}</span>
+                            <button onClick={() => deleteTask(task.id)} className="text-zinc-700 hover:text-red-400 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Inline add task */}
+                      <div className="flex gap-2 px-4 pb-3 pt-1">
+                        <Input
+                          value={inputVal}
+                          onChange={e => setSectionInputs(prev => ({ ...prev, [sec.id]: e.target.value }))}
+                          onKeyDown={e => e.key === "Enter" && addTaskToSection(sec.id)}
+                          placeholder="Add a task..."
+                          className="flex-1 bg-zinc-800/50 border-zinc-700/50 text-sm h-8"
+                        />
+                        <Button onClick={() => addTaskToSection(sec.id)} size="sm" className="h-8 px-3" style={{ background: GOLD, color: "#000" }}>
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Add section inside active tab */}
+                {showAddSection ? (
+                  <div className="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-4 space-y-3">
+                    <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">New section in {activeMainTab.name}</p>
+                    <div className="flex gap-2">
+                      <Input
+                        autoFocus
+                        value={newSectionName}
+                        onChange={e => setNewSectionName(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") addSection(); if (e.key === "Escape") setShowAddSection(false); }}
+                        placeholder="Section name..."
+                        className="flex-1 bg-zinc-800/60 border-zinc-700 text-sm"
+                      />
+                      <Button onClick={addSection} size="sm" style={{ background: GOLD, color: "#000" }}>Add</Button>
+                      <Button onClick={() => setShowAddSection(false)} size="sm" variant="ghost" className="text-zinc-500">Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAddSection(true)}
+                    className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors w-full py-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add section
+                  </button>
+                )}
               </div>
             )}
 

@@ -10,16 +10,16 @@ const GOLD = "#d4b461";
 const STORAGE_KEY = "admin_content_tracker_v2";
 
 const PLATFORMS = [
-  { id: "instagram", label: "Instagram", emoji: "📸", target: 6, accent: "#e1306c", bg: "rgba(225,48,108,0.12)", border: "rgba(225,48,108,0.3)" },
-  { id: "twitter",   label: "X / Twitter", emoji: "𝕏", target: 6, accent: "#ffffff", bg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.15)" },
+  { id: "instagram", label: "Instagram",  emoji: "📸", target: 6, accent: "#e1306c", bg: "rgba(225,48,108,0.12)", border: "rgba(225,48,108,0.3)" },
+  { id: "youtube",   label: "YouTube",    emoji: "▶️", target: 2, accent: "#ff0000", bg: "rgba(255,0,0,0.10)",   border: "rgba(255,0,0,0.3)" },
   { id: "linkedin",  label: "LinkedIn",   emoji: "💼", target: 6, accent: "#0a66c2", bg: "rgba(10,102,194,0.12)", border: "rgba(10,102,194,0.35)" },
-  { id: "youtube",   label: "YouTube",    emoji: "▶️", target: 2, accent: "#ff0000", bg: "rgba(255,0,0,0.10)", border: "rgba(255,0,0,0.3)" },
+  { id: "twitter",   label: "X / Twitter", emoji: "𝕏", target: 6, accent: "#ffffff", bg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.15)" },
 ] as const;
 
 type PlatformId = typeof PLATFORMS[number]["id"];
 type PostEntry = { done: boolean; note: string };
-type WeekData = Record<PlatformId, PostEntry[]>; // [7] per platform
-type AllData = Record<string, WeekData>; // weekKey -> data
+type WeekData = Record<PlatformId, PostEntry[]>;
+type AllData = Record<string, WeekData>;
 
 function weekKey(weekStart: Date) {
   return format(weekStart, "yyyy-MM-dd");
@@ -31,12 +31,7 @@ function getWeekStart(ref: Date) {
 
 function emptyWeek(): WeekData {
   const entry = (): PostEntry[] => Array.from({ length: 7 }, () => ({ done: false, note: "" }));
-  return {
-    instagram: entry(),
-    twitter:   entry(),
-    linkedin:  entry(),
-    youtube:   entry(),
-  };
+  return { instagram: entry(), youtube: entry(), linkedin: entry(), twitter: entry() };
 }
 
 function load(): AllData {
@@ -86,6 +81,8 @@ export default function AdminContentTracker() {
   }
 
   const isCurrentWeek = isSameWeek(new Date(), ws, { weekStartsOn: 1 });
+  const totalDone = PLATFORMS.reduce((acc, p) => acc + week[p.id].filter(e => e.done).length, 0);
+  const totalTarget = PLATFORMS.reduce((acc, p) => acc + p.target, 0);
 
   return (
     <AdminLayout>
@@ -95,20 +92,23 @@ export default function AdminContentTracker() {
         <div className="flex items-center justify-between mb-7">
           <div>
             <h1 className="text-2xl font-bold text-white">Content Tracker</h1>
-            <p className="text-zinc-400 text-sm mt-0.5">Weekly posting schedule — stay consistent, hit your targets</p>
+            <p className="text-zinc-400 text-sm mt-0.5">Weekly posting schedule across all platforms</p>
           </div>
-          {isCurrentWeek && (
-            <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
-              This Week
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {isCurrentWeek && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}>
+                This Week
+              </span>
+            )}
+            <span className="text-sm font-bold text-white">{totalDone}<span className="text-zinc-500 font-normal text-xs ml-1">/ {totalTarget} posts</span></span>
+          </div>
         </div>
 
         {/* Week navigator */}
         <div className="flex items-center justify-between mb-6 px-4 py-3 rounded-2xl border border-zinc-800 bg-zinc-900/40">
           <button
             onClick={() => setWeekRef(d => subWeeks(d, 1))}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
           >
             <ChevronLeft className="w-4 h-4 text-zinc-400" />
           </button>
@@ -128,7 +128,7 @@ export default function AdminContentTracker() {
           </div>
           <button
             onClick={() => setWeekRef(d => addWeeks(d, 1))}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
           >
             <ChevronRight className="w-4 h-4 text-zinc-400" />
           </button>
@@ -139,6 +139,7 @@ export default function AdminContentTracker() {
           {PLATFORMS.map(p => {
             const done = week[p.id].filter(e => e.done).length;
             const pct = Math.round((done / p.target) * 100);
+            const hit = done >= p.target;
             return (
               <div
                 key={p.id}
@@ -150,117 +151,121 @@ export default function AdminContentTracker() {
                   <span className="text-xs font-bold text-white truncate">{p.label}</span>
                 </div>
                 <div className="flex items-end justify-between mb-2">
-                  <span className="text-2xl font-black text-white">{done}</span>
-                  <span className="text-xs text-zinc-500 pb-0.5">/ {p.target} target</span>
+                  <span className="text-3xl font-black text-white">{done}</span>
+                  <span className="text-xs text-zinc-500 pb-0.5">/ {p.target}</span>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${Math.min(pct, 100)}%`,
-                      background: done >= p.target ? "#4ade80" : p.accent,
-                    }}
+                    style={{ width: `${Math.min(pct, 100)}%`, background: hit ? "#4ade80" : p.accent }}
                   />
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-1.5">
-                  {done >= p.target ? "✅ Target hit!" : `${p.target - done} more to go`}
+                <p className="text-[10px] mt-1.5" style={{ color: hit ? "#4ade80" : "#71717a" }}>
+                  {hit ? "✅ Target hit!" : `${p.target - done} more to go`}
                 </p>
               </div>
             );
           })}
         </div>
 
-        {/* Weekly grid */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-          {/* Day header */}
-          <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: "160px repeat(7, 1fr)" }}>
-            <div className="px-4 py-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Platform</div>
-            {days.map((d, i) => {
-              const today = isToday(d);
-              return (
-                <div
-                  key={i}
-                  className="py-3 text-center border-l border-zinc-800"
-                  style={today ? { background: `${GOLD}0a` } : {}}
-                >
-                  <p className={`text-[10px] font-semibold uppercase tracking-wider ${today ? "text-yellow-400" : "text-zinc-500"}`}>
-                    {format(d, "EEE")}
-                  </p>
-                  <p className={`text-sm font-bold mt-0.5 ${today ? "text-yellow-300" : "text-zinc-300"}`}>
-                    {format(d, "d")}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+        {/* Weekly grid — scrollable on small screens */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30">
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: 620 }}>
 
-          {/* Platform rows */}
-          {PLATFORMS.map((p, pi) => (
-            <div
-              key={p.id}
-              className={`grid ${pi < PLATFORMS.length - 1 ? "border-b border-zinc-800/60" : ""}`}
-              style={{ gridTemplateColumns: "160px repeat(7, 1fr)" }}
-            >
-              {/* Platform label */}
-              <div className="px-4 py-4 flex items-center gap-2.5 border-r border-zinc-800/60">
-                <span className="text-lg">{p.emoji}</span>
-                <div>
-                  <p className="text-xs font-bold text-white leading-tight">{p.label}</p>
-                  <p className="text-[10px] text-zinc-600 mt-0.5">{p.target}/week</p>
-                </div>
+              {/* Day headers */}
+              <div className="grid border-b border-zinc-800" style={{ gridTemplateColumns: "150px repeat(7, 1fr)" }}>
+                <div className="px-4 py-3 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Platform</div>
+                {days.map((d, i) => {
+                  const today = isToday(d);
+                  return (
+                    <div
+                      key={i}
+                      className="py-3 text-center border-l border-zinc-800"
+                      style={today ? { background: `${GOLD}0d` } : {}}
+                    >
+                      <p className={`text-[10px] font-semibold uppercase tracking-wider ${today ? "text-yellow-400" : "text-zinc-500"}`}>
+                        {format(d, "EEE")}
+                      </p>
+                      <p className={`text-sm font-bold mt-0.5 ${today ? "text-yellow-300" : "text-zinc-300"}`}>
+                        {format(d, "d")}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Day cells */}
-              {days.map((d, di) => {
-                const entry = week[p.id][di];
-                const today = isToday(d);
-                return (
-                  <div
-                    key={di}
-                    className="border-l border-zinc-800/60 py-3 px-1 flex flex-col items-center gap-1.5 group"
-                    style={today ? { background: `${GOLD}06` } : {}}
-                  >
-                    <button
-                      onClick={() => togglePost(p.id, di)}
-                      className="transition-all duration-200"
-                      title={entry.done ? "Mark as not posted" : "Mark as posted"}
-                    >
-                      {entry.done
-                        ? <CheckCircle2 className="w-6 h-6" style={{ color: p.accent === "#ffffff" ? "#a3a3a3" : p.accent }} />
-                        : <Circle className="w-6 h-6 text-zinc-700 group-hover:text-zinc-500 transition-colors" />}
-                    </button>
-                    <button
-                      onClick={() => openNote(p.id, di)}
-                      className={`text-[9px] font-medium leading-tight text-center px-1 rounded transition-all max-w-[52px] truncate ${
-                        entry.note
-                          ? "text-zinc-400 hover:text-zinc-200"
-                          : "text-zinc-700 hover:text-zinc-500 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={entry.note || "Add note"}
-                    >
-                      {entry.note || "+ note"}
-                    </button>
+              {/* Platform rows */}
+              {PLATFORMS.map((p, pi) => (
+                <div
+                  key={p.id}
+                  className={`grid ${pi < PLATFORMS.length - 1 ? "border-b border-zinc-800/60" : ""}`}
+                  style={{ gridTemplateColumns: "150px repeat(7, 1fr)" }}
+                >
+                  {/* Platform label */}
+                  <div className="px-4 py-4 flex items-center gap-2.5 border-r border-zinc-800/60">
+                    <span className="text-lg leading-none">{p.emoji}</span>
+                    <div>
+                      <p className="text-xs font-bold text-white leading-tight">{p.label}</p>
+                      <p className="text-[10px] text-zinc-600 mt-0.5">{p.target}/week</p>
+                    </div>
                   </div>
-                );
-              })}
+
+                  {/* Day cells */}
+                  {days.map((d, di) => {
+                    const entry = week[p.id][di];
+                    const today = isToday(d);
+                    return (
+                      <div
+                        key={di}
+                        className="border-l border-zinc-800/60 py-3 px-1 flex flex-col items-center gap-1.5 group"
+                        style={today ? { background: `${GOLD}07` } : {}}
+                      >
+                        <button
+                          onClick={() => togglePost(p.id, di)}
+                          className="transition-all duration-200 hover:scale-110"
+                          title={entry.done ? "Unmark" : "Mark as posted"}
+                        >
+                          {entry.done
+                            ? <CheckCircle2 className="w-6 h-6" style={{ color: p.id === "twitter" ? "#a3a3a3" : p.accent }} />
+                            : <Circle className="w-6 h-6 text-zinc-700 group-hover:text-zinc-500 transition-colors" />}
+                        </button>
+                        <button
+                          onClick={() => openNote(p.id, di)}
+                          className={`text-[9px] font-medium leading-tight text-center px-1 rounded max-w-[52px] truncate transition-all ${
+                            entry.note
+                              ? "text-zinc-400 hover:text-zinc-200"
+                              : "text-zinc-700 hover:text-zinc-500 opacity-0 group-hover:opacity-100"
+                          }`}
+                          title={entry.note || "Add note"}
+                        >
+                          {entry.note || "+ note"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
             </div>
-          ))}
+          </div>
         </div>
 
         {/* Weekly total */}
         <div className="mt-4 flex items-center justify-end gap-2">
-          <span className="text-xs text-zinc-600">Total posts this week:</span>
-          <span className="text-sm font-bold text-white">
-            {PLATFORMS.reduce((acc, p) => acc + week[p.id].filter(e => e.done).length, 0)}
-          </span>
-          <span className="text-xs text-zinc-600">/ {PLATFORMS.reduce((acc, p) => acc + p.target, 0)} target</span>
+          <span className="text-xs text-zinc-600">Week total:</span>
+          <span className="text-sm font-bold text-white">{totalDone}</span>
+          <span className="text-xs text-zinc-600">/ {totalTarget}</span>
         </div>
 
       </div>
 
       {/* Note modal */}
       {editCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setEditCell(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setEditCell(null)}
+        >
           <div
             className="w-80 rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
             onClick={e => e.stopPropagation()}
