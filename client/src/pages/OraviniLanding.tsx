@@ -1343,25 +1343,150 @@ export default function OraviniLanding() {
             </div>
           </Anim>
           <Anim from="translateX(40px)">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { icon: "💡", label: "AI Content Ideas" },
-                { icon: "🎨", label: "Carousel Studio" },
-                { icon: "🕵️", label: "Competitor Intel" },
-                { icon: "🧬", label: "Brand Kit Builder" },
-                { icon: "🎯", label: "ICP Builder" },
-                { icon: "🤖", label: "AI Content Coach" },
-              ].map(({ icon, label }) => (
-                <div key={label} onClick={() => nav("/preview")} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "18px 16px", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 10 }}
-                  onMouseEnter={e => { const t = e.currentTarget; t.style.borderColor = "rgba(212,180,97,0.3)"; t.style.background = "rgba(212,180,97,0.04)"; }}
-                  onMouseLeave={e => { const t = e.currentTarget; t.style.borderColor = "rgba(255,255,255,0.07)"; t.style.background = "rgba(255,255,255,0.025)"; }}>
-                  <span style={{ fontSize: 22 }}>{icon}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.6)" }}>{label}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.2)" }}>🔒</span>
+            {/* Live Tier 5 dashboard preview — scrollable */}
+            <div style={{ position: "relative", borderRadius: 20, overflow: "hidden", border: "1px solid rgba(212,180,97,0.22)", boxShadow: "0 0 80px rgba(212,180,97,0.07)", background: "#0a0a0a" }}>
+
+              {/* Browser chrome bar */}
+              <div style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f87171", opacity: 0.7 }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", opacity: 0.7 }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34d399", opacity: 0.7 }} />
+                <div style={{ flex: 1, marginLeft: 8, background: "rgba(255,255,255,0.05)", borderRadius: 6, padding: "3px 10px", fontSize: 9, color: "rgba(255,255,255,0.25)" }}>app.oravini.com/dashboard</div>
+              </div>
+
+              {/* Scrollable dashboard content */}
+              <div style={{ maxHeight: 480, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10, scrollbarWidth: "none" }}>
+
+                {/* Mission Control */}
+                <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(0,0,0,0.5) 100%)", border: "1px solid rgba(212,180,97,0.28)" }}>
+                  <div style={{ position: "absolute", top: 0, right: 0, width: 180, height: 180, borderRadius: "50%", background: GOLD, opacity: 0.05, filter: "blur(40px)", transform: "translate(30%,-30%)", pointerEvents: "none" }} />
+                  <div style={{ position: "relative", padding: "16px 16px 12px", borderBottom: "1px solid rgba(212,180,97,0.12)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: GOLD, boxShadow: `0 0 5px ${GOLD}` }} />
+                      <span style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: GOLD }}>Mission Briefing</span>
+                      <span style={{ fontSize: 7.5, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "rgba(212,180,97,0.14)", color: GOLD, border: "1px solid rgba(212,180,97,0.28)" }}>Tier 5 · Elite</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                      <div>
+                        <p style={{ fontSize: 15, fontWeight: 900, color: "#fff", margin: "0 0 2px", letterSpacing: "-0.02em" }}>Your Mission Control</p>
+                        <p style={{ fontSize: 10, color: "rgba(255,255,255,0.38)", margin: 0 }}>Phase: <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 600 }}>Phase 2 · Launch & Growth</span></p>
+                      </div>
+                      <div style={{ padding: "6px 12px", borderRadius: 8, background: `linear-gradient(135deg, ${GOLD_BRIGHT}, ${GOLD})`, color: "#000", fontSize: 9.5, fontWeight: 800, whiteSpace: "nowrap", opacity: 0.9 }}>📅 Book a Call</div>
+                    </div>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.28)" }}>Mission Progress</span>
+                        <span style={{ fontSize: 10, fontWeight: 900, color: GOLD }}>68%</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: "68%", background: `linear-gradient(90deg, ${GOLD}, #34d399)`, borderRadius: 999 }} />
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+                    {[
+                      { label: "Next Action", value: "Content review", text: true,  color: "rgba(255,255,255,0.65)" },
+                      { label: "Pending",     value: "3",              text: false, color: "#a78bfa" },
+                      { label: "In Review",   value: "2",              text: false, color: "#60a5fa" },
+                      { label: "Blockers",    value: "0",              text: false, color: "#34d399" },
+                    ].map(({ label, value, text, color }, i) => (
+                      <div key={label} style={{ padding: "10px 12px", borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                        <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)", margin: "0 0 4px" }}>{label}</p>
+                        {text ? <p style={{ fontSize: 9, fontWeight: 600, color, margin: 0, lineHeight: 1.4 }}>{value}</p>
+                               : <p style={{ fontSize: 20, fontWeight: 900, color, margin: 0, lineHeight: 1 }}>{value}</p>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                {/* Quick Tools row */}
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "12px 14px" }}>
+                  <p style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, margin: "0 0 10px" }}>Quick Tools</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                    {[
+                      { icon: "✨", label: "AI Ideas",   color: GOLD,      bg: "rgba(212,180,97,0.12)" },
+                      { icon: "🤖", label: "AI Coach",   color: "#34d399", bg: "rgba(52,211,153,0.1)" },
+                      { icon: "🎬", label: "Video Edit", color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
+                      { icon: "🕵️", label: "Competitor", color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
+                    ].map(({ icon, label, color, bg }) => (
+                      <div key={label} style={{ background: bg, borderRadius: 10, padding: "10px 8px", textAlign: "center", border: `1px solid ${color}22` }}>
+                        <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+                        <p style={{ fontSize: 8.5, fontWeight: 700, color, margin: 0 }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Creator Score */}
+                <div style={{ background: "linear-gradient(135deg, rgba(212,180,97,0.08) 0%, rgba(212,180,97,0.03) 100%)", border: "1px solid rgba(212,180,97,0.22)", borderRadius: 14, padding: "14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(212,180,97,0.15)", border: "1px solid rgba(212,180,97,0.28)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>👑</div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 2px" }}>Creator Score</p>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <p style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>847</p>
+                        <p style={{ fontSize: 11, fontWeight: 800, color: GOLD, margin: 0 }}>Elite Status</p>
+                      </div>
+                      <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", margin: "2px 0 0" }}>You're in the top tier. The platform bends to your will.</p>
+                    </div>
+                    <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                      <p style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", margin: 0 }}>Next: 🔥 max</p>
+                      <div style={{ width: 100, height: 4, borderRadius: 999, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: "85%", background: `linear-gradient(90deg, ${GOLD}, ${GOLD_BRIGHT})`, borderRadius: 999 }} />
+                      </div>
+                      <p style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", margin: 0 }}>153 pts to go</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* My Big 3 + Income Goal row */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "12px 12px" }}>
+                    <p style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", margin: "0 0 8px" }}>My Big 3 Today</p>
+                    {[
+                      { label: "🥇", text: "Post 3 reels", color: GOLD },
+                      { label: "🥈", text: "Record webinar", color: "#a78bfa" },
+                      { label: "🥉", text: "Reply DMs", color: "#34d399" },
+                    ].map(({ label, text, color }) => (
+                      <div key={text} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 8, background: `${color}0d`, border: `1px solid ${color}25`, marginBottom: 5 }}>
+                        <span style={{ fontSize: 9 }}>{label}</span>
+                        <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.7)", margin: 0, fontWeight: 600 }}>{text}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ background: "rgba(212,180,97,0.06)", border: "1px solid rgba(212,180,97,0.2)", borderRadius: 14, padding: "12px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <p style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 6px" }}>Income Goal</p>
+                    <p style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>$100K</p>
+                    <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", margin: "4px 0 0" }}>in 6 months</p>
+                  </div>
+                </div>
+
+                {/* Community Pulse */}
+                <div style={{ background: "rgba(255,255,255,0.015)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399" }} />
+                    <p style={{ fontSize: 10, fontWeight: 800, color: "#fff", margin: 0 }}>Community Pulse</p>
+                  </div>
+                  {[
+                    { name: "Alex M.", post: "Just hit 50K followers using the AI Ideas tool 🔥", color: GOLD },
+                    { name: "Sarah K.", post: "Competitor study saved my content strategy completely", color: "#a78bfa" },
+                  ].map(({ name, post, color }) => (
+                    <div key={name} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: `${color}20`, border: `1px solid ${color}30`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800, color }}>{name[0]}</div>
+                      <div>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{name}</p>
+                        <p style={{ fontSize: 8.5, color: "rgba(255,255,255,0.4)", margin: 0 }}>{post}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+
+              {/* Fade-out bottom */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, background: "linear-gradient(to top, #0a0a0a, transparent)", pointerEvents: "none" }} />
             </div>
-            <div style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: "rgba(255,255,255,0.2)" }}>+ 6 more tools in preview</div>
+            <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>Live look at the Tier 5 Elite dashboard — scroll to explore</div>
           </Anim>
         </div>
         <style>{`@media(max-width:768px){ .preview-grid{ grid-template-columns:1fr !important; gap:40px !important; } }`}</style>
