@@ -9,6 +9,7 @@ import {
   Play, Layers,
 } from "lucide-react";
 
+
 const GOLD = "#d4b461";
 const BG = "#040406";
 const CARD = "#0c0c10";
@@ -224,7 +225,7 @@ function AIBuildModal({ onClose, onDone }: {
   );
 }
 
-// ── Manual Template Modal ─────────────────────────────────────────────────────
+// ── Template Picker Modal ─────────────────────────────────────────────────────
 
 function ManualModal({ onClose, onCreate }: {
   onClose: () => void;
@@ -244,43 +245,82 @@ function ManualModal({ onClose, onCreate }: {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
-      <motion.div initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }}
-        className="w-full max-w-2xl rounded-2xl overflow-hidden"
-        style={{ background: CARD, border: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+      style={{ background: "rgba(0,0,0,0.90)", backdropFilter: "blur(14px)" }}>
+      <motion.div initial={{ scale: 0.94, y: 20 }} animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-5xl rounded-2xl flex flex-col"
+        style={{ background: "#07070e", border: `1px solid ${GOLD}22`, boxShadow: `0 0 100px ${GOLD}10`, maxHeight: "92vh" }}>
+
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-7 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.07)", background: `${GOLD}06` }}>
           <div>
-            <h2 className="text-lg font-black text-white">New Funnel (Manual)</h2>
-            <p className="text-sm text-zinc-500">Pick a template — you build the copy</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em]" style={{ color: `${GOLD}60` }}>New Funnel</p>
+            <h2 className="text-xl font-black text-white mt-0.5">Choose a Funnel Template</h2>
+            <p className="text-zinc-500 text-sm mt-0.5">{FUNNEL_TEMPLATES.length} templates — pick one and customize the copy yourself</p>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="p-2 rounded-xl text-zinc-500 hover:text-white transition-all" style={{ background: "rgba(255,255,255,0.04)" }}>
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <div className="p-5 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
-          {FUNNEL_TEMPLATES.map(t => (
-            <button key={t.id} onClick={() => setSelected(t.id)}
-              className="text-left p-4 rounded-xl transition-all"
-              style={{ background: selected === t.id ? `${t.color}12` : "rgba(255,255,255,0.03)", border: `1px solid ${selected === t.id ? t.color + "40" : "rgba(255,255,255,0.07)"}` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xl">{t.icon}</span>
-                <p className="text-sm font-black text-white">{t.name}</p>
-              </div>
-              <p className="text-xs text-zinc-500 leading-relaxed mb-3">{t.desc}</p>
-              <div className="flex flex-wrap gap-1">
-                {t.steps.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${t.color}18`, color: t.color }}>{s}</span>)}
-              </div>
-            </button>
-          ))}
+
+        {/* Template grid — all visible */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-2 gap-4">
+            {FUNNEL_TEMPLATES.map(t => {
+              const active = selected === t.id;
+              return (
+                <button key={t.id} onClick={() => setSelected(t.id)}
+                  className="text-left p-5 rounded-2xl transition-all"
+                  style={{
+                    background: active ? `${t.color}12` : "rgba(255,255,255,0.03)",
+                    border: `2px solid ${active ? t.color + "55" : "rgba(255,255,255,0.07)"}`,
+                    boxShadow: active ? `0 0 28px ${t.color}18` : "none",
+                  }}>
+                  {/* Card header */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: `${t.color}18`, border: `1px solid ${t.color}35` }}>
+                      {t.icon}
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-white leading-tight">{t.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: `${t.color}80` }}>{t.steps.length} pages in this funnel</p>
+                    </div>
+                    {active && (
+                      <div className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: t.color }}>
+                        <Check className="w-3 h-3" style={{ color: BG }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-zinc-400 text-xs leading-relaxed mb-3">{t.desc}</p>
+
+                  {/* Step flow */}
+                  <div className="flex flex-wrap items-center gap-1">
+                    {t.steps.map((s, i, arr) => (
+                      <div key={s} className="flex items-center gap-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: `${t.color}18`, color: t.color }}>{s}</span>
+                        {i < arr.length - 1 && <span className="text-zinc-700 text-[10px]">→</span>}
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="px-6 pb-6 space-y-3 border-t pt-5" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 flex items-center gap-3 px-7 py-5 border-t" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)" }}>
           <input type="text" value={name} onChange={e => setName(e.target.value)}
-            placeholder={`Funnel name…`}
-            className="w-full px-4 py-3 rounded-xl text-sm text-white outline-none"
+            placeholder={`Name this funnel… (default: ${tmpl.name})`}
+            className="flex-1 px-4 py-3 rounded-xl text-sm text-white outline-none"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
             onKeyDown={e => { if (e.key === "Enter") submit(); }} />
+          <button onClick={onClose} className="px-4 py-3 rounded-xl text-sm font-semibold text-zinc-400 hover:text-white transition-colors flex-shrink-0">Cancel</button>
           <button onClick={submit} disabled={creating}
-            className="w-full py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: `linear-gradient(135deg, ${tmpl.color} 0%, ${tmpl.color}cc 100%)`, color: BG }}>
-            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Zap className="w-4 h-4" />Create Funnel</>}
+            className="flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl font-black text-sm transition-all disabled:opacity-40 hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${tmpl.color} 0%, ${tmpl.color}cc 100%)`, color: BG, boxShadow: `0 4px 20px ${tmpl.color}35` }}>
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Zap className="w-4 h-4" />Create {tmpl.name}</>}
           </button>
         </div>
       </motion.div>
@@ -347,7 +387,7 @@ export default function Funnels() {
             <button onClick={() => setShowManual(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-zinc-400 hover:text-white transition-colors"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <Plus className="w-4 h-4" />Manual
+              <LayoutTemplate className="w-4 h-4" />From Template
             </button>
             <button onClick={() => setShowAI(true)}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm transition-all hover:scale-105 active:scale-95"
@@ -397,20 +437,27 @@ export default function Funnels() {
             </div>
 
             {/* Template options */}
-            <div className="flex items-center gap-3 text-zinc-600 text-sm">
-              <div className="h-px w-20" style={{ background: "rgba(255,255,255,0.08)" }} />
-              or start from a template
-              <div className="h-px w-20" style={{ background: "rgba(255,255,255,0.08)" }} />
-            </div>
-            <div className="grid grid-cols-5 gap-3 w-full max-w-3xl">
-              {FUNNEL_TEMPLATES.map(t => (
-                <button key={t.id} onClick={async () => { await create(t.id, t.name); }}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
-                  style={{ background: CARD, border: `1px solid ${t.color}18` }}>
-                  <span className="text-xl">{t.icon}</span>
-                  <p className="text-[9px] font-bold text-center leading-tight" style={{ color: `${t.color}90` }}>{t.name}</p>
-                </button>
-              ))}
+            <div className="w-full max-w-3xl">
+              <div className="flex items-center gap-3 text-zinc-600 text-sm mb-5">
+                <div className="h-px flex-1" style={{ background: "rgba(255,255,255,0.07)" }} />
+                or start from one of {FUNNEL_TEMPLATES.length} templates
+                <div className="h-px flex-1" style={{ background: "rgba(255,255,255,0.07)" }} />
+              </div>
+              <div className="grid grid-cols-5 gap-3">
+                {FUNNEL_TEMPLATES.map(t => (
+                  <button key={t.id} onClick={() => setShowManual(true)}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105 hover:border-opacity-40"
+                    style={{ background: CARD, border: `1px solid ${t.color}25` }}>
+                    <span className="text-2xl">{t.icon}</span>
+                    <p className="text-[10px] font-bold text-center leading-tight" style={{ color: `${t.color}90` }}>{t.name}</p>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowManual(true)}
+                className="w-full mt-4 py-2.5 rounded-xl text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                Browse all {FUNNEL_TEMPLATES.length} templates →
+              </button>
             </div>
           </div>
         ) : (
