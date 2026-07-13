@@ -738,27 +738,14 @@ function OutcomeMetrics() {
   );
 }
 
-// ── Hero Background Video (3 plays then freeze) ───────────────────────────────
+// ── Hero Background Video (infinite loop) ────────────────────────────────────
 function HeroVideo() {
-  const ref = useRef<HTMLVideoElement>(null);
-  const count = useRef(0);
-
-  const handleEnded = useCallback(() => {
-    count.current += 1;
-    if (count.current < 2 && ref.current) {
-      ref.current.currentTime = 0;
-      ref.current.play().catch(() => {});
-    }
-    // on 3rd end: stays paused on last frame
-  }, []);
-
   return (
     <video
-      ref={ref}
       autoPlay
       muted
+      loop
       playsInline
-      onEnded={handleEnded}
       style={{
         position: "absolute", inset: 0,
         width: "100%", height: "100%",
