@@ -555,36 +555,334 @@ function VideoEditorView({ nav, lockAction }: { nav: (p: string) => void; lockAc
 
 /* Video Marketing */
 function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"overview"|"studio"|"hosting"|"vsl"|"analytics">("overview");
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "studio",   label: "Webinar Studio" },
+    { id: "hosting",  label: "Video Hosting" },
+    { id: "vsl",      label: "VSL Pages" },
+    { id: "analytics",label: "Analytics" },
+  ] as const;
+
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <SectionHeader eyebrow="Video Marketing" title="Video Marketing" sub="Webinars, VSL pages, video hosting & live analytics" />
-        <LockBtn label="+ New Webinar" lockAction={lockAction} style={{ marginTop: -24 }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Live Webinars",   value: "3",      sub: "this month",       color: "#60a5fa", icon: Video },
-          { label: "Registrations",   value: "847",    sub: "+34% vs last mo",  color: "#34d399", icon: Users },
-          { label: "Avg Watch Time",  value: "68%",    sub: "above industry",   color: GOLD,      icon: Eye },
-          { label: "Revenue",         value: "$12.4K", sub: "from webinars",    color: "#f472b6", icon: DollarSign },
-        ].map(s => <StatCard key={s.label} {...s} />)}
-      </div>
-      {[
-        { title: "How to Build a 6-Figure Personal Brand", date: "Jul 18 · 7PM GMT", regs: 312, status: "upcoming",   color: "#60a5fa" },
-        { title: "Content Strategy Masterclass",            date: "Jul 11 · 6PM GMT", regs: 535, status: "completed",  color: "#34d399" },
-        { title: "Monetise Your Audience in 90 Days",       date: "Jul 4 · 7PM GMT",  regs: 291, status: "completed",  color: "#34d399" },
-      ].map(w => (
-        <div key={w.title} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: `${w.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Play style={{ width: 14, height: 14, color: w.color }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{w.title}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", margin: 0 }}>{w.date} · {w.regs} registrations</p>
-          </div>
-          <span style={{ fontSize: 9.5, padding: "3px 10px", borderRadius: 999, background: `${w.color}15`, color: w.color, fontWeight: 700, border: `1px solid ${w.color}28`, textTransform: "capitalize" }}>{w.status}</span>
+      {/* Section header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+        <div>
+          <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase", color: GOLD, margin: "0 0 5px" }}>Video Marketing</p>
+          <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", margin: "0 0 3px", letterSpacing: "-0.02em" }}>Video Marketing Hub</h1>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>Webinar Studio · Video Hosting · VSL Pages · Live Analytics</p>
         </div>
-      ))}
+        <LockBtn label="+ New Webinar" lockAction={lockAction} icon={Video} />
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)", paddingBottom: 0 }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1, transition: "all 0.15s" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Overview ── */}
+      {tab === "overview" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Total Webinars",  value: "12",     sub: "3 this month",     color: "#60a5fa", icon: Video    },
+              { label: "Registrations",   value: "2,847",  sub: "+34% vs last mo",  color: "#34d399", icon: Users    },
+              { label: "Avg Watch Time",  value: "68%",    sub: "above industry",   color: GOLD,      icon: Eye      },
+              { label: "Revenue",         value: "$28.4K", sub: "from video funnel",color: "#f472b6", icon: DollarSign },
+            ].map(s => <StatCard key={s.label} {...s} />)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+            {[
+              { icon: "📺", label: "Webinar Studio",  desc: "Host live & automated webinars",    tab: "studio",   color: "#60a5fa" },
+              { icon: "🎬", label: "Video Hosting",   desc: "Host & embed videos anywhere",      tab: "hosting",  color: "#a78bfa" },
+              { icon: "📄", label: "VSL Pages",       desc: "High-converting sales letter pages",tab: "vsl",      color: GOLD      },
+              { icon: "📊", label: "Analytics",       desc: "Drop-off, conversions & revenue",   tab: "analytics",color: "#34d399" },
+            ].map(c => (
+              <div key={c.label} onClick={() => setTab(c.tab as any)}
+                style={{ background: `${c.color}09`, border: `1px solid ${c.color}22`, borderRadius: 14, padding: "18px", cursor: "pointer" }}
+                onMouseEnter={e => (e.currentTarget.style.background = `${c.color}16`)}
+                onMouseLeave={e => (e.currentTarget.style.background = `${c.color}09`)}>
+                <p style={{ fontSize: 24, margin: "0 0 10px" }}>{c.icon}</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{c.label}</p>
+                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.38)", margin: 0 }}>{c.desc}</p>
+                <p style={{ fontSize: 11, color: c.color, margin: "10px 0 0", fontWeight: 600 }}>Open →</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Webinar Studio ── */}
+      {tab === "studio" && (
+        <>
+          {/* Live now banner */}
+          <div style={{ background: "linear-gradient(135deg,rgba(239,68,68,0.15) 0%,rgba(239,68,68,0.05) 100%)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 16, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 8px #ef4444", animation: "pulse 1.5s infinite", flexShrink: 0 }} />
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 2px" }}>LIVE NOW: How to Build a 6-Figure Personal Brand</p>
+                <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", margin: 0 }}>Started 42 min ago · 247 attendees watching</p>
+              </div>
+            </div>
+            <LockBtn label="Join Room" lockAction={lockAction} style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }} />
+          </div>
+
+          {/* Webinar room preview */}
+          <div style={{ background: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, overflow: "hidden", marginBottom: 20 }}>
+            {/* Room header */}
+            <div style={{ padding: "12px 18px", background: "#0d0d0f", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 6px #ef4444" }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>Webinar Room · Live</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["🎙 Muted","📷 Camera Off","🖥 Share Screen"].map(btn => (
+                  <LockBtn key={btn} label={btn} lockAction={lockAction} style={{ fontSize: 10, padding: "4px 10px" }} />
+                ))}
+              </div>
+            </div>
+            {/* Main stage */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px" }}>
+              <div style={{ background: "#0a0a0a", minHeight: 220, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "1px solid rgba(255,255,255,0.06)", padding: 24, gap: 12 }}>
+                <div style={{ width: 80, height: 80, borderRadius: "50%", background: `${GOLD}20`, border: `2px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>👤</div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0 }}>Host · Presenting</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {["🎙 Speaking","📊 Slides on","🔴 Recording"].map(tag => (
+                    <span key={tag} style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>{tag}</span>
+                  ))}
+                </div>
+              </div>
+              {/* Chat panel */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>Live Chat</span>
+                  <span style={{ fontSize: 10, color: GOLD, fontWeight: 700 }}>247 live</span>
+                </div>
+                <div style={{ flex: 1, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, overflowY: "auto" }}>
+                  {[
+                    { n: "Sarah K.", m: "This is gold 🔥", c: GOLD },
+                    { n: "Marcus T.", m: "How do I get the slides?", c: "#60a5fa" },
+                    { n: "Priya S.", m: "Already booked my call!", c: "#34d399" },
+                    { n: "Jake R.", m: "Mind blown 🤯", c: "#a78bfa" },
+                    { n: "Aisha M.", m: "Best webinar I've attended", c: "#f472b6" },
+                  ].map(({ n, m, c }) => (
+                    <div key={n}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: c }}>{n}: </span>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>{m}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "8px 10px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <LockBtn label="Type a message..." lockAction={lockAction} style={{ width: "100%", justifyContent: "flex-start", fontSize: 11 }} />
+                </div>
+              </div>
+            </div>
+            {/* Room footer stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              {[
+                { label: "Attendees", value: "247", color: "#34d399" },
+                { label: "Registrants", value: "312", color: "#60a5fa" },
+                { label: "Q&A Queue", value: "18", color: GOLD },
+                { label: "Duration", value: "42:18", color: "#a78bfa" },
+              ].map(({ label, value, color }, i) => (
+                <div key={label} style={{ padding: "12px 16px", borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", textAlign: "center" }}>
+                  <p style={{ fontSize: 18, fontWeight: 900, color, margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
+                  <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Upcoming + recordings */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: 0 }}>Upcoming</p>
+                <LockBtn label="+ Schedule" lockAction={lockAction} style={{ fontSize: 10, padding: "3px 10px" }} />
+              </div>
+              {[
+                { title: "Content Monetisation 2026", date: "Jul 21 · 7PM", regs: 189 },
+                { title: "Build Your First Funnel",   date: "Jul 28 · 6PM", regs: 94  },
+              ].map(w => (
+                <div key={w.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{w.title}</p>
+                    <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>{w.date} · {w.regs} registered</p>
+                  </div>
+                  <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: "rgba(96,165,250,0.12)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.25)", fontWeight: 700 }}>Upcoming</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: 0 }}>Recordings</p>
+              </div>
+              {[
+                { title: "Content Strategy Masterclass",    views: "1,247", dur: "1h 12m" },
+                { title: "Monetise Your Audience in 90 Days",views: "891",  dur: "58m" },
+              ].map(r => (
+                <div key={r.title} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div onClick={lockAction} style={{ width: 34, height: 34, borderRadius: 8, background: "rgba(52,211,153,0.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                    <Play style={{ width: 13, height: 13, color: "#34d399" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{r.title}</p>
+                    <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>{r.views} views · {r.dur}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Video Hosting ── */}
+      {tab === "hosting" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Hosted Videos", value: "34",    sub: "across all campaigns", color: "#a78bfa" },
+              { label: "Total Views",   value: "84.2K", sub: "+12% this week",       color: "#34d399" },
+              { label: "Storage Used",  value: "18.4 GB",sub: "of 100 GB",           color: GOLD      },
+            ].map(s => <StatCard key={s.label} {...s} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", margin: 0 }}>All Videos</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <LockBtn label="Upload Video" lockAction={lockAction} style={{ padding: "7px 14px" }} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[
+              { title: "Sales Call Recording",        dur: "28m 14s", views: "4,821", thumb: "#a78bfa", privacy: "Private" },
+              { title: "Masterclass Replay",          dur: "1h 12m",  views: "12,440",thumb: "#60a5fa", privacy: "Unlisted" },
+              { title: "VSL — 6-Figure Brand",        dur: "14m 38s", views: "8,912", thumb: GOLD,      privacy: "Public" },
+              { title: "Onboarding Welcome Video",    dur: "3m 42s",  views: "1,247", thumb: "#34d399", privacy: "Private" },
+              { title: "Free Training Day 1",         dur: "47m 22s", views: "6,331", thumb: "#f472b6", privacy: "Unlisted" },
+              { title: "Brand Kit Walkthrough",       dur: "11m 8s",  views: "2,198", thumb: "#fb923c", privacy: "Public" },
+            ].map(v => (
+              <div key={v.title} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden" }}>
+                <div onClick={lockAction} style={{ height: 100, background: `linear-gradient(135deg,${v.thumb}25 0%,${v.thumb}08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    <Play style={{ width: 16, height: 16, color: "#fff", marginLeft: 2 }} />
+                  </div>
+                  <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 10, background: "rgba(0,0,0,0.7)", color: "#fff", padding: "2px 7px", borderRadius: 5, fontWeight: 600 }}>{v.dur}</span>
+                </div>
+                <div style={{ padding: "12px 14px" }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{v.title}</p>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>👁 {v.views}</span>
+                    <span style={{ fontSize: 9.5, padding: "1px 7px", borderRadius: 999, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>{v.privacy}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── VSL Pages ── */}
+      {tab === "vsl" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Active VSL Pages", value: "4",     sub: "2 A/B testing",       color: GOLD      },
+              { label: "Total Visitors",   value: "14.7K", sub: "last 30 days",        color: "#60a5fa" },
+              { label: "Avg Conversion",   value: "9.2%",  sub: "industry avg: 2.4%", color: "#34d399" },
+            ].map(s => <StatCard key={s.label} {...s} />)}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+            <LockBtn label="+ New VSL Page" lockAction={lockAction} />
+          </div>
+          {[
+            { name: "6-Figure Brand VSL",         visitors: "6,841", conv: "11.4%", revenue: "$14.2K", status: "Live",     color: "#34d399" },
+            { name: "Free Masterclass Sign-Up",   visitors: "4,220", conv: "8.7%",  revenue: "$0",     status: "Live",     color: "#34d399" },
+            { name: "Group Programme VSL",        visitors: "2,108", conv: "6.1%",  revenue: "$8.4K",  status: "Live",     color: "#34d399" },
+            { name: "Discovery Call Booking",     visitors: "1,532", conv: "12.3%", revenue: "$6.2K",  status: "A/B Test", color: GOLD      },
+          ].map(p => (
+            <div key={p.name} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 20px", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: 0 }}>{p.name}</p>
+                <span style={{ fontSize: 9.5, padding: "3px 10px", borderRadius: 999, background: `${p.color}14`, color: p.color, border: `1px solid ${p.color}28`, fontWeight: 700 }}>{p.status}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                {[
+                  { label: "Visitors", value: p.visitors, color: "#60a5fa" },
+                  { label: "Conversion", value: p.conv, color: "#34d399" },
+                  { label: "Revenue", value: p.revenue, color: GOLD },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
+                    <p style={{ fontSize: 16, fontWeight: 900, color, margin: "0 0 2px", lineHeight: 1 }}>{value}</p>
+                    <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{label}</p>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <LockBtn label="Edit Page" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 12px" }} />
+                <LockBtn label="View Analytics" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 12px" }} />
+                <LockBtn label="A/B Test" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 12px" }} />
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ── Analytics ── */}
+      {tab === "analytics" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Total Registrants", value: "2,847", sub: "+34% MoM",         color: "#60a5fa" },
+              { label: "Show-Up Rate",      value: "54%",   sub: "industry avg: 38%",color: "#34d399" },
+              { label: "Avg Watch Time",    value: "68%",   sub: "of full runtime",   color: GOLD      },
+              { label: "Total Revenue",     value: "$28.4K",sub: "from video funnel", color: "#f472b6" },
+            ].map(s => <StatCard key={s.label} {...s} />)}
+          </div>
+          {/* Attendance chart */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px", marginBottom: 16 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 4px" }}>Webinar Attendance Drop-Off</p>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "0 0 16px" }}>Last webinar · 247 peak attendees</p>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 80 }}>
+              {[100,94,91,88,82,79,74,72,70,68,65,62,60,58,57,56,54,52,51,50].map((v, i) => (
+                <div key={i} style={{ flex: 1, borderRadius: "3px 3px 0 0", background: i < 10 ? `${GOLD}80` : `${GOLD}35`, height: `${v}%` }} />
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>0 min</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>30 min</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>60 min</span>
+            </div>
+          </div>
+          {/* Conversion funnel */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "18px" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 16px" }}>Conversion Funnel</p>
+            {[
+              { stage: "Registered",    n: 2847, pct: 100, color: "#60a5fa" },
+              { stage: "Showed Up",     n: 1537, pct: 54,  color: "#a78bfa" },
+              { stage: "Stayed 30+ min",n: 1074, pct: 38,  color: GOLD      },
+              { stage: "Clicked CTA",   n: 412,  pct: 14,  color: "#f472b6" },
+              { stage: "Purchased",     n: 87,   pct: 3.1, color: "#34d399" },
+            ].map(({ stage, n, pct, color }) => (
+              <div key={stage} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>{stage}</span>
+                  <span style={{ fontSize: 12, color, fontWeight: 700 }}>{n.toLocaleString()} <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400 }}>({pct}%)</span></span>
+                </div>
+                <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 999 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <LockedCTA nav={nav} />
     </>
   );
@@ -592,37 +890,112 @@ function VideoMarketingView({ nav, lockAction }: { nav: (p: string) => void; loc
 
 /* Pages & Funnels */
 function FunnelsView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"funnels"|"pages"|"forms">("funnels");
+  const tabs = [{ id:"funnels",label:"Funnels"},{ id:"pages",label:"Landing Pages"},{ id:"forms",label:"Forms & Quizzes"}] as const;
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <SectionHeader eyebrow="Funnels & Pages" title="Pages & Funnels" sub="Build, launch and track your entire sales funnel in one place" />
-        <LockBtn label="+ New Funnel" lockAction={lockAction} style={{ marginTop: -24 }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Active Funnels", value: "4",     sub: "2 live, 2 drafts",   color: GOLD      },
-          { label: "Total Leads",    value: "1,247", sub: "last 30 days",       color: "#34d399" },
-          { label: "Conversions",    value: "8.4%",  sub: "above 3% avg",       color: "#60a5fa" },
-          { label: "Revenue",        value: "$8.9K", sub: "funnel-attributed",  color: "#f472b6" },
-        ].map(s => <StatCard key={s.label} {...s} />)}
-      </div>
-      {[
-        { name: "Free Masterclass → 1:1 Call",      steps: 4, leads: 487, conv: "9.2%",  color: GOLD    },
-        { name: "Lead Magnet → Email Sequence",      steps: 3, leads: 392, conv: "7.8%",  color: "#a78bfa"},
-        { name: "VSL → Discovery Call",              steps: 5, leads: 228, conv: "11.4%", color: "#34d399"},
-        { name: "Free Training → Group Programme",   steps: 4, leads: 140, conv: "6.1%",  color: "#60a5fa"},
-      ].map(f => (
-        <div key={f.name} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{f.name}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>{f.steps} steps · {f.leads} leads</p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 16, fontWeight: 900, color: f.color, margin: 0 }}>{f.conv}</p>
-            <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>conversion</p>
-          </div>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
+        <div>
+          <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>Funnels & Pages</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Pages & Funnels</h1>
+          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Build · Launch · Convert</p>
         </div>
-      ))}
+        <LockBtn label="+ New" lockAction={lockAction} />
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)", paddingBottom:0 }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab==="funnels" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+          {[
+            { label:"Active Funnels", value:"4",     sub:"2 live, 2 drafts",  color:GOLD      },
+            { label:"Total Leads",    value:"1,247", sub:"last 30 days",      color:"#34d399" },
+            { label:"Conversions",    value:"8.4%",  sub:"above 3% avg",      color:"#60a5fa" },
+            { label:"Revenue",        value:"$8.9K", sub:"funnel-attributed", color:"#f472b6" },
+          ].map(s=><StatCard key={s.label} {...s}/>)}
+        </div>
+        {[
+          { name:"Free Masterclass → 1:1 Call",      steps:4, leads:487, conv:"9.2%",  status:"Live",  color:GOLD     },
+          { name:"Lead Magnet → Email Sequence",      steps:3, leads:392, conv:"7.8%",  status:"Live",  color:"#a78bfa"},
+          { name:"VSL → Discovery Call",              steps:5, leads:228, conv:"11.4%", status:"Live",  color:"#34d399"},
+          { name:"Free Training → Group Programme",   steps:4, leads:140, conv:"6.1%",  status:"Draft", color:"#60a5fa"},
+        ].map(f=>(
+          <div key={f.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:10 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div>
+                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 3px" }}>{f.name}</p>
+                <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{f.steps} steps · {f.leads} leads</p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ fontSize:18, fontWeight:900, color:f.color, margin:"0 0 1px" }}>{f.conv}</p>
+                <span style={{ fontSize:9.5, padding:"2px 8px", borderRadius:999, background:`${f.color}14`, color:f.color, fontWeight:700 }}>{f.status}</span>
+              </div>
+            </div>
+            {/* Visual funnel steps */}
+            <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+              {Array.from({length:f.steps}).map((_,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"center", flex:1 }}>
+                  <div style={{ flex:1, height:4, borderRadius:999, background:i<f.steps-1?`${f.color}50`:`${f.color}20`, position:"relative" }}>
+                    <div style={{ position:"absolute", inset:0, borderRadius:999, background:i===0?f.color:i===1?`${f.color}80`:i===2?`${f.color}55`:`${f.color}30` }} />
+                  </div>
+                  {i<f.steps-1 && <div style={{ width:6, height:6, borderRadius:"50%", background:f.color, flexShrink:0 }} />}
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:12 }}>
+              <LockBtn label="Edit" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+              <LockBtn label="View Stats" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+              <LockBtn label="Duplicate" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="pages" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+          {[
+            { name:"6-Figure Brand Landing Page", visitors:"8,421", conv:"12.4%", color:GOLD      },
+            { name:"Free Masterclass Sign-Up",    visitors:"5,102", conv:"9.1%",  color:"#60a5fa" },
+            { name:"Discovery Call Booking",      visitors:"3,841", conv:"14.2%", color:"#34d399" },
+            { name:"Group Programme Sales Page",  visitors:"2,190", conv:"6.8%",  color:"#a78bfa" },
+          ].map(p=>(
+            <div key={p.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, overflow:"hidden" }}>
+              <div onClick={lockAction} style={{ height:80, background:`linear-gradient(135deg,${p.color}20,${p.color}06)`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                <span style={{ fontSize:9.5, color:p.color, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase" }}>Preview Page</span>
+              </div>
+              <div style={{ padding:"14px 16px" }}>
+                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 6px" }}>{p.name}</p>
+                <div style={{ display:"flex", gap:14 }}>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>👁 {p.visitors}</span>
+                  <span style={{ fontSize:11, color:"#34d399", fontWeight:700 }}>{p.conv} conv.</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      {tab==="forms" && <>
+        {[
+          { name:"Discovery Call Application", responses:247, conv:"34%", color:GOLD      },
+          { name:"Masterclass Registration",   responses:892, conv:"71%", color:"#60a5fa" },
+          { name:"Audience Research Survey",   responses:184, conv:"28%", color:"#34d399" },
+        ].map(f=>(
+          <div key={f.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 3px" }}>{f.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{f.responses} responses</p>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <p style={{ fontSize:18, fontWeight:900, color:f.color, margin:0 }}>{f.conv}</p>
+              <p style={{ fontSize:9.5, color:"rgba(255,255,255,0.3)", margin:0 }}>completion</p>
+            </div>
+          </div>
+        ))}
+      </>}
       <LockedCTA nav={nav} />
     </>
   );
@@ -664,40 +1037,129 @@ function DmAutomationView({ nav, lockAction }: { nav: (p: string) => void; lockA
 
 /* CRM */
 function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"pipeline"|"contacts"|"deals">("pipeline");
+  const tabs = [{id:"pipeline",label:"Pipeline"},{id:"contacts",label:"Contacts"},{id:"deals",label:"Deals"}] as const;
   const contacts = [
-    { name: "Marcus T.", stage: "Discovery Call",  value: "$4,200", score: 92, color: "#34d399" },
-    { name: "Priya S.",  stage: "Proposal Sent",   value: "$6,800", score: 87, color: GOLD    },
-    { name: "Jake R.",   stage: "Negotiation",      value: "$3,500", score: 74, color: "#60a5fa"},
-    { name: "Aisha M.",  stage: "New Lead",         value: "$2,100", score: 61, color: "#a78bfa"},
-    { name: "Tom H.",    stage: "Closed Won 🎉",    value: "$5,000", score: 100,color: "#f472b6"},
+    { name:"Marcus T.", stage:"Discovery Call",  value:"$4,200", score:92, platform:"IG", color:"#34d399" },
+    { name:"Priya S.",  stage:"Proposal Sent",   value:"$6,800", score:87, platform:"LI", color:GOLD     },
+    { name:"Jake R.",   stage:"Negotiation",      value:"$3,500", score:74, platform:"IG", color:"#60a5fa"},
+    { name:"Aisha M.",  stage:"New Lead",         value:"$2,100", score:61, platform:"TW", color:"#a78bfa"},
+    { name:"Tom H.",    stage:"Closed Won 🎉",    value:"$5,000", score:100,platform:"IG", color:"#f472b6"},
+    { name:"Chen L.",   stage:"Discovery Call",  value:"$3,800", score:81, platform:"LI", color:"#34d399"},
+  ];
+  const stages = [
+    { name:"New Lead",       count:42, value:"$88K", color:"#60a5fa" },
+    { name:"Discovery Call", count:18, value:"$47K", color:"#a78bfa" },
+    { name:"Proposal Sent",  count: 9, value:"$38K", color:GOLD      },
+    { name:"Negotiation",    count: 5, value:"$24K", color:"#f472b6" },
+    { name:"Closed Won",     count:11, value:"$31K", color:"#34d399" },
   ];
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <SectionHeader eyebrow="CRM & Outreach" title="CRM" sub="Track every lead, deal and client relationship" />
-        <LockBtn label="+ Add Contact" lockAction={lockAction} style={{ marginTop: -24 }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Total Leads",    value: "147",   sub: "active pipeline",   color: GOLD,      icon: Users },
-          { label: "Pipeline Value", value: "$48K",  sub: "potential revenue", color: "#34d399", icon: DollarSign },
-          { label: "Calls Booked",   value: "24",    sub: "this month",        color: "#60a5fa", icon: Phone },
-          { label: "Closed",         value: "11",    sub: "$31K won",          color: "#f472b6", icon: CheckCircle2 },
-        ].map(s => <StatCard key={s.label} {...s} />)}
-      </div>
-      {contacts.map(c => (
-        <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
-          <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${c.color}20`, border: `1px solid ${c.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: c.color, flexShrink: 0 }}>{c.name[0]}</div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{c.name}</p>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>{c.stage}</p>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: 0 }}>{c.value}</p>
-            <p style={{ fontSize: 9, color: c.color, margin: 0, fontWeight: 700 }}>Score: {c.score}</p>
-          </div>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
+        <div>
+          <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>CRM & Outreach</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>CRM</h1>
+          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Pipeline · Contacts · Deals</p>
         </div>
-      ))}
+        <LockBtn label="+ Add Contact" lockAction={lockAction} />
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab==="pipeline" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+          {[
+            { label:"Total Leads",    value:"147",  sub:"active pipeline",   color:GOLD,      icon:Users },
+            { label:"Pipeline Value", value:"$228K",sub:"potential revenue", color:"#34d399", icon:DollarSign },
+            { label:"Calls Booked",   value:"24",   sub:"this month",        color:"#60a5fa", icon:Phone },
+            { label:"Closed Won",     value:"11",   sub:"$31K won",          color:"#f472b6", icon:CheckCircle2 },
+          ].map(s=><StatCard key={s.label} {...s}/>)}
+        </div>
+        {/* Kanban-style stages */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:10, marginBottom:18 }}>
+          {stages.map(s=>(
+            <div key={s.name} style={{ background:`${s.color}09`, border:`1px solid ${s.color}20`, borderRadius:12, padding:"12px" }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:s.color, marginBottom:8 }} />
+              <p style={{ fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,0.45)", margin:"0 0 6px", lineHeight:1.3 }}>{s.name}</p>
+              <p style={{ fontSize:22, fontWeight:900, color:"#fff", margin:"0 0 2px", lineHeight:1 }}>{s.count}</p>
+              <p style={{ fontSize:10, color:s.color, fontWeight:700, margin:0 }}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+        {contacts.slice(0,4).map(c=>(
+          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+            <div style={{ width:34, height:34, borderRadius:"50%", background:`${c.color}20`, border:`1px solid ${c.color}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:c.color, flexShrink:0 }}>{c.name[0]}</div>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{c.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{c.stage} · {c.platform}</p>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 1px" }}>{c.value}</p>
+              <p style={{ fontSize:9, color:c.color, margin:0, fontWeight:700 }}>Score: {c.score}</p>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="contacts" && <>
+        <div style={{ marginBottom:14, display:"flex", gap:8 }}>
+          <div style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:9, padding:"9px 14px", display:"flex", alignItems:"center", gap:8 }}>
+            <Search style={{ width:13, height:13, color:"rgba(255,255,255,0.3)" }} />
+            <span style={{ fontSize:12, color:"rgba(255,255,255,0.2)" }}>Search contacts...</span>
+          </div>
+          <LockBtn label="Import" lockAction={lockAction} style={{ padding:"9px 16px" }} />
+        </div>
+        {contacts.map(c=>(
+          <div key={c.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+            <div style={{ width:38, height:38, borderRadius:"50%", background:`${c.color}20`, border:`1px solid ${c.color}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:c.color, flexShrink:0 }}>{c.name[0]}</div>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{c.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>via {c.platform} · {c.stage}</p>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <LockBtn label="DM" lockAction={lockAction} style={{ fontSize:10, padding:"4px 10px" }} />
+              <LockBtn label="View" lockAction={lockAction} style={{ fontSize:10, padding:"4px 10px" }} />
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="deals" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:20 }}>
+          {[
+            { label:"Open Deals",     value:"33",   sub:"$199K total value",  color:GOLD      },
+            { label:"Closed This Mo", value:"$31K", sub:"11 deals",           color:"#34d399" },
+            { label:"Win Rate",       value:"42%",  sub:"above avg",          color:"#60a5fa" },
+            { label:"Avg Deal Size",  value:"$2.8K",sub:"per closed deal",    color:"#f472b6" },
+          ].map(s=><StatCard key={s.label} {...s}/>)}
+        </div>
+        {[
+          { name:"Priya S.",  title:"Brand Strategy Package",   value:"$6,800", stage:"Proposal", days:3, color:GOLD      },
+          { name:"Jake R.",   title:"1:1 Coaching Programme",    value:"$3,500", stage:"Negotiation",days:7,color:"#60a5fa"},
+          { name:"Marcus T.", title:"Content System Setup",      value:"$4,200", stage:"Call Booked",days:1,color:"#34d399"},
+        ].map(d=>(
+          <div key={d.name} style={{ background:"rgba(255,255,255,0.025)", border:`1px solid ${d.color}22`, borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+              <div>
+                <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 2px" }}>{d.title}</p>
+                <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>with {d.name} · {d.days}d in stage</p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ fontSize:18, fontWeight:900, color:d.color, margin:"0 0 2px" }}>{d.value}</p>
+                <span style={{ fontSize:9.5, padding:"2px 8px", borderRadius:999, background:`${d.color}14`, color:d.color, fontWeight:700 }}>{d.stage}</span>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <LockBtn label="Move Stage" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+              <LockBtn label="Add Note" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+            </div>
+          </div>
+        ))}
+      </>}
       <LockedCTA nav={nav} />
     </>
   );
@@ -705,34 +1167,106 @@ function CRMView({ nav, lockAction }: { nav: (p: string) => void; lockAction: ()
 
 /* Email & Workflows */
 function EmailWorkflowsView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"campaigns"|"automations"|"subscribers">("campaigns");
+  const tabs = [{id:"campaigns",label:"Campaigns"},{id:"automations",label:"Automations"},{id:"subscribers",label:"Subscribers"}] as const;
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <SectionHeader eyebrow="CRM & Outreach" title="Email & Workflows" sub="Sequences, campaigns and automations for your list" />
-        <LockBtn label="+ New Campaign" lockAction={lockAction} style={{ marginTop: -24 }} />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Subscribers",  value: "3,847", sub: "+241 this week",    color: GOLD,      icon: Mail },
-          { label: "Open Rate",    value: "34.2%", sub: "industry: 21%",    color: "#34d399", icon: Eye },
-          { label: "Click Rate",   value: "6.8%",  sub: "industry: 2.3%",  color: "#60a5fa", icon: ArrowRight },
-          { label: "Revenue",      value: "$4.2K", sub: "email-attributed", color: "#f472b6", icon: DollarSign },
-        ].map(s => <StatCard key={s.label} {...s} />)}
-      </div>
-      {[
-        { name: "Welcome Sequence (5 emails)",       status: "Active",    opens: "48%", color: "#34d399" },
-        { name: "Masterclass Promotion",             status: "Scheduled", opens: "—",   color: GOLD      },
-        { name: "Re-engagement Campaign",            status: "Active",    opens: "22%", color: "#60a5fa" },
-        { name: "Post-Webinar Follow-Up (3 emails)", status: "Draft",     opens: "—",   color: "#a78bfa" },
-      ].map(c => (
-        <div key={c.name} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 18px", marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>{c.name}</p>
-            <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>Opens: <span style={{ color: "#fff", fontWeight: 600 }}>{c.opens}</span></span>
-          </div>
-          <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: `${c.color}15`, color: c.color, fontWeight: 700, border: `1px solid ${c.color}28` }}>{c.status}</span>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
+        <div>
+          <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>Email</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Email & Workflows</h1>
+          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Campaigns · Automations · Subscribers</p>
         </div>
-      ))}
+        <LockBtn label="+ New Campaign" lockAction={lockAction} icon={Mail} />
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+        {[
+          { label:"Subscribers",  value:"3,847", sub:"+241 this week",   color:GOLD,      icon:Mail      },
+          { label:"Open Rate",    value:"34.2%", sub:"industry: 21%",   color:"#34d399", icon:Eye       },
+          { label:"Click Rate",   value:"6.8%",  sub:"industry: 2.3%", color:"#60a5fa", icon:ArrowRight },
+          { label:"Revenue",      value:"$4.2K", sub:"email-attributed",color:"#f472b6", icon:DollarSign },
+        ].map(s=><StatCard key={s.label} {...s}/>)}
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab==="campaigns" && <>
+        {[
+          { name:"Welcome Sequence (5 emails)",        status:"Active",    opens:"48%", clicks:"9.2%", sent:"3,847", color:"#34d399" },
+          { name:"Masterclass Promotion",              status:"Scheduled", opens:"—",   clicks:"—",   sent:"—",     color:GOLD      },
+          { name:"Re-engagement Campaign",             status:"Active",    opens:"22%", clicks:"3.1%", sent:"1,204", color:"#60a5fa" },
+          { name:"Post-Webinar Follow-Up (3 emails)", status:"Draft",     opens:"—",   clicks:"—",   sent:"—",     color:"#a78bfa" },
+        ].map(c=>(
+          <div key={c.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:0 }}>{c.name}</p>
+              <span style={{ fontSize:10, padding:"3px 10px", borderRadius:999, background:`${c.color}15`, color:c.color, fontWeight:700, border:`1px solid ${c.color}28` }}>{c.status}</span>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+              {[{l:"Sent",v:c.sent},{l:"Opens",v:c.opens},{l:"Clicks",v:c.clicks}].map(({l,v})=>(
+                <div key={l} style={{ background:"rgba(255,255,255,0.03)", borderRadius:9, padding:"8px 10px" }}>
+                  <p style={{ fontSize:14, fontWeight:900, color:"#fff", margin:"0 0 1px" }}>{v}</p>
+                  <p style={{ fontSize:9.5, color:"rgba(255,255,255,0.3)", margin:0 }}>{l}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:7, marginTop:10 }}>
+              <LockBtn label="Edit" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+              <LockBtn label="Duplicate" lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="automations" && <>
+        {[
+          { name:"New subscriber → Welcome flow",     trigger:"List join",        steps:5, active:true,  color:GOLD      },
+          { name:"Lead magnet → Nurture sequence",    trigger:"Form submission",  steps:7, active:true,  color:"#34d399" },
+          { name:"Webinar no-show → Re-engage",       trigger:"Webinar missed",   steps:3, active:false, color:"#a78bfa" },
+          { name:"Purchase → Onboarding series",      trigger:"Payment received", steps:6, active:true,  color:"#60a5fa" },
+        ].map(a=>(
+          <div key={a.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"14px 18px", marginBottom:10, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:10, height:10, borderRadius:"50%", background:a.active?"#34d399":"rgba(255,255,255,0.2)", boxShadow:a.active?"0 0 6px #34d399":"none", flexShrink:0 }} />
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 3px" }}>{a.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>Trigger: {a.trigger} · {a.steps} emails</p>
+            </div>
+            <LockBtn label={a.active?"Pause":"Activate"} lockAction={lockAction} style={{ fontSize:10, padding:"4px 12px" }} />
+          </div>
+        ))}
+      </>}
+
+      {tab==="subscribers" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:18 }}>
+          {[
+            { label:"Total",     value:"3,847", color:GOLD      },
+            { label:"Active",    value:"3,612", color:"#34d399" },
+            { label:"Unsubbed",  value:"235",   color:"#f472b6" },
+          ].map(s=><StatCard key={s.label} {...s}/>)}
+        </div>
+        {[
+          { name:"Sarah K.",  email:"sarah@example.com", tags:["Webinar","Hot Lead"], joined:"Jul 12", color:GOLD      },
+          { name:"Marcus T.", email:"marcus@ex.com",     tags:["Discovery"],         joined:"Jul 11", color:"#34d399" },
+          { name:"Priya S.",  email:"priya@ex.com",      tags:["Client","VIP"],      joined:"Jun 28", color:"#60a5fa" },
+          { name:"Jake R.",   email:"jake@ex.com",       tags:["Webinar"],           joined:"Jun 20", color:"#a78bfa" },
+        ].map(s=>(
+          <div key={s.name} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+            <div style={{ width:34, height:34, borderRadius:"50%", background:`${s.color}20`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:s.color, flexShrink:0 }}>{s.name[0]}</div>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{s.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:0 }}>{s.email}</p>
+            </div>
+            <div style={{ display:"flex", gap:4, flexWrap:"wrap", justifyContent:"flex-end" }}>
+              {s.tags.map(t=>(
+                <span key={t} style={{ fontSize:9, padding:"2px 7px", borderRadius:999, background:`${s.color}14`, color:s.color, fontWeight:700 }}>{t}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </>}
       <LockedCTA nav={nav} />
     </>
   );
@@ -820,6 +1354,104 @@ function AnalyticsView({ nav, lockAction }: { nav: (p: string) => void; lockActi
 }
 
 /* Generic fallback for remaining sections */
+function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"feed"|"members"|"events">("feed");
+  const tabs = [{id:"feed",label:"🔥 Feed"},{id:"members",label:"👥 Members"},{id:"events",label:"📅 Events"}] as const;
+  const posts = [
+    { name:"Alex M.",   time:"2m ago",  body:"Just hit 50K followers using AI Ideas + Competitor Study 🔥 The system actually works.", likes:47, replies:12, c:GOLD      },
+    { name:"Sarah K.",  time:"18m ago", body:"Webinar funnel went live — 340 registrations in the first hour. Email sequence converting at 11%.", likes:38, replies:8, c:"#a78bfa" },
+    { name:"Raj P.",    time:"1h ago",  body:"Brand Kit Builder changed everything for my pitch decks. Closed a $8K brand deal using it 💪", likes:62, replies:19, c:"#34d399" },
+    { name:"Chen L.",   time:"3h ago",  body:"The Competitor Study tool found a content angle my competitors are completely sleeping on 👀", likes:29, replies:7, c:"#60a5fa" },
+    { name:"Priya S.",  time:"5h ago",  body:"VSL page converting at 14.2%. Highest I've ever seen. Oravini actually delivers.", likes:51, replies:14, c:"#f472b6" },
+  ];
+  return (
+    <>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:16, flexWrap:"wrap", marginBottom:20 }}>
+        <div>
+          <p style={{ fontSize:9, fontWeight:800, letterSpacing:"0.22em", textTransform:"uppercase", color:GOLD, margin:"0 0 5px" }}>Community</p>
+          <h1 style={{ fontSize:"clamp(18px,2vw,24px)", fontWeight:900, color:"#fff", margin:"0 0 3px", letterSpacing:"-0.02em" }}>Community Forum</h1>
+          <p style={{ fontSize:12.5, color:"rgba(255,255,255,0.35)", margin:0 }}>Private members-only space · Tier 5 Elite</p>
+        </div>
+        <LockBtn label="+ Post" lockAction={lockAction} />
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:24, borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 16px", fontSize:12, fontWeight:tab===t.id?700:500, color:tab===t.id?GOLD:"rgba(255,255,255,0.4)", background:"none", border:"none", borderBottom:`2px solid ${tab===t.id?GOLD:"transparent"}`, cursor:"pointer", marginBottom:-1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab==="feed" && <>
+        {posts.map(p=>(
+          <div key={p.name} style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:14, padding:"16px 18px", marginBottom:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <div style={{ width:34, height:34, borderRadius:"50%", background:`${p.c}20`, border:`1px solid ${p.c}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:p.c, flexShrink:0 }}>{p.name[0]}</div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 1px" }}>{p.name}</p>
+                <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", margin:0 }}>{p.time}</p>
+              </div>
+            </div>
+            <p style={{ fontSize:13, color:"rgba(255,255,255,0.65)", margin:"0 0 12px", lineHeight:1.65 }}>{p.body}</p>
+            <div style={{ display:"flex", gap:16 }}>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>❤️ {p.likes}</span>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>💬 {p.replies} replies</span>
+              <span onClick={lockAction} style={{ fontSize:11.5, color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>🔁 Share</span>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="members" && <>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:18 }}>
+          {[{label:"Total Members",value:"1,247",color:GOLD},{label:"Online Now",value:"84",color:"#34d399"},{label:"New This Week",value:"31",color:"#60a5fa"}].map(s=><StatCard key={s.label} {...s}/>)}
+        </div>
+        {[
+          { n:"Alex M.",   role:"Tier 5 · Elite",  score:847, joined:"Jan 2026", c:GOLD      },
+          { n:"Sarah K.",  role:"Tier 5 · Elite",  score:712, joined:"Feb 2026", c:"#a78bfa" },
+          { n:"Raj P.",    role:"Tier 4 · Pro",    score:581, joined:"Mar 2026", c:"#34d399" },
+          { n:"Chen L.",   role:"Tier 5 · Elite",  score:634, joined:"Dec 2025", c:"#60a5fa" },
+          { n:"Priya S.",  role:"Tier 5 · Elite",  score:798, joined:"Nov 2025", c:"#f472b6" },
+          { n:"Marcus T.", role:"Tier 3 · Growth", score:342, joined:"Apr 2026", c:"#fb923c" },
+        ].map(m=>(
+          <div key={m.n} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderRadius:13, border:"1px solid rgba(255,255,255,0.07)", background:"rgba(255,255,255,0.025)", marginBottom:8 }}>
+            <div style={{ width:36, height:36, borderRadius:"50%", background:`${m.c}20`, border:`1px solid ${m.c}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:m.c, flexShrink:0 }}>{m.n[0]}</div>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:"#fff", margin:"0 0 2px" }}>{m.n}</p>
+              <p style={{ fontSize:10.5, color:"rgba(255,255,255,0.35)", margin:0 }}>{m.role} · Joined {m.joined}</p>
+            </div>
+            <div style={{ textAlign:"right" }}>
+              <p style={{ fontSize:16, fontWeight:900, color:m.c, margin:0 }}>{m.score}</p>
+              <p style={{ fontSize:9.5, color:"rgba(255,255,255,0.3)", margin:0 }}>creator score</p>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab==="events" && <>
+        {[
+          { name:"Elite Monthly Masterclass",    date:"Jul 21 · 7PM GMT", host:"Oravini HQ",   spots:"247 registered", status:"upcoming", c:"#60a5fa" },
+          { name:"Hot Seat: Funnel Reviews",     date:"Jul 25 · 6PM GMT", host:"Community",    spots:"Open",            status:"upcoming", c:GOLD      },
+          { name:"Q2 Creator Awards Ceremony",   date:"Jul 31 · 8PM GMT", host:"Oravini Team", spots:"All members",     status:"upcoming", c:"#a78bfa" },
+          { name:"Build Your First VSL — Live",  date:"Jul 14 · 7PM GMT", host:"Oravini HQ",   spots:"535 attended",    status:"past",     c:"#34d399" },
+        ].map(e=>(
+          <div key={e.name} style={{ background:"rgba(255,255,255,0.025)", border:`1px solid ${e.c}22`, borderRadius:14, padding:"16px 18px", marginBottom:12, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:`${e.c}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+              {e.status==="upcoming"?"📅":"🎬"}
+            </div>
+            <div style={{ flex:1 }}>
+              <p style={{ fontSize:13, fontWeight:800, color:"#fff", margin:"0 0 3px" }}>{e.name}</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.38)", margin:0 }}>{e.date} · {e.spots}</p>
+            </div>
+            {e.status==="upcoming"
+              ? <LockBtn label="RSVP" lockAction={lockAction} style={{ background:`${e.c}15`, color:e.c, border:`1px solid ${e.c}28` }} />
+              : <span style={{ fontSize:9.5, padding:"3px 10px", borderRadius:999, background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.4)", fontWeight:700 }}>Ended</span>}
+          </div>
+        ))}
+      </>}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
 function GenericView({ label, nav, lockAction, emoji }: { label: string; nav: (p: string) => void; lockAction: () => void; emoji?: string }) {
   return (
     <>
@@ -844,7 +1476,7 @@ function SectionView({ section, nav, lockAction }: { section: string; nav: (p: s
   switch (section) {
     case "Dashboard":          return <DashboardView {...p} />;
     case "Documents":          return <DocumentsView {...p} />;
-    case "Community":          return <GenericView label="Community Forum" emoji="🌍" {...p} />;
+    case "Community":          return <CommunityView {...p} />;
     case "Scheduling":         return <SchedulingView {...p} />;
     case "Tracking":           return <TrackingView {...p} />;
     case "Competitor Study":   return <CompetitorView {...p} />;
