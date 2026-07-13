@@ -16,11 +16,16 @@ const CARD = "#0c0c10";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const FUNNEL_TEMPLATES = [
-  { id: "vsl",     name: "VSL Funnel",       desc: "Video sales letter → upsell → downsell → confirmation", steps: ["Sales Page","OTO Upsell","Downsell","Confirmation"], color: "#d4b461", icon: "🎬" },
-  { id: "launch",  name: "Product Launch",   desc: "Opt-in → sales → upsell → downsell → thank you",       steps: ["Opt-in","Sales","Upsell","Downsell","Thank You"],    color: "#a855f7", icon: "🚀" },
-  { id: "webinar", name: "Webinar Funnel",   desc: "Registration → thank you → replay/sales",               steps: ["Registration","Thank You","Replay"],                color: "#3b82f6", icon: "📡" },
-  { id: "lead",    name: "Lead Magnet",      desc: "Opt-in → thank you / delivery page",                   steps: ["Opt-in","Thank You"],                               color: "#22c55e", icon: "🧲" },
-  { id: "tripwire",name: "Tripwire Funnel",  desc: "Lead magnet → tripwire → upsell → downsell → confirm",  steps: ["Landing","Tripwire","Upsell","Downsell","Confirm"], color: "#f97316", icon: "⚡" },
+  { id: "vsl",       name: "VSL Funnel",         desc: "Video sales letter → upsell → downsell → confirmation",       steps: ["Sales Page","OTO Upsell","Downsell","Confirmation"],              color: "#d4b461", icon: "🎬" },
+  { id: "launch",    name: "Product Launch",     desc: "Opt-in → sales → upsell → downsell → thank you",             steps: ["Opt-in","Sales","Upsell","Downsell","Thank You"],                 color: "#a855f7", icon: "🚀" },
+  { id: "webinar",   name: "Webinar Funnel",     desc: "Registration → thank you → replay/sales",                     steps: ["Registration","Thank You","Replay"],                              color: "#3b82f6", icon: "📡" },
+  { id: "lead",      name: "Lead Magnet",        desc: "Opt-in → thank you / delivery page",                         steps: ["Opt-in","Thank You"],                                             color: "#22c55e", icon: "🧲" },
+  { id: "tripwire",  name: "Tripwire Funnel",    desc: "Lead magnet → tripwire → upsell → downsell → confirm",        steps: ["Landing","Tripwire","Upsell","Downsell","Confirm"],               color: "#f97316", icon: "⚡" },
+  { id: "coaching",  name: "Coaching Funnel",    desc: "Application page → video → booking → confirmation",           steps: ["Application","Strategy Video","Book a Call","Confirmation"],      color: "#d4b461", icon: "🎯" },
+  { id: "challenge", name: "Challenge Funnel",   desc: "Opt-in → Day 1–5 content pages → sales → thank you",         steps: ["Opt-in","Day 1","Day 3","Day 5 Sales","Thank You"],               color: "#ef4444", icon: "🔥" },
+  { id: "saas",      name: "SaaS Funnel",        desc: "Free trial → onboarding → upgrade → retention",               steps: ["Free Trial","Onboarding","Upgrade Offer","Success Page"],         color: "#06b6d4", icon: "💻" },
+  { id: "book",      name: "Book Funnel",        desc: "Free + shipping → OTO → downsell → confirmation",             steps: ["Book Offer","OTO","Downsell","Confirmation"],                     color: "#8b5cf6", icon: "📚" },
+  { id: "highticket",name: "High-Ticket Funnel", desc: "Application → VSL + testimonials → call booking → thank you", steps: ["Application","Video & Proof","Book Discovery Call","Thank You"], color: "#22c55e", icon: "💎" },
 ];
 
 // ── AI Build Modal ─────────────────────────────────────────────────────────────
@@ -178,8 +183,8 @@ function AIBuildModal({ onClose, onDone }: {
                       transform: template === t.id ? "scale(1.03)" : "scale(1)",
                     }}
                   >
-                    <span className="text-xl">{t.icon}</span>
-                    <p className="text-[10px] font-black leading-tight" style={{ color: template === t.id ? t.color : "#71717a" }}>{t.name}</p>
+                    <span className="text-lg">{t.icon}</span>
+                    <p className="text-[9px] font-black leading-tight" style={{ color: template === t.id ? t.color : "#71717a" }}>{t.name}</p>
                   </button>
                 ))}
               </div>
@@ -250,13 +255,15 @@ function ManualModal({ onClose, onCreate }: {
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-        <div className="p-5 grid grid-cols-3 gap-3">
+        <div className="p-5 grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
           {FUNNEL_TEMPLATES.map(t => (
             <button key={t.id} onClick={() => setSelected(t.id)}
               className="text-left p-4 rounded-xl transition-all"
               style={{ background: selected === t.id ? `${t.color}12` : "rgba(255,255,255,0.03)", border: `1px solid ${selected === t.id ? t.color + "40" : "rgba(255,255,255,0.07)"}` }}>
-              <div className="text-2xl mb-2">{t.icon}</div>
-              <p className="text-sm font-black text-white mb-1">{t.name}</p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">{t.icon}</span>
+                <p className="text-sm font-black text-white">{t.name}</p>
+              </div>
               <p className="text-xs text-zinc-500 leading-relaxed mb-3">{t.desc}</p>
               <div className="flex flex-wrap gap-1">
                 {t.steps.map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: `${t.color}18`, color: t.color }}>{s}</span>)}
@@ -395,13 +402,13 @@ export default function Funnels() {
               or start from a template
               <div className="h-px w-20" style={{ background: "rgba(255,255,255,0.08)" }} />
             </div>
-            <div className="grid grid-cols-5 gap-3 w-full max-w-2xl">
+            <div className="grid grid-cols-5 gap-3 w-full max-w-3xl">
               {FUNNEL_TEMPLATES.map(t => (
                 <button key={t.id} onClick={async () => { await create(t.id, t.name); }}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105"
-                  style={{ background: CARD, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <span className="text-2xl">{t.icon}</span>
-                  <p className="text-[10px] font-bold text-zinc-400 text-center leading-tight">{t.name}</p>
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                  style={{ background: CARD, border: `1px solid ${t.color}18` }}>
+                  <span className="text-xl">{t.icon}</span>
+                  <p className="text-[9px] font-bold text-center leading-tight" style={{ color: `${t.color}90` }}>{t.name}</p>
                 </button>
               ))}
             </div>
