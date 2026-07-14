@@ -32,6 +32,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
+import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
@@ -255,6 +256,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/lusion" component={LusionInspired} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
       <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
       <Route path="/brandverse" component={Brandverse} />

@@ -16520,47 +16520,66 @@ Rules:
       const base64Image = fs.readFileSync(file.path, { encoding: "base64" });
       fs.unlinkSync(file.path);
 
-      const systemPrompt = `You are an expert diagram/flowchart reverse-engineer. Given an image of a diagram (flowchart, org chart, mind map, wireframe, board layout, etc.), recreate it as a structured board with nodes and connectors.
+      const systemPrompt = `You are an expert diagram reverse-engineer with computer vision. Analyze the provided image of a diagram, chart, flowchart, architecture diagram, org chart, mind map, kanban board, or any visual diagram — and faithfully recreate it as a structured board.
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON (no markdown, no explanation):
 {
+  "title": "Inferred board title",
   "nodes": [
     {
-      "id": "n1",
-      "kind": "process|decision|terminator|database|document|cloud|star|person|text|sticky-yellow|sticky-green|sticky-blue|sticky-pink|sticky-purple|sticky-orange",
+      "kind": "process|decision|terminator|database|document|cloud|server|person|ai-node|kanban-card|checklist|section|rounded-rect|sticky-yellow|sticky-green|sticky-blue|sticky-pink|component",
       "x": number,
       "y": number,
       "w": number,
       "h": number,
-      "title": "short title",
-      "body": "optional description"
+      "title": "Exact text from the node in the image",
+      "body": "Any sub-text or description visible inside the node",
+      "color": "#hexcolor if node has a distinct background color",
+      "borderColor": "#hexcolor if node has a distinct border",
+      "status": "todo|inprogress|done (only if kanban-card with visible status)",
+      "priority": "low|medium|high (only if kanban-card)",
+      "items": ["item text"] (only if checklist visible),
+      "language": "language name (only if code block visible)"
     }
   ],
   "connectors": [
     {
-      "id": "c1",
-      "fromId": "n1",
-      "toId": "n2",
-      "label": "optional label",
+      "fromIdx": 0,
+      "toIdx": 1,
+      "label": "Arrow label text if visible",
       "style": "curved"
     }
   ]
 }
 
-Rules:
-- Analyze the image carefully and extract EVERY visible node/box and arrow/connector
-- Place nodes at roughly the same relative positions as in the image (preserve layout)
-- Use the correct visual type: process for actions/steps, decision for branching, terminator for start/end nodes, database for data stores, document for files, cloud for external systems, sticky for notes/ideas
-- Copy the text content from each node into the title/body fields
-- Keep titles short (2-5 words), put longer text in body
-- Add connectors between every connected pair you see in the diagram
-- Label connectors with any text you see on the arrows
-- Generate as many nodes as needed to faithfully reproduce the diagram`;
+CRITICAL RULES:
+- fromIdx and toIdx are ZERO-BASED INDICES into the nodes array (NOT string IDs)
+- Extract EVERY visible node — do not skip any box, shape, circle, diamond, or element
+- Preserve the approximate spatial layout: if node A is top-left in image, give it small x,y values
+- Scale coordinates: map the image width to ~1200px, height to ~900px canvas space
+- Choose kind based on shape: diamond→decision, pill/oval→terminator, cylinder→database, cloud→cloud, rectangle→process, sticky/square with color→sticky-yellow/green/blue etc
+- Copy text EXACTLY as visible in the image
+- Add a connector for EVERY arrow or line visible between nodes
+- If diagram has color-coded groups, use section nodes behind the grouped nodes
+- Generate as many nodes as needed — do not simplify or omit`;
 
-      const raw = await callGroqVisionJson(systemPrompt, prompt, base64Image, 5000);
-      const parsed = JSON.parse(raw);
+      const raw = await callGroqVisionJson(systemPrompt, prompt, base64Image, 6000);
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return res.status(500).json({ message: "AI returned no JSON" });
+      const parsed = JSON.parse(jsonMatch[0]);
       if (!parsed.nodes || !Array.isArray(parsed.nodes)) {
         return res.status(500).json({ message: "AI returned invalid board structure from image" });
+      }
+      // Normalize: if AI used old "fromId"/"toId" string format, convert to fromIdx/toIdx
+      const nodeIds: string[] = parsed.nodes.map((n: any) => n.id || "");
+      if (parsed.connectors) {
+        parsed.connectors = parsed.connectors.map((c: any) => {
+          if (typeof c.fromIdx === "number") return c;
+          const fromIdx = nodeIds.indexOf(c.fromId);
+          const toIdx = nodeIds.indexOf(c.toId);
+          if (fromIdx < 0 || toIdx < 0) return null;
+          return { fromIdx, toIdx, label: c.label, color: c.color, style: c.style };
+        }).filter(Boolean);
       }
       return res.json(parsed);
     } catch (err: any) {
@@ -18973,6 +18992,292 @@ Preserve all section IDs. Write real copy, no placeholders.`;
       res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
+
+  // ── AI Board Generation ──────────────────────────────────────────────────
+  app.post("/api/board/ai-generate", requireAuth, async (req: Request, res: Response) => {
+    const { prompt, action, nodes: existingNodes, complexity = "detailed" } = req.body;
+    if (!prompt) return res.status(400).json({ error: "prompt required" });
+
+    const nodeCountGuide = complexity === "simple" ? "15-25" : complexity === "complex" ? "40-70" : "25-45";
+
+    const systemPrompt = `You are an expert visual board designer and systems architect. Generate highly detailed, realistic, professional boards as JSON.
+
+AVAILABLE NODE KINDS:
+- sticky-yellow/green/blue/pink/purple/orange/red/teal → sticky notes (ideas, annotations)
+- process → rectangular box (steps, actions, services, modules)
+- decision → diamond (if/else, branching, gateways)
+- terminator → rounded pill (start/end, triggers)
+- database → cylinder (databases, caches, data stores)
+- cloud → cloud shape (external APIs, SaaS, internet)
+- server → rack server (servers, VMs, containers)
+- person → user/actor (people, roles, teams)
+- document → dog-eared box (files, reports, artifacts)
+- ai-node → AI/ML model node (ML models, AI services)
+- kanban-card → task card with status/priority
+- checklist → checkbox list
+- section → large colored zone for grouping (use w=600+ h=400+)
+- rounded-rect → generic box
+- component → tech component (microservices, packages)
+- text → label/annotation
+
+Return ONLY valid JSON — no markdown fences, no explanation:
+{
+  "title": "Board title",
+  "nodes": [
+    {
+      "kind": "process",
+      "x": 100, "y": 100, "w": 200, "h": 70,
+      "title": "API Gateway",
+      "body": "Routes requests, rate limiting, auth",
+      "color": "#1e293b",
+      "borderColor": "#3b82f6",
+      "status": "inprogress",
+      "priority": "high",
+      "assignee": "Alice",
+      "items": ["Task A", "Task B"],
+      "checked": [true, false],
+      "language": "typescript",
+      "modelName": "GPT-4o"
+    }
+  ],
+  "connectors": [
+    { "fromIdx": 0, "toIdx": 1, "label": "REST", "color": "#3b82f6", "style": "curved" }
+  ]
+}
+
+SIZE GUIDE (w × h):
+- section: 600×400 to 1200×600 (background grouping zone)
+- sticky notes: 180×130
+- process/rounded-rect: 180×70 to 220×90
+- decision: 200×110
+- terminator: 180×50
+- database: 140×100
+- cloud: 180×110
+- server: 160×100
+- person: 120×140
+- document: 160×100
+- ai-node: 220×120
+- kanban-card: 200×110
+- checklist: 200×180
+- component: 180×80
+
+LAYOUT RULES:
+- Sections always come FIRST in the nodes array (lower z-index = behind other nodes)
+- Start coordinates at x=100, y=100. Leave 60px padding between sections.
+- Inside a section: place child nodes within its bounds
+- Flowcharts: top-to-bottom, 160px vertical gap, 240px horizontal gap
+- Mind maps: center hub at (500,400), branches radiate out 300px
+- Architecture diagrams: group by layer (frontend/API/backend/DB) using sections
+- Kanban: 4 columns (Todo/In Progress/Review/Done), each 260px wide, cards 120px apart vertically
+- Connect EVERY logically related pair. Label connectors with protocols/actions.
+- Use specific, realistic content — real technology names, real step names, not placeholders
+- Generate ${nodeCountGuide} nodes. Complex topics MUST use sections for grouping.
+- Color-code by layer: frontend=#1e40af, API=#1e3a5f, backend=#14532d, DB=#3b0764, external=#1c1917`;
+
+    const userMsg = action === "expand" && existingNodes
+      ? `Expand this node by adding 6-10 detailed connected sub-nodes that drill into its internals. Existing node: ${JSON.stringify(existingNodes[0])}. Return ONLY new nodes + connectors. fromIdx 0 = the existing node, indices 1+ = new nodes.`
+      : `Create a comprehensive, detailed board for: ${prompt}. Be specific and technical. Use real names, real components. Make it look like a real professional diagram an engineer would actually use.`;
+
+    try {
+      const raw = await callGroqJson(systemPrompt, userMsg, 8000);
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return res.status(500).json({ error: "Invalid AI response" });
+      const board = JSON.parse(jsonMatch[0]);
+      res.json(board);
+    } catch (e: any) {
+      console.error("[board-ai]", e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── DM AI Brain (BYOK) ───────────────────────────────────────────────────────
+  {
+    const nodeCrypto = await import("crypto");
+    const Anthropic = (await import("@anthropic-ai/sdk")).default;
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const { dmAiConfigs } = await import("@shared/schema");
+
+    const ENCRYPTION_KEY = process.env.AI_KEY_ENCRYPTION_SECRET || "oravini-fallback-key-change-in-prod!!";
+    const KEY_BUF = nodeCrypto.createHash("sha256").update(ENCRYPTION_KEY).digest();
+
+    function encryptKey(plain: string): string {
+      const iv = nodeCrypto.randomBytes(12);
+      const cipher = nodeCrypto.createCipheriv("aes-256-gcm", KEY_BUF, iv);
+      const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      return [iv.toString("hex"), tag.toString("hex"), enc.toString("hex")].join(".");
+    }
+
+    function decryptKey(stored: string): string {
+      const [ivHex, tagHex, encHex] = stored.split(".");
+      const iv = Buffer.from(ivHex, "hex");
+      const tag = Buffer.from(tagHex, "hex");
+      const enc = Buffer.from(encHex, "hex");
+      const decipher = nodeCrypto.createDecipheriv("aes-256-gcm", KEY_BUF, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+    }
+
+    function maskKey(plain: string): string {
+      if (plain.length <= 8) return "****";
+      return plain.slice(0, 4) + "****" + plain.slice(-4);
+    }
+
+    // GET  /api/dm/ai-config  — load current config (API key masked)
+    app.get("/api/dm/ai-config", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const clientId = req.query.clientId as string | undefined;
+      const targetId = clientId || userId;
+      try {
+        const [cfg] = await db.select().from(dmAiConfigs).where(eq(dmAiConfigs.userId, targetId)).limit(1);
+        if (!cfg) return res.json(null);
+        let maskedKey = "";
+        try { maskedKey = maskKey(decryptKey(cfg.apiKeyEncrypted)); } catch {}
+        res.json({ ...cfg, apiKeyEncrypted: undefined, apiKeyMasked: maskedKey });
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    });
+
+    // POST /api/dm/ai-config  — save / update config
+    app.post("/api/dm/ai-config", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const clientId = req.query.clientId as string | undefined;
+      const targetId = clientId || userId;
+      const { provider, apiKey, systemPrompt, voiceDescription, exampleConversations, autoTagRules, isActive } = req.body;
+      if (!provider || !apiKey) return res.status(400).json({ message: "provider and apiKey required" });
+      try {
+        const encrypted = encryptKey(apiKey);
+        const [existing] = await db.select().from(dmAiConfigs).where(eq(dmAiConfigs.userId, targetId)).limit(1);
+        if (existing) {
+          await db.update(dmAiConfigs).set({
+            provider, apiKeyEncrypted: encrypted,
+            systemPrompt: systemPrompt || "",
+            voiceDescription: voiceDescription || "",
+            exampleConversations: exampleConversations || [],
+            autoTagRules: autoTagRules || [],
+            isActive: !!isActive,
+            updatedAt: new Date(),
+          }).where(eq(dmAiConfigs.userId, targetId));
+        } else {
+          await db.insert(dmAiConfigs).values({
+            userId: targetId, provider, apiKeyEncrypted: encrypted,
+            systemPrompt: systemPrompt || "",
+            voiceDescription: voiceDescription || "",
+            exampleConversations: exampleConversations || [],
+            autoTagRules: autoTagRules || [],
+            isActive: !!isActive,
+          });
+        }
+        res.json({ ok: true });
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    });
+
+    // POST /api/dm/ai-test  — test the key + send a sample message
+    app.post("/api/dm/ai-test", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const clientId = req.query.clientId as string | undefined;
+      const targetId = clientId || userId;
+      const { message } = req.body;
+      try {
+        const [cfg] = await db.select().from(dmAiConfigs).where(eq(dmAiConfigs.userId, targetId)).limit(1);
+        if (!cfg) return res.status(404).json({ message: "No AI config found" });
+        const plainKey = decryptKey(cfg.apiKeyEncrypted);
+        const examples = (cfg.exampleConversations as any[] || []);
+        const fewShot = examples.flatMap((e: any) => [
+          { role: "user" as const, content: e.userMsg },
+          { role: "assistant" as const, content: e.aiReply },
+        ]);
+        const userMsg = message || "Hey, I'm interested in what you do. Can you tell me more?";
+
+        if (cfg.provider === "claude") {
+          const client = new Anthropic({ apiKey: plainKey });
+          const resp = await client.messages.create({
+            model: "claude-opus-4-8",
+            max_tokens: 300,
+            system: cfg.systemPrompt || "You are a helpful DM assistant.",
+            messages: [...fewShot, { role: "user", content: userMsg }],
+          });
+          const text = resp.content[0].type === "text" ? resp.content[0].text : "";
+          res.json({ reply: text, provider: "claude" });
+        } else if (cfg.provider === "gemini") {
+          const genAI = new GoogleGenerativeAI(plainKey);
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const chat = model.startChat({
+            history: fewShot.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+            systemInstruction: cfg.systemPrompt || "You are a helpful DM assistant.",
+          });
+          const result = await chat.sendMessage(userMsg);
+          res.json({ reply: result.response.text(), provider: "gemini" });
+        } else {
+          res.status(400).json({ message: "Unknown provider" });
+        }
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    });
+
+    // POST /api/dm/ai-generate  — generate a reply for a given lead conversation
+    app.post("/api/dm/ai-generate", requireAuth, async (req: Request, res: Response) => {
+      const userId = (req.user as any).id;
+      const clientId = req.query.clientId as string | undefined;
+      const targetId = clientId || userId;
+      const { conversation, leadContext } = req.body; // conversation: [{role, content}], leadContext: {name, status}
+      if (!conversation || !Array.isArray(conversation)) return res.status(400).json({ message: "conversation array required" });
+      try {
+        const [cfg] = await db.select().from(dmAiConfigs).where(eq(dmAiConfigs.userId, targetId)).limit(1);
+        if (!cfg || !cfg.isActive) return res.status(404).json({ message: "AI Brain not active" });
+        const plainKey = decryptKey(cfg.apiKeyEncrypted);
+        const examples = (cfg.exampleConversations as any[] || []);
+        const fewShot = examples.flatMap((e: any) => [
+          { role: "user" as const, content: e.userMsg },
+          { role: "assistant" as const, content: e.aiReply },
+        ]);
+        const contextNote = leadContext ? `\n\nLead info: Name=${leadContext.name || "Unknown"}, Status=${leadContext.status || "new"}.` : "";
+        const systemPrompt = (cfg.systemPrompt || "You are a helpful DM assistant.") + contextNote;
+        const msgs = [...fewShot, ...conversation];
+
+        let reply = "";
+        if (cfg.provider === "claude") {
+          const client = new Anthropic({ apiKey: plainKey });
+          const resp = await client.messages.create({
+            model: "claude-opus-4-8",
+            max_tokens: 500,
+            system: systemPrompt,
+            messages: msgs,
+          });
+          reply = resp.content[0].type === "text" ? resp.content[0].text : "";
+        } else if (cfg.provider === "gemini") {
+          const genAI = new GoogleGenerativeAI(plainKey);
+          const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+          const history = msgs.slice(0, -1).map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+          const lastMsg = msgs[msgs.length - 1].content;
+          const chat = model.startChat({ history, systemInstruction: systemPrompt });
+          const result = await chat.sendMessage(lastMsg);
+          reply = result.response.text();
+        } else {
+          return res.status(400).json({ message: "Unknown provider" });
+        }
+
+        // Auto-tag based on rules
+        const autoTagRules = (cfg.autoTagRules as any[] || []);
+        const suggestedTags: string[] = [];
+        const replyLower = reply.toLowerCase();
+        const convoText = conversation.map((m: any) => m.content).join(" ").toLowerCase();
+        for (const rule of autoTagRules) {
+          if (rule.keyword && (convoText.includes(rule.keyword.toLowerCase()) || replyLower.includes(rule.keyword.toLowerCase()))) {
+            suggestedTags.push(rule.tag);
+          }
+        }
+
+        res.json({ reply, suggestedTags });
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    });
+  }
 
   return httpServer;
 }

@@ -3194,6 +3194,24 @@ export const insertSchedulingWorkflowSchema = createInsertSchema(schedulingWorkf
 export type InsertSchedulingWorkflow = z.infer<typeof insertSchedulingWorkflowSchema>;
 export type SchedulingWorkflow = typeof schedulingWorkflows.$inferSelect;
 
+// ── DM AI Brain (BYOK) ───────────────────────────────────────────────────────
+export const dmAiConfigs = pgTable("dm_ai_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 20 }).notNull().default("claude"), // claude | gemini
+  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  systemPrompt: text("system_prompt").notNull().default(""),
+  voiceDescription: text("voice_description").notNull().default(""),
+  exampleConversations: jsonb("example_conversations").default([]),   // [{userMsg, aiReply}]
+  autoTagRules: jsonb("auto_tag_rules").default([]),                  // [{keyword, tag}]
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertDmAiConfigSchema = createInsertSchema(dmAiConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDmAiConfig = z.infer<typeof insertDmAiConfigSchema>;
+export type DmAiConfig = typeof dmAiConfigs.$inferSelect;
+
 // ── Cortex Activity Tracking ──────────────────────────────────────────────────
 export const userActivityEvents = pgTable("user_activity_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

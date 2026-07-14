@@ -412,6 +412,21 @@ export default function BoardBuilder() {
   const zoomOut = useCallback(() => setZoom(z => Math.max(0.15, z / 1.2)), []);
   const zoomReset = useCallback(() => setZoom(1), []);
 
+  const zoomFit = useCallback(() => {
+    if (nodes.length === 0) return;
+    const PAD = 80;
+    const minX = Math.min(...nodes.map(n => n.x));
+    const minY = Math.min(...nodes.map(n => n.y));
+    const maxX = Math.max(...nodes.map(n => n.x + n.w));
+    const maxY = Math.max(...nodes.map(n => n.y + n.h));
+    const bw = maxX - minX, bh = maxY - minY;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const nz = Math.min((vw - PAD * 2) / bw, (vh - PAD * 2) / bh, 2);
+    setZoom(nz);
+    setViewX((vw - bw * nz) / 2 - minX * nz);
+    setViewY((vh - bh * nz) / 2 - minY * nz);
+  }, [nodes]);
+
   /* ── Drag ──────────────────────────────── */
   const dragRef = useRef<{ id: string; startX: number; startY: number; nodeStartX: number; nodeStartY: number; groupDeltas: { id: string; dx: number; dy: number }[] } | null>(null);
 
@@ -577,10 +592,11 @@ export default function BoardBuilder() {
       else if (e.key === "+" || e.key === "=") zoomIn();
       else if (e.key === "-") zoomOut();
       else if (e.key === "0" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); zoomReset(); }
+      else if (e.key === "1" && e.shiftKey) { e.preventDefault(); zoomFit(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [deleteSelected, duplicateSelected, handleUndo, handleRedo, zoomIn, zoomOut, zoomReset, selectAll]);
+  }, [deleteSelected, duplicateSelected, handleUndo, handleRedo, zoomIn, zoomOut, zoomReset, zoomFit, selectAll]);
 
   /* ── Export ─────────────────────────────── */
   const handleExport = useCallback(() => {
@@ -677,34 +693,116 @@ export default function BoardBuilder() {
     if (nodes.length < 2) return;
     pushUndo();
     const result = autoLayout(nodes, connectors);
-    setNodes(result);
+    setNodes(result.nodes);
   }, [nodes, connectors, pushUndo]);
 
   /* ── AI Panel ─────────────────────────────── */
   const [aiLoading, setAiLoading] = useState(false);
 
-  const handleAiGenerate = useCallback((prompt: string) => {
+  const handleAiGenerate = useCallback(async (prompt: string, complexity = "detailed") => {
     setAiLoading(true);
     pushUndo();
-    // TODO: Call real AI API. For now, extract keywords and create stickies
-    const words = prompt.split(" ").filter(w => w.length > 4).slice(0, 6);
-    const newNodes: BoardNode[] = words.map((w, i) => ({
-      id: uid(), kind: "sticky-yellow" as NodeKind,
-      x: 100 + (i % 3) * 220, y: 100 + Math.floor(i / 3) * 200,
-      w: 180, h: 100, title: w.charAt(0).toUpperCase() + w.slice(1),
-      zIndex: zCounter + i,
-    }));
-    setNodes(prev => [...prev, ...newNodes]);
-    setZCounter(z => z + newNodes.length);
-    setAiLoading(false);
-    setAiOpen(false);
-  }, [zCounter, pushUndo]);
+    try {
+      const res = await fetch("/api/board/ai-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, complexity }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const rawNodes: any[] = data.nodes || [];
+      const rawConns: any[] = data.connectors || [];
+      let z = zCounter;
+      const viewCX = -viewX / zoom + window.innerWidth / 2 / zoom;
+      const viewCY = -viewY / zoom + window.innerHeight / 2 / zoom;
+      const createdNodes: BoardNode[] = rawNodes.map((n: any, i: number) => ({
+        id: uid(),
+        kind: (n.kind || "rounded-rect") as NodeKind,
+        x: viewCX + (n.x ?? (i % 5) * 220),
+        y: viewCY + (n.y ?? Math.floor(i / 5) * 160),
+        w: n.w ?? 180, h: n.h ?? 120,
+        title: n.title ?? "Node",
+        body: n.body,
+        color: n.color,
+        borderColor: n.borderColor,
+        shape: n.shape,
+        zIndex: z++,
+        status: n.status, priority: n.priority, assignee: n.assignee,
+        items: n.items, checked: n.checked,
+        language: n.language, modelName: n.modelName,
+      }));
+      const createdConns: BoardConnector[] = rawConns.flatMap((c: any) => {
+        const from = createdNodes[c.fromIdx];
+        const to = createdNodes[c.toIdx];
+        if (!from || !to) return [];
+        return [{ id: cid(), fromId: from.id, toId: to.id, label: c.label, color: c.color, style: c.style ?? "curved" }];
+      });
+      setNodes(prev => [...prev, ...createdNodes]);
+      setConnectors(prev => [...prev, ...createdConns]);
+      setZCounter(z);
+      setAiOpen(false);
+    } catch (err) {
+      console.error("AI generate failed:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [zCounter, viewX, viewY, zoom, pushUndo]);
 
-  const handleAiGenerateFromImage = useCallback((_prompt: string, _file: File) => {
+  const handleAiGenerateFromImage = useCallback(async (prompt: string, file: File) => {
     setAiLoading(true);
-    // TODO: Upload image to vision API and parse board
-    setTimeout(() => setAiLoading(false), 1000);
-  }, []);
+    pushUndo();
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      form.append("prompt", prompt || "Recreate this diagram as a structured interactive board");
+      const res = await fetch("/api/ai/board/generate-from-image", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const rawNodes: any[] = data.nodes || [];
+      const rawConns: any[] = data.connectors || [];
+      let z = zCounter;
+      const viewCX = -viewX / zoom + window.innerWidth / 2 / zoom;
+      const viewCY = -viewY / zoom + window.innerHeight / 2 / zoom;
+      // Find bounding box of raw nodes to center them on canvas
+      const minRX = Math.min(...rawNodes.map(n => n.x ?? 0));
+      const minRY = Math.min(...rawNodes.map(n => n.y ?? 0));
+      const createdNodes: BoardNode[] = rawNodes.map((n: any) => ({
+        id: uid(),
+        kind: (n.kind || "rounded-rect") as NodeKind,
+        x: viewCX + (n.x ?? 0) - minRX,
+        y: viewCY + (n.y ?? 0) - minRY,
+        w: n.w ?? 180, h: n.h ?? 80,
+        title: n.title ?? "Node",
+        body: n.body,
+        color: n.color,
+        borderColor: n.borderColor,
+        shape: n.shape,
+        zIndex: z++,
+        status: n.status, priority: n.priority, assignee: n.assignee,
+        items: n.items, checked: n.checked,
+        language: n.language, modelName: n.modelName,
+      }));
+      const createdConns: BoardConnector[] = (rawConns || []).flatMap((c: any) => {
+        const from = createdNodes[c.fromIdx];
+        const to = createdNodes[c.toIdx];
+        if (!from || !to) return [];
+        return [{ id: cid(), fromId: from.id, toId: to.id, label: c.label, color: c.color, style: c.style ?? "curved" }];
+      });
+      setNodes(prev => [...prev, ...createdNodes]);
+      setConnectors(prev => [...prev, ...createdConns]);
+      setZCounter(z);
+      setAiOpen(false);
+    } catch (err) {
+      console.error("AI vision generate failed:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [zCounter, viewX, viewY, zoom, pushUndo]);
 
   const lassoStyle = lassoRect ? {
     left: Math.min(lassoRect.x1, lassoRect.x2),
@@ -713,8 +811,13 @@ export default function BoardBuilder() {
     height: Math.abs(lassoRect.y2 - lassoRect.y1),
   } : null;
 
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const handleHoverChange = useCallback((id: string, h: boolean) => {
+    setHoveredId(h ? id : null);
+  }, []);
+
   return (
-    <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden", background: "#0a0a0f" }}>
+    <div ref={containerRef} style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#0a0a0f" }}>
       {/* Toolbar */}
       <BoardToolbar
         mode={mode} onModeChange={setMode}
@@ -727,7 +830,7 @@ export default function BoardBuilder() {
         onBringToFront={bringToFront} onSendToBack={sendToBack}
         nodeColor={selectedNode?.color} onChangeColor={changeNodeColor}
         connectorColor={selectedNode?.borderColor} onChangeConnectorColor={changeConnectorColor}
-        onOpenTemplates={() => setShowTemplates(true)} onAutoLayout={handleAutoLayout}
+        onOpenTemplates={() => setShowTemplates(true)} onAutoLayout={handleAutoLayout} onZoomFit={zoomFit}
       />
 
       {/* Canvas */}
@@ -754,7 +857,7 @@ export default function BoardBuilder() {
             key={n.id}
             node={n}
             selected={selected.has(n.id)}
-            hovered={false}
+            hovered={n.id === hoveredId}
             mode={mode}
             onSelect={selectNode}
             onDragStart={dragStart}
@@ -762,6 +865,8 @@ export default function BoardBuilder() {
             onEdit={editNode}
             onDelete={deleteSelected}
             onConnectorEnd={handleConnectorEnd}
+            onConnectorStart={handleConnectorStart}
+            onHoverChange={handleHoverChange}
             connecting={connecting !== null}
             onContextMenu={handleContextMenu}
           />
@@ -866,12 +971,14 @@ export default function BoardBuilder() {
 
       {/* AI Panel */}
       {aiOpen && (
-        <AIPanel
-          onGenerate={handleAiGenerate}
-          onGenerateFromImage={handleAiGenerateFromImage}
-          loading={aiLoading}
-          onClose={() => setAiOpen(false)}
-        />
+        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, zIndex: 4999, display: "flex" }}>
+          <AIPanel
+            onGenerate={handleAiGenerate}
+            onGenerateFromImage={handleAiGenerateFromImage}
+            loading={aiLoading}
+            onClose={() => setAiOpen(false)}
+          />
+        </div>
       )}
     </div>
   );
