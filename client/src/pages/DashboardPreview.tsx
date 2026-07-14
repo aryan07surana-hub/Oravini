@@ -1452,6 +1452,383 @@ function CommunityView({ nav, lockAction }: { nav: (p: string) => void; lockActi
   );
 }
 
+/* Oravini Recorder */
+function OraviniRecorderView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const recordings = [
+    { title: "Sales Call — Marcus T.",        dur: "28m 14s", size: "1.2 GB", date: "Jul 13", type: "Screen + Cam", color: GOLD },
+    { title: "Webinar Run-Through",           dur: "1h 4m",   size: "2.8 GB", date: "Jul 11", type: "Screen",      color: "#60a5fa" },
+    { title: "Brand Video Draft 3",           dur: "4m 22s",  size: "340 MB", date: "Jul 10", type: "Webcam",      color: "#a78bfa" },
+    { title: "Tutorial: Funnel Walkthrough",  dur: "18m 47s", size: "780 MB", date: "Jul 8",  type: "Screen + Cam", color: "#34d399" },
+    { title: "Onboarding Welcome Clip",       dur: "3m 8s",   size: "120 MB", date: "Jul 5",  type: "Webcam",      color: "#f472b6" },
+  ];
+  return (
+    <>
+      <SectionHeader eyebrow="Video Tools" title="Oravini Recorder" sub="Record your screen, webcam or both — instantly shareable" />
+      {/* Recorder UI */}
+      <div style={{ background: "linear-gradient(135deg,rgba(212,180,97,0.08) 0%,rgba(212,180,97,0.02) 100%)", border: `1px solid ${GOLD}25`, borderRadius: 20, padding: "28px", marginBottom: 20, textAlign: "center" }}>
+        <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: GOLD, margin: "0 0 20px" }}>Recording Studio</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 24 }}>
+          {[
+            { label: "Screen", icon: "🖥️", active: true },
+            { label: "Webcam", icon: "📷", active: true },
+            { label: "Mic",    icon: "🎙️", active: true },
+          ].map(({ label, icon, active }) => (
+            <div key={label} onClick={lockAction} style={{ background: active ? `${GOLD}15` : "rgba(255,255,255,0.04)", border: `1px solid ${active ? `${GOLD}30` : "rgba(255,255,255,0.09)"}`, borderRadius: 14, padding: "14px 20px", cursor: "pointer", textAlign: "center", minWidth: 90 }}>
+              <p style={{ fontSize: 24, margin: "0 0 6px" }}>{icon}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: active ? GOLD : "rgba(255,255,255,0.4)", margin: 0 }}>{label}</p>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: active ? GOLD : "rgba(255,255,255,0.15)", margin: "6px auto 0", boxShadow: active ? `0 0 6px ${GOLD}` : "none" }} />
+            </div>
+          ))}
+        </div>
+        <LockBtn label="Start Recording" lockAction={lockAction} style={{ margin: "0 auto", padding: "13px 32px", fontSize: 13, background: `${GOLD}15`, color: GOLD, border: `1px solid ${GOLD}35` }} />
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", margin: "12px 0 0" }}>Screen + Webcam · Mic on · Auto-save to Vault</p>
+      </div>
+      {/* Past recordings */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", margin: 0 }}>Recent Recordings</p>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0 }}>34 total · 18.4 GB used</p>
+      </div>
+      {recordings.map(r => (
+        <div key={r.title} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
+          <div onClick={lockAction} style={{ width: 38, height: 38, borderRadius: 10, background: `${r.color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+            <Play style={{ width: 14, height: 14, color: r.color }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 3px" }}>{r.title}</p>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0 }}>{r.type} · {r.dur} · {r.size} · {r.date}</p>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <LockBtn label="Share" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 10px" }} />
+            <LockBtn label="Edit" lockAction={lockAction} style={{ fontSize: 10, padding: "4px 10px" }} />
+          </div>
+        </div>
+      ))}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
+/* Clip Finder */
+function ClipFinderView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"finder"|"library">("finder");
+  const clips = [
+    { title: "Hook: Stop posting content", views: "2.1M", eng: "9.4%", dur: "0:08", source: "TikTok", color: "#f472b6" },
+    { title: "Transition: Viral B-roll cut",views: "1.8M", eng: "8.9%", dur: "0:05", source: "IG Reels",color: "#a78bfa" },
+    { title: "CTA: Book a call close",      views: "947K", eng: "11.2%",dur: "0:12", source: "YouTube",color: "#60a5fa" },
+    { title: "Opener: POV storytelling",    views: "3.4M", eng: "7.8%", dur: "0:06", source: "TikTok", color: GOLD },
+    { title: "Mid-video hook re-engage",    views: "1.2M", eng: "9.1%", dur: "0:09", source: "IG Reels",color: "#34d399" },
+    { title: "Pattern interrupt: zoom cut", views: "2.7M", eng: "8.3%", dur: "0:04", source: "TikTok", color: "#fb923c" },
+  ];
+  return (
+    <>
+      <SectionHeader eyebrow="Video Tools" title="Clip Finder" sub="Find the highest-performing clips from your videos — and the web" />
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        {[{id:"finder",label:"🔍 Viral Clip Finder"},{id:"library",label:"📂 My Clip Library"}].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === "finder" && <>
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Search style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
+            <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.2)" }}>Search for viral clips, hooks, transitions...</span>
+          </div>
+          <LockBtn label="🔍 Find Clips" lockAction={lockAction} style={{ padding: "10px 18px", fontSize: 12 }} />
+        </div>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", margin: "0 0 12px" }}>Trending in Your Niche</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {clips.map(c => (
+            <div key={c.title} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 13, overflow: "hidden" }}>
+              <div onClick={lockAction} style={{ height: 80, background: `linear-gradient(135deg,${c.color}22,${c.color}06)`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Play style={{ width: 13, height: 13, color: "#fff", marginLeft: 1 }} />
+                </div>
+                <span style={{ position: "absolute", bottom: 8, right: 10, fontSize: 9.5, background: "rgba(0,0,0,0.7)", color: "#fff", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{c.dur}</span>
+                <span style={{ position: "absolute", top: 8, left: 10, fontSize: 9, padding: "2px 7px", borderRadius: 999, background: `${c.color}30`, color: c.color, fontWeight: 700 }}>{c.source}</span>
+              </div>
+              <div style={{ padding: "10px 12px" }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#fff", margin: "0 0 5px" }}>{c.title}</p>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)" }}>👁 {c.views}</span>
+                  <span style={{ fontSize: 10.5, color: "#34d399", fontWeight: 700 }}>{c.eng} eng.</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      {tab === "library" && <>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 18 }}>
+          {[{label:"Saved Clips",value:"47",color:GOLD},{label:"Used in Videos",value:"23",color:"#34d399"},{label:"Avg Performance",value:"+84%",color:"#60a5fa"}].map(s => <StatCard key={s.label} {...s} />)}
+        </div>
+        {[
+          { cat: "🎣 Hooks",        count: 18, color: GOLD      },
+          { cat: "🔄 Transitions",  count: 12, color: "#a78bfa" },
+          { cat: "📢 CTAs",         count: 9,  color: "#34d399" },
+          { cat: "🎬 B-Roll",       count: 8,  color: "#60a5fa" },
+        ].map(c => (
+          <div key={c.cat} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", borderRadius: 13, border: `1px solid ${c.color}22`, background: `${c.color}08`, marginBottom: 10, cursor: "pointer" }}>
+            <p style={{ fontSize: 20, margin: 0 }}>{c.cat.split(" ")[0]}</p>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0 }}>{c.cat.split(" ").slice(1).join(" ")}</p>
+            </div>
+            <span style={{ fontSize: 16, fontWeight: 900, color: c.color }}>{c.count}</span>
+          </div>
+        ))}
+      </>}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
+/* Cortex Vault */
+function CortexVaultView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"resources"|"saved"|"templates">("resources");
+  return (
+    <>
+      <SectionHeader eyebrow="Knowledge" title="Cortex Vault" sub="Your saved resources, swipe file, templates and research — all in one place" />
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        {[{id:"resources",label:"📚 Resources"},{id:"saved",label:"🔖 Swipe File"},{id:"templates",label:"📋 Templates"}].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === "resources" && <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {[
+            { emoji: "📘", title: "Content Strategy Playbook",     desc: "47-page complete guide",              color: GOLD,      tag: "Guide"     },
+            { emoji: "🎯", title: "ICP Research Framework",        desc: "Step-by-step audience research",      color: "#60a5fa", tag: "Framework" },
+            { emoji: "📊", title: "Viral Content Formula",         desc: "Breakdown of 500 viral posts",        color: "#34d399", tag: "Research"  },
+            { emoji: "🔥", title: "Hook Library (200+ hooks)",     desc: "Proven hooks by content type",        color: "#f472b6", tag: "Swipe"     },
+            { emoji: "💌", title: "Email Sequence Templates",      desc: "7 done-for-you sequences",            color: "#a78bfa", tag: "Templates" },
+            { emoji: "📹", title: "VSL Script Framework",          desc: "High-converting VSL structure",       color: "#fb923c", tag: "Script"    },
+          ].map(r => (
+            <div key={r.title} onClick={lockAction} style={{ background: `${r.color}08`, border: `1px solid ${r.color}20`, borderRadius: 14, padding: "16px", cursor: "pointer" }}
+              onMouseEnter={e => (e.currentTarget.style.background = `${r.color}15`)}
+              onMouseLeave={e => (e.currentTarget.style.background = `${r.color}08`)}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 22 }}>{r.emoji}</span>
+                <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: `${r.color}15`, color: r.color, fontWeight: 700 }}>{r.tag}</span>
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", margin: "0 0 4px" }}>{r.title}</p>
+              <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.38)", margin: 0 }}>{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </>}
+
+      {tab === "saved" && <>
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Search style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Search your swipe file...</span>
+          </div>
+          <LockBtn label="+ Save Item" lockAction={lockAction} style={{ padding: "10px 16px" }} />
+        </div>
+        {[
+          { title: "@alexhormozi carousel on offer creation",   type: "Post",   platform: "IG",  saved: "Jul 12", color: "#f472b6" },
+          { title: "Gary Vee hook: 'Nobody cares about you'",  type: "Hook",   platform: "TW",  saved: "Jul 10", color: GOLD      },
+          { title: "MrBeast thumbnail split-test breakdown",   type: "Video",  platform: "YT",  saved: "Jul 8",  color: "#f87171" },
+          { title: "Webinar CTA that converted at 14%",        type: "Script", platform: "Email",saved: "Jul 6", color: "#34d399" },
+          { title: "Competitor's top performing email subject", type: "Email",  platform: "Email",saved: "Jul 4", color: "#60a5fa" },
+        ].map(s => (
+          <div key={s.title} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 9 }}>
+            <span style={{ fontSize: 9, padding: "3px 8px", borderRadius: 999, background: `${s.color}14`, color: s.color, fontWeight: 700, flexShrink: 0, border: `1px solid ${s.color}25` }}>{s.type}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</p>
+              <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{s.platform} · Saved {s.saved}</p>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab === "templates" && <>
+        {[
+          { cat: "📧 Email Templates",      count: 23, desc: "Welcome, nurture, sales & re-engagement",  color: "#60a5fa" },
+          { cat: "📱 Caption Templates",    count: 47, desc: "Instagram, LinkedIn, Twitter formats",      color: GOLD      },
+          { cat: "📄 DM Scripts",           count: 18, desc: "Cold DM, reply, booking scripts",          color: "#34d399" },
+          { cat: "🎬 Video Scripts",        count: 12, desc: "Hook, body, CTA frameworks",               color: "#a78bfa" },
+          { cat: "📊 Pitch Decks",          count: 6,  desc: "Brand deal, sponsorship, partnership",     color: "#f472b6" },
+        ].map(t => (
+          <div key={t.cat} onClick={lockAction} style={{ display: "flex", alignItems: "center", gap: 14, padding: "15px 18px", borderRadius: 13, border: `1px solid ${t.color}22`, background: `${t.color}07`, marginBottom: 10, cursor: "pointer" }}
+            onMouseEnter={e => (e.currentTarget.style.background = `${t.color}14`)}
+            onMouseLeave={e => (e.currentTarget.style.background = `${t.color}07`)}>
+            <span style={{ fontSize: 20 }}>{t.cat.split(" ")[0]}</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{t.cat.split(" ").slice(1).join(" ")}</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", margin: 0 }}>{t.desc}</p>
+            </div>
+            <span style={{ fontSize: 18, fontWeight: 900, color: t.color }}>{t.count}</span>
+          </div>
+        ))}
+      </>}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
+/* Skills */
+function SkillsView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"courses"|"progress">("courses");
+  const courses = [
+    { title: "Content Mastery Bootcamp",        modules: 12, duration: "6h 40m", level: "Beginner",     progress: 0,   color: GOLD,      emoji: "📱" },
+    { title: "Webinar That Converts",           modules: 8,  duration: "4h 20m", level: "Intermediate", progress: 0,   color: "#60a5fa", emoji: "📺" },
+    { title: "6-Figure Funnel Blueprint",       modules: 10, duration: "5h 15m", level: "Advanced",     progress: 0,   color: "#34d399", emoji: "🚀" },
+    { title: "DM Sales Mastery",                modules: 6,  duration: "3h 10m", level: "Intermediate", progress: 0,   color: "#a78bfa", emoji: "💬" },
+    { title: "Brand Identity From Scratch",     modules: 9,  duration: "4h 50m", level: "Beginner",     progress: 0,   color: "#f472b6", emoji: "🎨" },
+    { title: "AI Tools for Creators",           modules: 7,  duration: "3h 30m", level: "All levels",   progress: 0,   color: "#fb923c", emoji: "🤖" },
+  ];
+  return (
+    <>
+      <SectionHeader eyebrow="Learning" title="Skills & Learning" sub="Expert-led courses and training built into your dashboard" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+        {[{label:"Courses Available",value:"24",color:GOLD},{label:"Total Hours",value:"120+",color:"#60a5fa"},{label:"Certificates",value:"6",color:"#34d399"}].map(s => <StatCard key={s.label} {...s} />)}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        {[{id:"courses",label:"All Courses"},{id:"progress",label:"My Progress"}].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === "courses" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {courses.map(c => (
+            <div key={c.title} style={{ background: `${c.color}08`, border: `1px solid ${c.color}20`, borderRadius: 14, padding: "16px", cursor: "pointer" }}
+              onClick={lockAction}
+              onMouseEnter={e => (e.currentTarget.style.background = `${c.color}15`)}
+              onMouseLeave={e => (e.currentTarget.style.background = `${c.color}08`)}>
+              <p style={{ fontSize: 24, margin: "0 0 10px" }}>{c.emoji}</p>
+              <p style={{ fontSize: 12.5, fontWeight: 800, color: "#fff", margin: "0 0 5px", lineHeight: 1.4 }}>{c.title}</p>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)" }}>📚 {c.modules} modules</span>
+                <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)" }}>⏱ {c.duration}</span>
+              </div>
+              <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: `${c.color}15`, color: c.color, fontWeight: 700 }}>{c.level}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "progress" && <>
+        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "24px", textAlign: "center", marginBottom: 16 }}>
+          <p style={{ fontSize: 36, margin: "0 0 12px" }}>🎓</p>
+          <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: "0 0 8px" }}>Start your first course</p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", margin: "0 0 20px" }}>Pick any course above and begin learning. Progress is tracked automatically.</p>
+          <button onClick={() => setTab("courses")} style={{ background: `linear-gradient(135deg,${GOLD_BRIGHT},${GOLD})`, color: "#000", fontWeight: 800, fontSize: 13, border: "none", borderRadius: 10, padding: "11px 24px", cursor: "pointer" }}>Browse Courses →</button>
+        </div>
+        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px" }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", margin: "0 0 14px", textTransform: "uppercase", letterSpacing: "0.14em" }}>Certifications Available</p>
+          {[
+            { name: "Certified Content Creator",   color: GOLD      },
+            { name: "Certified Funnel Builder",    color: "#34d399" },
+            { name: "Certified Email Marketer",    color: "#60a5fa" },
+          ].map(cert => (
+            <div key={cert.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span style={{ fontSize: 16 }}>🏆</span>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,0.55)", margin: 0 }}>{cert.name}</p>
+              <span style={{ marginLeft: "auto", fontSize: 9.5, color: cert.color, fontWeight: 700 }}>Locked</span>
+            </div>
+          ))}
+        </div>
+      </>}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
+/* SMS Marketing */
+function SmsMarketingView({ nav, lockAction }: { nav: (p: string) => void; lockAction: () => void }) {
+  const [tab, setTab] = useState<"campaigns"|"contacts">("campaigns");
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+        <div>
+          <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.22em", textTransform: "uppercase", color: GOLD, margin: "0 0 5px" }}>Outreach</p>
+          <h1 style={{ fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", margin: "0 0 3px", letterSpacing: "-0.02em" }}>SMS Marketing</h1>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.35)", margin: 0 }}>Campaigns · Contacts · Automations</p>
+        </div>
+        <LockBtn label="+ New Campaign" lockAction={lockAction} icon={MessageSquare} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "SMS Contacts",  value: "2,104", sub: "+187 this week",   color: GOLD      },
+          { label: "Open Rate",     value: "94%",   sub: "vs email 34%",    color: "#34d399" },
+          { label: "Click Rate",    value: "18.2%", sub: "industry: 9.6%", color: "#60a5fa" },
+          { label: "Revenue",       value: "$1.8K", sub: "SMS-attributed",  color: "#f472b6" },
+        ].map(s => <StatCard key={s.label} {...s} />)}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        {[{id:"campaigns",label:"Campaigns"},{id:"contacts",label:"Contacts"}].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id as any)} style={{ padding: "9px 16px", fontSize: 12, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? GOLD : "rgba(255,255,255,0.4)", background: "none", border: "none", borderBottom: `2px solid ${tab === t.id ? GOLD : "transparent"}`, cursor: "pointer", marginBottom: -1 }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === "campaigns" && <>
+        {[
+          { name: "Webinar reminder (3-part)",    status: "Active",    sent: "1,847", clicks: "18.4%", color: "#34d399" },
+          { name: "Flash sale — 24h only",        status: "Completed", sent: "2,104", clicks: "22.1%", color: "#60a5fa" },
+          { name: "Abandoned funnel recovery",    status: "Active",    sent: "412",   clicks: "14.8%", color: GOLD      },
+          { name: "VIP early access drop",        status: "Draft",     sent: "—",     clicks: "—",     color: "#a78bfa" },
+        ].map(c => (
+          <div key={c.name} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "16px 18px", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: 0 }}>{c.name}</p>
+              <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: `${c.color}15`, color: c.color, fontWeight: 700, border: `1px solid ${c.color}28` }}>{c.status}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              {[{l:"Sent",v:c.sent},{l:"Click Rate",v:c.clicks}].map(({l,v}) => (
+                <div key={l} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 9, padding: "8px 12px" }}>
+                  <p style={{ fontSize: 15, fontWeight: 900, color: "#fff", margin: "0 0 1px" }}>{v}</p>
+                  <p style={{ fontSize: 9.5, color: "rgba(255,255,255,0.3)", margin: 0 }}>{l}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 12px" }}>
+              <p style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.12em" }}>Preview Message</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", margin: 0, fontStyle: "italic" }}>
+                {c.name.includes("Webinar") ? "📺 Webinar starts in 1 hour! Join here: oravini.com/live — Can't wait to see you 🔥" :
+                 c.name.includes("Flash") ? "⚡ 24H ONLY: 40% off Tier 5. This is your sign. → oravini.com/upgrade" :
+                 c.name.includes("Abandoned") ? "Hey, you left your upgrade halfway. Here's what you're missing: oravini.com/tier5" :
+                 "🔒 VIP early access for Elite members only. Doors open in 48h. Stay tuned."}
+              </p>
+            </div>
+          </div>
+        ))}
+      </>}
+
+      {tab === "contacts" && <>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Search style={{ width: 13, height: 13, color: "rgba(255,255,255,0.3)" }} />
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>Search contacts...</span>
+          </div>
+          <LockBtn label="Import CSV" lockAction={lockAction} style={{ padding: "10px 16px" }} />
+        </div>
+        {[
+          { name: "Sarah K.",  phone: "+44 7700 xxxxxx", tags: ["Webinar","VIP"],    opted: "Jul 12", color: GOLD      },
+          { name: "Marcus T.", phone: "+1 555 xxxxxxx",  tags: ["Discovery"],       opted: "Jul 10", color: "#34d399" },
+          { name: "Priya S.",  phone: "+91 98xxx xxxxx", tags: ["Client","Funnel"],  opted: "Jun 28", color: "#60a5fa" },
+          { name: "Jake R.",   phone: "+1 555 xxxxxxx",  tags: ["Webinar"],         opted: "Jun 20", color: "#a78bfa" },
+        ].map(c => (
+          <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderRadius: 13, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.025)", marginBottom: 8 }}>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${c.color}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: c.color, flexShrink: 0 }}>{c.name[0]}</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#fff", margin: "0 0 2px" }}>{c.name}</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0 }}>{c.phone} · Opted in {c.opted}</p>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {c.tags.map(t => <span key={t} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: `${c.color}14`, color: c.color, fontWeight: 700 }}>{t}</span>)}
+            </div>
+          </div>
+        ))}
+      </>}
+      <LockedCTA nav={nav} />
+    </>
+  );
+}
+
 function GenericView({ label, nav, lockAction, emoji }: { label: string; nav: (p: string) => void; lockAction: () => void; emoji?: string }) {
   return (
     <>
@@ -1485,16 +1862,16 @@ function SectionView({ section, nav, lockAction }: { section: string; nav: (p: s
     case "Content Coach":      return <ContentCoachView {...p} />;
     case "Content Analyser":   return <ContentAnalyserView {...p} />;
     case "Video Editor":       return <VideoEditorView {...p} />;
-    case "Oravini Recorder":   return <GenericView label="Oravini Recorder" emoji="🎙️" {...p} />;
-    case "Clip Finder":        return <GenericView label="Clip Finder" emoji="✂️" {...p} />;
+    case "Oravini Recorder":   return <OraviniRecorderView {...p} />;
+    case "Clip Finder":        return <ClipFinderView {...p} />;
     case "Video Marketing":    return <VideoMarketingView {...p} />;
     case "Pages & Funnels":    return <FunnelsView {...p} />;
     case "DM Automation":      return <DmAutomationView {...p} />;
-    case "Cortex Vault":       return <GenericView label="Cortex Vault" emoji="🗄️" {...p} />;
-    case "Skills":             return <GenericView label="Skills & Learning" emoji="📚" {...p} />;
+    case "Cortex Vault":       return <CortexVaultView {...p} />;
+    case "Skills":             return <SkillsView {...p} />;
     case "Analytics":          return <AnalyticsView {...p} />;
     case "Email & Workflows":  return <EmailWorkflowsView {...p} />;
-    case "SMS Marketing":      return <GenericView label="SMS Marketing" emoji="📱" {...p} />;
+    case "SMS Marketing":      return <SmsMarketingView {...p} />;
     case "Project Tracker":    return <ProjectTrackerView {...p} />;
     case "CRM":                return <CRMView {...p} />;
     default:                   return <GenericView label={section} {...p} />;
