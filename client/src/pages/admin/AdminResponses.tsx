@@ -10,7 +10,7 @@ import {
   Search, ChevronDown, ChevronUp, Users, TrendingUp, Target,
   DollarSign, Layers, BarChart2, Lightbulb, Star, Radio as RadioIcon,
   Megaphone, Video, MapPin, Crown, Flame, Mail, ArrowRight, Trash2,
-  Download, Filter, SortDesc, Calendar, X,
+  Download, Filter, SortDesc, Calendar, X, Clock, Banknote,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -151,7 +151,7 @@ export default function AdminResponses() {
 
   const exportData = () => {
     const csv = [
-      ["Name", "Email", "Plan", "Field", "Elite Interest", "Follower Count", "Revenue", "Submitted"].join(","),
+      ["Name", "Email", "Plan", "Field", "Elite Interest", "Follower Count", "Revenue", "Weekly Time", "Monetization Models", "Submitted"].join(","),
       ...filtered.map(s => [
         s.user_name || "",
         s.user_email || "",
@@ -160,6 +160,8 @@ export default function AdminResponses() {
         s.answers?.eliteInterest || "",
         s.follower_count || "",
         s.monthly_revenue || "",
+        s.weekly_time || "",
+        Array.isArray(s.monetization_models) ? `"${s.monetization_models.join("; ")}"` : "",
         s.completed_at ? format(new Date(s.completed_at), "yyyy-MM-dd HH:mm") : "",
       ].join(",")),
     ].join("\n");
@@ -184,16 +186,18 @@ export default function AdminResponses() {
   const total = surveys.length;
 
   // Aggregate all fields
-  const awarenessCounts:   Record<string, number> = {};
-  const fieldCounts:       Record<string, number> = {};
-  const struggleCounts:    Record<string, number> = {};
-  const contentTypeCounts: Record<string, number> = {};
-  const descriptorCounts:  Record<string, number> = {};
-  const followerCounts:    Record<string, number> = {};
-  const revenueCounts:     Record<string, number> = {};
-  const goalCounts:        Record<string, number> = {};
-  const platformCounts:    Record<string, number> = {};
-  const heardCounts:       Record<string, number> = {};
+  const awarenessCounts:       Record<string, number> = {};
+  const fieldCounts:           Record<string, number> = {};
+  const struggleCounts:        Record<string, number> = {};
+  const contentTypeCounts:     Record<string, number> = {};
+  const descriptorCounts:      Record<string, number> = {};
+  const followerCounts:        Record<string, number> = {};
+  const revenueCounts:         Record<string, number> = {};
+  const goalCounts:            Record<string, number> = {};
+  const monetizationCounts:    Record<string, number> = {};
+  const weeklyTimeCounts:      Record<string, number> = {};
+  const platformCounts:        Record<string, number> = {};
+  const heardCounts:           Record<string, number> = {};
 
   const inc = (obj: Record<string, number>, key: string | null | undefined) => {
     if (!key) return;
@@ -217,10 +221,12 @@ export default function AdminResponses() {
     inc(descriptorCounts, s.descriptor);
     inc(followerCounts,   s.follower_count);
     inc(revenueCounts,    s.monthly_revenue);
-    inc(goalCounts,       s.primary_goal);
-    inc(platformCounts,   s.platform);
-    incArr(platformCounts, s.platforms);
-    incArr(heardCounts,   s.heard_about);
+    inc(goalCounts,              s.primary_goal);
+    incArr(monetizationCounts,   s.monetization_models);
+    inc(weeklyTimeCounts,        s.weekly_time);
+    inc(platformCounts,          s.platform);
+    incArr(platformCounts,       s.platforms);
+    incArr(heardCounts,          s.heard_about);
 
     const ei = s.answers?.eliteInterest;
     if (ei === "yes") { eliteCounts.yes++; eliteYesUsers.push(s); }
@@ -278,9 +284,11 @@ export default function AdminResponses() {
     { icon: Star,       title: "What Best Describes Them",   color: "text-violet-400",  obj: descriptorCounts,  barColor: "#a78bfa" },
     { icon: RadioIcon,  title: "Follower Count Ranges",      color: "text-emerald-400", obj: followerCounts,    barColor: "#22c55e" },
     { icon: DollarSign, title: "Current Revenue",            color: "text-purple-400",  obj: revenueCounts,     barColor: "#c084fc" },
-    { icon: Target,     title: "Primary Goals",              color: "text-green-400",   obj: goalCounts,        barColor: "#4ade80" },
-    { icon: MapPin,     title: "Active Platforms",           color: "text-blue-400",    obj: platformCounts,    barColor: "#60a5fa" },
-    { icon: Megaphone,  title: "How They Heard About Us",    color: "text-pink-400",    obj: heardCounts,       barColor: "#f472b6" },
+    { icon: Target,     title: "Primary Goals",              color: "text-green-400",   obj: goalCounts,           barColor: "#4ade80" },
+    { icon: Banknote,   title: "Monetization Models",        color: "text-orange-400",  obj: monetizationCounts,   barColor: "#fb923c" },
+    { icon: Clock,      title: "Weekly Time Available",      color: "text-cyan-400",    obj: weeklyTimeCounts,     barColor: "#22d3ee" },
+    { icon: MapPin,     title: "Active Platforms",           color: "text-blue-400",    obj: platformCounts,       barColor: "#60a5fa" },
+    { icon: Megaphone,  title: "How They Heard About Us",    color: "text-pink-400",    obj: heardCounts,          barColor: "#f472b6" },
   ];
 
   return (
@@ -549,10 +557,12 @@ export default function AdminResponses() {
                       { label: "Most common role",        value: top(descriptorCounts, 1)[0]?.[0],   color: "text-violet-400" },
                       { label: "Main content type",       value: top(contentTypeCounts, 1)[0]?.[0],  color: "text-sky-400" },
                       { label: "Top follower range",      value: top(followerCounts, 1)[0]?.[0],     color: "text-emerald-400" },
-                      { label: "Top goal",                value: top(goalCounts, 1)[0]?.[0],         color: "text-green-400" },
-                      { label: "Most common revenue",     value: top(revenueCounts, 1)[0]?.[0],      color: "text-purple-400" },
-                      { label: "Main platform",           value: top(platformCounts, 1)[0]?.[0],     color: "text-blue-400" },
-                      { label: "Top referral source",     value: top(heardCounts, 1)[0]?.[0],        color: "text-pink-400" },
+                      { label: "Top goal",                value: top(goalCounts, 1)[0]?.[0],              color: "text-green-400" },
+                      { label: "Top monetization model",  value: top(monetizationCounts, 1)[0]?.[0],     color: "text-orange-400" },
+                      { label: "Most common time slot",   value: top(weeklyTimeCounts, 1)[0]?.[0],       color: "text-cyan-400" },
+                      { label: "Most common revenue",     value: top(revenueCounts, 1)[0]?.[0],          color: "text-purple-400" },
+                      { label: "Main platform",           value: top(platformCounts, 1)[0]?.[0],         color: "text-blue-400" },
+                      { label: "Top referral source",     value: top(heardCounts, 1)[0]?.[0],            color: "text-pink-400" },
                     ].map(({ label, value, color }) => (
                       <div key={label}>
                         <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
@@ -767,6 +777,7 @@ export default function AdminResponses() {
                             <SField label="Follower Count" value={s.follower_count} color="text-emerald-400" />
                             <SField label="Monthly Revenue" value={s.monthly_revenue} color="text-purple-400" />
                             <SField label="Primary Goal" value={s.primary_goal} color="text-green-400" />
+                            <SField label="Weekly Time Available" value={s.weekly_time} color="text-cyan-400" />
                           </div>
 
                           {/* Tags */}
@@ -783,6 +794,7 @@ export default function AdminResponses() {
                               items={Array.isArray(s.platforms) && s.platforms.length ? s.platforms : s.platform ? [s.platform] : []}
                               color="#60a5fa"
                             />
+                            <STagField label="Monetization Models" items={s.monetization_models} color="#fb923c" />
                             <STagField label="How They Heard About Us" items={s.heard_about} color="#f472b6" />
                             {(s.instagram_link || s.youtube_link) && (
                               <div className="flex flex-col gap-1.5">
