@@ -230,6 +230,17 @@ app.use((req, res, next) => {
 async function runMigrations() {
   try {
     await pool.query(`
+      ALTER TABLE onboarding_surveys
+        ADD COLUMN IF NOT EXISTS instagram_link TEXT,
+        ADD COLUMN IF NOT EXISTS youtube_link TEXT
+    `);
+    console.log("[migration] onboarding_surveys instagram_link/youtube_link ensured");
+  } catch (e: any) {
+    console.warn("[migration] onboarding_surveys instagram/youtube skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
       ALTER TABLE content_posts
         ADD COLUMN IF NOT EXISTS shares INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS content_style TEXT,
