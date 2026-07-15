@@ -1058,6 +1058,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             heardAbout: survey.heard_about,
             instagramLink: survey.instagram_link,
             youtubeLink: survey.youtube_link,
+            monetizationModels: survey.monetization_models,
+            weeklyTime: survey.weekly_time,
           });
           // Cache on session user for subsequent requests
           Object.assign(req.user as any, safeUser);
