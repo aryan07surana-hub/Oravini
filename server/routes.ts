@@ -1578,6 +1578,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const heardAbout = body.heardAbout ?? existing?.heard_about;
       const instagramLink = body.instagramLink ?? existing?.instagram_link ?? null;
       const youtubeLink = body.youtubeLink ?? existing?.youtube_link ?? null;
+      const monetizationModels = body.monetizationModels ?? existing?.monetization_models ?? null;
+      const weeklyTime = body.weeklyTime ?? existing?.weekly_time ?? null;
       const eliteInterest = body.answers?.eliteInterest ?? existing?.answers?.eliteInterest;
 
       if (!experience || !monthlyRevenue || !primaryGoal) {
@@ -1588,11 +1590,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         awareness, field, fields, struggles, contentTypes,
         descriptor, experience, followerCount, monthlyRevenue,
         primaryGoal, platform, platforms, heardAbout, instagramLink, youtubeLink,
+        monetizationModels, weeklyTime,
         answers: {
           ...(existing?.answers || {}),
           awareness, field, fields, struggles, contentTypes,
           descriptor, experience, followerCount, monthlyRevenue,
           primaryGoal, platform, platforms, heardAbout, instagramLink, youtubeLink,
+          monetizationModels, weeklyTime,
           eliteInterest,
         },
       });

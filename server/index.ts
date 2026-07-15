@@ -232,11 +232,13 @@ async function runMigrations() {
     await pool.query(`
       ALTER TABLE onboarding_surveys
         ADD COLUMN IF NOT EXISTS instagram_link TEXT,
-        ADD COLUMN IF NOT EXISTS youtube_link TEXT
+        ADD COLUMN IF NOT EXISTS youtube_link TEXT,
+        ADD COLUMN IF NOT EXISTS monetization_models TEXT[],
+        ADD COLUMN IF NOT EXISTS weekly_time TEXT
     `);
-    console.log("[migration] onboarding_surveys instagram_link/youtube_link ensured");
+    console.log("[migration] onboarding_surveys instagram_link/youtube_link/monetization_models/weekly_time ensured");
   } catch (e: any) {
-    console.warn("[migration] onboarding_surveys instagram/youtube skipped:", e.message);
+    console.warn("[migration] onboarding_surveys new columns skipped:", e.message);
   }
 
   try {

@@ -820,6 +820,8 @@ export const onboardingSurveys = pgTable("onboarding_surveys", {
   heardAbout: text("heard_about").array(),
   instagramLink: text("instagram_link"),
   youtubeLink: text("youtube_link"),
+  monetizationModels: text("monetization_models").array(),
+  weeklyTime: text("weekly_time"),
   answers: jsonb("answers"),
   completedAt: timestamp("completed_at").defaultNow(),
 });

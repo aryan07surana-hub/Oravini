@@ -1447,8 +1447,8 @@ class DatabaseStorage implements IStorage {
   async saveOnboardingSurvey(data: any): Promise<any> {
     const result = await pool.query(
       `INSERT INTO onboarding_surveys
-         (user_id, awareness, field, fields, struggles, content_types, descriptor, experience, follower_count, monthly_revenue, primary_goal, platform, platforms, heard_about, instagram_link, youtube_link, answers)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         (user_id, awareness, field, fields, struggles, content_types, descriptor, experience, follower_count, monthly_revenue, primary_goal, platform, platforms, heard_about, instagram_link, youtube_link, monetization_models, weekly_time, answers)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        ON CONFLICT (user_id) DO UPDATE SET
          awareness=EXCLUDED.awareness,
          field=EXCLUDED.field, fields=EXCLUDED.fields,
@@ -1460,6 +1460,8 @@ class DatabaseStorage implements IStorage {
          heard_about=EXCLUDED.heard_about,
          instagram_link=EXCLUDED.instagram_link,
          youtube_link=EXCLUDED.youtube_link,
+         monetization_models=EXCLUDED.monetization_models,
+         weekly_time=EXCLUDED.weekly_time,
          answers=EXCLUDED.answers, completed_at=NOW()
        RETURNING *`,
       [
@@ -1479,6 +1481,8 @@ class DatabaseStorage implements IStorage {
         data.heardAbout ?? null,
         data.instagramLink ?? null,
         data.youtubeLink ?? null,
+        data.monetizationModels ?? null,
+        data.weeklyTime ?? null,
         JSON.stringify(data.answers ?? {}),
       ]
     );

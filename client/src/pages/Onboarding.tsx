@@ -170,7 +170,30 @@ const PLATFORM_OPTIONS = [
   "Podcast platforms (Spotify, Apple)",
 ];
 
-// ── Step 10 — how did you hear ───────────────────────────────────────────────
+// ── Step 9 — monetization model ─────────────────────────────────────────────
+const MONETIZATION_OPTIONS = [
+  "Brand deals & sponsorships",
+  "Digital products (ebooks, presets, templates)",
+  "Online courses",
+  "Coaching & consulting",
+  "Affiliate marketing",
+  "Community / membership",
+  "Ad revenue (YouTube, podcasts)",
+  "Freelance services",
+  "E-commerce / physical products",
+  "Not sure yet",
+];
+
+// ── Step 10 — weekly time ────────────────────────────────────────────────────
+const WEEKLY_TIME_OPTIONS = [
+  "Under 2 hours",
+  "2–5 hours",
+  "5–10 hours",
+  "10–20 hours",
+  "20+ hours",
+];
+
+// ── Step 11 — how did you hear ───────────────────────────────────────────────
 const HEARD_OPTIONS = [
   "Google / Web search",
   "YouTube (video or ad)",
@@ -258,6 +281,18 @@ const STEPS = [
     key: "goal",
     title: "What's your primary goal right now?",
     sub: "Pick your main focus — you can always update this later.",
+    multi: false, hasOther: false,
+  },
+  {
+    key: "monetizationModels",
+    title: "How do you want to make money from content?",
+    sub: "Select all that apply — shapes your entire growth strategy.",
+    multi: true, hasOther: false,
+  },
+  {
+    key: "weeklyTime",
+    title: "How many hours per week can you realistically dedicate to content?",
+    sub: "Be honest — this sets realistic expectations for your plan.",
     multi: false, hasOther: false,
   },
   {
@@ -407,6 +442,8 @@ export default function Onboarding() {
   const [followerCount, setFollowerCount]     = useState("");
   const [monthlyRevenue, setRevenue]          = useState("");
   const [primaryGoal, setGoal]                = useState("");
+  const [monetizationModels, setMonetizationModels] = useState<string[]>([]);
+  const [weeklyTime, setWeeklyTime]           = useState("");
   const [platforms, setPlatforms]             = useState<string[]>([]);
   const [instagramLink, setInstagramLink]     = useState("");
   const [youtubeLink, setYoutubeLink]         = useState("");
@@ -446,6 +483,8 @@ export default function Onboarding() {
         platform: platforms.join(", "),
         platforms,
         heardAbout: allHeard,
+        monetizationModels,
+        weeklyTime,
         instagramLink: instagramLink.trim() || null,
         youtubeLink: youtubeLink.trim() || null,
       });
@@ -481,9 +520,11 @@ export default function Onboarding() {
       case 6:  return !!followerCount;
       case 7:  return !!monthlyRevenue;
       case 8:  return !!primaryGoal;
-      case 9:  return platforms.length > 0;
-      case 10: return true; // socialLink is optional
-      case 11: return heardAbout.length > 0 && !(heardAbout.includes("Other") && !otherHeard.trim());
+      case 9:  return monetizationModels.length > 0;
+      case 10: return !!weeklyTime;
+      case 11: return platforms.length > 0;
+      case 12: return true; // socialLink is optional
+      case 13: return heardAbout.length > 0 && !(heardAbout.includes("Other") && !otherHeard.trim());
       default: return false;
     }
   };
@@ -495,7 +536,7 @@ export default function Onboarding() {
       return "Please fill in the text box above to continue";
     if (step === 4 && descriptor === "Other" && !otherDescriptor.trim())
       return "Please fill in the text box above to continue";
-    if (step === 11 && heardAbout.includes("Other") && !otherHeard.trim())
+    if (step === 13 && heardAbout.includes("Other") && !otherHeard.trim())
       return "Please fill in the text box above to continue";
     const s = STEPS[step];
     return s.multi ? "Select at least one option to continue" : "Choose an option to continue";
@@ -505,7 +546,7 @@ export default function Onboarding() {
     (step === 1 && fields.includes("Other") && !otherField.trim()) ||
     (step === 2 && struggles.includes("Other") && !otherStruggle.trim()) ||
     (step === 4 && descriptor === "Other" && !otherDescriptor.trim()) ||
-    (step === 11 && heardAbout.includes("Other") && !otherHeard.trim());
+    (step === 13 && heardAbout.includes("Other") && !otherHeard.trim());
 
   const handleNext = () => {
     if (!canAdvance()) return;
@@ -667,8 +708,27 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ── Step 9: Platforms ── */}
+        {/* ── Step 9: Monetization ── */}
         {step === 9 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {MONETIZATION_OPTIONS.map(o => (
+              <Chip key={o} label={o} selected={monetizationModels.includes(o)}
+                onClick={() => toggle(monetizationModels, setMonetizationModels, o)} />
+            ))}
+          </div>
+        )}
+
+        {/* ── Step 10: Weekly time ── */}
+        {step === 10 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {WEEKLY_TIME_OPTIONS.map(o => (
+              <Radio key={o} label={o} selected={weeklyTime === o} onClick={() => setWeeklyTime(o)} />
+            ))}
+          </div>
+        )}
+
+        {/* ── Step 11: Platforms ── */}
+        {step === 11 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {PLATFORM_OPTIONS.map(p => (
               <Chip key={p} label={p} selected={platforms.includes(p)}
@@ -677,8 +737,8 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ── Step 10: Social links ── */}
-        {step === 10 && (
+        {/* ── Step 12: Social links ── */}
+        {step === 12 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8, letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -721,8 +781,8 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ── Step 11: How did you hear ── */}
-        {step === 11 && (
+        {/* ── Step 13: How did you hear ── */}
+        {step === 13 && (
           <div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               {HEARD_OPTIONS.map(h => (
