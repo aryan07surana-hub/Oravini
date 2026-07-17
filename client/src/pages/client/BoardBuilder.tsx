@@ -4,7 +4,7 @@ import BoardToolbar from "@/components/board/Toolbar";
 import NodeRenderer from "@/components/board/Nodes";
 import ConnectorRenderer, { ConnectorPath, RubberBand } from "@/components/board/Connectors";
 import AIPanel from "@/components/board/AIPanel";
-import { TEMPLATES, applyTemplate, type BoardTemplate } from "@/components/board/TemplatesGallery";
+import { TEMPLATES, applyTemplate, TemplateGalleryModal, type BoardTemplate } from "@/components/board/TemplatesGallery";
 import { autoLayout } from "@/components/board/layoutGraph";
 import { uid, cid, GOLD, STICKY_COLORS, SHAPE_PRESETS, NODE_COLORS, type BoardNode, type BoardConnector, type ToolMode, type NodeKind } from "@/components/board/types";
 
@@ -917,39 +917,10 @@ export default function BoardBuilder() {
 
       {/* Templates Gallery Modal */}
       {showTemplates && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 50000,
-        }} onClick={() => setShowTemplates(false)}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: "rgba(15,18,30,0.97)", borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.08)",
-            width: 700, maxHeight: "80vh", overflow: "auto",
-            padding: 24, backdropFilter: "blur(20px)",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <span style={{ color: "#e2e8f0", fontSize: 18, fontWeight: 600 }}>Templates</span>
-              <button onClick={() => setShowTemplates(false)}
-                style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 18 }}>✕</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {TEMPLATES.map((t, i) => (
-                <div key={i} onClick={() => handleApplyTemplate(t)} style={{
-                  padding: 16, borderRadius: 12, cursor: "pointer",
-                  background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
-                  transition: "all 0.15s",
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,180,97,0.08)"; e.currentTarget.style.borderColor = GOLD; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}
-                >
-                  <div style={{ color: GOLD, fontWeight: 600, marginBottom: 4 }}>{t.name}</div>
-                  <div style={{ color: "#94a3b8", fontSize: 12 }}>{t.nodes.length} nodes, {t.connectors.length} connectors</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <TemplateGalleryModal
+          onApply={handleApplyTemplate}
+          onClose={() => setShowTemplates(false)}
+        />
       )}
 
       {/* AI Panel toggle */}

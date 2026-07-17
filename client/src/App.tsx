@@ -145,6 +145,9 @@ import ClientScheduling from "@/pages/client/Scheduling";
 import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
 import Vault from "@/pages/client/Vault";
 import Analytics from "@/pages/client/Analytics";
+import MentorKit from "@/pages/client/MentorKit";
+import MentorKitNew from "@/pages/client/MentorKitNew";
+import MentorKitProduct from "@/pages/client/MentorKitProduct";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -379,6 +382,11 @@ function Router() {
       <Route path="/hook-library">{() => <Guard component={HookLibraryPage} />}</Route>
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
       <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
+
+      {/* MentorKit — Digital Product Builder */}
+      <Route path="/mentor-kit/product/:id">{(p) => <Guard component={MentorKitProduct} id={p.id} />}</Route>
+      <Route path="/mentor-kit/new">{() => <Guard component={MentorKitNew} />}</Route>
+      <Route path="/mentor-kit">{() => <Guard component={MentorKit} />}</Route>
 
       {/* Oravini Portal — protected, oravini@gmail.com only */}
       <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>

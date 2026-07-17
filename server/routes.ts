@@ -19279,5 +19279,465 @@ LAYOUT RULES:
     });
   }
 
+  // ── MentorKit — Digital Product Builder ──────────────────────────────────
+
+  const pdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype === "application/pdf" || path.extname(file.originalname).toLowerCase() === ".pdf") cb(null, true);
+      else cb(new Error("Only PDF files allowed"));
+    },
+  });
+
+  app.post("/api/mentor-kit/parse-pdf", requireAuth, pdfUpload.single("pdf"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No PDF file provided" });
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse");
+      const data = await pdfParse(req.file.buffer);
+      const text = data.text?.trim() || "";
+      if (!text) return res.status(400).json({ message: "Could not extract text from PDF" });
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      return res.json({ text: text.slice(0, 20000), wordCount });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/mentor-kit/fill-step", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { stepIndex, currentForm } = req.body;
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
+
+      type StepFieldMap = Record<string, string>;
+      const STEP_FILL: Record<number, StepFieldMap> = {
+        // Step 4: Your Story
+        4: {
+          originStory: "2–3 paragraph personal origin story in first person — how they discovered the niche, the pivotal moment, what changed. Specific, vulnerable, real.",
+          personalTransformation: "Specific before/after with numbers — where they were before, what they achieved now, exact timeframe.",
+          biggestMistake: "One specific costly mistake, what it cost in time/money/opportunity, the insight they gained from it.",
+          wishKnownEarlier: "One key insight they wish they had at the start and why it would have cut their learning curve by months.",
+          influences: "2–3 mentors, books, or programs that shaped their thinking and the specific idea they took from each.",
+        },
+        // Step 5: Your Proof
+        5: {
+          biggestPersonalResult: "Single most impressive personal result with specific numbers, timeframe, and the method that got it there.",
+          clientResults: "3 specific client results with realistic names/descriptors, vivid before/after, and exact timeframes.",
+          caseStudies: "One detailed client case study — situation before, what they worked on together, breakthrough moment, specific result, direct quote.",
+          testimonials: "2 realistic client testimonials in their natural voice — enthusiastic, specific, not corporate.",
+          socialProof: "Realistic audience/student numbers across platforms and revenue milestones.",
+        },
+        // Step 6: Your Audience
+        6: {
+          audienceDescription: "Full paragraph describing the ideal student — daily life, situation, personality, ambitions, what holds them back. Make them feel deeply understood.",
+          topFrustrations: "3 specific frustrations in the audience's exact language — the phrases they type into Google at 11pm.",
+          triedBefore: "What the audience has already tried and the specific reason each thing failed for them.",
+          realReason: "The deep psychological or strategic block that explains why they haven't achieved their goal yet.",
+          verbatimLanguage: "5–6 verbatim phrases the audience actually uses when describing their problem to friends or on social media.",
+          beforePicture: "Vivid description of the audience's current Tuesday morning — what they see, feel, do, and think.",
+          afterPicture: "Vivid description of their life 90 days after completing the program — tangible, emotional, specific.",
+          biggestFear: "Their primary objection before buying, plus the deeper identity-level fear underneath it.",
+          secretDesire: "The thing they want that they'd never admit publicly — the identity they want to step into.",
+        },
+        // Step 7: Your Framework
+        7: {
+          frameworkDescription: "How the framework works — the core logic, why this order of steps, what makes it different. Raw and explained like a coaching call.",
+          differentiator: "What makes this approach work when others fail — the specific insight only this creator's experience could produce.",
+          phases: "3–4 transformation phases: name, duration, what students go from and to, key outcomes in each phase.",
+          quickWin: "The specific tangible result every student gets in their first 7 days — something they produce or do, not just learn.",
+          ahaMoment: "The early realisation that makes students believe this will work for them — when it hits and what triggers it.",
+          weeklyMilestones: "Week-by-week milestone for each week of the program — specific, measurable, one line each.",
+          moduleIdeas: "6–8 module ideas with titles and 2–3 topics/concepts covered in each.",
+        },
+        // Step 8: Your Philosophy
+        8: {
+          coreBelief: "The one fundamental belief about their space they'd stake everything on — and the experience that formed it.",
+          teachingPhilosophy: "How they believe people actually learn and change, and the 3 specific structural decisions this drives in their program.",
+          contrarianTakes: "4 bold contrarian takes — each one directly names a popular belief, explains why it's wrong, and offers the better alternative.",
+          biggestMyth: "The biggest damaging myth in the niche — stated boldly, debunked with evidence from their client work.",
+          coreRules: "3 non-negotiable rules they operate by as a mentor — named, explained, with the consequence of violating each.",
+          mentorValues: "What students say about working with them — their energy, communication style, what makes their mentorship distinctive.",
+        },
+        // Step 10: Student Experience
+        10: {
+          first24Hours: "Step-by-step: what arrives in the first hour, what they're asked to do in the first 30 min, what they feel at end of Day 1.",
+          accountabilityMechanisms: "5 specific accountability structures — check-ins, buddy systems, milestones, interventions for ghost students.",
+          supportChannel: "Where questions go, response time commitment, office hours, direct access policy.",
+          graduationExperience: "What happens when a student completes — certificate, celebration, community feature, testimonial process.",
+          postCompletion: "Alumni community access, next offer, referral program, what graduates get that enrolled students don't.",
+        },
+        // Step 11: Business Context
+        11: {
+          marketingChannels: "Primary channel, launch strategy type, paid ad plan (yes/no + platform), any partnerships, launch timeline.",
+          competitors: "2 realistic competitors — names, pricing, genuine strengths, and where students feel underserved.",
+          yourEdge: "3 non-negotiable reasons to choose this creator over every alternative — specific, provable, not generic.",
+        },
+      };
+
+      const fields = STEP_FILL[stepIndex as number];
+      if (!fields) return res.status(400).json({ message: "No AI fill available for this step" });
+
+      const ctx = currentForm || {};
+      const contextBlock = [
+        ctx.creatorName ? `Creator: ${ctx.creatorName}` : "",
+        ctx.niche ? `Niche: ${ctx.niche}` : "",
+        ctx.productType ? `Product type: ${ctx.productType}` : "",
+        ctx.duration ? `Duration: ${ctx.duration}` : "",
+        ctx.frameworkName ? `Framework: ${ctx.frameworkName}` : "",
+        ctx.audienceDescription ? `Audience: ${String(ctx.audienceDescription).slice(0, 300)}` : "",
+        ctx.originStory ? `Origin: ${String(ctx.originStory).slice(0, 200)}` : "",
+      ].filter(Boolean).join("\n");
+
+      const fieldInstructions = Object.entries(fields)
+        .map(([k, desc]) => `"${k}": ${desc}`)
+        .join("\n");
+
+      const systemPrompt = `You are a world-class digital product consultant filling in a course creation brief. Write in first person as if you ARE the creator. Be specific, vivid, and authentic — concrete numbers, real emotions, named examples. Return ONLY a valid JSON object with no markdown, no code fences, no commentary.`;
+
+      const userPrompt = `Creator context:
+${contextBlock || "Limited context provided — write with realistic assumptions for a knowledge entrepreneur / coach in the digital education space."}
+
+Fill in these fields. Each key must appear in the JSON output:
+${fieldInstructions}
+
+Write as if you ARE this creator sharing your real experience. No generic filler. Return ONLY the JSON object.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.8,
+          max_tokens: 4000,
+          stream: false,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      if (!r.ok) return res.status(502).json({ message: "AI unavailable" });
+      const data = await r.json() as any;
+      const raw = data.choices?.[0]?.message?.content?.trim() || "{}";
+      try {
+        const filled = JSON.parse(raw);
+        return res.json({ fields: filled });
+      } catch {
+        return res.status(500).json({ message: "AI returned invalid JSON" });
+      }
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/mentor-kit/refine", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { field, label, currentValue, context } = req.body;
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
+
+      const ctx = context || {};
+      const contextBlock = [
+        ctx.creatorName ? `Creator name: ${ctx.creatorName}` : "",
+        ctx.niche ? `Niche: ${ctx.niche}` : "",
+        ctx.productType ? `Product type: ${ctx.productType}` : "",
+        ctx.duration ? `Program duration: ${ctx.duration}` : "",
+        ctx.frameworkName ? `Framework name: ${ctx.frameworkName}` : "",
+        ctx.audienceDescription ? `Audience (brief): ${String(ctx.audienceDescription).slice(0, 250)}` : "",
+        ctx.coreBelief ? `Core belief: ${String(ctx.coreBelief).slice(0, 150)}` : "",
+      ].filter(Boolean).join("\n");
+
+      const systemPrompt = `You are a world-class digital product consultant helping a creator build their program creation brief. Write in first person as the creator. Be specific, vivid, and authentic — never generic or templated. Sound like a real expert sharing their truth.`;
+
+      const userPrompt = `Field to fill: "${label}"
+${contextBlock ? `\nCreator context:\n${contextBlock}\n` : ""}
+${currentValue?.trim() ? `\nCurrent draft (improve and expand on this):\n${currentValue}\n` : "\nField is empty — write a complete, specific response.\n"}
+Write a strong, genuine, concrete response for this field. Use real-sounding specifics: numbers, timelines, emotions, named examples. If it's a story field, write in first person. If it's an audience field, use their language. If it's a framework/strategy field, be precise and structured. Output only the field content — no intro, no explanation, no quotes around it.`;
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.85,
+          max_tokens: 700,
+          stream: false,
+        }),
+      });
+
+      if (!r.ok) return res.status(502).json({ message: "AI unavailable" });
+      const data = await r.json() as any;
+      const suggestion = data.choices?.[0]?.message?.content?.trim() || "";
+      return res.json({ suggestion });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/mentor-kit/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { intelData, pdfContext, productType: legacyType, niche: legacyNiche, audience: legacyAudience, transformation: legacyTransformation, priceRange: legacyPrice } = req.body;
+
+      const GROQ_API_KEY = process.env.GROQ_API_KEY;
+      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
+
+      const systemPrompt = `You are a world-class digital product architect and course creation consultant with deep expertise in building premium programs for coaches, consultants, and knowledge entrepreneurs. You've helped hundreds of creators launch 6 and 7-figure programs.
+
+Your job: take everything in this creator brief and produce a comprehensive, deeply personalised product blueprint.
+
+CRITICAL RULES:
+- Use their exact framework name throughout
+- Reference their specific case studies and client results
+- Use their audience's verbatim language when describing pain points
+- Reflect their contrarian takes and philosophy in the curriculum angles
+- Make every module title, lesson, and assignment feel like it came from THEM, not a template
+- Be specific. Never be generic. A vague output fails this creator.
+- Output clean markdown with ## headers`;
+
+      let userPrompt: string;
+
+      if (intelData && (intelData.creatorName || intelData.niche)) {
+        const d = intelData;
+        const f = (v: string, label: string) => v?.trim() ? `\n${label}:\n${v.trim()}` : "";
+        const fi = (v: string, label: string) => v?.trim() ? `\n${label}: ${v.trim()}` : "";
+
+        const durationLabel: Record<string, string> = {
+          "4w": "4 weeks", "6w": "6 weeks", "8w": "8 weeks", "12w": "12 weeks",
+          "16w": "16 weeks", "6m": "6 months", "12m": "12 months", "custom": d.customDuration || "custom",
+        };
+
+        const knowledgeBase = [
+          pdfContext ? `--- PDF KNOWLEDGE BASE ---\n${pdfContext.slice(0, 12000)}` : "",
+          d.ownFrameworkText?.trim() ? `--- CREATOR'S OWN FRAMEWORK (their words) ---\n${d.ownFrameworkText}` : "",
+          d.existingContent?.trim() ? `--- EXISTING CONTENT & WRITING SAMPLES ---\n${d.existingContent.slice(0, 4000)}` : "",
+          d.deepCaseStudies?.trim() ? `--- DEEP CASE STUDIES ---\n${d.deepCaseStudies}` : "",
+        ].filter(Boolean).join("\n\n");
+
+        userPrompt = `=== COMPLETE CREATOR BRIEF ===
+
+## PRODUCT FORMAT
+Type: ${d.productType || "online program"}
+Delivery: ${d.deliveryMode || "hybrid"}
+Duration: ${durationLabel[d.duration] || d.duration || "to be defined"}
+Modules: ${d.moduleCount || "TBD"} | Lessons/module: ${d.lessonsPerModule || "TBD"} | Lesson length: ${d.lessonLength || "TBD"}
+Live calls: ${d.callCadence !== "none" ? `${d.callCadence} (${d.callLength || "60 min"} sessions)` : "No live calls — async"}
+Community: ${d.communityPlatform !== "none" ? d.communityPlatform : "None"}
+Platform: ${d.hostingPlatform || "TBD"}
+Certification: ${d.hasCertification ? "Yes — certificate on completion" : "No"}
+
+## CREATOR IDENTITY${fi(d.creatorName, "Name")}${fi(d.brandName, "Brand")}${fi(d.niche, "Niche")}${fi(d.subNiche, "Sub-niche")}${fi(d.yearsExperience, "Experience")}${f(d.originStory, "Origin Story")}${f(d.personalTransformation, "Personal Transformation")}${f(d.biggestMistake, "Biggest Early Mistake")}${f(d.wishKnownEarlier, "Wish They'd Known Earlier")}${f(d.credentials, "Credentials & Features")}${f(d.influences, "Influences & Mentors")}${fi(d.knownFor, "Known For")}
+
+## CREDIBILITY & PROOF${f(d.biggestPersonalResult, "Biggest Personal Result")}${f(d.clientResults, "Top Client/Student Results")}${f(d.caseStudies, "Case Studies")}${f(d.testimonials, "Testimonials (raw)")}${fi(d.socialProof, "Social Proof Numbers")}
+
+## AUDIENCE${f(d.audienceDescription, "Ideal Student Profile")}${fi(d.ageRange, "Age Range")}${fi(d.careerStage, "Career Stage")}${f(d.topFrustrations, "Top Daily Frustrations (their words)")}${f(d.triedBefore, "What They've Already Tried & Why It Failed")}${f(d.realReason, "The REAL Reason They Haven't Succeeded Yet")}${f(d.verbatimLanguage, "Their Exact Verbatim Language")}${f(d.beforePicture, "Their Life BEFORE (before state)")}${f(d.afterPicture, "Their Life AFTER (transformation vision)")}${f(d.biggestFear, "Biggest Fear / Main Objection")}${f(d.secretDesire, "Secret Desire (deeper than stated goal)")}${fi(d.wherePlatforms, "Where They Hang Out Online")}
+
+## FRAMEWORK & METHODOLOGY${fi(d.frameworkName, "Framework Name")}${f(d.frameworkDescription, "Framework Description")}${f(d.differentiator, "What Makes This Different")}${f(d.phases, "Transformation Phases")}${f(d.quickWin, "Week 1 Quick Win")}${f(d.ahaMoment, "Engineered Aha Moment")}${f(d.weeklyMilestones, "Week-by-Week Milestones")}${f(d.moduleIdeas, "Module Ideas")}${f(d.assignments, "Assignments & Homework")}${f(d.toolsRequired, "Tools & Resources")}
+
+## PHILOSOPHY & BELIEFS${f(d.coreBelief, "Core Belief")}${f(d.teachingPhilosophy, "Teaching Philosophy")}${f(d.contrarianTakes, "Contrarian Takes")}${f(d.biggestMyth, "Biggest Myth to Bust")}${f(d.coreRules, "Non-Negotiable Rules")}${f(d.mentorValues, "Values as a Mentor")}
+
+## STUDENT EXPERIENCE${f(d.first24Hours, "First 24 Hours Onboarding")}${f(d.accountabilityMechanisms, "Accountability Mechanisms")}${f(d.supportChannel, "Support Setup")}${f(d.graduationExperience, "Graduation Experience")}${f(d.postCompletion, "Post-Completion / Alumni")}${fi(d.upsellOffer, "Upsell Offer")}
+
+## BUSINESS CONTEXT${fi(d.pricePoint, "Price Point")}${fi(d.pricingModel, "Pricing Model")}${fi(d.firstCohortSize, "First Cohort Size Target")}${fi(d.revenueGoal, "Revenue Goal")}${fi(d.ranBefore, "Previously Run")}${f(d.previousResults, "Previous Run Results")}${f(d.marketingChannels, "Marketing Plan")}${fi(d.audienceSizes, "Current Audience Sizes")}${f(d.competitors, "Competitor Analysis")}${f(d.yourEdge, "Competitive Edge")}
+
+${knowledgeBase ? `=== KNOWLEDGE BASE ===\n${knowledgeBase}` : ""}
+
+=== END OF BRIEF ===
+
+Now build the complete product blueprint. Use EVERYTHING above. Reference the creator by name. Use their framework name throughout. Speak their audience's language. Include their case studies as proof points. Reflect their contrarian takes in lesson angles.
+
+Generate all of these sections in order:
+
+# PRODUCT TITLES
+Give 3 compelling title options with subtitles. Make them specific to their niche and transformation, not generic.
+
+# HOOK & POSITIONING
+One-paragraph hook that opens every sales conversation. Tagline (under 10 words). One-sentence positioning statement.
+
+# IDEAL STUDENT AVATAR
+Full 2-paragraph description using the audience data above. Use their verbatim language.
+
+# FULL CURRICULUM
+For every module (based on the duration and structure above), provide:
+### MODULE [N]: [Title]
+**Goal:** [what this module accomplishes]
+**Lessons:**
+1. [Lesson title] — [what's taught, key points, why this lesson exists here]
+2. [Lesson title] — [details]
+[continue for all lessons in the module]
+**Module Homework:** [specific assignment]
+**Module Result:** [what student has/can do at the end]
+
+# WEEK-BY-WEEK ROADMAP
+Every single week. Format: **Week [N]:** [Focus topic] — [Milestone students hit] — [What they produce/complete]
+
+# PRICING STRATEGY
+### Option 1: [Tier Name] — [Price]
+Includes: [specific list]
+Who it's for: [specific person]
+Positioning: [why this price makes sense]
+
+### Option 2: [Tier Name] — [Price]
+[same structure]
+
+### Option 3: [Tier Name] — [Price]
+[same structure]
+
+# BONUS STACK
+7 high-value bonuses with:
+- [Bonus name] — [specific description] — [why students will love this]
+
+# WELCOME EMAIL SEQUENCE
+Write 5 complete emails (subject line + full body):
+**Email 1 (Day 0 — immediately after purchase):** [full email]
+**Email 2 (Day 1):** [full email]
+**Email 3 (Day 3):** [full email]
+**Email 4 (Day 7):** [full email]
+**Email 5 (Day 14):** [full email]
+
+# FAQ & OBJECTION HANDLING
+10 Q&As covering the biggest objections. Make the answers confident and specific.
+
+# SALES PAGE OUTLINE
+Section-by-section breakdown of the sales page:
+- Headline options (3)
+- Above the fold hook
+- The problem section
+- The solution introduction (their framework)
+- Social proof placement
+- Curriculum breakdown
+- Pricing section
+- FAQ section
+- Final CTA
+
+Be thorough. Be specific. Do not use filler. Every word should feel like it came from this creator.`;
+
+      } else {
+        // Legacy simple prompt (backwards compat)
+        const niche = legacyNiche || "";
+        const audience = legacyAudience || "";
+        const transformation = legacyTransformation || "";
+        if (!legacyType || !niche) return res.status(400).json({ message: "Missing required fields" });
+
+        const pdfSection = pdfContext
+          ? `\n\nKnowledge base:\n--- BEGIN ---\n${pdfContext.slice(0, 15000)}\n--- END ---\nUse this to personalise the output.`
+          : "";
+
+        userPrompt = `Create a complete digital product blueprint for:
+Niche: ${niche}
+Audience: ${audience}
+Transformation: ${transformation}
+Price range: ${legacyPrice || "TBD"}${pdfSection}
+
+Generate: 3 title options, positioning, full curriculum (all modules + lessons), week-by-week roadmap, 3 pricing tiers, 5-email welcome sequence, FAQ (10 Qs), sales page outline. Be specific and thorough.`;
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.8,
+          max_tokens: 16000,
+          stream: true,
+        }),
+      });
+
+      if (!r.ok || !r.body) {
+        res.write(`data: ${JSON.stringify({ error: "AI generation failed" })}\n\n`);
+        return res.end();
+      }
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const json = JSON.parse(trimmed.slice(6));
+              const token = json.choices?.[0]?.delta?.content;
+              if (token) res.write(`data: ${JSON.stringify({ token })}\n\n`);
+            } catch {}
+          }
+        }
+      }
+
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (err: any) {
+      if (!res.headersSent) res.status(500).json({ message: err.message });
+      else { res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`); res.end(); }
+    }
+  });
+
+  app.post("/api/mentor-kit/save", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      const { productType, title, inputData, generatedContent, pdfContextUsed } = req.body;
+      if (!productType || !generatedContent) return res.status(400).json({ message: "productType and generatedContent required" });
+      const result = await pool.query(
+        `INSERT INTO mentor_kit_products (user_id, product_type, title, input_data, generated_content, pdf_context_used)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [userId, productType, title || null, JSON.stringify(inputData || {}), generatedContent, pdfContextUsed || false]
+      );
+      return res.json(result.rows[0]);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/mentor-kit/products", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      const result = await pool.query(
+        `SELECT id, product_type, title, input_data, pdf_context_used, created_at FROM mentor_kit_products WHERE user_id = $1 ORDER BY created_at DESC`,
+        [userId]
+      );
+      return res.json(result.rows);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/mentor-kit/product/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      const result = await pool.query(
+        `SELECT * FROM mentor_kit_products WHERE id = $1 AND user_id = $2`,
+        [req.params.id, userId]
+      );
+      if (!result.rows[0]) return res.status(404).json({ message: "Product not found" });
+      return res.json(result.rows[0]);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/mentor-kit/product/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      await pool.query(`DELETE FROM mentor_kit_products WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message });
+    }
+  });
+
   return httpServer;
 }

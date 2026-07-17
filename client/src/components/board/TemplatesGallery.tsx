@@ -757,3 +757,542 @@ export function applyTemplate(template: BoardTemplate, zCounter: number): {
 
   return { nodes, connectors, zCounter: zCounter + template.nodes.length };
 }
+
+/* ─── SVG Thumbnails (one per template, by index) ─────── */
+const THUMBS: React.FC[] = [
+  /* 0 – Process Flowchart */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      <rect x="85" y="8"  width="90" height="22" rx="11" fill="#166534" />
+      <rect x="75" y="40" width="110" height="22" rx="4"  fill="#1e3a5f" />
+      <rect x="75" y="72" width="110" height="22" rx="4"  fill="#1e3a5f" />
+      <polygon points="130,100 175,115 130,130 85,115" fill="#2d2560" />
+      <rect x="75" y="137" width="110" height="22" rx="4"  fill="#1e3a5f" />
+      <line x1="130" y1="30"  x2="130" y2="40"  stroke="#3b82f6" strokeWidth="1.5" markerEnd="url(#a)" />
+      <line x1="130" y1="62"  x2="130" y2="72"  stroke="#3b82f6" strokeWidth="1.5" />
+      <line x1="130" y1="94"  x2="130" y2="100" stroke="#3b82f6" strokeWidth="1.5" />
+      <line x1="130" y1="130" x2="130" y2="137" stroke="#22c55e" strokeWidth="1.5" />
+      <defs><marker id="a" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6Z" fill="#3b82f6"/></marker></defs>
+    </svg>
+  ),
+  /* 1 – Mind Map */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      <ellipse cx="130" cy="75" rx="32" ry="22" fill="#d4b461" opacity="0.9" />
+      {[[-1,-1],[1,-1],[-1,1],[1,1],[-1,0],[1,0]].map(([dx,dy],i) => {
+        const cx2 = 130 + dx * 70, cy2 = 75 + dy * 40;
+        const colors = ["#3b82f6","#22c55e","#f59e0b","#ec4899","#8b5cf6","#06b6d4"];
+        return (
+          <g key={i}>
+            <line x1="130" y1="75" x2={cx2} y2={cy2} stroke={colors[i]} strokeWidth="1.5" opacity="0.6" />
+            <rect x={cx2 - 22} y={cy2 - 10} width="44" height="20" rx="10" fill={colors[i]} opacity="0.8" />
+          </g>
+        );
+      })}
+      <text x="130" y="79" textAnchor="middle" fill="#0a0a0f" fontSize="9" fontWeight="700">Topic</text>
+    </svg>
+  ),
+  /* 2 – Kanban Board */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["#1e3a5f","To Do","#3b82f6"],["#1c2a1e","Doing","#22c55e"],["#1e1040","Done","#8b5cf6"]].map(([bg,lbl,ac],col) => (
+        <g key={col}>
+          <rect x={10+col*82} y="8" width="76" height="134" rx="6" fill={bg as string} />
+          <rect x={14+col*82} y="12" width="68" height="16" rx="4" fill={ac as string} opacity="0.4" />
+          <text x={52+col*82} y="24" textAnchor="middle" fill="#fff" fontSize="7" fontWeight="700">{lbl}</text>
+          {[0,1,2].map(row => (
+            <rect key={row} x={14+col*82} y={34+row*30} width="68" height="22" rx="4"
+              fill="rgba(255,255,255,0.07)" stroke={`${ac}44`} strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 3 – Business Model Canvas */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[
+        [0,0,2,2,"#1e293b","Key\nPartners"],
+        [2,0,1,1,"#1e3a5f","Key\nActivities"],
+        [2,1,1,1,"#312e81","Key\nResources"],
+        [3,0,1,2,"#1e40af","Value\nProp"],
+        [4,0,1,1,"#1a3a2e","Customer\nRelations"],
+        [4,1,1,1,"#1c2a0a","Channels"],
+        [5,0,2,2,"#14532d","Customer\nSegments"],
+        [0,2,3.5,1,"#3b1f00","Cost Structure"],
+        [3.5,2,3.5,1,"#1a1a3e","Revenue Streams"],
+      ].map(([cx,cy,cw,ch,fill,label],i) => (
+        <g key={i}>
+          <rect x={4+(cx as number)*36} y={4+(cy as number)*46} width={(cw as number)*36-3} height={(ch as number)*46-3}
+            rx="3" fill={fill as string} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+          <text x={4+(cx as number)*36+(cw as number)*18} y={4+(cy as number)*46+(ch as number)*23+3}
+            textAnchor="middle" fill="#94a3b8" fontSize="6" fontWeight="600">{(label as string).split("\n")[0]}</text>
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 4 – SWOT */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["S","Strengths","#14532d","#22c55e",0,0],["W","Weaknesses","#450a0a","#ef4444",1,0],
+        ["O","Opportunities","#1e3a5f","#3b82f6",0,1],["T","Threats","#451a03","#f59e0b",1,1]].map(([ltr,nm,bg,ac,col,row]) => (
+        <g key={ltr as string}>
+          <rect x={8+(col as number)*124} y={8+(row as number)*67} width="120" height="63" rx="6" fill={bg as string} />
+          <text x={68+(col as number)*124} y={32+(row as number)*67} textAnchor="middle" fill={ac as string} fontSize="18" fontWeight="900">{ltr}</text>
+          <text x={68+(col as number)*124} y={46+(row as number)*67} textAnchor="middle" fill={ac as string} fontSize="8" opacity="0.8">{nm}</text>
+          {[0,1,2].map(r => <rect key={r} x={16+(col as number)*124} y={52+(row as number)*67+r*7} width="105" height="4" rx="2" fill={`${ac}22`} />)}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 5 – Customer Journey */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Aware","Consider","Decide","Retain","Advocate"].map((s,i) => (
+        <g key={i}>
+          <rect x={4+i*50} y="10" width="46" height="130" rx="4" fill={`rgba(${[59,130,246][0]||59},${[130][0]||130},${[246][0]||246},${0.06+i*0.03})`} />
+          <rect x={8+i*50} y="14" width="38" height="16" rx="8"
+            fill={["#3b82f6","#8b5cf6","#d4b461","#22c55e","#ec4899"][i]} opacity="0.9" />
+          <text x={27+i*50} y="26" textAnchor="middle" fill="#fff" fontSize="6" fontWeight="700">{s}</text>
+          {[0,1,2].map(r => <rect key={r} x={10+i*50} y={38+r*32} width="34" height="24" rx="4" fill="rgba(255,255,255,0.06)" />)}
+          {i < 4 && <path d={`M${50+i*50},75 L${52+i*50},75`} stroke="#475569" strokeWidth="1.5" strokeDasharray="3,2" />}
+        </g>
+      ))}
+      {/* emotion line */}
+      <polyline points="27,100 77,85 127,120 177,70 227,55" fill="none" stroke="#d4b461" strokeWidth="1.5" opacity="0.7" />
+    </svg>
+  ),
+  /* 6 – Sprint Retrospective */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["Went Well","#14532d","#22c55e"],["Improve","#451a03","#f59e0b"],["Actions","#1e3a5f","#3b82f6"]].map(([t,bg,ac],col) => (
+        <g key={col}>
+          <rect x={6+col*84} y="8" width="80" height="134" rx="6" fill={bg as string} />
+          <text x={46+col*84} y="24" textAnchor="middle" fill={ac as string} fontSize="8" fontWeight="700">{t}</text>
+          {[0,1,2,3].map(r => (
+            <rect key={r} x={12+col*84} y={32+r*28} width="68" height="22" rx="4"
+              fill={`${ac}18`} stroke={`${ac}33`} strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 7 – Product Roadmap */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Q1","Q2","Q3","Q4"].map((q,i) => (
+        <g key={i}>
+          <text x={32+i*60} y="20" textAnchor="middle" fill="#64748b" fontSize="9" fontWeight="700">{q}</text>
+          <line x1={32+i*60} y1="24" x2={32+i*60} y2="142" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        </g>
+      ))}
+      {[
+        [0,"Feature Launch","#3b82f6",8,100],
+        [1,"API v2","#22c55e",36,60],
+        [0.5,"Mobile App","#8b5cf6",68,90],
+        [2,"Analytics","#f59e0b",50,70],
+        [2.5,"AI Features","#d4b461",100,50],
+        [3,"Enterprise","#ec4899",60,80],
+      ].map(([start,label,color,w,_h],i) => (
+        <rect key={i} x={12+(start as number)*60} y={30+i*18} width={w as number} height="14" rx="7"
+          fill={color as string} opacity="0.85" />
+      ))}
+    </svg>
+  ),
+  /* 8 – AI/LLM Pipeline */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Input","Embed","Retrieve","Generate","Output"].map((s,i) => {
+        const x = 6 + i * 50;
+        const colors = ["#1e3a5f","#312e81","#3b0764","#1a1633","#14532d"];
+        const bcs   = ["#3b82f6","#6366f1","#8b5cf6","#a78bfa","#22c55e"];
+        return (
+          <g key={i}>
+            <rect x={x} y="55" width="44" height="40" rx="8" fill={colors[i]} stroke={bcs[i]} strokeWidth="1.5" />
+            <text x={x+22} y="79" textAnchor="middle" fill={bcs[i]} fontSize="7" fontWeight="700">{s}</text>
+            {i < 4 && <line x1={x+44} y1="75" x2={x+50} y2="75" stroke={bcs[i]} strokeWidth="1.5" />}
+            {/* data blobs above */}
+            <rect x={x+4} y="30" width="36" height="16" rx="4" fill={`${bcs[i]}22`} />
+            <rect x={x+4} y="104" width="36" height="16" rx="4" fill={`${bcs[i]}22`} />
+          </g>
+        );
+      })}
+      <text x="130" y="15" textAnchor="middle" fill="#64748b" fontSize="8">✦ AI / LLM Pipeline</text>
+    </svg>
+  ),
+  /* 9 – System Architecture */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["Frontend","#1e3a5f","#3b82f6"],["API Layer","#1e293b","#64748b"],["Services","#312e81","#6366f1"],["Data Layer","#1a0533","#a78bfa"]].map(([label,bg,ac],row) => (
+        <g key={row}>
+          <rect x="8" y={8+row*34} width="244" height="28" rx="6" fill={bg as string} stroke={`${ac}44`} strokeWidth="1" />
+          <text x="20" y={27+row*34} fill={ac as string} fontSize="8" fontWeight="700">{label}</text>
+          {[0,1,2,3].map(col => (
+            <rect key={col} x={56+col*50} y={12+row*34} width="40" height="20" rx="4"
+              fill={`${ac}18`} stroke={`${ac}33`} strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 10 – OKR */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      <rect x="80" y="8" width="100" height="28" rx="6" fill="#d4b461" opacity="0.9" />
+      <text x="130" y="27" textAnchor="middle" fill="#0a0a0f" fontSize="9" fontWeight="700">Objective</text>
+      {[0,1,2].map(i => {
+        const x = 20 + i * 75;
+        return (
+          <g key={i}>
+            <line x1="130" y1="36" x2={x+37} y2="52" stroke="#d4b461" strokeWidth="1" opacity="0.5" />
+            <rect x={x} y="52" width="74" height="28" rx="6" fill="#1e3a5f" stroke="#3b82f644" strokeWidth="1" />
+            <text x={x+37} y="70" textAnchor="middle" fill="#3b82f6" fontSize="8" fontWeight="700">KR {i+1}</text>
+            {[0,1].map(r => (
+              <g key={r}>
+                <line x1={x+37} y1="80" x2={x+12+r*28} y2="96" stroke="#3b82f644" strokeWidth="1" />
+                <rect x={x+r*28} y="96" width="34" height="20" rx="4" fill="#0f172a" stroke="#3b82f622" strokeWidth="1" />
+              </g>
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  ),
+  /* 11 – Empathy Map */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["Think","#1e3a5f","#3b82f6",0,0],["See","#14532d","#22c55e",1,0],
+        ["Feel","#3b0764","#8b5cf6",0,1],["Do","#451a03","#f59e0b",1,1]].map(([lbl,bg,ac,col,row]) => (
+        <g key={lbl as string}>
+          <rect x={4+(col as number)*128} y={4+(row as number)*71} width="124" height="67" rx="6" fill={bg as string} />
+          <text x={66+(col as number)*128} y={30+(row as number)*71} textAnchor="middle" fill={ac as string} fontSize="10" fontWeight="700">{lbl}</text>
+          {[0,1].map(r => <rect key={r} x={12+(col as number)*128} y={36+(row as number)*71+r*18} width="108" height="12" rx="3" fill={`${ac}18`} />)}
+        </g>
+      ))}
+      {/* center person */}
+      <circle cx="130" cy="75" r="14" fill="#1e293b" stroke="#d4b46155" strokeWidth="2" />
+      <text x="130" y="79" textAnchor="middle" fill="#d4b461" fontSize="14">👤</text>
+    </svg>
+  ),
+  /* 12 – User Story Map */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Epic A","Epic B","Epic C","Epic D"].map((e,i) => (
+        <g key={i}>
+          <rect x={6+i*62} y="8" width="58" height="22" rx="4" fill="#1e3a5f" stroke="#3b82f644" strokeWidth="1" />
+          <text x={35+i*62} y="23" textAnchor="middle" fill="#3b82f6" fontSize="7" fontWeight="700">{e}</text>
+          {[0,1,2].map(r => (
+            <rect key={r} x={10+i*62} y={38+r*30} width="50" height="22" rx="4"
+              fill={["#fef3c7","#dcfce7","#dbeafe","#ede9fe"][i]+"18"}
+              stroke={["#f59e0b","#22c55e","#3b82f6","#8b5cf6"][i]+"44"} strokeWidth="1" />
+          ))}
+        </g>
+      ))}
+      <line x1="4" y1="34" x2="256" y2="34" stroke="#ffffff11" strokeWidth="1" />
+    </svg>
+  ),
+  /* 13 – Sales Funnel */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["Awareness",220,8,"#1e3a5f","#3b82f6",20],
+        ["Interest",170,36,"#312e81","#6366f1",45],
+        ["Consideration",130,64,"#3b0764","#8b5cf6",65],
+        ["Intent",90,92,"#1a0533","#a78bfa",85],
+        ["Conversion",50,120,"#14532d","#22c55e",105]].map(([lbl,w,y,bg,ac,x]) => (
+        <g key={lbl as string}>
+          <rect x={x as number} y={y as number} width={w as number} height="22" rx="4" fill={bg as string} stroke={`${ac}44`} strokeWidth="1" />
+          <text x={x as number+(w as number)/2} y={(y as number)+15} textAnchor="middle" fill={ac as string} fontSize="7" fontWeight="700">{lbl}</text>
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 14 – Data Pipeline */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Source","Ingest","Transform","Validate","Load","Serve"].map((s,i) => {
+        const x = 4 + i * 42;
+        const colors = ["#1e3a5f","#1a2040","#312e81","#1e1040","#14532d","#1a3520"];
+        const bcs = ["#3b82f6","#6366f1","#8b5cf6","#a78bfa","#22c55e","#4ade80"];
+        return (
+          <g key={i}>
+            <rect x={x} y="30" width="38" height="90" rx="6" fill={colors[i]} stroke={`${bcs[i]}44`} strokeWidth="1" />
+            <rect x={x+4} y="34" width="30" height="10" rx="3" fill={`${bcs[i]}33`} />
+            <text x={x+19} y="140" textAnchor="middle" fill={bcs[i]} fontSize="6" fontWeight="700">{s}</text>
+            {i < 5 && <line x1={x+38} y1="75" x2={x+42} y2="75" stroke={bcs[i]} strokeWidth="1.5" />}
+          </g>
+        );
+      })}
+    </svg>
+  ),
+  /* 15 – Org Chart */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      <rect x="100" y="6" width="60" height="22" rx="4" fill="#d4b461" opacity="0.9" />
+      <text x="130" y="21" textAnchor="middle" fill="#0a0a0f" fontSize="8" fontWeight="700">CEO</text>
+      {[["CTO","#1e3a5f","#3b82f6",50],["COO","#14532d","#22c55e",120],["CMO","#3b0764","#8b5cf6",190]].map(([t,bg,ac,x]) => (
+        <g key={t as string}>
+          <line x1="130" y1="28" x2={x as number+30} y2="48" stroke="#ffffff22" strokeWidth="1" />
+          <rect x={x as number} y="48" width="60" height="22" rx="4" fill={bg as string} stroke={`${ac}44`} strokeWidth="1" />
+          <text x={(x as number)+30} y="63" textAnchor="middle" fill={ac as string} fontSize="8" fontWeight="700">{t}</text>
+          {[0,1].map(r => (
+            <g key={r}>
+              <line x1={(x as number)+30} y1="70" x2={(x as number)+10+r*24} y2="88" stroke="#ffffff11" strokeWidth="1" />
+              <rect x={(x as number)+r*24} y="88" width="36" height="18" rx="3" fill="rgba(255,255,255,0.04)" />
+            </g>
+          ))}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 16 – Feature Priority (MoSCoW) */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[["Must","#450a0a","#ef4444",0,0],["Should","#1e3a5f","#3b82f6",1,0],
+        ["Could","#1c2a0a","#22c55e",0,1],["Won't","#1e293b","#64748b",1,1]].map(([lbl,bg,ac,col,row]) => (
+        <g key={lbl as string}>
+          <rect x={6+(col as number)*128} y={6+(row as number)*71} width="122" height="65" rx="6" fill={bg as string} />
+          <text x={67+(col as number)*128} y={26+(row as number)*71} textAnchor="middle" fill={ac as string} fontSize="10" fontWeight="700">{lbl}</text>
+          {[0,1,2].map(r => <rect key={r} x={14+(col as number)*128} y={30+(row as number)*71+r*13} width="106" height="9" rx="3" fill={`${ac}18`} />)}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 17 – Risk Matrix */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {[0,1,2,3].map(row => [0,1,2,3].map(col => {
+        const heat = row + col;
+        const fill = heat <= 1 ? "#14532d" : heat <= 3 ? "#451a03" : "#450a0a";
+        const opacity = 0.3 + heat * 0.1;
+        return (
+          <rect key={`${row}-${col}`} x={20+col*55} y={10+row*32} width="52" height="28" rx="4"
+            fill={fill} opacity={opacity} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        );
+      }))}
+      <text x="130" y="148" textAnchor="middle" fill="#475569" fontSize="7">← Impact →</text>
+      <text x="8" y="75" fill="#475569" fontSize="7" transform="rotate(-90,8,75)">Likelihood</text>
+    </svg>
+  ),
+  /* 18 – Content Strategy */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      {["Blog","Social","Email","Video","SEO"].map((ch,col) => (
+        <g key={ch}>
+          <rect x={4+col*50} y="8" width="46" height="14" rx="3" fill={["#1e3a5f","#3b0764","#14532d","#451a03","#1e1040"][col]} />
+          <text x={27+col*50} y="19" textAnchor="middle" fill="#94a3b8" fontSize="7" fontWeight="600">{ch}</text>
+          {["W1","W2","W3","W4","W5","W6"].map((w,row) => {
+            const has = Math.random() > 0.4;
+            const colors = ["#3b82f6","#8b5cf6","#22c55e","#f59e0b","#ec4899"];
+            return (
+              <rect key={w} x={4+col*50} y={26+row*18} width="46" height="14" rx="3"
+                fill={has ? `${colors[col]}22` : "rgba(255,255,255,0.02)"}
+                stroke={has ? `${colors[col]}44` : "transparent"} strokeWidth="1" />
+            );
+          })}
+        </g>
+      ))}
+    </svg>
+  ),
+  /* 19 – Event Storming */
+  () => (
+    <svg viewBox="0 0 260 150" style={{ width: "100%", height: "100%" }}>
+      <rect width="260" height="150" fill="#0d1117" rx="6" />
+      <line x1="10" y1="75" x2="250" y2="75" stroke="#ffffff11" strokeWidth="2" />
+      {[
+        [10,30,"#f97316","Event A"],
+        [62,45,"#3b82f6","Cmd B"],
+        [114,25,"#f97316","Event C"],
+        [166,50,"#8b5cf6","Policy"],
+        [218,30,"#f97316","Event D"],
+        [30,95,"#eab308","User"],
+        [82,100,"#f97316","Event E"],
+        [134,90,"#ef4444","Hotspot"],
+        [186,105,"#3b82f6","Cmd F"],
+        [50,60,"#84cc16","Agg 1"],
+        [160,65,"#84cc16","Agg 2"],
+      ].map(([x,y,fill,lbl],i) => (
+        <g key={i}>
+          <rect x={x as number} y={(y as number)-11} width="44" height="22" rx="2" fill={fill as string} opacity="0.85" />
+          <text x={(x as number)+22} y={(y as number)+4} textAnchor="middle" fill="#fff" fontSize="6" fontWeight="700">{lbl}</text>
+        </g>
+      ))}
+    </svg>
+  ),
+];
+
+/* ─── TemplateGalleryModal ─────────────────────────────── */
+import { useState } from "react";
+
+const GOLD = "#d4b461";
+const CATS = ["All", "Process", "Strategy", "Engineering", "Planning", "Team", "AI & Tech", "Marketing"];
+
+export function TemplateGalleryModal({
+  onApply, onClose,
+}: { onApply: (t: BoardTemplate) => void; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+  const [cat, setCat] = useState("All");
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const filtered = TEMPLATES.filter(t => {
+    const matchCat = cat === "All" || t.category === cat;
+    const matchSearch = !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.desc.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50000,
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "min(940px, 96vw)", maxHeight: "88vh",
+        background: "#080c14", borderRadius: 20,
+        border: "1px solid rgba(255,255,255,0.07)",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(212,180,97,0.08)",
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}>
+        {/* ── Header ── */}
+        <div style={{
+          padding: "20px 24px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "linear-gradient(180deg, rgba(212,180,97,0.05) 0%, transparent 100%)",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: `${GOLD}22`, border: `1px solid ${GOLD}44`,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✦</div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Templates</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>{TEMPLATES.length} templates · Click to use</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* Search */}
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#475569", fontSize: 13 }}>🔍</span>
+                <input
+                  value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search templates..."
+                  style={{
+                    background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 10, padding: "7px 12px 7px 32px", color: "#e2e8f0", fontSize: 13,
+                    outline: "none", width: 200, fontFamily: "inherit",
+                  }}
+                />
+              </div>
+              <button onClick={onClose} style={{
+                width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)", color: "#64748b", cursor: "pointer",
+                fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>✕</button>
+            </div>
+          </div>
+
+          {/* Category pills */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
+            {CATS.map(c => (
+              <button key={c} onClick={() => setCat(c)} style={{
+                padding: "5px 14px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+                cursor: "pointer", whiteSpace: "nowrap", border: "none", fontFamily: "inherit",
+                background: cat === c ? GOLD : "rgba(255,255,255,0.06)",
+                color: cat === c ? "#0a0a0f" : "#64748b",
+                transition: "all 0.15s",
+                boxShadow: cat === c ? `0 2px 12px ${GOLD}44` : "none",
+              }}>{c}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Grid ── */}
+        <div style={{
+          flex: 1, overflow: "auto", padding: "20px 24px",
+          display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16,
+          alignContent: "start",
+        }}>
+          {filtered.length === 0 && (
+            <div style={{ gridColumn: "1/-1", textAlign: "center", padding: "60px 0", color: "#475569" }}>
+              No templates match "{search}"
+            </div>
+          )}
+          {filtered.map((t, _i) => {
+            const idx = TEMPLATES.indexOf(t);
+            const Thumb = THUMBS[idx];
+            const isHov = hovered === idx;
+            return (
+              <div key={t.name}
+                onClick={() => onApply(t)}
+                onMouseEnter={() => setHovered(idx)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  borderRadius: 14, overflow: "hidden", cursor: "pointer",
+                  border: `1px solid ${isHov ? `${GOLD}55` : "rgba(255,255,255,0.07)"}`,
+                  background: isHov ? "rgba(212,180,97,0.04)" : "rgba(255,255,255,0.02)",
+                  transition: "all 0.18s",
+                  transform: isHov ? "translateY(-3px)" : "translateY(0)",
+                  boxShadow: isHov ? `0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px ${GOLD}22` : "none",
+                }}>
+                {/* Thumbnail */}
+                <div style={{ height: 140, overflow: "hidden", position: "relative", background: "#0d1117" }}>
+                  {Thumb ? <Thumb /> : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{t.icon}</div>
+                  )}
+                  {/* hover overlay */}
+                  {isHov && (
+                    <div style={{
+                      position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "opacity 0.15s",
+                    }}>
+                      <div style={{
+                        padding: "9px 22px", background: GOLD, borderRadius: 10,
+                        fontSize: 13, fontWeight: 700, color: "#0a0a0f",
+                        boxShadow: `0 4px 16px ${GOLD}55`,
+                      }}>Use Template</div>
+                    </div>
+                  )}
+                </div>
+                {/* Card footer */}
+                <div style={{ padding: "10px 12px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontSize: 14 }}>{t.icon}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: isHov ? "#f1f5f9" : "#e2e8f0" }}>{t.name}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.4 }}>{t.desc}</div>
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+                      background: `${GOLD}18`, color: GOLD, letterSpacing: "0.06em",
+                    }}>{t.category.toUpperCase()}</span>
+                    <span style={{ fontSize: 9, color: "#334155" }}>· {t.nodes.length} nodes</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
