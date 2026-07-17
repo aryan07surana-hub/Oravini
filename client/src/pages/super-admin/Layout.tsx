@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useAuth, useLogout } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, FolderOpen, CheckSquare, BookOpenCheck, LogOut, Menu, X, ChevronRight, Sparkles } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, CheckSquare, BookOpenCheck, LogOut, Menu, X, ChevronRight, Sparkles, BarChart3 } from "lucide-react";
 import { useState } from "react";
 
 const GOLD = "#d4b461";
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/super-admin/clients", label: "Client List", icon: Users },
   { href: "/super-admin/documents", label: "Documents", icon: FolderOpen },
   { href: "/super-admin/todos", label: "To-Do List", icon: CheckSquare },
+  { href: "/super-admin/content-tracker", label: "Content Tracker", icon: BarChart3 },
   { href: "/super-admin/daily-read", label: "Everyday Read", icon: BookOpenCheck },
   { href: "/super-admin/inspiration", label: "Inspiration", icon: Sparkles },
 ];

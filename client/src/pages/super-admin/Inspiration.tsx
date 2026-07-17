@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SuperAdminLayout from "./Layout";
-import { Upload, X, ZoomIn, Trash2, Plus, Pencil, Check, FileText } from "lucide-react";
+import { Upload, X, ZoomIn, Trash2, Plus, Pencil, Check, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -74,6 +74,29 @@ export default function Inspiration() {
   const renameMutation = useMutation({ mutationFn: ({ o, n }: { o: string; n: string }) => renameCategory(o, n), onSuccess: () => qc.invalidateQueries({ queryKey: ["inspiration-images"] }) });
 
   const filtered = images.filter(img => img.category === activeCategory);
+
+  const lightboxIndex = lightbox ? filtered.findIndex(i => i.id === lightbox.id) : -1;
+
+  const goNext = useCallback(() => {
+    if (lightboxIndex < 0 || filtered.length === 0) return;
+    setLightbox(filtered[(lightboxIndex + 1) % filtered.length]);
+  }, [lightboxIndex, filtered]);
+
+  const goPrev = useCallback(() => {
+    if (lightboxIndex < 0 || filtered.length === 0) return;
+    setLightbox(filtered[(lightboxIndex - 1 + filtered.length) % filtered.length]);
+  }, [lightboxIndex, filtered]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowRight") goNext();
+      else if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "Escape") setLightbox(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, goNext, goPrev]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -265,8 +288,9 @@ export default function Inspiration() {
                   <img
                     src={img.url}
                     alt={img.caption || img.category}
-                    className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="w-full object-cover transition-transform duration-300 group-hover:scale-105 cursor-pointer"
                     loading="lazy"
+                    onClick={() => setLightbox(img)}
                   />
                 )}
 
@@ -296,12 +320,40 @@ export default function Inspiration() {
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
+          {/* Close */}
           <button
             onClick={() => setLightbox(null)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
           >
             <X className="w-5 h-5 text-white" />
           </button>
+
+          {/* Counter */}
+          {filtered.length > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium z-10">
+              {lightboxIndex + 1} / {filtered.length}
+            </div>
+          )}
+
+          {/* Prev */}
+          {filtered.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); goPrev(); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center transition-colors z-10"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+          )}
+
+          {/* Next */}
+          {filtered.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); goNext(); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center transition-colors z-10"
+            >
+              <ChevronRight className="w-6 h-6 text-white" />
+            </button>
+          )}
 
           {isPdf(lightbox.url) ? (
             <iframe

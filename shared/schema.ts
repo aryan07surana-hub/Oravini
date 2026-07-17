@@ -817,6 +817,8 @@ export const onboardingSurveys = pgTable("onboarding_surveys", {
   platform: text("platform"),
   platforms: text("platforms").array(),
   heardAbout: text("heard_about").array(),
+  instagramLink: text("instagram_link"),
+  youtubeLink: text("youtube_link"),
   answers: jsonb("answers"),
   completedAt: timestamp("completed_at").defaultNow(),
 });
