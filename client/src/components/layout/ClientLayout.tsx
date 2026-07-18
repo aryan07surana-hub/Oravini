@@ -221,6 +221,7 @@ const topNavItems = [
   { href: "/pages-hub", label: "Pages & Funnels", icon: Layers },
   { href: "/dm-automation", label: "DM Automation", icon: Workflow },
   { href: "/vault", label: "Cortex Vault", icon: BookOpen },
+  { href: "/mentor-kit", label: "MentorKit", icon: LayoutTemplate },
   { href: "/skills", label: "Skills", icon: BrainCircuit },
   { href: "/analytics", label: "Analytics", icon: TrendingUp },
 ];
