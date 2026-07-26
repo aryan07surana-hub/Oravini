@@ -6,6 +6,7 @@
 
 import { pool } from "./storage";
 import { randomUUID } from "crypto";
+import { aiChatJson } from "./aiService";
 
 // ── PLATFORM-BUILT SKILLS ──────────────────────────────────────────────────────
 
@@ -361,7 +362,7 @@ export async function buildSkillsPrompt(
 
 // ── DNA → SKILL GENERATOR ─────────────────────────────────────────────────────
 
-export async function generateSkillFromDNA(dnaContent: string, groqApiKey: string) {
+export async function generateSkillFromDNA(dnaContent: string) {
   const systemPrompt = `You are an AI skill extraction specialist. Analyze content samples and extract a reusable AI skill — behavioral instructions that can be applied to future content generation.
 
 Analyze the provided content DNA (writing samples, brand docs, past posts, style guides) and extract:
@@ -382,24 +383,6 @@ Output ONLY valid JSON:
   "instructions": "Detailed behavioral instructions (200-500 words) written in imperative form. Include: tone rules, structural patterns, vocabulary do/don't, CTA style, and unique patterns found in the DNA."
 }`;
 
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${groqApiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Analyze this content DNA and extract a skill:\n\n${dnaContent.slice(0, 6000)}` },
-      ],
-      temperature: 0.4,
-      max_tokens: 2000,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!r.ok) throw new Error(`Groq DNA analysis failed: ${r.status}`);
-  const data: any = await r.json();
-  const raw = data?.choices?.[0]?.message?.content;
-  if (!raw) throw new Error("Empty response from DNA analysis");
+  const raw = await aiChatJson(systemPrompt, `Analyze this content DNA and extract a skill:\n\n${dnaContent.slice(0, 6000)}`, { maxTokens: 2000, temperature: 0.4 });
   return JSON.parse(raw);
 }

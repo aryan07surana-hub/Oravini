@@ -2,21 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../storage";
 import { userActivityEvents } from "../../shared/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
-
-async function groq(messages: { role: string; content: string }[], maxTokens = 1200) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY not set");
-  const r = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: MODEL, messages, max_tokens: maxTokens, temperature: 0.6 }),
-  });
-  const data = await r.json() as any;
-  return data.choices[0].message.content as string;
-}
+import { aiChat } from "../aiService";
 
 /* ─── Human-readable feature labels ─── */
 const FEATURE_LABELS: Record<string, string> = {
@@ -211,7 +197,7 @@ Write a strategic vault note in Markdown that:
 
 Be specific, insightful, and actionable. Reference actual tool names. This note should feel like a smart mentor who watched them work.`;
 
-      const content = await groq([{ role: "user", content: prompt }], 1600);
+      const content = await aiChat("", prompt, { maxTokens: 1600, temperature: 0.6 });
       const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
       res.json({

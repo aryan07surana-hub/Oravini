@@ -9,6 +9,7 @@ import {
   dmLeads, dmContactTags, metaTokens,
 } from "@shared/schema";
 import { sendInstagramDM } from "./meta";
+import { aiChatJson } from "./aiService";
 
 function requireAuth(req: Request, res: Response, next: Function) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
@@ -135,18 +136,10 @@ export function registerDMAdvancedRoutes(app: Express) {
     try {
       const [lead] = await db.select().from(dmLeads).where(eq(dmLeads.id, String(req.params.id)));
       if (!lead) return res.status(404).json({ message: "Lead not found" });
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(400).json({ message: "AI not configured" });
       const ctx = `Name: ${lead.name}, Instagram: @${lead.instagramHandle || "?"}, Status: ${lead.status}, Source: ${lead.source || "?"}, Notes: ${lead.notes || "none"}`;
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: 100, messages: [{ role: "user", content: `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}` }] }),
-      });
-      const aiData: any = await aiRes.json();
-      const text = aiData?.choices?.[0]?.message?.content ?? "";
+      const text = await aiChatJson("", `Score this sales lead 1-10 and explain in 10 words. ${ctx}. Reply as JSON: {"score":7,"reason":"..."}`, { maxTokens: 100 });
       let score = 5, reason = "Unable to score";
-      try { const p = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "{}"); score = p.score || 5; reason = p.reason || ""; } catch {}
+      try { const p = JSON.parse(text); score = p.score || 5; reason = p.reason || ""; } catch {}
       const [updated] = await db.update(dmLeads).set({ leadScore: score, leadScoreReason: reason }).where(eq(dmLeads.id, String(req.params.id))).returning();
       res.json({ score, reason, lead: updated });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -400,17 +393,11 @@ export function registerDMAdvancedRoutes(app: Express) {
   app.post("/api/dm/analyze-sentiment", requireAuth, async (req: Request, res: Response) => {
     try {
       const { message } = req.body;
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.json({ sentiment: "neutral", action: "continue" });
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: 60, messages: [{ role: "user", content: `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}` }] }),
-      });
-      const aiData: any = await aiRes.json();
-      const text = aiData?.choices?.[0]?.message?.content ?? "";
       let result = { sentiment: "neutral", action: "continue" };
-      try { result = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || "{}"); } catch {}
+      try {
+        const text = await aiChatJson("", `Classify this DM message sentiment and recommend action. Message: "${message}". Reply as JSON: {"sentiment":"positive|negative|neutral","action":"continue|escalate|ignore"}`, { maxTokens: 60 });
+        result = JSON.parse(text);
+      } catch {}
       res.json(result);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

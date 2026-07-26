@@ -2,24 +2,13 @@ import type { Express, Request, Response } from "express";
 import { db } from "../storage";
 import { userActivityEvents } from "../../shared/schema";
 import { eq, desc, gte, and } from "drizzle-orm";
-
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
+import { aiChat } from "../aiService";
 
 async function groq(messages: { role: string; content: string }[], opts: { max_tokens?: number; temperature?: number } = {}) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY not set");
-  const r = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: MODEL, messages, max_tokens: opts.max_tokens ?? 1024, temperature: opts.temperature ?? 0.7 }),
-  });
-  if (!r.ok) {
-    const err = await r.text();
-    throw new Error(`Groq error ${r.status}: ${err}`);
-  }
-  const data = await r.json() as any;
-  return data.choices[0].message.content as string;
+  const sys = messages.find(m => m.role === "system")?.content ?? "";
+  const userMsgs = messages.filter(m => m.role !== "system");
+  const user = userMsgs.map(m => m.content).join("\n\n");
+  return aiChat(sys, user, { maxTokens: opts.max_tokens ?? 1024, temperature: opts.temperature ?? 0.7 });
 }
 
 function buildVaultContext(vault: { files: Array<{ name: string; folder: string; tags: string[]; content: string; updatedAt: string }> }) {

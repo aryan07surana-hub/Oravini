@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "../storage";
 import { randomUUID } from "crypto";
+import { aiChat } from "../aiService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -25,16 +26,10 @@ async function skillsPrefix(userId: string, base: string): Promise<string> {
 }
 
 async function callAI(messages: { role: string; content: string }[]): Promise<string> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("No AI key configured");
-  const model = "llama-3.3-70b-versatile";
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages, temperature: 0.7 }),
-  });
-  const d = await r.json() as any;
-  return d.choices?.[0]?.message?.content || "";
+  const sys = messages.find(m => m.role === "system")?.content ?? "";
+  const userMsgs = messages.filter(m => m.role !== "system");
+  const user = userMsgs.map(m => m.content).join("\n\n");
+  return aiChat(sys, user);
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────

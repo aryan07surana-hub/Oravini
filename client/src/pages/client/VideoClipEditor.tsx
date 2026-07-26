@@ -314,8 +314,8 @@ export default function VideoClipEditor() {
     const mark = () => setIsVideoReady(true);
     vid.addEventListener("loadeddata", mark);
     vid.addEventListener("canplay",    mark);
-    // Safety timeout — if nothing fires in 3s, assume ready
-    const t = setTimeout(() => setIsVideoReady(true), 3000);
+    // Safety timeout — if nothing fires in 1s, assume ready
+    const t = setTimeout(() => setIsVideoReady(true), 1000);
     return () => {
       vid.removeEventListener("loadeddata", mark);
       vid.removeEventListener("canplay",    mark);
@@ -692,11 +692,13 @@ export default function VideoClipEditor() {
         let done = false;
         const onReady = () => {
           if (done) return; done = true;
-          if (localTime > 0.05) curVid.currentTime = localTime;
+          curVid.currentTime = localTime;
           if (isPlayingRef.current) curVid.play().catch(() => {});
         };
+        const onError = () => { if (!done) { done = true; setIsVideoReady(true); } };
         curVid.addEventListener("canplay",    onReady, { once: true });
         curVid.addEventListener("loadeddata", onReady, { once: true });
+        curVid.addEventListener("error",      onError, { once: true });
         curVid.load();
       } else {
         nxtVid.pause();
@@ -709,8 +711,10 @@ export default function VideoClipEditor() {
           setActiveBuffer(prev => prev === "a" ? "b" : "a");
           if (isPlayingRef.current) nxtVid.play().catch(() => {});
         };
+        const onError = () => { if (!done) { done = true; setIsVideoReady(true); } };
         nxtVid.addEventListener("canplay",    onReady, { once: true });
         nxtVid.addEventListener("loadeddata", onReady, { once: true });
+        nxtVid.addEventListener("error",      onError, { once: true });
         nxtVid.load();
       }
     } else {
@@ -1881,13 +1885,15 @@ export default function VideoClipEditor() {
                   playsInline preload="auto"
                   onCanPlay={() => setIsVideoReady(true)}
                   onWaiting={() => { if (activeBuffer === "a") setIsVideoReady(false); }}
-                  onPlaying={() => setIsVideoReady(true)} />
+                  onPlaying={() => setIsVideoReady(true)}
+                  onError={() => setIsVideoReady(true)} />
                 <video ref={videoBRef} className="absolute inset-0 w-full h-full object-contain"
                   style={{ opacity: activeBuffer === "b" ? 1 : 0, transition: "opacity 0.12s ease" }}
                   playsInline preload="auto"
                   onCanPlay={() => setIsVideoReady(true)}
                   onWaiting={() => { if (activeBuffer === "b") setIsVideoReady(false); }}
-                  onPlaying={() => setIsVideoReady(true)} />
+                  onPlaying={() => setIsVideoReady(true)}
+                  onError={() => setIsVideoReady(true)} />
               </div>
 
               {/* Loading overlay */}

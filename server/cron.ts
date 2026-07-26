@@ -4,6 +4,7 @@ import { log } from "./index";
 import { processEmSendQueue, processBroadcastQueue } from "./routes/email-marketing";
 import { getConnectedIGAccount, syncPostByPermalink } from "./meta";
 import { extractYouTubeVideoId, getYouTubeVideoStats } from "./youtube";
+import { aiChatJson } from "./aiService";
 
 async function apifyInstagram(payload: object): Promise<any[]> {
   const token = process.env.APIFY_INSTAGRAM_TOKEN || process.env.APIFY_TOKEN;
@@ -595,32 +596,17 @@ export async function processScheduledInstagramPosts() {
 }
 
 async function autoAnalyzePost(post: { id: string; handle: string; caption: string | null; views: number | null; likes: number | null; comments: number | null; postType: string; postUrl?: string }): Promise<void> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return;
   try {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are an Instagram competitive intelligence analyst. Return ONLY valid JSON." },
-          { role: "user", content: `Analyze this competitor post. Return ONLY valid JSON with these exact fields:
+    const text = await aiChatJson(
+      "You are an Instagram competitive intelligence analyst. Return ONLY valid JSON.",
+      `Analyze this competitor post. Return ONLY valid JSON with these exact fields:
 {"hook":"exact first sentence of caption or No caption","hookType":"curiosity|storytelling|authority|controversy|pain-point|education","structure":"structure from caption","emotion":"fear|curiosity|authority|relatability|aspiration|entertainment","viralityScore":0,"viralityReason":"1 sentence why it got this engagement","whatToSteal":"3 specific actionable things to copy","suggestedAngle":"your unique angle on this topic","hashtags":[]}
 
 Account: @${post.handle} | Type: ${post.postType}
 Views: ${post.views ?? 0} | Likes: ${post.likes ?? 0} | Comments: ${post.comments ?? 0}
-Caption: "${(post.caption || "").slice(0, 400)}"` }
-        ],
-        temperature: 0.5,
-        max_tokens: 600,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!r.ok) return;
-    const data: any = await r.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) return;
+Caption: "${(post.caption || "").slice(0, 400)}"`,
+      { maxTokens: 600, temperature: 0.5 }
+    );
     const analysis = JSON.parse(text);
     analysis.viralityScore = Math.min(100, Math.max(0, analysis.viralityScore ?? 0));
     await storage.updateDetectedPost(post.id, { aiAnalysis: analysis });
@@ -628,8 +614,7 @@ Caption: "${(post.caption || "").slice(0, 400)}"` }
 }
 
 async function detectNicheTrends(userId: string, recentPosts: Array<{ handle: string; caption: string | null; watchlistId: string }>): Promise<void> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey || recentPosts.length < 3) return;
+  if (recentPosts.length < 3) return;
   const uniqueHandles = new Set(recentPosts.map(p => p.handle));
   if (uniqueHandles.size < 3) return;
 
@@ -639,30 +624,17 @@ async function detectNicheTrends(userId: string, recentPosts: Array<{ handle: st
       caption: (p.caption || "").slice(0, 100),
     }));
 
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are a trend analyst for content creators. Identify trending topics from competitor posts. Return ONLY valid JSON." },
-          { role: "user", content: `These are recent competitor posts from different Instagram accounts. Identify 1-3 trending themes that appear across MULTIPLE different accounts (3+ accounts sharing the same topic = a trend). Only flag real trends, not coincidences.
+    const text = await aiChatJson(
+      "You are a trend analyst for content creators. Identify trending topics from competitor posts. Return ONLY valid JSON.",
+      `These are recent competitor posts from different Instagram accounts. Identify 1-3 trending themes that appear across MULTIPLE different accounts (3+ accounts sharing the same topic = a trend). Only flag real trends, not coincidences.
 
 Posts:
 ${JSON.stringify(postSummaries, null, 1)}
 
 Return JSON: {"trends":[{"topic":"Trend topic name","handles":["@handle1","@handle2","@handle3"],"insight":"Why this is trending and what content angle to take","urgency":"high|medium|low"}],"hasTrends":true|false}
-If no clear trends with 3+ accounts, set hasTrends to false and trends to [].` },
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 500,
-        temperature: 0.3,
-      }),
-    });
-    if (!r.ok) return;
-    const data: any = await r.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) return;
+If no clear trends with 3+ accounts, set hasTrends to false and trends to [].`,
+      { maxTokens: 500, temperature: 0.3 }
+    );
     const parsed = JSON.parse(text);
     if (!parsed.hasTrends || !parsed.trends?.length) return;
 
@@ -687,8 +659,6 @@ If no clear trends with 3+ accounts, set hasTrends to false and trends to [].` }
 
 async function sendWeeklyDigest() {
   log("Weekly digest: starting", "cron");
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) { log("Weekly digest: no GROQ_API_KEY", "cron"); return; }
 
   const userIds = await storage.getUserIdsWithWatchlist();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -715,25 +685,15 @@ async function sendWeeklyDigest() {
 
       let digestIdeas: any[] = [];
       if (topPostsSummary.length > 0) {
-        const ideasResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              { role: "system", content: "You are a content strategist. Generate original content ideas based on what competitors are winning with this week. Return ONLY valid JSON." },
-              { role: "user", content: `Top competitor posts this week:\n${JSON.stringify(topPostsSummary, null, 2)}\n\nGenerate 5 original content ideas inspired by what's working. JSON: {"ideas":[{"topic":"specific topic","hook":"copy-paste ready first sentence","format":"reel","rationale":"why this will work — 1 sentence"}]}` },
-            ],
-            response_format: { type: "json_object" },
-            max_tokens: 1000,
-            temperature: 0.8,
-          }),
-        });
-        if (ideasResp.ok) {
-          const ideasData: any = await ideasResp.json();
-          const ideasParsed = JSON.parse(ideasData?.choices?.[0]?.message?.content || "{}");
+        try {
+          const ideasText = await aiChatJson(
+            "You are a content strategist. Generate original content ideas based on what competitors are winning with this week. Return ONLY valid JSON.",
+            `Top competitor posts this week:\n${JSON.stringify(topPostsSummary, null, 2)}\n\nGenerate 5 original content ideas inspired by what's working. JSON: {"ideas":[{"topic":"specific topic","hook":"copy-paste ready first sentence","format":"reel","rationale":"why this will work — 1 sentence"}]}`,
+            { maxTokens: 1000, temperature: 0.8 }
+          );
+          const ideasParsed = JSON.parse(ideasText);
           digestIdeas = ideasParsed.ideas?.slice(0, 5) || [];
-        }
+        } catch { /* silent */ }
       }
 
       const watchlistItems = await storage.getUserWatchlistItems(userId);
@@ -1003,8 +963,6 @@ async function scanCompetitorWatchlist() {
 
 async function generateDailyContentIdeas() {
   log("Daily content ideas: starting generation", "cron");
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) { log("Daily content ideas: no GROQ_API_KEY, skipping", "cron"); return; }
 
   try {
     const userIds = await storage.getUserIdsWithWatchlist();
@@ -1076,27 +1034,11 @@ Return EXACTLY this JSON structure:
   ]
 }`;
 
-        const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            response_format: { type: "json_object" },
-            max_tokens: 2000,
-            temperature: 0.6,
-          }),
-        });
-
-        if (!resp.ok) { log(`Daily content ideas: Groq error for user ${userId}`, "cron"); continue; }
-        const groqData: any = await resp.json();
-        const rawJson = groqData?.choices?.[0]?.message?.content || "{}";
-
         let parsed: any = {};
-        try { parsed = JSON.parse(rawJson); } catch { continue; }
+        try {
+          const rawJson = await aiChatJson(systemPrompt, userPrompt, { maxTokens: 2000, temperature: 0.6 });
+          parsed = JSON.parse(rawJson);
+        } catch { log(`Daily content ideas: AI error for user ${userId}`, "cron"); continue; }
 
         const ideas: any[] = Array.isArray(parsed.ideas) ? parsed.ideas.slice(0, 3) : [];
         for (const idea of ideas) {
@@ -1148,8 +1090,6 @@ function _incrementScanCount(userId: string, max = 5) {
 
 // ── Per-user idea generation (used by both cron and manual scan) ─────────────
 async function generateIdeasForUser(userId: string): Promise<number> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return 0;
   try {
     const [snapshots, profile] = await Promise.all([
       storage.getRecentSnapshotsForUser(userId, 30),
@@ -1187,26 +1127,15 @@ async function generateIdeasForUser(userId: string): Promise<number> {
     const goal = profile?.goal || "grow audience";
     const style = profile?.content_style || "educational";
 
-    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "You are a world-class content strategist who reverse-engineers viral competitor content to create original winning ideas. Return ONLY valid JSON." },
-          { role: "user", content: `Based on what competitors are posting today, generate 3 original daily content ideas for a creator.\n\nCreator profile:\n- Niche: ${niche}\n- Goal: ${goal}\n- Style: ${style}\n\nCompetitor activity (last 14 days, above-avg posts only):\n${JSON.stringify(competitorSummaries, null, 2)}\n\nReturn EXACTLY this JSON structure:\n{\n  "patterns": ["pattern 1 from competitor data", "pattern 2", "pattern 3"],\n  "ideas": [\n    {\n      "topic": "Specific, concrete topic (not generic)",\n      "hook": "Exact first sentence — copy-paste ready, grabs attention instantly",\n      "format": "reel",\n      "structure": "Opening hook → 3 tips → Story → CTA",\n      "cta": "Exact call to action",\n      "rationale": "Why this will perform based on competitor signals",\n      "inspired_by": "@handle that inspired this angle",\n      "confidence": 85\n    }\n  ]\n}` },
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 2000,
-        temperature: 0.6,
-      }),
-    });
-    if (!resp.ok) return 0;
-
-    const groqData: any = await resp.json();
-    const rawJson = groqData?.choices?.[0]?.message?.content || "{}";
     let parsed: any = {};
-    try { parsed = JSON.parse(rawJson); } catch { return 0; }
+    try {
+      const rawJson = await aiChatJson(
+        "You are a world-class content strategist who reverse-engineers viral competitor content to create original winning ideas. Return ONLY valid JSON.",
+        `Based on what competitors are posting today, generate 3 original daily content ideas for a creator.\n\nCreator profile:\n- Niche: ${niche}\n- Goal: ${goal}\n- Style: ${style}\n\nCompetitor activity (last 14 days, above-avg posts only):\n${JSON.stringify(competitorSummaries, null, 2)}\n\nReturn EXACTLY this JSON structure:\n{\n  "patterns": ["pattern 1 from competitor data", "pattern 2", "pattern 3"],\n  "ideas": [\n    {\n      "topic": "Specific, concrete topic (not generic)",\n      "hook": "Exact first sentence — copy-paste ready, grabs attention instantly",\n      "format": "reel",\n      "structure": "Opening hook → 3 tips → Story → CTA",\n      "cta": "Exact call to action",\n      "rationale": "Why this will perform based on competitor signals",\n      "inspired_by": "@handle that inspired this angle",\n      "confidence": 85\n    }\n  ]\n}`,
+        { maxTokens: 2000, temperature: 0.6 }
+      );
+      parsed = JSON.parse(rawJson);
+    } catch { return 0; }
 
     const ideas: any[] = Array.isArray(parsed.ideas) ? parsed.ideas.slice(0, 3) : [];
     let saved = 0;

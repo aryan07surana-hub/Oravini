@@ -20,6 +20,7 @@ import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
 import { startRelay, stopRelay, relayChunk } from "./broadcast-relay";
 import contentWorkflowRoutes from "./contentWorkflowRoutes";
+import { aiChat as _aiChat, aiChatJson as _aiChatJson, aiVisionJson as _aiVisionJson } from "./aiService";
 
 const uploadsDir = path.resolve("uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -2668,10 +2669,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // AI Content Ideas
-  // ── Groq helper (fast – used for content ideas) ──────────────────────────
-  const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"] as const;
-  const GROQ_TIMEOUT_MS = 30000;
-
   function extractJson(raw: string): string {
     const trimmed = raw.trim();
     // If it already parses clean, return as-is
@@ -2687,74 +2684,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     throw new Error("No valid JSON found in model response");
   }
 
-  async function groqFetch(apiKey: string, body: object): Promise<string> {
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
-    });
-    if (r.status === 429) {
-      // Rate limited — wait 2s then signal caller to retry next model
-      await new Promise(res => setTimeout(res, 2000));
-      throw new Error(`Rate limited (429)`);
-    }
-    if (!r.ok) {
-      const errText = await r.text().catch(() => r.statusText);
-      throw new Error(`HTTP ${r.status}: ${errText.slice(0, 200)}`);
-    }
-    const data: any = await r.json();
-    if (data?.error) throw new Error(data.error.message || "Groq API error");
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) throw new Error("Empty response from model");
-    return text;
-  }
-
   async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-    let lastError = "";
-    for (const model of GROQ_MODELS) {
-      try {
-        return await groqFetch(apiKey, {
-          model,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          temperature: 0.7,
-          max_tokens: Math.min(maxTokens, 32768),
-        });
-      } catch (e: any) {
-        lastError = e.message;
-        console.warn(`[callGroq] ${model} failed: ${lastError}`);
-      }
-    }
-    throw new Error(`Groq generation failed: ${lastError}`);
+    return _aiChat(systemPrompt, userPrompt, { maxTokens, temperature: 0.7 });
   }
 
   // ── Groq JSON-mode helper ─────────────────────────────────────────────────
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-    let lastError = "";
-    for (const model of GROQ_MODELS) {
-      try {
-        const raw = await groqFetch(apiKey, {
-          model,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          temperature: 0.6,
-          max_tokens: Math.min(maxTokens, 32768),
-          response_format: { type: "json_object" },
-        });
-        return extractJson(raw);
-      } catch (e: any) {
-        lastError = e.message;
-        console.warn(`[callGroqJson] ${model} failed: ${lastError}`);
-      }
-    }
-    throw new Error(`Groq JSON generation failed: ${lastError}`);
+    return _aiChatJson(systemPrompt, userPrompt, { maxTokens, temperature: 0.6 });
   }
 
   async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens = 1000): Promise<string> {
-    return callGroq(systemPrompt, userPrompt, maxTokens);
+    return _aiChat(systemPrompt, userPrompt, { maxTokens, temperature: 0.7 });
   }
 
   // ── Vision JSON helper — routes to OpenAI if key available ───────────────
@@ -3543,37 +3483,15 @@ Requirements:
         if (!htCredit.success) return res.status(402).json({ message: htCredit.message, insufficientCredits: true });
       }
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-8b-instant"];
-      let lastErr: any;
-      for (const model of GROQ_MODELS) {
-        try {
-          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}` },
-            body: JSON.stringify({
-              model,
-              max_tokens: 300,
-              temperature: 0.5,
-              messages: [
-                {
-                  role: "system",
-                  content: await withSkills(_uHt.id, "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.", { category: "content", platform: "instagram" }),
-                },
-                {
-                  role: "user",
-                  content: `Give me 12 highly relevant Instagram hashtags for a creator in the "${niche}" niche. Mix of sizes: 4 large (1M+ posts), 4 medium (100k-1M posts), 4 small/niche (<100k posts). These must be actually used hashtags that perform well for this niche. Return JSON: { "hashtags": ["#tag1", "#tag2", ...] }`,
-                },
-              ],
-            }),
-          });
-          const json = await resp.json() as any;
-          const raw = json.choices?.[0]?.message?.content?.trim() || "";
-          const cleaned = raw.replace(/```json|```/g, "").trim();
-          const parsed = JSON.parse(cleaned);
-          if (Array.isArray(parsed.hashtags)) return res.json({ hashtags: parsed.hashtags.slice(0, 12) });
-          break;
-        } catch (e) { lastErr = e; }
-      }
+      try {
+        const raw = await callGroqJson(
+          await withSkills(_uHt.id, "You are an Instagram growth expert who knows exactly which hashtags drive real reach and engagement. Return ONLY valid JSON — no markdown, no explanation.", { category: "content", platform: "instagram" }),
+          `Give me 12 highly relevant Instagram hashtags for a creator in the "${niche}" niche. Mix of sizes: 4 large (1M+ posts), 4 medium (100k-1M posts), 4 small/niche (<100k posts). These must be actually used hashtags that perform well for this niche. Return JSON: { "hashtags": ["#tag1", "#tag2", ...] }`,
+          300,
+        );
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.hashtags)) return res.json({ hashtags: parsed.hashtags.slice(0, 12) });
+      } catch { /* fall through to empty */ }
       res.json({ hashtags: [] });
     } catch (err: any) {
       res.json({ hashtags: [] });
@@ -3756,33 +3674,17 @@ Visual notes:
 Keep the entire reel script to 45-60 seconds when read aloud. Every single word must earn its place.`;
       }
 
-      const GROQ_API_KEY = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!GROQ_API_KEY) return res.status(500).json({ message: "AI service not configured" });
-
       const skillsSystemPrompt = await withSkills(_u2.id, "You are a world-class scriptwriter for social media content.", { category: "content", platform });
-      const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-8b-instant"];
       let script = "";
+      try {
+        script = await callGroq(
+          skillsSystemPrompt,
+          prompt,
+          isYt ? (ytDuration >= 15 ? 6000 : ytDuration >= 10 ? 4000 : 2500) : 2500,
+        );
+      } catch { script = ""; }
 
-      for (const model of models) {
-        try {
-          const gr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: "system", content: skillsSystemPrompt }, { role: "user", content: prompt }],
-              max_tokens: isYt ? (ytDuration >= 15 ? 6000 : ytDuration >= 10 ? 4000 : 2500) : 2500,
-              temperature: 0.8,
-            }),
-          });
-          if (!gr.ok) continue;
-          const gd = await gr.json();
-          script = gd.choices?.[0]?.message?.content || "";
-          if (script.length > 200) break;
-        } catch { continue; }
-      }
-
-      if (!script) return res.status(500).json({ message: "Script generation failed" });
+      if (!script || script.length <= 200) return res.status(500).json({ message: "Script generation failed" });
       res.json({ script });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Script generation failed" });
@@ -5495,8 +5397,6 @@ Return this EXACT JSON:
   app.post("/api/competitor/gap-analysis", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user as any;
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) return res.status(503).json({ message: "AI not available" });
 
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const posts = await storage.getRecentDetectedPostsForUser(user.id, thirtyDaysAgo);
@@ -5512,19 +5412,9 @@ Return this EXACT JSON:
 
       const uniqueHandles = [...new Set(posts.map(p => p.handle))];
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "You are a content strategist who finds untapped opportunities. Identify content gaps — topics competitors are ignoring that a creator could own. Return ONLY valid JSON.",
-            },
-            {
-              role: "user",
-              content: `These ${uniqueHandles.length} competitors (${uniqueHandles.join(", ")}) have posted the following topics in the last 30 days:
+      const raw = await callGroqJson(
+        "You are a content strategist who finds untapped opportunities. Identify content gaps — topics competitors are ignoring that a creator could own. Return ONLY valid JSON.",
+        `These ${uniqueHandles.length} competitors (${uniqueHandles.join(", ")}) have posted the following topics in the last 30 days:
 
 ${JSON.stringify(competitorTopics, null, 1)}
 
@@ -5546,17 +5436,9 @@ Return JSON:
   "coveredTopics": ["topic 1", "topic 2", "topic 3"],
   "summary": "One sentence overview of the competitive landscape"
 }`,
-            },
-          ],
-          response_format: { type: "json_object" },
-          max_tokens: 1200,
-          temperature: 0.7,
-        }),
-      });
-
-      if (!r.ok) return res.status(502).json({ message: "AI error" });
-      const data: any = await r.json();
-      const result = JSON.parse(data?.choices?.[0]?.message?.content || "{}");
+        1200,
+      );
+      const result = JSON.parse(raw || "{}");
       return res.json({ ...result, analyzedPosts: posts.length, handles: uniqueHandles });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -5572,22 +5454,10 @@ Return JSON:
       if (!post || post.userId !== user.id) return res.status(404).json({ message: "Post not found" });
 
       const analysis = (post.aiAnalysis as any) || {};
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) return res.status(503).json({ message: "AI not available" });
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert viral reel scriptwriter. You write punchy, high-retention Instagram scripts that borrow what works from competitors while making it original. Be direct, conversational, and hook-driven.",
-            },
-            {
-              role: "user",
-              content: `Write a complete, ready-to-film reel script inspired by this competitor post — but in MY voice, with a fresh angle they haven't done.
+      const script = await callGroq(
+        "You are an expert viral reel scriptwriter. You write punchy, high-retention Instagram scripts that borrow what works from competitors while making it original. Be direct, conversational, and hook-driven.",
+        `Write a complete, ready-to-film reel script inspired by this competitor post — but in MY voice, with a fresh angle they haven't done.
 
 Competitor: @${post.handle} | Format: ${post.postType}
 Their hook/caption: "${(post.caption || "").slice(0, 300)}"
@@ -5600,16 +5470,8 @@ Write a complete reel script with:
 3. CTA (last 5 seconds — specific action)
 
 Format it clearly with section labels. Make it feel authentic and NOT like a copy. Add [B-ROLL] notes in brackets where relevant. Target 45-60 seconds total.`,
-            },
-          ],
-          temperature: 0.85,
-          max_tokens: 800,
-        }),
-      });
-
-      if (!r.ok) return res.status(502).json({ message: "AI error" });
-      const data: any = await r.json();
-      const script = data?.choices?.[0]?.message?.content || "";
+        800,
+      );
       return res.json({ script, postHandle: post.handle, postType: post.postType });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -5657,9 +5519,6 @@ Format it clearly with section labels. Make it feel authentic and NOT like a cop
         const credit = await storage.deductCredits(user.id, 5, "content_intel", "Daily Content Ideas Generation", user.plan || "free");
         if (!credit.success) return res.status(402).json({ message: credit.message, insufficientCredits: true });
       }
-
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) return res.status(500).json({ message: "AI service unavailable" });
 
       const [snapshots, profile] = await Promise.all([
         storage.getRecentSnapshotsForUser(user.id, 72),
@@ -5720,23 +5579,8 @@ Return EXACTLY this JSON:
   ]
 }`;
 
-      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          response_format: { type: "json_object" },
-          max_tokens: 2000,
-          temperature: 0.8,
-        }),
-      });
-      if (!groqResp.ok) return res.status(500).json({ message: "AI generation failed. Retry." });
-      const groqData: any = await groqResp.json();
-      if (groqData?.error) return res.status(500).json({ message: groqData.error.message });
-
       let parsed: any = {};
-      try { parsed = JSON.parse(groqData.choices[0].message.content); } catch {
+      try { parsed = JSON.parse(await callGroqJson(systemPrompt, userPrompt, 2000)); } catch {
         return res.status(500).json({ message: "AI returned invalid response. Retry." });
       }
 
@@ -5773,9 +5617,6 @@ Return EXACTLY this JSON:
         if (!credit.success) return res.status(402).json({ message: credit.message, insufficientCredits: true });
       }
 
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) return res.status(500).json({ message: "AI service unavailable" });
-
       const ideaData = await storage.getContentIdeaById(req.params.id as string);
       if (!ideaData || ideaData.user_id !== user.id) return res.status(404).json({ message: "Idea not found" });
 
@@ -5805,19 +5646,7 @@ CTA: [closing call to action]
 
 Make it punchy, specific to the niche, and immediately actionable for the viewer.`;
 
-      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          max_tokens: 2000,
-          temperature: 0.75,
-        }),
-      });
-      if (!groqResp.ok) return res.status(500).json({ message: "Script generation failed. Retry." });
-      const groqData: any = await groqResp.json();
-      const script = groqData?.choices?.[0]?.message?.content || "";
+      const script = await callGroq(systemPrompt, userPrompt, 2000);
 
       await storage.updateContentIdeaStatus(req.params.id as string, "drafted");
       return res.json({ script, idea: ideaData });
@@ -6268,7 +6097,6 @@ Build a detailed "Content DNA Profile". Return ONLY this exact JSON:
         ? `\n\nCreator's Content DNA: ${dna.fingerprint}\nHook style: ${dna.hookStyle}\nCTA style: ${dna.ctaStyle}\nContent structure: ${dna.contentStructure}`
         : "";
 
-      const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
       let prompt = "";
 
       if (tool === "improve") {
@@ -6350,27 +6178,14 @@ Return ONLY this exact JSON:
         return res.status(400).json({ message: "Invalid tool type" });
       }
 
-      for (const model of GROQ_MODELS) {
-        try {
-          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}` },
-            body: JSON.stringify({
-              model,
-              max_tokens: 2000,
-              temperature: 0.6,
-              messages: [
-                { role: "system", content: "You are an elite Instagram content strategist. Return ONLY valid JSON — no markdown, no extra text." },
-                { role: "user", content: prompt },
-              ],
-            }),
-          });
-          const json = await resp.json() as any;
-          const raw = json.choices?.[0]?.message?.content?.trim() || "";
-          const cleaned = raw.replace(/```json|```/g, "").trim();
-          return res.json(JSON.parse(cleaned));
-        } catch (e) { continue; }
-      }
+      try {
+        const raw = await callGroqJson(
+          "You are an elite Instagram content strategist. Return ONLY valid JSON — no markdown, no extra text.",
+          prompt,
+          2000,
+        );
+        return res.json(JSON.parse(raw));
+      } catch (e) { /* fall through */ }
       return res.status(500).json({ message: "AI improvement failed" });
     } catch (err: any) {
       console.error("Methodology improve error:", err);
@@ -6507,9 +6322,6 @@ Scoring rules:
         const hooksCredit = await storage.deductCredits(_uHooks.id, 2, "virality_hooks", "Viral hook generation", _uHooks.plan || "free");
         if (!hooksCredit.success) return res.status(402).json({ message: hooksCredit.message, insufficientCredits: true, balance: hooksCredit.balance });
       }
-      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
       const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
 
       const prompt = `You are a viral content hook specialist. Based on this content, generate 5 powerful upgraded hooks for ${platformLabel}.
@@ -6525,22 +6337,8 @@ Rules:
 Return ONLY a JSON array of 5 strings:
 ["hook 1", "hook 2", "hook 3", "hook 4", "hook 5"]`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 500,
-          temperature: 0.8,
-        }),
-      });
-
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      const raw = data.choices?.[0]?.message?.content || "[]";
-      const cleaned = raw.replace(/```json|```/g, "").trim();
-      const hooks = JSON.parse(cleaned);
+      const raw = await callGroqJson("You are a viral content hook specialist. Return ONLY valid JSON.", prompt, 500);
+      const hooks = JSON.parse(raw || "[]");
       return res.json({ hooks });
     } catch (err: any) {
       console.error("[Virality Hooks] Error:", err.message);
@@ -6556,9 +6354,6 @@ Return ONLY a JSON array of 5 strings:
         const rewCredit = await storage.deductCredits(_uRew.id, 2, "virality_rewrite", "Viral script rewrite", _uRew.plan || "free");
         if (!rewCredit.success) return res.status(402).json({ message: rewCredit.message, insufficientCredits: true, balance: rewCredit.balance });
       }
-      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
       const platformLabel = platform === "instagram" ? "Instagram Reels" : platform === "tiktok" ? "TikTok" : "YouTube Shorts";
       const audienceNote = audience ? `Target audience: ${audience}.` : "";
       const fixNote = fixes?.length ? `Apply these specific improvements: ${fixes.map((f: any) => f.text).join("; ")}` : "";
@@ -6581,20 +6376,7 @@ Rules:
 
 Return ONLY the rewritten script, no explanation, no JSON.`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: 800,
-          temperature: 0.7,
-        }),
-      });
-
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      const rewrittenScript = data.choices?.[0]?.message?.content || "";
+      const rewrittenScript = await callGroq("You are a viral content strategist.", prompt, 800);
       return res.json({ script: rewrittenScript });
     } catch (err: any) {
       console.error("[Virality Rewrite] Error:", err.message);
@@ -6611,9 +6393,6 @@ Return ONLY the rewritten script, no explanation, no JSON.`;
         const angCredit = await storage.deductCredits(_uAng.id, 3, "virality_angles", "Viral content angles generation", _uAng.plan || "free");
         if (!angCredit.success) return res.status(402).json({ message: angCredit.message, insufficientCredits: true, balance: angCredit.balance });
       }
-      const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
       const platformLabel = platform === "youtube" ? "YouTube" : "Instagram Reels";
       const audienceNote = audience ? `Target audience: ${audience}.` : "";
       const whyNote = whyViral ? `Why it went viral: ${whyViral}` : "";
@@ -6641,26 +6420,13 @@ Return ONLY this JSON (no markdown, no explanation):
   ]
 }`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON." },
-            { role: "user", content: prompt },
-          ],
-          max_tokens: 2000,
-          temperature: 0.75,
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      const raw = data.choices?.[0]?.message?.content || "{}";
+      const raw = await callGroqJson(
+        "You are a viral content strategist. Always respond with valid JSON only — no markdown, no explanation outside the JSON.",
+        prompt,
+        2000,
+      );
       let parsed: any = {};
-      try { parsed = JSON.parse(raw); } catch { parsed = { angles: [] }; }
+      try { parsed = JSON.parse(raw || "{}"); } catch { parsed = { angles: [] }; }
       return res.json({ angles: parsed.angles || [] });
     } catch (err: any) {
       console.error("[Virality Angles] Error:", err.message);
@@ -6734,27 +6500,15 @@ Only include analysis when content is provided. Never produce generic filler con
         ? `${goalNote} ${modeNote}\n\nContent to analyze:\n"${content}"\n\nAnalyze this content and respond with the full JSON format.`
         : `The user says: "${message}". ${!hasScript ? "No script provided yet — greet them and ask what they want to work on. Return reply and mood only, set analysis to null." : ""}`;
 
-      const msgs: any[] = [
-        { role: "system", content: COACH_SYSTEM },
-        ...history.slice(-6).map((h: any) => ({ role: h.role, content: h.content })),
-        { role: "user", content: userPrompt },
-      ];
+      const historyText = history.slice(-6)
+        .map((h: any) => `${h.role === "assistant" ? "Coach" : "User"}: ${h.content}`)
+        .join("\n");
+      const combinedPrompt = historyText
+        ? `Conversation so far:\n${historyText}\n\n${userPrompt}`
+        : userPrompt;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: msgs,
-          temperature: 0.75,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-        }),
-      });
-      const data: any = await r.json();
-      if (data?.error) throw new Error(data.error.message);
-      const raw = data.choices?.[0]?.message?.content || "{}";
-      const parsed = JSON.parse(raw);
+      const raw = await callGroqJson(COACH_SYSTEM, combinedPrompt, 2000);
+      const parsed = JSON.parse(raw || "{}");
       return res.json(parsed);
     } catch (err: any) {
       console.error("[Coach Chat] Error:", err.message);
@@ -6770,19 +6524,12 @@ Only include analysis when content is provided. Never produce generic filler con
       const platformNote = platform === "tiktok" ? "TikTok (trend-driven, Gen Z, fast-paced)"
         : platform === "shorts" ? "YouTube Shorts (value-first, educational, searchable)"
         : "Instagram Reels (lifestyle, aspiration, storytelling)";
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "user", content: `Score this opening hook for ${platformNote}.\n\nHook: "${hook}"\n\nReturn ONLY JSON: { "score": 0-100, "label": "🔥 Viral" | "💪 Strong" | "⚠️ Weak" | "❌ Dead on arrival", "weakness": "one specific fix in max 8 words", "strength": "what is working in max 8 words" }` }],
-          response_format: { type: "json_object" },
-          max_tokens: 150,
-          temperature: 0.3,
-        }),
-      });
-      const d: any = await r.json();
-      const p = JSON.parse(d.choices?.[0]?.message?.content || "{}");
+      const raw = await callGroqJson(
+        "You are a viral hook scorer. Return ONLY valid JSON.",
+        `Score this opening hook for ${platformNote}.\n\nHook: "${hook}"\n\nReturn ONLY JSON: { "score": 0-100, "label": "🔥 Viral" | "💪 Strong" | "⚠️ Weak" | "❌ Dead on arrival", "weakness": "one specific fix in max 8 words", "strength": "what is working in max 8 words" }`,
+        150,
+      );
+      const p = JSON.parse(raw || "{}");
       return res.json({ score: p.score ?? 0, label: p.label ?? "—", weakness: p.weakness ?? "", strength: p.strength ?? "" });
     } catch { return res.json({ score: 0, label: "—", weakness: "", strength: "" }); }
   });
@@ -6802,22 +6549,12 @@ Only include analysis when content is provided. Never produce generic filler con
         tiktok: "TikTok (caption max 150 chars, 3-5 hashtags)",
         shorts: "YouTube Shorts (description max 500 chars, 3-5 tags)",
       };
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "You are a world-class social media copywriter. Generate full post packages optimised for virality. Return ONLY valid JSON." },
-            { role: "user", content: `Script:\n"${script.slice(0, 800)}"\n\nNiche: ${niche}\nPlatform: ${platformMap[platform] || platformMap.reels}\n\nReturn EXACTLY:\n{\n  "caption": "Full engaging caption — hook immediately, story in middle, CTA at end. Platform-optimised length.",\n  "hashtags": ["hashtag1", "hashtag2"],\n  "firstComment": "First comment to post immediately — boost engagement, include 2-3 relevant hashtags",\n  "storyTease": "15-word Instagram Story text to drive traffic to this post",\n  "bestTimeToPost": "e.g. Tuesday 7-9PM"\n}` },
-          ],
-          response_format: { type: "json_object" },
-          max_tokens: 1200,
-          temperature: 0.7,
-        }),
-      });
-      const d: any = await r.json();
-      const p = JSON.parse(d.choices?.[0]?.message?.content || "{}");
+      const raw = await callGroqJson(
+        "You are a world-class social media copywriter. Generate full post packages optimised for virality. Return ONLY valid JSON.",
+        `Script:\n"${script.slice(0, 800)}"\n\nNiche: ${niche}\nPlatform: ${platformMap[platform] || platformMap.reels}\n\nReturn EXACTLY:\n{\n  "caption": "Full engaging caption — hook immediately, story in middle, CTA at end. Platform-optimised length.",\n  "hashtags": ["hashtag1", "hashtag2"],\n  "firstComment": "First comment to post immediately — boost engagement, include 2-3 relevant hashtags",\n  "storyTease": "15-word Instagram Story text to drive traffic to this post",\n  "bestTimeToPost": "e.g. Tuesday 7-9PM"\n}`,
+        1200,
+      );
+      const p = JSON.parse(raw || "{}");
       return res.json(p);
     } catch (e: any) { return res.status(500).json({ message: e.message }); }
   });
@@ -6832,13 +6569,8 @@ Weak line: "${line}"
 
 Return ONLY a JSON object: { "original": "<original line>", "rewrites": ["rewrite 1", "rewrite 2", "rewrite 3"], "explanation": "why these work better" }`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 600, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a viral content expert. Return ONLY valid JSON.", prompt, 600);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -6857,13 +6589,8 @@ Original script:
 
 Return ONLY the improved script text. No JSON, no explanation, no preamble.`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 1200 }),
-      });
-      const data: any = await r.json();
-      return res.json({ script: data.choices?.[0]?.message?.content || "" });
+      const improved = await callGroq("You are a viral content strategist.", prompt, 1200);
+      return res.json({ script: improved || "" });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
     }
@@ -6896,13 +6623,8 @@ Recent posts: ${JSON.stringify(posts)}
 
 Return JSON: { "reply": "coach-style summary (3-4 sentences, casual, actionable)", "mood": "weak"|"decent"|"strong", "topPatterns": ["pattern 1", "pattern 2", "pattern 3"], "whatWorks": ["...", "..."], "gaps": ["opportunity 1", "opportunity 2"], "stealThis": "one specific tactic to steal from this account" }`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 800, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+      const raw = await callGroqJson("You are an AI Content Coach. Return ONLY valid JSON.", prompt, 800);
+      const parsed = JSON.parse(raw || "{}");
       return res.json({ ...parsed, profile: { handle, posts: posts.length, avgViews, avgLikes } });
     } catch (err: any) {
       console.error("[Coach Competitor] Error:", err.message);
@@ -6930,13 +6652,8 @@ Original script:
 "${script}"
 
 Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2 sentences explaining the key changes you made and why they work better" }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 1000, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a viral content strategist. Return ONLY valid JSON.", prompt, 1000);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -6949,12 +6666,8 @@ Return ONLY a JSON object: { "script": "the rewritten script", "whatChanged": "2
 Script: "${script}"
 
 Return ONLY JSON: { "script": "clarified version", "removed": ["thing you removed 1", "thing you removed 2"], "explanation": "what made the original unclear and how you fixed it" }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a clarity editor. Return ONLY valid JSON.", prompt, 800);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -6967,12 +6680,8 @@ Return ONLY JSON: { "script": "clarified version", "removed": ["thing you remove
 Script: "${script}"
 
 Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigger 1", "trigger 2"], "explanation": "what emotions you activated and why they drive engagement" }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.8, max_tokens: 800, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are an emotional resonance expert. Return ONLY valid JSON.", prompt, 800);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -6985,12 +6694,8 @@ Return ONLY JSON: { "script": "emotionally charged version", "triggers": ["trigg
 Script: "${script}"
 
 Return ONLY JSON: { "script": "tightened version", "cutLines": ["line you cut 1", "line you cut 2"], "explanation": "what you removed and why it was slowing the content down" }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.6, max_tokens: 800, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a content editor. Return ONLY valid JSON.", prompt, 800);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -7021,12 +6726,8 @@ Return ONLY this JSON:
   "postingPlan": "how often and what mix of content types",
   "uniqueAngle": "what makes them different from everyone else in this niche"
 }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.75, max_tokens: 1500, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a personal brand strategist. Return ONLY valid JSON.", prompt, 1500);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -7062,12 +6763,8 @@ Return ONLY this JSON:
   "commonMistakes": ["mistake 1", "mistake 2"],
   "successMetrics": "how to know the roadmap is working"
 }`;
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.7, max_tokens: 2000, response_format: { type: "json_object" } }),
-      });
-      const data: any = await r.json();
-      return res.json(JSON.parse(data.choices?.[0]?.message?.content || "{}"));
+      const raw = await callGroqJson("You are a growth mentor. Return ONLY valid JSON.", prompt, 2000);
+      return res.json(JSON.parse(raw || "{}"));
     } catch (err: any) { return res.status(500).json({ message: err.message }); }
   });
 
@@ -7265,8 +6962,11 @@ ${historyCtx}
         },
       ];
 
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) throw new Error("GROQ_API_KEY not configured");
+      const coachAiKey = process.env.OPENROUTER_API_KEY;
+      if (!coachAiKey) throw new Error("OPENROUTER_API_KEY not configured");
+      const coachAiUrl = "https://openrouter.ai/api/v1/chat/completions";
+      const coachAiModel = "meta-llama/llama-3.3-70b-instruct";
+      const coachAiHeaders: Record<string, string> = { "Authorization": `Bearer ${coachAiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 
       const content = script || (message && message.length > 40 ? message : undefined);
       const hasScript = Boolean(content && content.trim().length > 20);
@@ -7282,20 +6982,7 @@ ${historyCtx}
 
       async function executeTool(toolName: string, toolInput: any): Promise<string> {
         const groqCall = async (prompt: string, maxTokens = 1200) => {
-          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
-              messages: [{ role: "user", content: prompt }],
-              temperature: 0.72,
-              max_tokens: maxTokens,
-              response_format: { type: "json_object" },
-            }),
-          });
-          const d: any = await r.json();
-          if (d?.error) throw new Error(d.error.message);
-          return d.choices?.[0]?.message?.content || "{}";
+          return await callGroqJson("Return ONLY valid JSON.", prompt, maxTokens);
         };
 
         if (toolName === "analyze_script") {
@@ -7367,17 +7054,18 @@ Return ONLY JSON: { "script": "rewritten", "whatChanged": "2 sentences on key ch
       }
 
       const groqFetch = async (msgs: any[], maxTokens = 2000) => {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const r = await fetch(coachAiUrl, {
           method: "POST",
-          headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
+          headers: coachAiHeaders,
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: coachAiModel,
             messages: msgs,
             tools: groqTools,
             tool_choice: "auto",
             max_tokens: maxTokens,
             temperature: 0.7,
           }),
+          signal: AbortSignal.timeout(30000),
         });
         const d: any = await r.json();
         if (d?.error) throw new Error(d.error.message);
@@ -7537,30 +7225,8 @@ Return ONLY JSON: { "script": "rewritten", "whatChanged": "2 sentences on key ch
 
   // ── AI Video Editor (Groq-powered) ───────────────────────────────────────
   async function callVideoGroq(prompt: string, maxTokens = 8192): Promise<any> {
-    const groqKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!groqKey) throw new Error("GROQ_API_KEY not configured");
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.75,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!r.ok) {
-      const errText = await r.text();
-      if (r.status === 429) throw new Error("The AI is currently busy — please wait a moment and try again.");
-      if (r.status === 413) throw new Error("The request was too large — try a shorter script or concept.");
-      throw new Error(`AI API error ${r.status}: ${errText.substring(0, 200)}`);
-    }
-    const data = await r.json();
-    if (data.error) throw new Error(data.error.message || "AI generation failed");
-    const raw = data.choices?.[0]?.message?.content || "{}";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleaned);
+    const raw = await callGroqJson("Return ONLY valid JSON.", prompt, maxTokens);
+    return JSON.parse(raw || "{}");
   }
 
   async function runwareGenerate(apiKey: string, tasks: any[]): Promise<{ url: string; taskUUID: string }[]> {
@@ -9415,18 +9081,10 @@ Generate their personalised Instagram growth audit now. Be specific, honest, and
       const { niche, platform } = req.body;
       if (!niche) return res.status(400).json({ message: "Niche is required" });
 
-      const groqApiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!groqApiKey) throw new Error("GROQ_API_KEY not configured");
       const prompt = `Generate 3 creative content ideas for a ${platform || "social media"} creator in the ${niche} niche. For each idea give: a punchy title, a one-line hook, and the content format (reel, carousel, etc.). Keep it actionable and viral-focused. Format as JSON array: [{title, hook, format}]`;
-      const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqApiKey}` },
-        body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], temperature: 0.85, max_tokens: 600 }),
-      });
-      const groqData = await groqResp.json() as any;
-      const text = groqData.choices?.[0]?.message?.content || "[]";
+      const text = await callGroqJson("Return ONLY a valid JSON array.", prompt, 600);
       let ideas: any[] = [];
-      try { ideas = JSON.parse(text.replace(/```json|```/g, "").trim()); } catch { ideas = []; }
+      try { ideas = JSON.parse(text || "[]"); } catch { ideas = []; }
       const newCount = await storage.incrementFreeAiUsage(identifier, today);
       return res.json({ ideas, used: newCount, limit: FREE_DAILY_LIMIT, remaining: FREE_DAILY_LIMIT - newCount });
     } catch (err: any) {
@@ -11314,28 +10972,14 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         u.plan || "free"
       );
 
-      const msgs: any[] = [
-        { role: "system", content: systemPrompt },
-        ...history.slice(-12).map((h: any) => ({ role: h.role, content: String(h.content) })),
-        { role: "user", content: message },
-      ];
+      const historyText = history.slice(-12)
+        .map((h: any) => `${h.role === "assistant" ? "Assistant" : "User"}: ${String(h.content)}`)
+        .join("\n");
+      const combinedPrompt = historyText
+        ? `Conversation so far:\n${historyText}\n\nUser: ${message}`
+        : message;
 
-      const jarvisKey = (await storage.getAppSetting("jarvis_groq_key")) || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-      if (!jarvisKey) throw new Error("Jarvis AI key not configured — add it in Admin → Settings");
-
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${jarvisKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: msgs,
-          temperature: 0.55,
-          max_tokens: 400,
-        }),
-      });
-      const data: any = await r.json();
-      if (data?.error) throw new Error(data.error.message);
-      const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response. Try again!";
+      const rawReply = (await callGroq(systemPrompt, combinedPrompt, 400)) || "Sorry, I couldn't generate a response. Try again!";
 
       // Parse action tag — flexible regex handles extra whitespace, newlines, or quote variants
       // Matches: [GO /path "Label"] or [GO /path 'Label'] anywhere in the response
@@ -11488,25 +11132,11 @@ Plan: ${plan} | Support: support.oravini@gmail.com | @oravini_ai`;
         ? `You are a world-class content analyst. You have the COMPLETE TRANSCRIPT of this YouTube video — analyze EVERY SECTION thoroughly.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nFULL TRANSCRIPT (grouped by 90-second blocks):\n${transcriptStr}\n\nReturn ONLY a valid JSON object — no markdown, no commentary:\n{\n  "overallSummary": "5-6 rich, specific paragraphs summarizing this video. First paragraph: what the video is fundamentally about and who the speaker is/their credibility. Second paragraph: the main argument or thesis. Third paragraph: the specific strategies/frameworks/methods discussed. Fourth paragraph: the concrete examples, stories, or case studies used. Fifth paragraph: the conclusion and call to action.",\n  "keyTakeaways": ["7 highly specific, actionable takeaways — each a full sentence quoting or closely paraphrasing what the speaker actually taught. No generic advice.", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title (what actually happens here):", "bullets": ["Specific detail from transcript with **bold key term**", "What speaker says here and why it matters:\\n- exact point 1\\n- exact point 2\\n- exact point 3"]}\n  ],\n  "speakerScript": "Full first-person script reconstruction — minimum 700 words. Write as if you ARE the speaker, using their exact phrases and examples from the transcript. Every paragraph must contain specific details from the video.",\n  "mindmap": {\n    "center": "Video Core Topic (5-7 words)",\n    "branches": [\n      {"label": "Specific Branch Theme", "emoji": "🎯", "nodes": ["Exact concept/strategy from video", "Named framework or method used", "Specific example mentioned", "Key quote or insight", "Actionable technique revealed"]}\n    ]\n  }\n}\n\nFor minuteByMinute: Create ONE segment per 90-second block in the transcript (use the === timestamps). Cover the ENTIRE transcript — do not skip any section. ${bulletFmt}\nFor mindmap: 5-6 branches using SPECIFIC themes from this video. 5-6 nodes per branch — all specific to this content.\nFor overallSummary and speakerScript: reference specific quotes, examples, and moments from the video — not general summaries.`
         : `You are a world-class content analyst. Analyze this YouTube video based on its metadata and description.\n\n${strictRules}\n\nVIDEO METADATA:\n${videoContext}\n\nReturn ONLY a valid JSON object:\n{\n  "overallSummary": "5-6 paragraphs analyzing this specific video's likely content, argument, and approach based on the title, description, and tags.",\n  "keyTakeaways": ["7 specific takeaways likely from this video based on the title and description", "takeaway2", "takeaway3", "takeaway4", "takeaway5", "takeaway6", "takeaway7"],\n  "minuteByMinute": [\n    {"timestamp": "00:00", "title": "Section Title:", "bullets": ["Point with **bold term** and specific detail", "Detail with context:\\n- Sub-point 1\\n- Sub-point 2"]}\n  ],\n  "speakerScript": "Detailed mock script of what the speaker likely says — minimum 500 words. Specific and realistic to the topic.",\n  "mindmap": {"center": "Core Topic (5-7 words)", "branches": [{"label": "Theme", "emoji": "🎯", "nodes": ["specific node 1","specific node 2","specific node 3","specific node 4","specific node 5"]}]}\n}\n\nFor minuteByMinute: 8-10 estimated segments. ${bulletFmt}\nFor mindmap: 5-6 branches, 5 nodes each.`;
 
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON." },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
-        }),
-      });
-      console.log("[YouTube Analyse] Groq HTTP status:", aiRes.status);
-      const aiData: any = await aiRes.json();
-      if (!aiRes.ok || aiData?.error) {
-        console.error("[YouTube Analyse] Groq error:", JSON.stringify(aiData));
-        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
-      }
-      const rawContent = aiData.choices?.[0]?.message?.content || "{}";
+      const rawContent = await callGroqJson(
+        "You are a world-class content analyst who extracts SPECIFIC, VERBATIM insights from video transcripts. You NEVER write generic advice. You always ground every bullet point in what the speaker ACTUALLY says — quoting their exact phrases, naming their specific frameworks, citing their specific examples with exact numbers and details. Return ONLY valid JSON. No markdown. No commentary. Just JSON.",
+        userPrompt,
+        32768,
+      );
       console.log("[YouTube Analyse] AI response length:", rawContent.length);
       let analysis: any = {};
       try {
@@ -11608,32 +11238,17 @@ Return ONLY raw JSON — no markdown code blocks, no backticks, no text before o
 For postByPost: include ALL ${items.length} posts — do not skip any.
 For every field: be SPECIFIC to these actual posts. Quote captions. Use actual numbers. Name specific techniques.`;
 
-      const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.GROQ_API_KEY || process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary." },
-            { role: "user", content: igPrompt },
-          ],
-          temperature: 0.4, max_tokens: 32768, response_format: { type: "json_object" },
-        }),
-      });
-      console.log("[Instagram Analyse] Groq HTTP status:", aiRes.status);
-      const aiData: any = await aiRes.json();
-      if (!aiRes.ok || aiData?.error) {
-        console.error("[Instagram Analyse] Groq error:", JSON.stringify(aiData));
-        throw new Error(aiData?.error?.message || aiData?.message || `Groq HTTP ${aiRes.status}`);
-      }
-      const rawIgContent = aiData.choices?.[0]?.message?.content || "{}";
+      const rawIgContent = await callGroqJson(
+        "You are a world-class Instagram content strategist who provides brutally specific, data-grounded analysis. You always quote exact caption text, cite actual engagement numbers, and name specific psychological and storytelling techniques. You NEVER write generic social media advice. Return ONLY valid JSON. No markdown. No commentary.",
+        igPrompt,
+        32768,
+      );
       console.log("[Instagram Analyse] AI response length:", rawIgContent.length);
-      const cleanIgContent = rawIgContent.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
       let analysis: any = {};
       try {
-        analysis = JSON.parse(cleanIgContent);
+        analysis = JSON.parse(rawIgContent);
       } catch (parseErr: any) {
-        console.error("[Instagram Analyse] JSON parse error:", parseErr.message, "Content start:", cleanIgContent.slice(0, 200));
+        console.error("[Instagram Analyse] JSON parse error:", parseErr.message, "Content start:", rawIgContent.slice(0, 200));
         throw new Error("AI returned invalid JSON. Please try again.");
       }
       const posts = items.slice(0, 6).map((p: any) => ({ thumbnail: p.displayUrl || p.thumbnailUrl, caption: p.caption || "(no caption)", likes: p.likesCount || 0, comments: p.commentsCount || 0, views: p.videoViewCount, type: p.type || "post", url: p.url, hashtags: p.hashtags?.slice(0, 5), timestamp: p.timestamp }));
@@ -11950,29 +11565,12 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     // Process async
     (async () => {
       try {
-        const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-        if (!apiKey) throw new Error("No Groq key");
-
         const systemPrompt = `You are an expert meeting notetaker. Given a meeting transcript, produce a structured JSON response with these exact keys:
 - summary: a concise 3-5 sentence summary of the meeting
 - actionItems: array of strings, each a clear action item with owner if mentioned (e.g. "John to send proposal by Friday")
 - keyMoments: array of objects with {text: string} for the most important discussion points or decisions made`;
 
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
-            ],
-            max_tokens: 2000,
-            response_format: { type: "json_object" },
-          }),
-        });
-        const data = await r.json() as any;
-        const parsed = JSON.parse(data.choices[0].message.content);
+        const parsed = JSON.parse(await callGroqJson(systemPrompt, `Transcript:\n${transcript.slice(0, 12000)}`, 2000));
         await storage.updateMeeting(meeting.id, userId, {
           summary: parsed.summary || null,
           actionItems: parsed.actionItems || [],
@@ -12034,21 +11632,7 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
 - actionItems: array of strings, each a clear action item with owner if mentioned
 - keyMoments: array of objects with {text: string} for the most important discussion points or decisions`;
 
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Transcript:\n${transcript.slice(0, 12000)}` },
-            ],
-            max_tokens: 2000,
-            response_format: { type: "json_object" },
-          }),
-        });
-        const data = await r.json() as any;
-        const parsed = JSON.parse(data.choices[0].message.content);
+        const parsed = JSON.parse(await callGroqJson(systemPrompt, `Transcript:\n${transcript.slice(0, 12000)}`, 2000));
         await storage.updateMeeting(meeting.id, userId, {
           summary: parsed.summary || null,
           actionItems: parsed.actionItems || [],
@@ -17389,8 +16973,7 @@ Generate 3 variations of this hook for this niche. Return JSON:
       const { skillId, input, context } = req.body;
       if (!skillId || !input?.trim()) return res.status(400).json({ message: "skillId and input required" });
 
-      const groqKey = process.env.GROQ_API_KEY;
-      if (!groqKey) return res.status(503).json({ message: "AI not available" });
+      if (!process.env.OPENROUTER_API_KEY) return res.status(503).json({ message: "AI not available" });
 
       type SkillDef = { system: string; userPrefix: string; credits: number };
       const SKILL_DEFS: Record<string, SkillDef> = {
@@ -18244,24 +17827,12 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
       const segments: any[] = tData.segments || [];
       const totalDuration = segments.length ? segments[segments.length - 1].end : 60;
 
-      const chatResp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{
-            role: "system",
-            content: `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
-          }, {
-            role: "user",
-            content: `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${fullText}`,
-          }],
-          response_format: { type: "json_object" },
-          temperature: 0.2, max_tokens: 200,
-        }),
-      });
-      const cData: any = await chatResp.json();
-      const parsed = JSON.parse(cData.choices?.[0]?.message?.content || "{}");
+      const highlightJson = await callGroqJson(
+        `You are a video editor AI. Given a transcript, identify the most engaging 30–90 second section that works as a standalone short-form video (Reel, TikTok, Short). Prioritize: strong hooks, clear value, emotional moments, complete thoughts. Avoid intros/outros. Return JSON only: { "start": number, "end": number, "reason": string }`,
+        `Duration: ${totalDuration}s\n\nSegments:\n${segments.map((s: any) => `[${s.start.toFixed(1)}–${s.end.toFixed(1)}s] ${s.text}`).join("\n")}\n\nFull: ${fullText}`,
+        200
+      );
+      const parsed = JSON.parse(highlightJson);
       res.json({
         start: Math.max(0, parsed.start || 0),
         end: Math.min(totalDuration, parsed.end || Math.min(60, totalDuration)),
@@ -18276,9 +17847,6 @@ Each section needs type-appropriate data fields filled with compelling copy.`;
     try {
       const { message, context } = req.body;
       if (!message) return res.status(400).json({ message: "message required" });
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
 
       const { clips = [], selectedClipId = null, currentTime = 0 } = context || {};
 
@@ -18328,30 +17896,8 @@ RULES:
 - "all clips" = produce one action per clip
 - Return ONLY valid JSON, no markdown fences`;
 
-      const fetch2 = (await import("node-fetch")).default as any;
-      const resp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`Groq error: ${errText.slice(0, 300)}`);
-      }
-
-      const data: any = await resp.json();
-      const content = data.choices?.[0]?.message?.content || '{"response":"Done","actions":[]}';
-      const parsed = JSON.parse(content);
+      const aiContent = await callGroqJson(systemPrompt, message, 1024);
+      const parsed = JSON.parse(aiContent);
       res.json({ response: parsed.response || "Done!", actions: parsed.actions || [] });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -18362,28 +17908,12 @@ RULES:
       const { captions, targetLanguage = "Spanish" } = req.body;
       if (!Array.isArray(captions) || !captions.length) return res.status(400).json({ message: "captions required" });
 
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "GROQ_API_KEY not configured" });
-
       const texts = captions.map((c: any, i: number) => `[${i}] ${c.text}`).join("\n");
-      const systemPrompt = `You are a professional subtitle translator. Translate the following numbered caption lines to ${targetLanguage}. Preserve meaning, tone, and naturalness. Return ONLY valid JSON: {"translations": [{"index": 0, "text": "translated text"}, ...]}`;
-
-      const fetch2 = (await import("node-fetch")).default as any;
-      const resp = await fetch2("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: texts }],
-          response_format: { type: "json_object" },
-          temperature: 0.1,
-          max_tokens: 2048,
-        }),
-      });
-
-      if (!resp.ok) throw new Error(`Groq error: ${(await resp.text()).slice(0, 200)}`);
-      const d: any = await resp.json();
-      const parsed = JSON.parse(d.choices?.[0]?.message?.content || '{"translations":[]}');
+      const translationJson = await callGroqJson(
+        `You are a professional subtitle translator. Translate the following numbered caption lines to ${targetLanguage}. Preserve meaning, tone, and naturalness. Return ONLY valid JSON: {"translations": [{"index": 0, "text": "translated text"}, ...]}`,
+        texts, 2048
+      );
+      const parsed = JSON.parse(translationJson);
       const translations = (parsed.translations || []).map((t: any) => ({
         id: captions[t.index]?.id,
         text: t.text,
@@ -19352,8 +18882,6 @@ LAYOUT RULES:
   app.post("/api/mentor-kit/fill-step", requireAuth, async (req: Request, res: Response) => {
     try {
       const { stepIndex, currentForm } = req.body;
-      const GROQ_API_KEY = process.env.GROQ_API_KEY;
-      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
 
       type StepFieldMap = Record<string, string>;
       const STEP_FILL: Record<number, StepFieldMap> = {
@@ -19448,24 +18976,9 @@ ${fieldInstructions}
 
 Write as if you ARE this creator sharing your real experience. No generic filler. Return ONLY the JSON object.`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          temperature: 0.8,
-          max_tokens: 4000,
-          stream: false,
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!r.ok) return res.status(502).json({ message: "AI unavailable" });
-      const data = await r.json() as any;
-      const raw = data.choices?.[0]?.message?.content?.trim() || "{}";
+      const raw = await callGroqJson(systemPrompt, userPrompt, 4000);
       try {
-        const filled = JSON.parse(raw);
+        const filled = JSON.parse(raw || "{}");
         return res.json({ fields: filled });
       } catch {
         return res.status(500).json({ message: "AI returned invalid JSON" });
@@ -19478,8 +18991,6 @@ Write as if you ARE this creator sharing your real experience. No generic filler
   app.post("/api/mentor-kit/refine", requireAuth, async (req: Request, res: Response) => {
     try {
       const { field, label, currentValue, context } = req.body;
-      const GROQ_API_KEY = process.env.GROQ_API_KEY;
-      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
 
       const ctx = context || {};
       const contextBlock = [
@@ -19499,21 +19010,7 @@ ${contextBlock ? `\nCreator context:\n${contextBlock}\n` : ""}
 ${currentValue?.trim() ? `\nCurrent draft (improve and expand on this):\n${currentValue}\n` : "\nField is empty — write a complete, specific response.\n"}
 Write a strong, genuine, concrete response for this field. Use real-sounding specifics: numbers, timelines, emotions, named examples. If it's a story field, write in first person. If it's an audience field, use their language. If it's a framework/strategy field, be precise and structured. Output only the field content — no intro, no explanation, no quotes around it.`;
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          temperature: 0.85,
-          max_tokens: 700,
-          stream: false,
-        }),
-      });
-
-      if (!r.ok) return res.status(502).json({ message: "AI unavailable" });
-      const data = await r.json() as any;
-      const suggestion = data.choices?.[0]?.message?.content?.trim() || "";
+      const suggestion = (await callGroq(systemPrompt, userPrompt, 700)).trim();
       return res.json({ suggestion });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -19524,8 +19021,11 @@ Write a strong, genuine, concrete response for this field. Use real-sounding spe
     try {
       const { intelData, pdfContext, productType: legacyType, niche: legacyNiche, audience: legacyAudience, transformation: legacyTransformation, priceRange: legacyPrice } = req.body;
 
-      const GROQ_API_KEY = process.env.GROQ_API_KEY;
-      if (!GROQ_API_KEY) return res.status(503).json({ message: "AI not available" });
+      const MK_AI_KEY = process.env.OPENROUTER_API_KEY;
+      if (!MK_AI_KEY) return res.status(503).json({ message: "AI not available" });
+      const MK_AI_URL = "https://openrouter.ai/api/v1/chat/completions";
+      const MK_AI_MODEL = "meta-llama/llama-3.3-70b-instruct";
+      const MK_AI_HEADERS: Record<string, string> = { "Authorization": `Bearer ${MK_AI_KEY}`, "Content-Type": "application/json", "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
 
       const systemPrompt = `You are a world-class digital product architect and course creation consultant with deep expertise in building premium programs for coaches, consultants, and knowledge entrepreneurs. You've helped hundreds of creators launch 6 and 7-figure programs.
 
@@ -19682,11 +19182,11 @@ Generate: 3 title options, positioning, full curriculum (all modules + lessons),
       res.setHeader("Connection", "keep-alive");
       res.setHeader("Access-Control-Allow-Origin", "*");
 
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const r = await fetch(MK_AI_URL, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        headers: MK_AI_HEADERS,
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: MK_AI_MODEL,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
           temperature: 0.8,
           max_tokens: 16000,

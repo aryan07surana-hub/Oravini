@@ -29,21 +29,14 @@ async function skillsPrefix(userId: string, base: string): Promise<string> {
   } catch { return base; }
 }
 
+import { aiChat, aiChatJson } from "../aiService";
+
 async function callAI(messages: { role: string; content: string }[], json = false): Promise<string> {
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) throw new Error("No AI key configured");
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages,
-      temperature: 0.7,
-      ...(json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-  const d = await r.json() as any;
-  return d.choices?.[0]?.message?.content || "";
+  const sys = messages.find(m => m.role === "system")?.content ?? "";
+  const userMsgs = messages.filter(m => m.role !== "system");
+  const user = userMsgs.map(m => m.content).join("\n\n");
+  if (json) return aiChatJson(sys, user);
+  return aiChat(sys, user);
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@
  */
 import { pool } from "./storage";
 import { decryptToken } from "./security/tokenEncryption";
+import { aiChat } from "./aiService";
 
 const META_BASE = "https://graph.facebook.com/v19.0";
 
@@ -20,29 +21,6 @@ async function metaGet(token: string, path: string, params: Record<string, strin
   return data;
 }
 
-async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 1200): Promise<string> {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY not set");
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"];
-  for (const model of models) {
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          max_tokens: maxTokens,
-        }),
-      });
-      const data = await res.json() as any;
-      if (data.error) continue;
-      const content = data.choices?.[0]?.message?.content;
-      if (content) return content;
-    } catch { continue; }
-  }
-  throw new Error("All Groq models failed");
-}
 
 async function getActiveConnections(): Promise<Array<{ clientId: string; token: string; adAccountId: string }>> {
   const result = await pool.query(
@@ -122,12 +100,12 @@ ALL CAMPAIGNS (last 7d):
 ${campaigns.slice(0, 10).map(c => `- ${c.campaign_name}: $${parseFloat(c.spend || "0").toFixed(2)} spend, ${c.purchase_roas?.[0]?.value ? parseFloat(c.purchase_roas[0].value).toFixed(2) + "x ROAS" : "no ROAS"}, ${parseFloat(c.ctr || "0").toFixed(2)}% CTR`).join("\n")}
 `.trim();
 
-  const summary = await callGroq(
+  const summary = await aiChat(
     `You are a Meta Ads performance analyst. Write a concise daily update for an ad account.
 Format: use short paragraphs with emojis. Be direct and specific. Highlight what's working, what's not.
 Max 250 words. Include: today's performance vs yesterday, trend assessment, top performer, worst performer, 2-3 action items.`,
     dataStr,
-    600
+    { maxTokens: 600 }
   );
 
   await saveLog(clientId, "24h_update", summary, rawData);
@@ -213,7 +191,7 @@ ALL ADS SUMMARY:
 ${adPerformance.slice(0, 15).map(a => `- ${a.adName}: $${a.spend.toFixed(2)}, ${a.roas?.toFixed(2) || "–"}x ROAS, ${a.ctr.toFixed(2)}% CTR, ${a.conversions} conv [${a.status}]`).join("\n")}
 `.trim();
 
-  const summary = await callGroq(
+  const summary = await aiChat(
     `You are a Meta Ads creative strategist. Analyze creative performance data and write a 72-hour creative performance alert.
 
 Format with sections:
@@ -224,7 +202,7 @@ Format with sections:
 
 Be specific, name actual creatives, give concrete numbers. Max 350 words.`,
     dataStr,
-    900
+    { maxTokens: 900 }
   );
 
   await saveLog(clientId, "72h_creative_alert", summary, rawData);

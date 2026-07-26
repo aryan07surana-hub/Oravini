@@ -7,6 +7,7 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./storage";
 import { decryptToken } from "./security/tokenEncryption";
+import { aiChatJson } from "./aiService";
 
 const META_BASE = "https://graph.facebook.com/v19.0";
 
@@ -47,36 +48,6 @@ async function metaPost(token: string, path: string, body: Record<string, any>):
   return data;
 }
 
-async function callGroqJson(systemPrompt: string, userPrompt: string): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-  let lastError = "";
-  for (const model of models) {
-    try {
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
-      const data: any = await r.json();
-      if (data?.error) { lastError = data.error.message; continue; }
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) return text;
-    } catch (e: any) { lastError = e.message; }
-  }
-  throw new Error(`Groq failed: ${lastError}`);
-}
 
 export async function registerMetaAdsAIAdvisorRoutes(app: Express) {
   await pool.query(`
@@ -187,7 +158,7 @@ Logic:
 - alert: anomalies such as near-zero CTR, exhausted budget headroom, or spend spike with no returns
 Max 8 recs, most impactful first. Set suggested_value to null for everything except scale_budget.`;
 
-      const raw = await callGroqJson(sys, `Campaign performance (last 30 days):\n${JSON.stringify(summary, null, 2)}`);
+      const raw = await aiChatJson(sys, `Campaign performance (last 30 days):\n${JSON.stringify(summary, null, 2)}`, { maxTokens: 2000, temperature: 0.3 });
       const parsed = JSON.parse(raw);
       const recs: any[] = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
 

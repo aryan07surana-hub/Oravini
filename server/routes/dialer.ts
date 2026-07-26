@@ -11,6 +11,7 @@ import {
   webinarRegistrations, webinarEvents, webinars,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { aiChat, aiChatJson } from "../aiService";
 
 function uid(req: Request): string {
   return (req as any).user?.id;
@@ -298,7 +299,6 @@ async function analyzeCallTranscript(opts: {
   transcript: string;
   leadName: string;
   outcome: string;
-  openAiKey: string;
 }): Promise<{
   hotSignals: string[];
   objections: string[];
@@ -324,20 +324,8 @@ Return JSON only:
   "suggestedSms": "personalized follow-up SMS, 1-2 sentences, friendly, references the call"
 }`;
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${opts.openAiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.3,
-      max_tokens: 500,
-    }),
-  });
-  if (!res.ok) throw new Error(`Groq ${res.status}`);
-  const data: any = await res.json();
-  return JSON.parse(data.choices[0].message.content);
+  const text = await aiChatJson("", prompt, { maxTokens: 500, temperature: 0.3 });
+  return JSON.parse(text);
 }
 
 async function sendAutoSms(settings: any, toPhone: string, message: string): Promise<void> {
@@ -354,19 +342,17 @@ async function runPostCallAnalysis(
   parsed: ReturnType<typeof parseVapiWebhook>,
   settings: any,
 ): Promise<void> {
-  const openAiKey = process.env.GROQ_API_KEY || (settings as any)?.openAiApiKey || process.env.OPENAI_API_KEY;
   const firstName = (existing.leadName || "").split(" ")[0] || "there";
 
   let analysis: Awaited<ReturnType<typeof analyzeCallTranscript>> | null = null;
 
   // 1. Transcript analysis
-  if (openAiKey && parsed.transcript && parsed.transcript.length > 80) {
+  if (parsed.transcript && parsed.transcript.length > 80) {
     try {
       analysis = await analyzeCallTranscript({
         transcript: parsed.transcript,
         leadName: existing.leadName,
         outcome: parsed.outcome,
-        openAiKey,
       });
 
       await db.update(dialerAiCallResults).set({
@@ -442,18 +428,11 @@ async function runPostCallAnalysis(
 
 // ── SMS Sequence Runner ───────────────────────────────────────────────────────
 
-async function personalizeSequenceSms(template: string, leadName: string, webinarTitle: string | null, openAiKey: string): Promise<string> {
+async function personalizeSequenceSms(template: string, leadName: string, webinarTitle: string | null): Promise<string> {
   const firstName = leadName.split(" ")[0] || "there";
   const prompt = `Rewrite this SMS follow-up message to sound more personal and natural for ${leadName}${webinarTitle ? ` who attended a webinar about "${webinarTitle}"` : ""}. Keep it under 160 characters. Return only the SMS text, nothing else.\n\nOriginal: ${template}`;
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${openAiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }], max_tokens: 100, temperature: 0.7 }),
-    });
-    if (!res.ok) throw new Error(`Groq ${res.status}`);
-    const data: any = await res.json();
-    return data.choices[0].message.content.trim();
+    return (await aiChat("", prompt, { maxTokens: 100, temperature: 0.7 })).trim();
   } catch {
     return template.replace(/{name}/g, firstName);
   }
@@ -486,11 +465,10 @@ async function runDueSequenceSteps(): Promise<void> {
           const [lead] = await db.select().from(dialerLeads).where(eq(dialerLeads.id, enrollment.leadId));
           const [settings] = await db.select().from(dialerSettings).where(eq(dialerSettings.userId, enrollment.userId));
           if (lead?.phone && step.template) {
-            const openAiKey = process.env.GROQ_API_KEY || (settings as any)?.openAiApiKey || process.env.OPENAI_API_KEY;
-            let message = step.template;
+              let message = step.template;
 
-            if ((step as any).aiPersonalize && openAiKey) {
-              message = await personalizeSequenceSms(message, lead.name, lead.sourceWebinarTitle || null, openAiKey);
+            if ((step as any).aiPersonalize) {
+              message = await personalizeSequenceSms(message, lead.name, lead.sourceWebinarTitle || null);
             } else {
               const firstName = lead.name.split(" ")[0] || "there";
               message = message

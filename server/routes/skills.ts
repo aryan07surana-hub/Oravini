@@ -2,6 +2,7 @@ import { type Express, type Request, type Response } from "express";
 import { pool } from "../storage";
 import { randomUUID } from "crypto";
 import { generateSkillFromDNA, seedPlatformSkills } from "../skillsEngine";
+import { aiChat } from "../aiService";
 
 export async function bootstrapSkills() {
   await seedPlatformSkills();
@@ -215,10 +216,7 @@ export function registerSkillsRoutes(
         return res.status(400).json({ message: "Provide at least 50 characters of content DNA" });
       }
 
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
-
-      const generated = await generateSkillFromDNA(dnaContent, apiKey);
+      const generated = await generateSkillFromDNA(dnaContent);
       return res.json(generated);
     } catch (err: any) {
       return res.status(500).json({ message: err.message });
@@ -253,32 +251,8 @@ export function registerSkillsRoutes(
       if (!skill.rows.length) return res.status(404).json({ message: "Skill not found" });
 
       const s = skill.rows[0];
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(500).json({ message: "AI not configured" });
-
       const systemPrompt = `You are an AI assistant. Apply the following skill instructions exactly:\n\n## ${s.icon} ${s.name}\n${s.instructions}`;
-
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 800,
-        }),
-      });
-
-      if (!r.ok) {
-        const err = await r.text();
-        return res.status(500).json({ message: `AI error: ${err}` });
-      }
-
-      const data: any = await r.json();
-      const result = data?.choices?.[0]?.message?.content || "";
+      const result = await aiChat(systemPrompt, prompt, { maxTokens: 800, temperature: 0.7 });
       return res.json({ result, skillName: s.name, skillIcon: s.icon });
     } catch (err: any) {
       return res.status(500).json({ message: err.message });

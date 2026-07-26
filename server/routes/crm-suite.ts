@@ -9,6 +9,7 @@ import {
   insertCrmSmartListSchema,
 } from "@shared/schema";
 import { emitCrmEvent } from "./crm-events";
+import { aiChatJson } from "../aiService";
 
 const p = (param: string | string[] | undefined): string => {
   const s = Array.isArray(param) ? param[0] : param;
@@ -1511,32 +1512,12 @@ Rules:
 
       const userPrompt = `Business / sales process: ${description.trim()}\n${name ? `Pipeline name: ${name}` : ""}`;
 
-      const apiKey = process.env.GROQ_API_KEY;
       let parsed: any = null;
-      if (apiKey) {
-        try {
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 1200,
-              response_format: { type: "json_object" },
-            }),
-          });
-          if (groqRes.ok) {
-            const j = await groqRes.json();
-            const text = j.choices?.[0]?.message?.content;
-            if (text) parsed = JSON.parse(text);
-          }
-        } catch (err: any) {
-          console.warn("[crm-suite] AI pipeline build failed, falling back:", err?.message);
-        }
+      try {
+        const text = await aiChatJson(systemPrompt, userPrompt, { maxTokens: 1200, temperature: 0.7 });
+        parsed = JSON.parse(text);
+      } catch (err: any) {
+        console.warn("[crm-suite] AI pipeline build failed, falling back:", err?.message);
       }
 
       // Fallback: a sensible default
@@ -1590,7 +1571,7 @@ Rules:
       emitCrmEvent({ kind: "pipeline.created", id: pipelineId });
       res.status(201).json({
         ok: true,
-        aiUsed: !!apiKey,
+        aiUsed: parsed !== null,
         pipeline: pipelineRes.rows[0],
         stages,
       });
@@ -1610,9 +1591,6 @@ Rules:
       const { description } = req.body as { description?: string };
       if (!description?.trim()) return res.status(400).json({ message: "description required" });
 
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
-
       const systemPrompt = `You are a CRM data assistant. Extract structured contact details from a free-form description and infer reasonable defaults.
 Output ONLY this JSON shape:
 {
@@ -1629,26 +1607,7 @@ Output ONLY this JSON shape:
   "notes": string (a 1-2 sentence summary you'd put on the contact)
 }`;
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: description.trim() },
-          ],
-          temperature: 0.5,
-          max_tokens: 500,
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (!groqRes.ok) {
-        return res.status(502).json({ ok: false, message: "AI unavailable" });
-      }
-      const j = await groqRes.json();
-      const text = j.choices?.[0]?.message?.content;
-      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      const text = await aiChatJson(systemPrompt, description.trim(), { maxTokens: 500, temperature: 0.5 });
       const parsed = JSON.parse(text);
       res.json({ ok: true, contact: parsed });
     } catch (err: any) {
@@ -1673,9 +1632,6 @@ Output ONLY this JSON shape:
       if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
         return res.status(403).json({ message: "Not your contact." });
       }
-
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
 
       const recentActs = await db.select().from(crmActivities)
         .where(eq(crmActivities.contactId, id))
@@ -1706,24 +1662,7 @@ Output ONLY this JSON shape:
   "waitDays": number (only set when action='wait', otherwise 0)
 }`;
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: ctxBlock },
-          ],
-          temperature: 0.5,
-          max_tokens: 500,
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (!groqRes.ok) return res.status(502).json({ ok: false, message: "AI unavailable" });
-      const j = await groqRes.json();
-      const text = j.choices?.[0]?.message?.content;
-      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      const text = await aiChatJson(systemPrompt, ctxBlock, { maxTokens: 500, temperature: 0.5 });
       res.json({ ok: true, suggestion: JSON.parse(text) });
     } catch (err: any) {
       console.error("[crm-suite] /ai/suggest-action failed:", err);
@@ -1745,9 +1684,6 @@ Output ONLY this JSON shape:
       if (scope && !scope.isAdmin && contact.ownerId !== scope.userId) {
         return res.status(403).json({ message: "Not your contact." });
       }
-      const apiKey = process.env.GROQ_API_KEY;
-      if (!apiKey) return res.status(503).json({ ok: false, message: "AI not configured" });
-
       const recentActs = await db.select().from(crmActivities)
         .where(eq(crmActivities.contactId, id))
         .orderBy(desc(crmActivities.occurredAt))
@@ -1776,24 +1712,7 @@ Rules:
         recentActivities: recentActs.map(a => ({ type: a.type, title: a.title, body: a.body?.slice(0, 200) })),
       });
 
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userBlock },
-          ],
-          temperature: 0.8,
-          max_tokens: 700,
-          response_format: { type: "json_object" },
-        }),
-      });
-      if (!groqRes.ok) return res.status(502).json({ ok: false, message: "AI unavailable" });
-      const j = await groqRes.json();
-      const text = j.choices?.[0]?.message?.content;
-      if (!text) return res.status(502).json({ ok: false, message: "AI returned empty" });
+      const text = await aiChatJson(systemPrompt, userBlock, { maxTokens: 700, temperature: 0.8 });
       res.json({ ok: true, draft: JSON.parse(text) });
     } catch (err: any) {
       console.error("[crm-suite] /ai/draft-email failed:", err);

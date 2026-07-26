@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./storage";
+import { aiChat, aiChatJson } from "./aiService";
 
 const p = (param: string | string[]): string => Array.isArray(param) ? param[0] : param;
 
@@ -7,35 +8,6 @@ function requireAdmin(req: Request, res: Response, next: Function) {
   if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
   if ((req.user as any).role !== "admin") return res.status(403).json({ message: "Forbidden" });
   next();
-}
-
-async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 4000, json = false): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
-  const models = ["llama-3.3-70b-versatile", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-  let lastError = "";
-  for (const model of models) {
-    try {
-      const body: any = {
-        model,
-        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        temperature: 0.7,
-        max_tokens: maxTokens,
-      };
-      if (json) body.response_format = { type: "json_object" };
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
-      const data: any = await r.json();
-      if (data?.error) { lastError = data.error.message; continue; }
-      const text = data?.choices?.[0]?.message?.content;
-      if (text) return text;
-    } catch (e: any) { lastError = e.message; }
-  }
-  throw new Error(`AI generation failed: ${lastError}`);
 }
 
 export function registerMetaAdsManagerRoutes(app: Express) {
@@ -116,7 +88,7 @@ Return this exact JSON structure:
   }
 }`;
 
-      const raw = await callGroq(systemPrompt, userPrompt, 4000, true);
+      const raw = await aiChatJson(systemPrompt, userPrompt, { maxTokens: 4000 });
       const parsed = JSON.parse(raw);
       res.json(parsed);
     } catch (err: any) {
@@ -178,7 +150,7 @@ Return this exact JSON:
   "quick_wins": ["win1", "win2", "win3"]
 }`;
 
-      const raw = await callGroq(systemPrompt, userPrompt, 2000, true);
+      const raw = await aiChatJson(systemPrompt, userPrompt, { maxTokens: 2000 });
       const parsed = JSON.parse(raw);
       res.json(parsed);
     } catch (err: any) {
@@ -473,7 +445,7 @@ Write a report with these sections:
 5. **Action Items for Next Week** (5 specific, prioritized actions)
 6. **Budget Recommendation** (how to allocate budget next month)`;
 
-      const reportText = await callGroq(systemPrompt, userPrompt, 3000);
+      const reportText = await aiChat(systemPrompt, userPrompt, { maxTokens: 3000 });
 
       const periodEnd = new Date();
       const periodStart = new Date();

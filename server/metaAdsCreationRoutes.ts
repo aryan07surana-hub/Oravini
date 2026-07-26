@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { pool } from "./storage";
 import { decryptToken } from "./security/tokenEncryption";
+import { aiChatJson } from "./aiService";
 
 const META_BASE = "https://graph.facebook.com/v19.0";
 
@@ -51,31 +52,6 @@ async function getClientConn(clientId: string) {
   return { token: decryptToken(access_token), adAccountId: ad_account_id };
 }
 
-async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 2000): Promise<any> {
-  const GROQ_API_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not set");
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"];
-  for (const model of models) {
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-          max_tokens: maxTokens,
-          response_format: { type: "json_object" },
-        }),
-      });
-      const data = await res.json() as any;
-      if (data.error) continue;
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) continue;
-      return JSON.parse(content);
-    } catch { continue; }
-  }
-  throw new Error("All Groq models failed");
-}
 
 // Meta API enum mappings
 const OBJECTIVE_MAP: Record<string, string> = {
@@ -228,7 +204,7 @@ export function registerMetaAdsCreationRoutes(app: Express) {
 
       const { token, adAccountId } = conn;
 
-      const parsed = await callGroq(
+      const parsed = JSON.parse(await aiChatJson(
         `You are a Meta Ads API expert. Parse the user's campaign instruction into exact Meta Marketing API parameters.
 Return ONLY valid JSON with this structure:
 {
@@ -258,7 +234,7 @@ Rules:
 - create multiple ad sets if user mentions testing different audiences`,
         `Today: ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
 User instruction: "${instruction}"`
-      );
+      ));
 
       if (!parsed.campaigns?.length) {
         return res.status(400).json({ message: "Could not parse instruction into campaign structure. Be more specific." });
