@@ -13,8 +13,8 @@ const DEFAULT_MODELS = [
 ];
 
 function getKey(): string {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY not configured");
+  const key = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("AI API key not configured (set API_KEY_1 or OPENROUTER_API_KEY)");
   return key;
 }
 

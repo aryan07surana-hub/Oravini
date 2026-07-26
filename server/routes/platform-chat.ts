@@ -5,8 +5,8 @@ async function callAIStream(
   messages: { role: string; content: string }[],
   onToken: (token: string) => void
 ): Promise<string> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("OPENROUTER_API_KEY not configured");
+  const key = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("AI API key not configured");
   const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" },

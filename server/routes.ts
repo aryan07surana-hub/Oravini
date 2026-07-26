@@ -6962,8 +6962,8 @@ ${historyCtx}
         },
       ];
 
-      const coachAiKey = process.env.OPENROUTER_API_KEY;
-      if (!coachAiKey) throw new Error("OPENROUTER_API_KEY not configured");
+      const coachAiKey = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
+      if (!coachAiKey) throw new Error("AI API key not configured");
       const coachAiUrl = "https://openrouter.ai/api/v1/chat/completions";
       const coachAiModel = "meta-llama/llama-3.3-70b-instruct";
       const coachAiHeaders: Record<string, string> = { "Authorization": `Bearer ${coachAiKey}`, "Content-Type": "application/json", "HTTP-Referer": "https://oravini.com", "X-Title": "Oravini" };
@@ -16973,7 +16973,7 @@ Generate 3 variations of this hook for this niche. Return JSON:
       const { skillId, input, context } = req.body;
       if (!skillId || !input?.trim()) return res.status(400).json({ message: "skillId and input required" });
 
-      if (!process.env.OPENROUTER_API_KEY) return res.status(503).json({ message: "AI not available" });
+      if (!process.env.API_KEY_1 && !process.env.OPENROUTER_API_KEY) return res.status(503).json({ message: "AI not available" });
 
       type SkillDef = { system: string; userPrefix: string; credits: number };
       const SKILL_DEFS: Record<string, SkillDef> = {
@@ -19021,7 +19021,7 @@ Write a strong, genuine, concrete response for this field. Use real-sounding spe
     try {
       const { intelData, pdfContext, productType: legacyType, niche: legacyNiche, audience: legacyAudience, transformation: legacyTransformation, priceRange: legacyPrice } = req.body;
 
-      const MK_AI_KEY = process.env.OPENROUTER_API_KEY;
+      const MK_AI_KEY = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
       if (!MK_AI_KEY) return res.status(503).json({ message: "AI not available" });
       const MK_AI_URL = "https://openrouter.ai/api/v1/chat/completions";
       const MK_AI_MODEL = "meta-llama/llama-3.3-70b-instruct";
