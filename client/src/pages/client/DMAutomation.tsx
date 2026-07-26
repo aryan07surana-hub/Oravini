@@ -22,7 +22,8 @@ import {
   MessageCircle, Instagram, Flame, Thermometer, Snowflake, User, Calendar,
   Search, XCircle, LayoutGrid, List, Send, Info,
   Link2, ShieldCheck, RefreshCw, ExternalLink, Wifi, WifiOff, Eye, EyeOff,
-  Database, Settings, Webhook
+  Database, Settings, Webhook, ChevronDown, ChevronUp, BookOpen, Sparkles,
+  Target, Trophy, Lock, Layers, Key, Tag
 } from "lucide-react";
 import { format, isPast, isToday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,7 @@ import { AILeadScoring, LeadScoreBadge } from "@/components/dm/AILeadScoring";
 import { WelcomeDMConfig } from "@/components/dm/WelcomeDMConfig";
 import { OptOutToggle, OptOutBadge, OptOutFilter } from "@/components/dm/OptOutManagement";
 import { CSVExportButton, CSVExportCard } from "@/components/dm/CSVExport";
+import { AIBrainConfig } from "@/components/dm/AIBrainConfig";
 
 // ── DM Tracker constants ──────────────────────────────────────────────────────
 
@@ -66,6 +68,182 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.bg} ${cfg.border} ${cfg.color}`}>
       <Icon className="w-2.5 h-2.5" />{cfg.label}
     </span>
+  );
+}
+
+// ── Guide helpers ─────────────────────────────────────────────────────────────
+
+function TabGuide({ id, title, steps, tips }: {
+  id: string;
+  title: string;
+  steps: { icon: any; label: string; desc: string }[];
+  tips?: string[];
+}) {
+  const key = `dm-guide-dismissed-${id}`;
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(key) !== "1"; } catch { return true; }
+  });
+  const dismiss = () => { try { localStorage.setItem(key, "1"); } catch {} setOpen(false); };
+  if (!open) return (
+    <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-3">
+      <BookOpen className="w-3.5 h-3.5" /> How to use this tab
+    </button>
+  );
+  return (
+    <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/5 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-blue-500/10">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-xs font-semibold text-blue-300">{title}</span>
+        </div>
+        <button onClick={dismiss} className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-blue-500/10">
+          Got it, hide
+        </button>
+      </div>
+      <div className="px-4 py-3 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {steps.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <div key={i} className="flex gap-2.5 items-start">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center mt-0.5">
+                  <span className="text-[10px] font-bold text-blue-400">{i + 1}</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Icon className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                    <p className="text-xs font-semibold text-foreground">{s.label}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{s.desc}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {tips && tips.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1 border-t border-blue-500/10">
+            {tips.map((tip, i) => (
+              <span key={i} className="inline-flex items-center gap-1 text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                <Sparkles className="w-2.5 h-2.5" /> {tip}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SetupChecklist({
+  isConnected, hasTriggers, hasSequences, hasLeads, hasBroadcasts, hasAiBrain,
+  onNavigate,
+}: {
+  isConnected: boolean; hasTriggers: boolean; hasSequences: boolean;
+  hasLeads: boolean; hasBroadcasts: boolean; hasAiBrain: boolean;
+  onNavigate: (tab: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem("dm-setup-checklist-dismissed") === "1"; } catch { return false; }
+  });
+
+  const steps = [
+    // Tier 1 — Foundation
+    {
+      tier: "Foundation",
+      tierColor: "text-blue-400",
+      tierBg: "bg-blue-500/10 border-blue-500/20",
+      items: [
+        { label: "Connect Instagram", desc: "Link your Meta account so DMs can be sent and received.", tab: "settings", done: isConnected, icon: Instagram },
+        { label: "Set a Welcome DM", desc: "Auto-send a greeting to every new person who messages you.", tab: "settings", done: false, icon: MessageSquare },
+      ],
+    },
+    // Tier 2 — Automation
+    {
+      tier: "Automation",
+      tierColor: "text-violet-400",
+      tierBg: "bg-violet-500/10 border-violet-500/20",
+      items: [
+        { label: "Create Auto-Reply Trigger", desc: "Auto-reply when someone sends a keyword like 'link' or 'info'.", tab: "triggers", done: hasTriggers, icon: Zap },
+        { label: "Build a Sequence", desc: "Set up a multi-step DM drip campaign with delays between messages.", tab: "sequences", done: hasSequences, icon: Layers },
+        { label: "Add Your First Lead", desc: "Start tracking contacts through your pipeline from New → Converted.", tab: "leads", done: hasLeads, icon: Users },
+      ],
+    },
+    // Tier 3 — Growth
+    {
+      tier: "Growth",
+      tierColor: "text-emerald-400",
+      tierBg: "bg-emerald-500/10 border-emerald-500/20",
+      items: [
+        { label: "Schedule a Broadcast", desc: "Send a mass DM to all your leads at once.", tab: "broadcasts", done: hasBroadcasts, icon: Send },
+        { label: "Set Up AI Brain", desc: "Upload your API key and let AI handle DMs in your voice.", tab: "ai-brain", done: hasAiBrain, icon: Bot },
+      ],
+    },
+  ];
+
+  const allItems = steps.flatMap(s => s.items);
+  const doneCount = allItems.filter(i => i.done).length;
+  const totalCount = allItems.length;
+  const pct = Math.round((doneCount / totalCount) * 100);
+
+  if (dismissed) return null;
+
+  return (
+    <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border cursor-pointer" onClick={() => setCollapsed(c => !c)}>
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <Target className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Setup Guide</p>
+            <p className="text-xs text-muted-foreground">{doneCount} of {totalCount} steps complete</p>
+          </div>
+          <div className="flex items-center gap-2 ml-2">
+            <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs font-semibold text-primary">{pct}%</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {pct === 100 && <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs gap-1"><Trophy className="w-3 h-3" /> Complete!</Badge>}
+          <button onClick={e => { e.stopPropagation(); localStorage.setItem("dm-setup-checklist-dismissed", "1"); setDismissed(true); }} className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded hover:bg-muted transition-colors">Dismiss</button>
+          {collapsed ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronUp className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </div>
+      {!collapsed && (
+        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {steps.map(tier => (
+            <div key={tier.tier} className={`rounded-xl border p-3 space-y-2 ${tier.tierBg}`}>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${tier.tierColor}`}>{tier.tier}</span>
+              </div>
+              {tier.items.map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <button key={i} onClick={() => onNavigate(item.tab)}
+                    className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors hover:bg-white/5 ${item.done ? "opacity-70" : ""}`}
+                  >
+                    <div className={`flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center mt-0.5 ${item.done ? "bg-emerald-500/20 border-emerald-500/40" : "border-border bg-muted/20"}`}>
+                      {item.done
+                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        : <Icon className="w-2.5 h-2.5 text-muted-foreground" />
+                      }
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-semibold ${item.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.label}</p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{item.desc}</p>
+                    </div>
+                    <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-1 ml-auto" />
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -239,11 +417,109 @@ function AddEditLeadDialog({
   );
 }
 
+const PRESET_TEMPLATES = [
+  {
+    category: "Opener",
+    emoji: "👋",
+    title: "Warm Intro DM",
+    content: `Hey {{first_name}}! 👋 Saw you engaged with my content and just wanted to personally reach out.
+
+What's the main thing you're working on right now? Always love connecting with people in this space.`,
+  },
+  {
+    category: "Opener",
+    emoji: "🔥",
+    title: "Keyword Reply (Freebie)",
+    content: `Hey {{first_name}}! Thanks for reaching out 🙌
+
+Here's the link you asked for: [INSERT LINK]
+
+Let me know if you have any questions — happy to help!`,
+  },
+  {
+    category: "Follow-up",
+    emoji: "📩",
+    title: "Soft Follow-Up",
+    content: `Hey {{first_name}}, just circling back on this!
+
+Didn't want it to get lost in your DMs. Did you get a chance to check it out?`,
+  },
+  {
+    category: "Follow-up",
+    emoji: "⏰",
+    title: "Last Follow-Up",
+    content: `Hey {{first_name}} — last time reaching out on this, I promise 😄
+
+If the timing isn't right, no worries at all. But if you're still interested, I'd love to connect and see how I can help.
+
+Either way, hope things are going well!`,
+  },
+  {
+    category: "Sales",
+    emoji: "💰",
+    title: "Price / Offer Reply",
+    content: `Hey {{first_name}}! Great question on pricing.
+
+So it really depends on what you're looking for — investment starts at [PRICE] and goes up based on [SCOPE].
+
+But before I give you numbers, can I ask — what's the main outcome you're trying to achieve? That way I can make sure I'm pointing you in the right direction.`,
+  },
+  {
+    category: "Sales",
+    emoji: "📅",
+    title: "Book a Call",
+    content: `Hey {{first_name}}! This is definitely something worth having a quick conversation about.
+
+I have a few spots open this week — here's my calendar link: [LINK]
+
+Pick whatever time works best for you. It's just a short 20-min call, no pressure at all.`,
+  },
+  {
+    category: "Objection",
+    emoji: "🤔",
+    title: "\"I Need to Think About It\"",
+    content: `Hey {{first_name}}, totally understand — it's a big decision and you should feel 100% sure before moving forward.
+
+Can I ask what the main thing is you're still thinking about? Sometimes I can answer it right here and save you the back-and-forth 😊`,
+  },
+  {
+    category: "Objection",
+    emoji: "💸",
+    title: "\"It's Too Expensive\"",
+    content: `Hey {{first_name}}, I hear you — investment is always a consideration.
+
+Out of curiosity, if price wasn't a factor, would this be something you'd want to move on? Just trying to understand if it's the budget or something else holding you back.`,
+  },
+  {
+    category: "Nurture",
+    emoji: "🎁",
+    title: "Value Drop",
+    content: `Hey {{first_name}}! Just thought of you when I came across this — [INSIGHT / TIP / RESOURCE].
+
+Figured you might find it useful given what you mentioned about [TOPIC]. No strings attached, just something I thought you'd appreciate!`,
+  },
+  {
+    category: "Conversion",
+    emoji: "✅",
+    title: "Post-Purchase Thank You",
+    content: `Hey {{first_name}}! So excited to have you on board 🎉
+
+Here's what happens next: [NEXT STEPS]
+
+If you ever have questions or need anything, just reply here — I check DMs daily. Let's get you some amazing results!`,
+  },
+];
+
+const PRESET_CATEGORIES = ["All", ...Array.from(new Set(PRESET_TEMPLATES.map(t => t.category)))];
+
 function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: boolean }) {
   const { toast } = useToast();
   const [title, setTitle]     = useState("");
   const [content, setContent] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showPresets, setShowPresets] = useState(true);
+  const [presetCategory, setPresetCategory] = useState("All");
+  const [importingIdx, setImportingIdx] = useState<number | null>(null);
 
   const { data: _replies, isLoading } = useQuery<any[]>({
     queryKey: ["/api/dm/quick-replies", clientId],
@@ -261,6 +537,19 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/dm/quick-replies", clientId] }),
   });
 
+  const importPreset = async (preset: typeof PRESET_TEMPLATES[0], idx: number) => {
+    setImportingIdx(idx);
+    try {
+      await apiRequest("POST", "/api/dm/quick-replies", { title: preset.title, content: preset.content, clientId });
+      queryClient.invalidateQueries({ queryKey: ["/api/dm/quick-replies", clientId] });
+      toast({ title: `"${preset.title}" imported!` });
+    } catch (e: any) {
+      toast({ title: "Import failed", description: e.message, variant: "destructive" });
+    } finally {
+      setImportingIdx(null);
+    }
+  };
+
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -268,8 +557,80 @@ function QuickRepliesPanel({ clientId, isAdmin }: { clientId: string; isAdmin: b
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const filteredPresets = presetCategory === "All"
+    ? PRESET_TEMPLATES
+    : PRESET_TEMPLATES.filter(t => t.category === presetCategory);
+
+  const importedTitles = new Set(replies.map((r: any) => r.title));
+
   return (
     <div className="max-w-2xl space-y-4">
+
+      {/* Starter Templates Gallery */}
+      <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+        <button
+          onClick={() => setShowPresets(p => !p)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-violet-500/5 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-violet-400" />
+            <span className="text-sm font-semibold text-violet-300">Starter Templates</span>
+            <Badge className="bg-violet-500/15 text-violet-400 border-violet-500/30 text-[10px]">{PRESET_TEMPLATES.length} ready-to-use</Badge>
+          </div>
+          {showPresets ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </button>
+
+        {showPresets && (
+          <div className="px-4 pb-4 space-y-3">
+            {/* Category filter */}
+            <div className="flex flex-wrap gap-1.5">
+              {PRESET_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setPresetCategory(cat)}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${presetCategory === cat ? "bg-violet-500/20 border-violet-500/40 text-violet-300" : "border-border text-muted-foreground hover:border-violet-500/30 hover:text-violet-400"}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {filteredPresets.map((preset, idx) => {
+                const globalIdx = PRESET_TEMPLATES.indexOf(preset);
+                const alreadyImported = importedTitles.has(preset.title);
+                return (
+                  <div key={globalIdx} className="p-3 rounded-lg border border-border/50 bg-card/40 space-y-1.5 group">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-base">{preset.emoji}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate">{preset.title}</p>
+                          <span className="text-[9px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">{preset.category}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => !alreadyImported && importPreset(preset, globalIdx)}
+                        disabled={alreadyImported || importingIdx === globalIdx}
+                        className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+                          alreadyImported
+                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default"
+                            : "bg-violet-500/10 border-violet-500/20 text-violet-300 hover:bg-violet-500/20"
+                        }`}
+                      >
+                        {alreadyImported ? <><CheckCircle2 className="w-3 h-3" /> Saved</> : importingIdx === globalIdx ? "..." : <><Plus className="w-3 h-3" /> Add</>}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{preset.content}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Custom template form */}
       <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl space-y-3">
         <p className="text-xs font-semibold text-primary uppercase tracking-wide">New Template</p>
         <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Template name (e.g. Opening DM)" data-testid="input-template-title" />
@@ -712,6 +1073,9 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
   const Layout  = useAdmin ? AdminLayout : ClientLayout;
   const isAdmin = useAdmin || user?.role === "admin";
 
+  // Tab navigation (controlled)
+  const [activeTab, setActiveTab] = useState("triggers");
+
   // Automation state
   const [triggerDialogOpen,  setTriggerDialogOpen]  = useState(false);
   const [editingTrigger,     setEditingTrigger]     = useState<any>(null);
@@ -796,6 +1160,12 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
     staleTime: 30000,
     retry: 1,
   });
+  const { data: aiCfg } = useQuery<any>({
+    queryKey: ["/api/dm/ai-config", activeClientId],
+    queryFn: () => apiRequest("GET", `/api/dm/ai-config${activeClientId ? `?clientId=${activeClientId}` : ""}`),
+    staleTime: 60000,
+    retry: 1,
+  });
 
   // Automation mutations
   const deleteTriggerMutation  = useMutation({ mutationFn: (id: string) => apiRequest("DELETE", `/api/dm/triggers/${id}`),  onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/dm/triggers"] });  toast({ title: "Trigger deleted" }); } });
@@ -846,6 +1216,7 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
   };
 
   const isConnected = account?.connected;
+  const hasAiBrain = !!(aiCfg?.isActive);
 
   // Show error state if critical queries fail
   if (triggersError || sequencesError || leadsError) {
@@ -929,23 +1300,60 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
           })}
         </div>
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="triggers">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="triggers"      className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Auto-Replies</TabsTrigger>
-            <TabsTrigger value="sequences"     className="gap-1.5 text-xs"><MessageSquare className="w-3.5 h-3.5" />Sequences</TabsTrigger>
-            <TabsTrigger value="leads"         className="gap-1.5 text-xs"><MessageCircle className="w-3.5 h-3.5" />Leads</TabsTrigger>
-            <TabsTrigger value="broadcasts"    className="gap-1.5 text-xs"><Send className="w-3.5 h-3.5" />Broadcasts</TabsTrigger>
-            <TabsTrigger value="webhooks"      className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Webhooks</TabsTrigger>
-            <TabsTrigger value="tracking"      className="gap-1.5 text-xs"><Link2 className="w-3.5 h-3.5" />Tracking</TabsTrigger>
-            <TabsTrigger value="custom-fields" className="gap-1.5 text-xs"><Database className="w-3.5 h-3.5" />Fields</TabsTrigger>
-            <TabsTrigger value="send-dm"       className="gap-1.5 text-xs"><Send className="w-3.5 h-3.5" />Send DM</TabsTrigger>
-            <TabsTrigger value="quick-replies" className="gap-1.5 text-xs"><Zap className="w-3.5 h-3.5" />Templates</TabsTrigger>
-            <TabsTrigger value="settings"      className="gap-1.5 text-xs"><Settings className="w-3.5 h-3.5" />Settings</TabsTrigger>
-          </TabsList>
+        {/* Setup Guide Checklist */}
+        <SetupChecklist
+          isConnected={!!isConnected}
+          hasTriggers={triggers.length > 0}
+          hasSequences={sequences.length > 0}
+          hasLeads={leads.length > 0}
+          hasBroadcasts={false}
+          hasAiBrain={hasAiBrain}
+          onNavigate={tab => setActiveTab(tab)}
+        />
+
+        {/* Main Tabs — ordered by setup flow */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="space-y-2">
+            {/* Tab tier labels + triggers */}
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">Foundation</span>
+              <TabsList className="h-auto flex-wrap bg-transparent gap-1 p-0">
+                <TabsTrigger value="settings"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Settings className="w-3.5 h-3.5" />Settings{!isConnected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}</TabsTrigger>
+                <TabsTrigger value="triggers"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Zap className="w-3.5 h-3.5" />Auto-Replies</TabsTrigger>
+                <TabsTrigger value="quick-replies" className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><MessageSquare className="w-3.5 h-3.5" />Templates</TabsTrigger>
+              </TabsList>
+              <div className="w-px h-5 bg-border mx-1" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">Automation</span>
+              <TabsList className="h-auto flex-wrap bg-transparent gap-1 p-0">
+                <TabsTrigger value="sequences"     className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Layers className="w-3.5 h-3.5" />Sequences</TabsTrigger>
+                <TabsTrigger value="leads"         className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><MessageCircle className="w-3.5 h-3.5" />Leads</TabsTrigger>
+                <TabsTrigger value="broadcasts"    className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Send className="w-3.5 h-3.5" />Broadcasts</TabsTrigger>
+                <TabsTrigger value="send-dm"       className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Send className="w-3.5 h-3.5" />Send DM</TabsTrigger>
+              </TabsList>
+              <div className="w-px h-5 bg-border mx-1" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">Advanced</span>
+              <TabsList className="h-auto flex-wrap bg-transparent gap-1 p-0">
+                <TabsTrigger value="ai-brain"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Bot className="w-3.5 h-3.5" />AI Brain</TabsTrigger>
+                <TabsTrigger value="tracking"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Link2 className="w-3.5 h-3.5" />Tracking</TabsTrigger>
+                <TabsTrigger value="webhooks"      className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Webhook className="w-3.5 h-3.5" />Webhooks</TabsTrigger>
+                <TabsTrigger value="custom-fields" className="gap-1.5 text-xs data-[state=active]:bg-card data-[state=active]:border data-[state=active]:border-border h-8"><Database className="w-3.5 h-3.5" />Fields</TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
 
           {/* Auto-Replies Tab */}
           <TabsContent value="triggers" className="mt-4 space-y-4">
+            <TabGuide
+              id="triggers"
+              title="Auto-Replies — Reply instantly when someone sends a keyword"
+              steps={[
+                { icon: Plus,         label: "Create a trigger",   desc: "Click 'New Trigger' and enter the keyword people send (e.g. 'link', 'price', 'freebie')." },
+                { icon: MessageSquare,label: "Write your reply",   desc: "Craft the message that fires automatically. Use {{first_name}} to personalize it." },
+                { icon: Zap,          label: "Set match type",     desc: "Choose Exact Match, Contains, or Starts With depending on how precise you need it." },
+                { icon: Play,         label: "Enable & test",      desc: "Toggle the trigger on, then DM yourself the keyword to verify it fires correctly." },
+              ]}
+              tips={["Use 'Contains' for flexibility — e.g. keyword 'price' catches 'what's the price'", "Stack multiple triggers for different keywords", "{{first_name}} auto-fills from the lead's name in your CRM"]}
+            />
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Automatically reply when someone sends a keyword</p>
               <Button onClick={() => { setEditingTrigger(null); setTriggerDialogOpen(true); }} className="gap-2 h-9 text-sm">
@@ -979,6 +1387,17 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
 
           {/* Sequences Tab */}
           <TabsContent value="sequences" className="mt-4 space-y-4">
+            <TabGuide
+              id="sequences"
+              title="Sequences — Multi-step DM drip campaigns sent over time"
+              steps={[
+                { icon: Plus,         label: "Create a sequence",  desc: "Click 'New Sequence', name it (e.g. 'New Lead Nurture'), and add your first step." },
+                { icon: Layers,       label: "Add steps",          desc: "Each step has a message + delay. E.g. Step 1 (Day 0), Step 2 (+2 days), Step 3 (+5 days)." },
+                { icon: Users,        label: "Enroll leads",       desc: "Leads are enrolled manually or automatically when a trigger fires that's linked to this sequence." },
+                { icon: CheckCircle2, label: "Monitor progress",   desc: "Track which leads are on which step and who converted through the sequence." },
+              ]}
+              tips={["Best for onboarding new followers, nurture campaigns, or sales follow-ups", "Use delays to space out messages — don't spam. Day 0, 2, 5, 10 is a solid cadence", "Personalize with {{first_name}} on every step"]}
+            />
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Create multi-step DM drip campaigns</p>
               <Button onClick={() => { setEditingSequence(null); setSequenceDialogOpen(true); }} className="gap-2 h-9 text-sm">
@@ -1012,6 +1431,17 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
 
           {/* Leads Tab */}
           <TabsContent value="leads" className="mt-4 space-y-4">
+            <TabGuide
+              id="leads"
+              title="Leads — Track every contact through your pipeline"
+              steps={[
+                { icon: Plus,         label: "Add a lead",         desc: "Click 'Add Lead', enter their name and Instagram handle. Leads are also auto-created when triggers fire." },
+                { icon: LayoutGrid,   label: "Manage pipeline",    desc: "Move leads across New → Warm → Hot → Converted using the Pipeline view. Drag or edit status." },
+                { icon: Calendar,     label: "Set follow-ups",     desc: "Assign a follow-up date to each lead. Overdue follow-ups show in red so nothing falls through." },
+                { icon: Send,         label: "DM from the card",   desc: "Click the 'DM' button on any lead card to jump straight to sending them a message." },
+              ]}
+              tips={["Hot leads = high intent, act fast", "Use the filter bar to segment by status, tag, or opt-out", "CSV export backs up your entire lead list with all fields"]}
+            />
             {/* Lead stats */}
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
               {[
@@ -1153,6 +1583,17 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
           {/* Send DM Tab */}
           <TabsContent value="send-dm" className="mt-4">
             <div className="max-w-2xl space-y-5">
+              <TabGuide
+                id="send-dm"
+                title="Send DM — Send a one-off DM to any lead"
+                steps={[
+                  { icon: Instagram,    label: "Must be connected",  desc: "Your Instagram must be linked in Settings before you can send. A green badge confirms it." },
+                  { icon: User,         label: "Get their User ID",  desc: "You need the numeric Instagram User ID (e.g. 1784140000) — not the @handle. Get it from the lead card or Meta Graph Explorer." },
+                  { icon: MessageSquare,label: "Load a template",    desc: "Use the Quick Reply dropdown to prefill a saved template, then customize it." },
+                  { icon: Send,         label: "Send",               desc: "Hit Send DM. Note: Instagram only allows DMs to users who messaged you in the last 24h." },
+                ]}
+                tips={["24-hour window is a Meta policy — cannot be bypassed", "Use the Templates tab to save your most-used messages", "Lead cards have a quick DM shortcut for faster sending"]}
+              />
               {account && (
                 <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${isConnected ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
                   {isConnected ? (
@@ -1197,13 +1638,35 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
           </TabsContent>
 
           {/* Quick Replies Tab */}
-          <TabsContent value="quick-replies" className="mt-4">
+          <TabsContent value="quick-replies" className="mt-4 space-y-0">
+            <TabGuide
+              id="quick-replies"
+              title="Templates — Save and reuse your best DM messages"
+              steps={[
+                { icon: Plus,         label: "Create a template",  desc: "Click 'New Template', give it a name, and write the message you want to reuse." },
+                { icon: MessageSquare,label: "Use variables",      desc: "Add {{first_name}}, {{instagram}}, or any custom field to personalize each send." },
+                { icon: Copy,         label: "Copy instantly",     desc: "Click the copy icon on any template to instantly copy it to your clipboard." },
+                { icon: Send,         label: "Load in Send DM",    desc: "In the Send DM tab, select any template from the dropdown to prefill the message box." },
+              ]}
+              tips={["Create templates for your most common replies: intro, follow-up, offer, objection handle", "Templates save you minutes every single day"]}
+            />
             <QuickRepliesPanel clientId={activeClientId} isAdmin={isAdmin} />
           </TabsContent>
 
           {/* Broadcasts Tab */}
           <TabsContent value="broadcasts" className="mt-4">
             <div className="space-y-4">
+              <TabGuide
+                id="broadcasts"
+                title="Broadcasts — Send a DM blast to all your leads at once"
+                steps={[
+                  { icon: Users,        label: "Build your list",    desc: "Broadcasts go to leads in your pipeline. Make sure you've added leads first." },
+                  { icon: MessageSquare,label: "Write the message",   desc: "Craft your broadcast message. Use {{first_name}} to personalize at scale." },
+                  { icon: Calendar,     label: "Schedule it",        desc: "Choose a send time — schedule broadcasts for when your audience is most active." },
+                  { icon: AlertCircle,  label: "Instagram limits",   desc: "Instagram only allows DMs to users who messaged you in the last 24h. This is a Meta policy." },
+                ]}
+                tips={["Warm leads respond best — filter your list before blasting", "Test your message on one lead first before sending to all", "Track replies in the Leads tab after sending"]}
+              />
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Scheduled Broadcasts</h3>
@@ -1220,21 +1683,81 @@ function DMAutomationInner({ useAdmin = false }: { useAdmin?: boolean }) {
 
           {/* Webhooks Tab */}
           <TabsContent value="webhooks" className="mt-4">
+            <TabGuide
+              id="webhooks"
+              title="Webhooks — Real-time event notifications"
+              steps={[
+                { icon: Link2,        label: "Add a URL",          desc: "Paste your server endpoint or Zapier/Make webhook URL." },
+                { icon: Zap,          label: "Choose events",      desc: "Pick which events fire the webhook: new_lead, trigger_fired, dm_sent, etc." },
+                { icon: CheckCircle2, label: "Test it",            desc: "Use the 'Test' button to fire a sample payload and verify your endpoint responds." },
+                { icon: RefreshCw,    label: "Monitor & debug",    desc: "Check delivery logs in your receiving service. Webhooks retry on failure." },
+              ]}
+              tips={["Works with Zapier, Make, n8n, and any HTTP endpoint", "Events include: new_lead, lead_status_changed, dm_sent, trigger_fired"]}
+            />
             <WebhookManager clientId={activeClientId} />
           </TabsContent>
 
           {/* Tracking Tab */}
           <TabsContent value="tracking" className="mt-4">
+            <TabGuide
+              id="tracking"
+              title="Click Tracking — See who clicks your links"
+              steps={[
+                { icon: Link2,        label: "Create a link",      desc: "Paste any destination URL and give the link a name." },
+                { icon: Send,         label: "Use in DMs",         desc: "Copy the tracking URL and paste it into your DM or sequence messages." },
+                { icon: CheckCircle2, label: "Track clicks",       desc: "Every click logs the lead, timestamp, and device type automatically." },
+                { icon: Target,       label: "Measure ROI",        desc: "See which messages or triggers drive the most link clicks and conversions." },
+              ]}
+              tips={["Use different links per campaign to A/B test messaging", "Clicks are tied back to the lead record automatically"]}
+            />
             <ClickTrackingPanel clientId={activeClientId} />
           </TabsContent>
 
           {/* Custom Fields Tab */}
           <TabsContent value="custom-fields" className="mt-4">
+            <TabGuide
+              id="custom-fields"
+              title="Custom Fields — Capture any lead data you need"
+              steps={[
+                { icon: Plus,         label: "Create a field",     desc: "Name your field (e.g. 'Budget', 'Industry', 'Niche') and choose its type." },
+                { icon: Users,        label: "Fill per lead",      desc: "Open any lead card and fill in the custom field values for that contact." },
+                { icon: MessageSquare,label: "Use in templates",   desc: "Reference fields in DMs with {{field_name}} — they auto-fill per lead." },
+                { icon: Database,     label: "Export with CSV",    desc: "All custom field data is included when you export your leads to CSV." },
+              ]}
+              tips={["Field names become template variables: 'Budget' → {{budget}}", "Great for segmenting leads for targeted broadcasts"]}
+            />
             <CustomFieldsManager clientId={activeClientId} />
+          </TabsContent>
+
+          {/* AI Brain Tab */}
+          <TabsContent value="ai-brain" className="mt-4">
+            <TabGuide
+              id="ai-brain"
+              title="AI Brain — Handle DMs in your voice with your own API key"
+              steps={[
+                { icon: Key,          label: "Add your API key",   desc: "Paste your Claude (Anthropic) or Gemini (Google) API key. It's encrypted and never logged." },
+                { icon: Sparkles,     label: "Write your prompt",  desc: "Describe your voice, goals, and rules. E.g. 'Keep replies under 3 sentences. Never pitch immediately.'" },
+                { icon: MessageSquare,label: "Add examples",       desc: "Show 3-5 real DM exchanges in your style. The AI learns your exact tone from these." },
+                { icon: Tag,          label: "Set tag rules",      desc: "Define keywords that auto-tag leads. E.g. 'pricing' → tag 'pricing-interest'." },
+              ]}
+              tips={["Claude claude-opus-4-8 is the default — best quality", "Test before enabling — use the test box to verify replies match your tone", "Toggle 'Active' only when you're confident in the output"]}
+            />
+            <AIBrainConfig clientId={activeClientId} />
           </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="mt-4 space-y-6">
+            <TabGuide
+              id="settings"
+              title="Settings — Start here before anything else"
+              steps={[
+                { icon: Instagram,    label: "Connect Instagram",  desc: "Link your Meta/Instagram account. This is required for all DM sending and auto-replies." },
+                { icon: MessageSquare,label: "Set Welcome DM",     desc: "Write a message that's auto-sent when someone DMs you for the first time." },
+                { icon: CheckCircle2, label: "Verify connection",  desc: "After connecting, you should see your @username and a green 'Connected' badge." },
+                { icon: RefreshCw,    label: "Re-connect if needed", desc: "If your token expires, return here and reconnect — tokens last ~60 days." },
+              ]}
+              tips={["Must connect Instagram before triggers or AI replies can fire", "Welcome DM fires once per new contact — not on repeat messages"]}
+            />
             <WelcomeDMConfig clientId={activeClientId} />
             <div className="border-t border-border pt-6">
               <InstagramConnectPanel clientId={activeClientId} />

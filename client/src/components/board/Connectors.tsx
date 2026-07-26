@@ -45,7 +45,7 @@ export default function ConnectorRenderer({ connectors, nodes, zoom }: Props) {
   }, [connectors, nodes, zoom]);
 
   return (
-    <svg style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
+    <svg style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, overflow: "visible" }} width="100%" height="100%">
       {paths.map(p => p && (
         <g key={p.id}>
           <path d={p.d} fill="none" stroke={p.color} strokeWidth={4 / zoom} opacity={0.15} />
@@ -89,7 +89,7 @@ export function ConnectorPath({ from, to, color = "#d4b461", zoom = 1, dashed = 
   const d = `M ${from.x} ${from.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${to.x} ${to.y}`;
 
   return (
-    <svg style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: dashed ? 9999 : 2 }}>
+    <svg style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: dashed ? 9999 : 2, overflow: "visible" }} width="100%" height="100%">
       <path d={d} fill="none" stroke={color}
         strokeWidth={2 / zoom}
         strokeDasharray={dashed ? "6,4" : "none"}

@@ -1442,6 +1442,77 @@ function NextTierBenefits({ plan }: { plan: string }) {
         })}
       </div>
 
+      {/* Tier 5 dashboard preview — only shown for pro plan */}
+      {plan === "pro" && (
+        <div className="relative px-6 pb-2">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1 h-px" style={{ background: "rgba(212,180,97,0.12)" }} />
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Your dashboard when you upgrade</p>
+            <div className="flex-1 h-px" style={{ background: "rgba(212,180,97,0.12)" }} />
+          </div>
+
+          <div
+            className="relative overflow-hidden rounded-2xl"
+            style={{
+              background: "linear-gradient(135deg, rgba(212,180,97,0.1) 0%, rgba(0,0,0,0.5) 100%)",
+              border: "1px solid rgba(212,180,97,0.3)",
+              boxShadow: "0 0 60px rgba(212,180,97,0.07)",
+            }}
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none" style={{ background: GOLD, opacity: 0.06, transform: "translate(35%, -35%)" }} />
+
+            {/* Header */}
+            <div className="relative px-5 pt-5 pb-4" style={{ borderBottom: "1px solid rgba(212,180,97,0.15)" }}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />
+                    <span className="text-[9px] font-bold uppercase tracking-[0.2em]" style={{ color: GOLD }}>Mission Briefing</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: "rgba(212,180,97,0.15)", color: GOLD, border: "1px solid rgba(212,180,97,0.3)" }}>Tier 5 · Elite</span>
+                  </div>
+                  <h3 className="text-lg font-black text-white mb-1">Your Mission Control</h3>
+                  <p className="text-xs text-zinc-400">Current phase: <span className="font-semibold text-white">Phase 2 · Launch & Growth</span></p>
+                </div>
+                <div
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold opacity-60 cursor-not-allowed select-none"
+                  style={{ background: `linear-gradient(135deg, ${GOLD}, #b89848)`, color: "#000" }}
+                >
+                  <CalendarPlus className="w-4 h-4" /> Book a Call
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">Mission Progress</span>
+                  <span className="text-xs font-black" style={{ color: GOLD }}>68%</span>
+                </div>
+                <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: "68%", background: `linear-gradient(90deg, ${GOLD}, #34d399)` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="relative grid grid-cols-2 sm:grid-cols-4">
+              {[
+                { label: "Next Action",     value: "Content batch review",  isText: true,  color: "rgba(255,255,255,0.75)" },
+                { label: "Pending Tasks",   value: 3,                       isText: false, color: "#a78bfa" },
+                { label: "Awaiting Review", value: 2,                       isText: false, color: "#60a5fa" },
+                { label: "Blockers",        value: 0,                       isText: false, color: "#34d399" },
+              ].map(({ label, value, isText, color }, i) => (
+                <div key={label} className="px-4 py-3" style={{ borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-600 mb-1.5">{label}</p>
+                  {isText
+                    ? <p className="text-xs font-semibold leading-relaxed" style={{ color }}>{value}</p>
+                    : <p className="text-xl font-black" style={{ color }}>{value}</p>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer CTA */}
       <div
         className="relative px-6 pb-6 flex items-center justify-between flex-wrap gap-4"

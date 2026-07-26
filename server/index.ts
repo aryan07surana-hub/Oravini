@@ -230,6 +230,17 @@ app.use((req, res, next) => {
 async function runMigrations() {
   try {
     await pool.query(`
+      ALTER TABLE onboarding_surveys
+        ADD COLUMN IF NOT EXISTS instagram_link TEXT,
+        ADD COLUMN IF NOT EXISTS youtube_link TEXT
+    `);
+    console.log("[migration] onboarding_surveys instagram_link/youtube_link ensured");
+  } catch (e: any) {
+    console.warn("[migration] onboarding_surveys instagram/youtube skipped:", e.message);
+  }
+
+  try {
+    await pool.query(`
       ALTER TABLE content_posts
         ADD COLUMN IF NOT EXISTS shares INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS content_style TEXT,
@@ -1188,6 +1199,29 @@ async function runMigrations() {
     console.log("[migration] meta_ads_templates ensured");
   } catch (e: any) {
     console.warn("[migration] meta_ads_templates skipped:", e.message);
+  }
+
+  // ── DM AI Brain (BYOK) ───────────────────────────────────────────────────
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dm_ai_configs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(20) NOT NULL DEFAULT 'claude',
+        api_key_encrypted TEXT NOT NULL,
+        system_prompt TEXT NOT NULL DEFAULT '',
+        voice_description TEXT NOT NULL DEFAULT '',
+        example_conversations JSONB DEFAULT '[]',
+        auto_tag_rules JSONB DEFAULT '[]',
+        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS dm_ai_configs_user_id_idx ON dm_ai_configs(user_id)`);
+    console.log("[migration] dm_ai_configs ensured");
+  } catch (e: any) {
+    console.warn("[migration] dm_ai_configs skipped:", e.message);
   }
 }
 

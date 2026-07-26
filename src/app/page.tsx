@@ -343,30 +343,154 @@ export default function Home() {
           <div className={styles.resultHeader}>
             <div>
               <h2>Your planned day</h2>
-              <p>{result ? `Generated with ${result.source === "ai" ? "AI" : "the built-in planner"}` : "No plan yet"}</p>
+              <p>{result ? `Generated with ${result.source === "ai" ? "AI" : "the built-in planner"}` : "Preview — generate to personalize"}</p>
             </div>
           </div>
 
           <div className={styles.timeline}>
-            {(result?.schedule ?? []).map((block, index) => (
-              <article className={`${styles.block} ${styles[block.type]}`} key={`${block.title}-${block.start}-${index}`}>
-                <div className={styles.time}>
-                  <strong>{block.start}</strong>
-                  <span>{block.end}</span>
-                </div>
-                <div>
-                  <h3>{block.title}</h3>
-                  {block.notes ? <p>{block.notes}</p> : null}
-                </div>
-              </article>
-            ))}
-
-            {!result ? (
-              <div className={styles.emptyState}>
-                <p>Your full-day timeline will show up here after you generate a plan.</p>
-              </div>
-            ) : null}
+            {result ? (
+              result.schedule.map((block, index) => (
+                <article className={`${styles.block} ${styles[block.type]}`} key={`${block.title}-${block.start}-${index}`}>
+                  <div className={styles.time}>
+                    <strong>{block.start}</strong>
+                    <span>{block.end}</span>
+                  </div>
+                  <div>
+                    <h3>{block.title}</h3>
+                    {block.notes ? <p>{block.notes}</p> : null}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <>
+                <article className={`${styles.block} ${styles.sleep}`}>
+                  <div className={styles.time}><strong>07:00</strong><span>07:30</span></div>
+                  <div><h3>Wake up &amp; morning routine</h3><p>Ease into the day</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.fixed}`}>
+                  <div className={styles.time}><strong>08:00</strong><span>09:00</span></div>
+                  <div><h3>Gym</h3><p>Fixed event</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.task}`}>
+                  <div className={styles.time}><strong>09:15</strong><span>12:15</span></div>
+                  <div><h3>Client project</h3><p>High priority · 3 hrs deep work</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.break}`}>
+                  <div className={styles.time}><strong>12:15</strong><span>12:45</span></div>
+                  <div><h3>Break</h3><p>Rest and recharge</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.fixed}`}>
+                  <div className={styles.time}><strong>13:00</strong><span>14:00</span></div>
+                  <div><h3>Lunch with family</h3><p>Fixed event</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.task}`}>
+                  <div className={styles.time}><strong>14:15</strong><span>16:15</span></div>
+                  <div><h3>Study AI</h3><p>Medium priority · 2 hrs focused</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.task}`}>
+                  <div className={styles.time}><strong>16:30</strong><span>17:30</span></div>
+                  <div><h3>Admin + email</h3><p>Low priority · 1 hr</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.buffer}`}>
+                  <div className={styles.time}><strong>17:30</strong><span>18:30</span></div>
+                  <div><h3>Buffer / flex time</h3><p>Catch-up or wind down</p></div>
+                </article>
+                <article className={`${styles.block} ${styles.sleep}`}>
+                  <div className={styles.time}><strong>23:00</strong><span>07:00</span></div>
+                  <div><h3>Sleep</h3><p>8 hours</p></div>
+                </article>
+              </>
+            )}
           </div>
+        </div>
+      </section>
+
+      {/* AI Video Studio section */}
+      <section className={styles.videoStudioSection}>
+        <div className={styles.videoStudioHeader}>
+          <p className={styles.videoStudioEyebrow}>Powered by Higgsfield</p>
+          <h2>Generate AI Videos. Right Inside Your Platform.</h2>
+          <p className={styles.videoStudioSub}>
+            6 state-of-the-art models. Pay per generation. No subscriptions to individual tools.
+          </p>
+          <div className={styles.freeVideoBadge}>
+            🎬 Every account gets <strong>2 free AI videos per week</strong> — no card needed
+          </div>
+        </div>
+
+        <div className={styles.videoModelGrid}>
+          <div className={styles.videoModelCard}>
+            <div className={styles.videoModelTag}>Popular</div>
+            <div className={styles.videoModelName}>Kling 2.6</div>
+            <div className={styles.videoModelProvider}>by Kling</div>
+            <div className={styles.videoModelDesc}>Cinematic motion, advanced physics, native audio</div>
+            <div className={styles.videoModelMeta}>
+              <span>5s – 10s</span>
+              <span className={styles.videoModelCredits}>from 24 credits</span>
+            </div>
+          </div>
+
+          <div className={styles.videoModelCard}>
+            <div className={styles.videoModelTag}>4K Quality</div>
+            <div className={styles.videoModelName}>Seedance 2.0</div>
+            <div className={styles.videoModelProvider}>by ByteDance</div>
+            <div className={styles.videoModelDesc}>Reference-driven identity, 4K capable, multi-SKU</div>
+            <div className={styles.videoModelMeta}>
+              <span>5s – 15s</span>
+              <span className={styles.videoModelCredits}>from 30 credits</span>
+            </div>
+          </div>
+
+          <div className={styles.videoModelCard}>
+            <div className={styles.videoModelTag}>Fast</div>
+            <div className={styles.videoModelName}>Seedance Mini</div>
+            <div className={styles.videoModelProvider}>by ByteDance</div>
+            <div className={styles.videoModelDesc}>Budget Seedance 2.0 — fast turnaround, full audio</div>
+            <div className={styles.videoModelMeta}>
+              <span>5s – 15s</span>
+              <span className={styles.videoModelCredits}>from 18 credits</span>
+            </div>
+          </div>
+
+          <div className={styles.videoModelCard}>
+            <div className={styles.videoModelTag}>Creative</div>
+            <div className={styles.videoModelName}>Wan 2.6</div>
+            <div className={styles.videoModelProvider}>by Wan</div>
+            <div className={styles.videoModelDesc}>Open-weight, stylized, experimental creative output</div>
+            <div className={styles.videoModelMeta}>
+              <span>5s – 15s</span>
+              <span className={styles.videoModelCredits}>from 17 credits</span>
+            </div>
+          </div>
+
+          <div className={styles.videoModelCard}>
+            <div className={styles.videoModelTag}>Cinematic</div>
+            <div className={styles.videoModelName}>Minimax Hailuo</div>
+            <div className={styles.videoModelProvider}>by Hailuo</div>
+            <div className={styles.videoModelDesc}>Natural physics, facial emotion, realistic motion</div>
+            <div className={styles.videoModelMeta}>
+              <span>6s – 10s</span>
+              <span className={styles.videoModelCredits}>from 33 credits</span>
+            </div>
+          </div>
+
+          <div className={`${styles.videoModelCard} ${styles.videoModelPremium}`}>
+            <div className={styles.videoModelTag}>Premium</div>
+            <div className={styles.videoModelName}>Cinema Studio 3.0</div>
+            <div className={styles.videoModelProvider}>by Higgsfield</div>
+            <div className={styles.videoModelDesc}>Most advanced cinema-grade AI model. Genre control, 4K, audio</div>
+            <div className={styles.videoModelMeta}>
+              <span>5s – 15s</span>
+              <span className={styles.videoModelCredits}>from 40 credits</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.videoStudioCta}>
+          <a href="/video-marketing/platform" className={styles.videoStudioBtn}>
+            Open AI Video Studio
+          </a>
+          <span className={styles.videoStudioCtaNote}>1 credit = $0.01 · Pay only for what you generate</span>
         </div>
       </section>
 

@@ -146,6 +146,9 @@ import ClientScheduling from "@/pages/client/Scheduling";
 import KnowledgeGraph from "@/pages/client/KnowledgeGraph";
 import Vault from "@/pages/client/Vault";
 import Analytics from "@/pages/client/Analytics";
+import MentorKit from "@/pages/client/MentorKit";
+import MentorKitNew from "@/pages/client/MentorKitNew";
+import MentorKitProduct from "@/pages/client/MentorKitProduct";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
@@ -188,6 +191,7 @@ import SuperAdminDocuments from "@/pages/super-admin/DocumentsList";
 import SuperAdminTodos from "@/pages/super-admin/TodoList";
 import SuperAdminDailyRead from "@/pages/super-admin/DailyRead";
 import SuperAdminInspiration from "@/pages/super-admin/Inspiration";
+import SuperAdminContentTracker from "@/pages/super-admin/ContentTracker";
 
 function PortalGuard({ component: Component, ...props }: any) {
   const { user, isLoading } = useAuth();
@@ -382,6 +386,11 @@ function Router() {
       <Route path="/caption-writer">{() => <Guard component={CaptionWriterPage} />}</Route>
       <Route path="/analytics">{() => <Guard component={Analytics} />}</Route>
 
+      {/* MentorKit — Digital Product Builder */}
+      <Route path="/mentor-kit/product/:id">{(p) => <Guard component={MentorKitProduct} id={p.id} />}</Route>
+      <Route path="/mentor-kit/new">{() => <Guard component={MentorKitNew} />}</Route>
+      <Route path="/mentor-kit">{() => <Guard component={MentorKit} />}</Route>
+
       {/* Oravini Portal — protected, oravini@gmail.com only */}
       <Route path="/portal/elite-members">{() => <PortalGuard component={PortalEliteMembers} />}</Route>
       <Route path="/portal/sessions">{() => <PortalGuard component={PortalSessionsHub} />}</Route>
@@ -397,6 +406,7 @@ function Router() {
       <Route path="/super-admin/clients">{() => <SuperAdminGuard component={SuperAdminClientList} />}</Route>
       <Route path="/super-admin/documents">{() => <SuperAdminGuard component={SuperAdminDocuments} />}</Route>
       <Route path="/super-admin/todos">{() => <SuperAdminGuard component={SuperAdminTodos} />}</Route>
+      <Route path="/super-admin/content-tracker">{() => <SuperAdminGuard component={SuperAdminContentTracker} />}</Route>
       <Route path="/super-admin/daily-read">{() => <SuperAdminGuard component={SuperAdminDailyRead} />}</Route>
       <Route path="/super-admin/inspiration">{() => <SuperAdminGuard component={SuperAdminInspiration} />}</Route>
       <Route path="/super-admin/overview">{() => <SuperAdminGuard component={SuperAdminOverview} />}</Route>

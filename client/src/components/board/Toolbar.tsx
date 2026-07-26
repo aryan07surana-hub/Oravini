@@ -2,7 +2,7 @@ import {
   MousePointer2, StickyNote, Square, MoveRight, Type, Image, Hand,
   Undo2, Redo2, Download, ZoomIn, ZoomOut,
   Trash2, Copy, BringToFront, SendToBack,
-  Palette, ArrowLeftRight,
+  ArrowLeftRight, LayoutTemplate, Maximize2,
 } from "lucide-react";
 import { GOLD, STICKY_COLORS, SHAPE_PRESETS, CONNECTOR_COLORS, NODE_COLORS, type ToolMode } from "./types";
 
@@ -34,6 +34,7 @@ interface Props {
   onChangeConnectorColor: (color: string) => void;
   onOpenTemplates: () => void;
   onAutoLayout: () => void;
+  onZoomFit: () => void;
 }
 
 function ToolBtn({ icon, label, active, onClick, disabled }: {
@@ -73,7 +74,7 @@ export default function BoardToolbar({
   selectedId, selectedIds, onDeleteSelected, onDuplicateSelected,
   onBringToFront, onSendToBack,
   nodeColor, onChangeColor, connectorColor, onChangeConnectorColor,
-  onOpenTemplates, onAutoLayout,
+  onOpenTemplates, onAutoLayout, onZoomFit,
 }: Props) {
   const hasSelection = selectedId !== null || selectedIds.length > 0;
 
@@ -119,6 +120,7 @@ export default function BoardToolbar({
       <ToolBtn icon={<Download size={15} />} label="Export PNG" onClick={onExport} />
 
       {/* Templates & Auto Layout */}
+      <ToolBtn icon={<LayoutTemplate size={15} />} label="Templates" onClick={onOpenTemplates} />
       <ToolBtn icon={<ArrowLeftRight size={15} />} label="Auto Layout" onClick={onAutoLayout} />
 
       <Divider />
@@ -138,6 +140,7 @@ export default function BoardToolbar({
         {Math.round(zoom * 100)}%
       </button>
       <ToolBtn icon={<ZoomIn size={15} />} label="Zoom In" onClick={onZoomIn} />
+      <ToolBtn icon={<Maximize2 size={15} />} label="Zoom to Fit (Shift+1)" onClick={onZoomFit} />
 
       {/* Format bar (when node selected) */}
       {hasSelection && selectedId && (
