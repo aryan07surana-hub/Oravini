@@ -554,6 +554,7 @@ export const formQuestions = pgTable("form_questions", {
   options: jsonb("options"), // string[] for mcq
   required: boolean("required").notNull().default(false),
   orderIdx: integer("order_idx").notNull().default(0),
+  logic: jsonb("logic"), // LogicCondition[] for conditional routing
 });
 export const insertFormQuestionSchema = createInsertSchema(formQuestions).omit({ id: true });
 export type InsertFormQuestion = z.infer<typeof insertFormQuestionSchema>;

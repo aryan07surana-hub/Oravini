@@ -385,7 +385,16 @@ export interface IStorage {
   getFormSubmissions(formId: string): Promise<(FormSubmission & { answers: FormAnswer[] })[]>;
   createFormSubmission(formId: string, data: { respondentName?: string; respondentEmail?: string; metadata?: any }, answers: { questionId: string; value: string }[]): Promise<FormSubmission>;
   trackFormView(formId: string, metadata?: any): Promise<void>;
-  getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }>;
+  getAllFormContacts(userId: string): Promise<any[]>;
+  getFormAnalytics(formId: string): Promise<{
+    views: number;
+    submissions: number;
+    emailCaptures: number;
+    conversionRate: number;
+    countries: Array<{ code: string; name: string; count: number }>;
+    devices: { mobile: number; tablet: number; desktop: number };
+    dailyStats: Array<{ date: string; views: number; submissions: number }>;
+  }>;
 
   // Video Studio
   getVideoEdits(userId: string): Promise<VideoEdit[]>;
@@ -1885,8 +1894,55 @@ class DatabaseStorage implements IStorage {
   async saveFormQuestions(formId: string, questions: Omit<InsertFormQuestion, "formId">[]): Promise<FormQuestion[]> {
     await db.delete(formQuestions).where(eq(formQuestions.formId, formId));
     if (!questions.length) return [];
-    const rows = await db.insert(formQuestions).values(questions.map((q, i) => ({ ...q, formId, orderIdx: i }))).returning();
+    const rows = await db.insert(formQuestions).values(
+      questions.map((q, i) => ({ ...q, formId, orderIdx: i, logic: (q as any).logic ?? null }))
+    ).returning();
     return rows;
+  }
+
+  async getAllFormContacts(userId: string): Promise<Array<{
+    submissionId: string;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    formId: string;
+    formTitle: string;
+    formType: string;
+    submittedAt: Date | null;
+  }>> {
+    const userForms = await db.select().from(forms).where(eq(forms.userId, userId));
+    if (!userForms.length) return [];
+    const formIds = userForms.map(f => f.id);
+    const formMap = Object.fromEntries(userForms.map(f => [f.id, f]));
+
+    const subs = await db.select().from(formSubmissions)
+      .where(inArray(formSubmissions.formId, formIds))
+      .orderBy(desc(formSubmissions.submittedAt));
+
+    if (!subs.length) return [];
+    const subIds = subs.map(s => s.id);
+    const allAnswers = await db.select().from(formAnswers).where(inArray(formAnswers.submissionId, subIds));
+    const allQs = await db.select().from(formQuestions).where(inArray(formQuestions.formId, formIds));
+
+    const phoneQIds = new Set(allQs.filter(q => q.type === "phone").map(q => q.id));
+
+    return subs.map(s => {
+      const ansMap = Object.fromEntries(
+        allAnswers.filter(a => a.submissionId === s.id).map(a => [a.questionId, a.value])
+      );
+      const phone = Object.entries(ansMap).find(([qId]) => phoneQIds.has(qId))?.[1] ?? null;
+      const f = formMap[s.formId];
+      return {
+        submissionId: s.id,
+        name: s.respondentName ?? null,
+        email: s.respondentEmail ?? null,
+        phone: phone ?? null,
+        formId: s.formId,
+        formTitle: f?.title ?? "Unknown",
+        formType: f?.type ?? "form",
+        submittedAt: s.submittedAt,
+      };
+    }).filter(c => c.name || c.email);
   }
 
   async getFormSubmissions(formId: string): Promise<(FormSubmission & { answers: FormAnswer[] })[]> {
@@ -1909,15 +1965,72 @@ class DatabaseStorage implements IStorage {
     await db.insert(formViews).values({ formId, metadata });
   }
 
-  async getFormAnalytics(formId: string): Promise<{ views: number; submissions: number; emailCaptures: number }> {
-    const viewRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formViews).where(eq(formViews.formId, formId));
-    const subRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formSubmissions).where(eq(formSubmissions.formId, formId));
-    const emailRows = await db.select({ count: sqlExpr<number>`count(*)::int` }).from(formSubmissions).where(and(eq(formSubmissions.formId, formId), sqlExpr`respondent_email IS NOT NULL AND respondent_email != ''`));
-    return {
-      views: viewRows[0]?.count ?? 0,
-      submissions: subRows[0]?.count ?? 0,
-      emailCaptures: emailRows[0]?.count ?? 0,
-    };
+  async getFormAnalytics(formId: string) {
+    const [allViews, allSubs] = await Promise.all([
+      db.select().from(formViews).where(eq(formViews.formId, formId)),
+      db.select().from(formSubmissions).where(eq(formSubmissions.formId, formId)),
+    ]);
+
+    const emailCaptures = allSubs.filter(s => s.respondentEmail).length;
+    const conversionRate = allViews.length > 0 ? Math.round((allSubs.length / allViews.length) * 1000) / 10 : 0;
+
+    // Country breakdown from view metadata
+    const countryCounts: Record<string, { name: string; count: number }> = {};
+    for (const v of allViews) {
+      const meta = v.metadata as any;
+      if (meta?.country) {
+        if (!countryCounts[meta.country]) countryCounts[meta.country] = { name: meta.countryName || meta.country, count: 0 };
+        countryCounts[meta.country].count++;
+      }
+    }
+    const countries = Object.entries(countryCounts)
+      .map(([code, { name, count }]) => ({ code, name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Device breakdown
+    const devices = { mobile: 0, tablet: 0, desktop: 0 };
+    for (const v of allViews) {
+      const meta = v.metadata as any;
+      const device = (meta?.device as keyof typeof devices) || "desktop";
+      if (device in devices) devices[device]++;
+      else devices.desktop++;
+    }
+
+    // Daily stats (last 14 days)
+    const [dailyViewsResult, dailySubsResult] = await Promise.all([
+      db.execute(sqlExpr`
+        SELECT DATE(viewed_at AT TIME ZONE 'UTC') as date, COUNT(*)::int as count
+        FROM form_views WHERE form_id = ${formId}
+          AND viewed_at > NOW() - INTERVAL '14 days'
+        GROUP BY DATE(viewed_at AT TIME ZONE 'UTC') ORDER BY date
+      `),
+      db.execute(sqlExpr`
+        SELECT DATE(submitted_at AT TIME ZONE 'UTC') as date, COUNT(*)::int as count
+        FROM form_submissions WHERE form_id = ${formId}
+          AND submitted_at > NOW() - INTERVAL '14 days'
+        GROUP BY DATE(submitted_at AT TIME ZONE 'UTC') ORDER BY date
+      `),
+    ]);
+
+    const viewsByDate: Record<string, number> = {};
+    for (const row of dailyViewsResult.rows as any[]) {
+      viewsByDate[new Date(row.date).toISOString().split("T")[0]] = row.count;
+    }
+    const subsByDate: Record<string, number> = {};
+    for (const row of dailySubsResult.rows as any[]) {
+      subsByDate[new Date(row.date).toISOString().split("T")[0]] = row.count;
+    }
+
+    const dailyStats: Array<{ date: string; views: number; submissions: number }> = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      dailyStats.push({ date: dateStr, views: viewsByDate[dateStr] || 0, submissions: subsByDate[dateStr] || 0 });
+    }
+
+    return { views: allViews.length, submissions: allSubs.length, emailCaptures, conversionRate, countries, devices, dailyStats };
   }
 
   // ── Meetings Notetaker ──────────────────────────────────────────────────────

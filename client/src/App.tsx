@@ -32,6 +32,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 import VideoMarketingDiagnostic from "@/pages/VideoMarketingDiagnostic";
+import LusionInspired from "@/pages/LusionInspired";
 import Landing from "@/pages/Landing";
 import OraviniLanding from "@/pages/OraviniLanding";
 import VideoMarketingLanding from "@/pages/VideoMarketingLanding";
@@ -98,6 +99,7 @@ import BioImprove from "@/pages/client/BioImprove";
 import BioTemplates from "@/pages/client/BioTemplates";
 import BioCompetitor from "@/pages/client/BioCompetitor";
 import FormResponses from "@/pages/client/FormResponses";
+import FormsCRM from "@/pages/client/FormsCRM";
 import MeetingsHub from "@/pages/client/MeetingsHub";
 import NewMeeting from "@/pages/client/NewMeeting";
 import MeetingDetail from "@/pages/client/MeetingDetail";
@@ -255,6 +257,7 @@ function Router() {
       {/* Public */}
       <Route path="/" component={HomeRedirect} />
       <Route path="/oravini" component={OraviniLanding} />
+      <Route path="/lusion" component={LusionInspired} />
       <Route path="/video-marketing-diagnostic" component={VideoMarketingDiagnostic} />
       <Route path="/video-marketing-landing" component={VideoMarketingLanding} />
       <Route path="/brandverse" component={Brandverse} />
@@ -352,6 +355,7 @@ function Router() {
       <Route path="/settings/plan">{() => <Guard component={PlanSettings} />}</Route>
       <Route path="/video-marketing">{() => <Guard component={ClientVideoMarketing} />}</Route>
       <Route path="/video-marketing-addon">{() => <Guard component={VideoMarketingAddon} />}</Route>
+      <Route path="/tools/forms/crm">{() => <Guard component={FormsCRM} />}</Route>
       <Route path="/tools/forms/:id/responses">{(p) => <Guard component={FormResponses} id={p.id} />}</Route>
       <Route path="/tools/forms/:id">{(p) => <Guard component={FormBuilder} id={p.id} />}</Route>
       <Route path="/tools/forms">{() => <Guard component={FormsHub} />}</Route>

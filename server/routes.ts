@@ -2669,137 +2669,124 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // AI Content Ideas
   // ── Groq helper (fast – used for content ideas) ──────────────────────────
+  const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"] as const;
+  const GROQ_TIMEOUT_MS = 30000;
+
+  function extractJson(raw: string): string {
+    const trimmed = raw.trim();
+    // If it already parses clean, return as-is
+    try { JSON.parse(trimmed); return trimmed; } catch {}
+    // Strip markdown fences
+    const stripped = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    try { JSON.parse(stripped); return stripped; } catch {}
+    // Find first { or [ and last matching } or ]
+    const objMatch = stripped.match(/(\{[\s\S]*\})/);
+    if (objMatch) { try { JSON.parse(objMatch[1]); return objMatch[1]; } catch {} }
+    const arrMatch = stripped.match(/(\[[\s\S]*\])/);
+    if (arrMatch) { try { JSON.parse(arrMatch[1]); return arrMatch[1]; } catch {} }
+    throw new Error("No valid JSON found in model response");
+  }
+
+  async function groqFetch(apiKey: string, body: object): Promise<string> {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
+    });
+    if (r.status === 429) {
+      // Rate limited — wait 2s then signal caller to retry next model
+      await new Promise(res => setTimeout(res, 2000));
+      throw new Error(`Rate limited (429)`);
+    }
+    if (!r.ok) {
+      const errText = await r.text().catch(() => r.statusText);
+      throw new Error(`HTTP ${r.status}: ${errText.slice(0, 200)}`);
+    }
+    const data: any = await r.json();
+    if (data?.error) throw new Error(data.error.message || "Groq API error");
+    const text = data?.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Empty response from model");
+    return text;
+  }
+
   async function callGroq(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("AI API key not configured");
-    const keyPreview = apiKey.slice(0, 8) + "...";
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama-3.1-8b-instant"];
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
     let lastError = "";
-    for (const model of models) {
+    for (const model of GROQ_MODELS) {
       try {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-            temperature: 0.7,
-            max_tokens: maxTokens,
-          }),
+        return await groqFetch(apiKey, {
+          model,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.7,
+          max_tokens: Math.min(maxTokens, 32768),
         });
-        if (!r.ok) {
-          const errBody = await r.text();
-          lastError = `HTTP ${r.status}: ${errBody}`;
-          console.warn(`Groq ${model} status ${r.status} (key ${keyPreview})`);
-          continue;
-        }
-        const data: any = await r.json();
-        if (data?.error) { lastError = data.error.message; console.warn(`Groq ${model} error: ${lastError}`); continue; }
-        const text = data?.choices?.[0]?.message?.content;
-        if (text) return text;
-      } catch (e: any) { lastError = e.message; }
+      } catch (e: any) {
+        lastError = e.message;
+        console.warn(`[callGroq] ${model} failed: ${lastError}`);
+      }
     }
     throw new Error(`Groq generation failed: ${lastError}`);
   }
 
-  // ── Groq JSON-mode helper (structured output, virality analysis) ──────────
+  // ── Groq JSON-mode helper ─────────────────────────────────────────────────
   async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 3000): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("AI API key not configured");
-    const keyPreview = apiKey.slice(0, 8) + "...";
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error("GROQ_API_KEY not configured");
     let lastError = "";
-    for (const model of models) {
+    for (const model of GROQ_MODELS) {
       try {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-            temperature: 0.6,
-            max_tokens: maxTokens,
-            response_format: { type: "json_object" },
-          }),
+        const raw = await groqFetch(apiKey, {
+          model,
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+          temperature: 0.6,
+          max_tokens: Math.min(maxTokens, 32768),
+          response_format: { type: "json_object" },
         });
-        if (!r.ok) {
-          const errBody = await r.text();
-          lastError = `HTTP ${r.status}: ${errBody}`;
-          console.warn(`GroqJSON ${model} status ${r.status} (key ${keyPreview})`);
-          continue;
-        }
-        const data: any = await r.json();
-        if (data?.error) { lastError = data.error.message; console.warn(`GroqJSON ${model} error: ${lastError}`); continue; }
-        const text = data?.choices?.[0]?.message?.content;
-        if (text) return text;
-      } catch (e: any) { lastError = e.message; }
+        return extractJson(raw);
+      } catch (e: any) {
+        lastError = e.message;
+        console.warn(`[callGroqJson] ${model} failed: ${lastError}`);
+      }
     }
-      throw new Error(`Groq JSON generation failed: ${lastError}`);
+    throw new Error(`Groq JSON generation failed: ${lastError}`);
   }
 
   async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens = 1000): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("AI API key not configured");
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-    let lastError = "";
-    for (const model of models) {
-      try {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-            temperature: 0.7,
-            max_tokens: maxTokens,
-          }),
-        });
-        if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
-        const data: any = await r.json();
-        if (data?.error) { lastError = data.error.message; continue; }
-        const text = data?.choices?.[0]?.message?.content;
-        if (text) return text;
-      } catch (e: any) { lastError = e.message; }
-    }
-    throw new Error(`Groq text generation failed: ${lastError}`);
+    return callGroq(systemPrompt, userPrompt, maxTokens);
   }
 
-  // ── Groq Vision JSON helper (board from image) ────────────────────────
+  // ── Vision JSON helper — routes to OpenAI if key available ───────────────
   async function callGroqVisionJson(systemPrompt: string, userPrompt: string, base64Image: string, maxTokens = 4096): Promise<string> {
-    const apiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    if (!apiKey) throw new Error("AI API key not configured");
-    const models = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"];
-    let lastError = "";
-    for (const model of models) {
-      try {
-        const body = {
-          model,
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (openaiKey) {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: userPrompt },
-                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
-              ],
-            },
+            { role: "user", content: [
+              { type: "text", text: userPrompt },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}`, detail: "high" } },
+            ]},
           ],
           temperature: 0.5,
           max_tokens: maxTokens,
-        };
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!r.ok) { lastError = `HTTP ${r.status}`; continue; }
-        const data: any = await r.json();
-        if (data?.error) { lastError = data.error.message; continue; }
-        const text = data?.choices?.[0]?.message?.content;
-        if (text) return text;
-      } catch (e: any) { lastError = e.message; }
+          response_format: { type: "json_object" },
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!r.ok) { const t = await r.text(); throw new Error(`OpenAI vision HTTP ${r.status}: ${t.slice(0, 200)}`); }
+      const data: any = await r.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return extractJson(text);
+      throw new Error("Empty response from OpenAI vision");
     }
-    throw new Error(`Groq vision failed: ${lastError}`);
+    // No vision provider available
+    throw new Error("Vision AI unavailable: add OPENAI_API_KEY to enable image-to-board. Groq removed their vision models.");
   }
 
   async function withSkills(userId: string, basePrompt: string, context?: { category?: string; platform?: string }): Promise<string> {
@@ -11820,9 +11807,8 @@ Rules:
 - Make the questions highly relevant and specific to the user's request
 - Mix question types thoughtfully`;
     try {
-      const raw = await callGroq(systemPrompt, prompt, 2000);
-      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-      const parsed = JSON.parse(cleaned);
+      const raw = await callGroqJson(systemPrompt, prompt, 2000);
+      const parsed = JSON.parse(raw);
       res.json(parsed);
     } catch (err: any) {
       console.log("[forms/ai-generate] error:", err?.message);
@@ -11854,7 +11840,16 @@ Rules:
   app.post("/api/public/forms/:slug/view", async (req: Request, res: Response) => {
     const form = await storage.getFormBySlug(p(req.params.slug));
     if (!form || form.status !== "published") return res.status(404).json({ message: "Not found" });
-    await storage.trackFormView(form.id, { userAgent: req.headers["user-agent"], ip: req.ip });
+    const { country, countryName, device, browser, referrer } = req.body || {};
+    await storage.trackFormView(form.id, {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+      country,
+      countryName,
+      device,
+      browser,
+      referrer,
+    });
     res.json({ success: true });
   });
 
@@ -11865,6 +11860,55 @@ Rules:
     if (!Array.isArray(answers)) return res.status(400).json({ message: "answers is required" });
     const sub = await storage.createFormSubmission(form.id, { respondentName, respondentEmail, metadata: { userAgent: req.headers["user-agent"] } }, answers);
     res.json({ success: true, submissionId: sub.id });
+  });
+
+  // All contacts across user's forms (CRM)
+  app.get("/api/form-contacts", requireAuth, async (req: Request, res: Response) => {
+    const userId = (req.user as any).id;
+    const contacts = await storage.getAllFormContacts(userId);
+    res.json(contacts);
+  });
+
+  // AI logic generator
+  app.post("/api/forms/ai-logic", requireAuth, async (req: Request, res: Response) => {
+    const { prompt, questionType, questions } = req.body;
+    if (!prompt) return res.status(400).json({ message: "Prompt required" });
+
+    const questionList = Array.isArray(questions) && questions.length
+      ? questions.map((q: any, i: number) => `${i + 1}. [id:${q.id}] ${q.question} (type: ${q.type})`).join("\n")
+      : "No other questions.";
+
+    const systemPrompt = `You are a form logic builder. Given a plain-English description of routing logic, generate an array of condition objects.
+
+Operators available: equals, not_equals, contains, gt, lt, gte, lte, in
+Actions available:
+- "jump": jump to another question (target = question id from the list)
+- "redirect": redirect the user to a URL (target = full URL starting with https://)
+- "end": end the form early (target = message to show, e.g. "Sorry, you do not qualify.")
+
+For "in" operator, use a comma-separated list in the value field (e.g. "US,GB,CA").
+
+Other questions in this form for jump targets:
+${questionList}
+
+Current question type: ${questionType}
+
+Return ONLY a valid JSON object with a "conditions" key (no markdown):
+{ "conditions": [
+  { "operator": "lt", "value": "18", "action": "redirect", "target": "https://example.com/sorry" },
+  { "operator": "gte", "value": "18", "action": "jump", "target": "<question-id>" }
+] }`;
+
+    try {
+      const raw = await callGroqJson(systemPrompt, prompt, 1000);
+      const parsed = JSON.parse(raw);
+      const conditions = Array.isArray(parsed) ? parsed : (parsed.conditions || []);
+      if (!conditions.length) throw new Error("No conditions returned");
+      res.json({ conditions });
+    } catch (err: any) {
+      console.log("[forms/ai-logic] error:", err?.message);
+      res.status(500).json({ message: "AI logic generation failed. Please try again." });
+    }
   });
 
   // ── Meetings Notetaker ─────────────────────────────────────────────────────

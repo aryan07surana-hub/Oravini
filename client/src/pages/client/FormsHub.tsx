@@ -4,7 +4,10 @@ import { useLocation } from "wouter";
 import ClientLayout from "@/components/layout/ClientLayout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, ApiError } from "@/lib/queryClient";
-import { Plus, FileText, BarChart2, ExternalLink, Trash2, Copy, Eye, CheckCircle2, Clock, Zap, ClipboardList, Brain } from "lucide-react";
+import {
+  Plus, FileText, BarChart2, ExternalLink, Trash2, Copy, Eye, CheckCircle2,
+  Clock, Zap, ClipboardList, Users, Mail, GitBranch, TrendingUp,
+} from "lucide-react";
 
 const GOLD = "#d4b461";
 const TYPE_LABELS: Record<string, string> = { form: "Form", quiz: "Quiz", survey: "Survey", event: "Event Registration" };
@@ -29,7 +32,6 @@ function CreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (da
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}>
       <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0e0e10", border: "1px solid rgba(212,180,97,0.2)" }}>
         <h2 className="text-lg font-black text-white mb-5">Create New Form</h2>
-
         <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Title *</label>
@@ -39,9 +41,9 @@ function CreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (da
               placeholder="e.g. Audience Quiz, Event Registration..."
               className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder:text-zinc-600"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", outline: "none" }}
+              onKeyDown={e => { if (e.key === "Enter") handleCreate(); }}
             />
           </div>
-
           <div>
             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Type</label>
             <div className="grid grid-cols-2 gap-2">
@@ -60,7 +62,6 @@ function CreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (da
               ))}
             </div>
           </div>
-
           <div>
             <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">Description (optional)</label>
             <textarea
@@ -73,7 +74,6 @@ function CreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (da
             />
           </div>
         </div>
-
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-zinc-400" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>Cancel</button>
           <button
@@ -96,6 +96,11 @@ export default function FormsHub() {
 
   const { data: _formsList, isLoading } = useQuery<any[]>({ queryKey: ["/api/forms"] });
   const formsList = _formsList ?? [];
+
+  const { data: contacts = [] } = useQuery<any[]>({
+    queryKey: ["/api/form-contacts"],
+    queryFn: () => apiRequest("GET", "/api/form-contacts"),
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/forms", data),
@@ -122,6 +127,10 @@ export default function FormsHub() {
     toast({ title: "Link copied!", description: url });
   };
 
+  const published = formsList.filter((f: any) => f.status === "published");
+  const drafts = formsList.filter((f: any) => f.status === "draft");
+  const formsWithLogic = formsList.filter((f: any) => false); // logic is per-question, tracked visually
+
   return (
     <ClientLayout>
       <div className="max-w-4xl mx-auto px-6 py-10">
@@ -133,35 +142,73 @@ export default function FormsHub() {
             </div>
             <div>
               <h1 className="text-xl font-black text-white">Forms & Surveys</h1>
-              <p className="text-xs text-zinc-500">Build forms, quizzes, surveys — share the link, track responses</p>
+              <p className="text-xs text-zinc-500">Build forms, quizzes, surveys — with logic, analytics & CRM</p>
             </div>
           </div>
-          <button
-            data-testid="btn-new-form"
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
-            style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}
-          >
-            <Plus className="w-4 h-4" /> New Form
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/tools/forms/crm")}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105"
+              style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "#818cf8" }}
+            >
+              <Users className="w-4 h-4" />
+              CRM
+              {contacts.length > 0 && (
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>
+                  {contacts.length}
+                </span>
+              )}
+            </button>
+            <button
+              data-testid="btn-new-form"
+              onClick={() => setCreating(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-105"
+              style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}40`, color: GOLD }}
+            >
+              <Plus className="w-4 h-4" /> New Form
+            </button>
+          </div>
         </div>
 
-        {/* Stats row */}
+        {/* Overview stats */}
         {formsList.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {[
-              { label: "Total Forms", value: formsList.length, icon: FileText },
-              { label: "Published", value: formsList.filter((f: any) => f.status === "published").length, icon: CheckCircle2 },
-              { label: "Drafts", value: formsList.filter((f: any) => f.status === "draft").length, icon: Clock },
-            ].map(({ label, value, icon: Icon }) => (
+              { label: "Total Forms", value: formsList.length, icon: FileText, color: GOLD },
+              { label: "Published", value: published.length, icon: CheckCircle2, color: "#34d399" },
+              { label: "Drafts", value: drafts.length, icon: Clock, color: "#818cf8" },
+              { label: "Contacts", value: contacts.length, icon: Users, color: "#f472b6" },
+            ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-3.5 h-3.5 text-zinc-500" />
+                  <Icon className="w-3.5 h-3.5" style={{ color }} />
                   <span className="text-xs text-zinc-500">{label}</span>
                 </div>
                 <p className="text-2xl font-black text-white">{value}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Quick access: CRM banner when contacts exist */}
+        {contacts.length > 0 && formsList.length > 0 && (
+          <div
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl mb-6 cursor-pointer transition-all hover:scale-[1.005]"
+            style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)" }}
+            onClick={() => navigate("/tools/forms/crm")}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
+              <Users className="w-4.5 h-4.5 text-indigo-400" style={{ width: 18, height: 18 }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">{contacts.length} contact{contacts.length !== 1 ? "s" : ""} collected</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {contacts.filter((c: any) => c.email).length} with email · {contacts.filter((c: any) => c.phone).length} with phone
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold flex-shrink-0" style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}>
+              Open CRM →
+            </div>
           </div>
         )}
 
@@ -192,7 +239,7 @@ export default function FormsHub() {
                     <FileText className="w-4 h-4" style={{ color }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <p className="text-sm font-bold text-white truncate">{form.title}</p>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0" style={{ background: `${color}18`, color }}>{TYPE_LABELS[form.type] || form.type}</span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 ${form.status === "published" ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-800 text-zinc-500"}`}>
@@ -206,7 +253,7 @@ export default function FormsHub() {
                     <button data-testid={`btn-copy-${form.id}`} onClick={() => copyLink(form.slug, form.status)} title="Copy link" className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white transition-colors" style={{ background: "rgba(255,255,255,0.04)" }}>
                       <Copy className="w-3.5 h-3.5" />
                     </button>
-                    <button data-testid={`btn-responses-${form.id}`} onClick={() => navigate(`/tools/forms/${form.id}/responses`)} title="View responses" className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-emerald-400 transition-colors" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <button data-testid={`btn-responses-${form.id}`} onClick={() => navigate(`/tools/forms/${form.id}/responses`)} title="Analytics" className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-emerald-400 transition-colors" style={{ background: "rgba(255,255,255,0.04)" }}>
                       <BarChart2 className="w-3.5 h-3.5" />
                     </button>
                     <button data-testid={`btn-edit-${form.id}`} onClick={() => navigate(`/tools/forms/${form.id}`)} title="Edit form" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105" style={{ background: `${color}15`, border: `1px solid ${color}30`, color }}>
