@@ -10,13 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   FolderOpen, Plus, Trash2, Link2, FileText, ArrowLeft,
-  Search, X, ExternalLink, Folder, Folders,
+  Search, X, ExternalLink, Folder, Folders, Upload, Paperclip, Pencil, Check,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
 const LS_KEY = "portal_documents_v2";
 
-type DocType = "link" | "text";
+type DocType = "link" | "text" | "file";
 
 interface Doc {
   id: string;
@@ -25,6 +25,7 @@ interface Doc {
   url: string;
   content: string;
   createdAt: string;
+  fileSize?: string;
 }
 
 interface DocFile {
@@ -77,9 +78,12 @@ export default function DocumentsList() {
   const [selectedForSuper, setSelectedForSuper] = useState<string[]>([]);
 
   const [showAddDoc, setShowAddDoc] = useState(false);
-  const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
+  const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string; fileSize?: string }>({
     name: "", type: "link", url: "", content: "",
   });
+  const [uploading, setUploading] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => { saveFiles(files); }, [files]);
 
@@ -134,6 +138,43 @@ export default function DocumentsList() {
     if (selectedSuper === id) setSelectedSuper(null);
   }
 
+  function startRename(id: string, currentName: string) {
+    setRenamingId(id);
+    setRenameValue(currentName);
+  }
+
+  function commitRename(id: string) {
+    if (!renameValue.trim()) { setRenamingId(null); return; }
+    setFiles((prev) =>
+      prev.map((f) => f.id === id ? { ...f, name: renameValue.trim() } : f)
+    );
+    setRenamingId(null);
+    toast({ title: "Renamed" });
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      const { fileUrl, fileName, fileSize } = await res.json();
+      setDocForm((f) => ({
+        ...f,
+        url: fileUrl,
+        name: f.name || fileName,
+        fileSize,
+      }));
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function addDoc() {
     if (!docForm.name.trim()) {
       toast({ title: "Document name required", variant: "destructive" });
@@ -143,6 +184,10 @@ export default function DocumentsList() {
       toast({ title: "URL required for link type", variant: "destructive" });
       return;
     }
+    if (docForm.type === "file" && !docForm.url.trim()) {
+      toast({ title: "Upload a file first", variant: "destructive" });
+      return;
+    }
     const doc: Doc = {
       id: uid(),
       name: docForm.name.trim(),
@@ -150,6 +195,7 @@ export default function DocumentsList() {
       url: docForm.url.trim(),
       content: docForm.content.trim(),
       createdAt: new Date().toISOString(),
+      fileSize: docForm.fileSize,
     };
     setFiles((prev) =>
       prev.map((f) =>
@@ -250,27 +296,30 @@ export default function DocumentsList() {
                   <div
                     className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                     style={{
-                      background: doc.type === "link" ? "#3b82f622" : `${GOLD}22`,
-                      color: doc.type === "link" ? "#3b82f6" : GOLD,
+                      background: doc.type === "link" ? "#3b82f622" : doc.type === "file" ? "#22c55e22" : `${GOLD}22`,
+                      color: doc.type === "link" ? "#3b82f6" : doc.type === "file" ? "#22c55e" : GOLD,
                     }}
                   >
-                    {doc.type === "link" ? <Link2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                    {doc.type === "link" ? <Link2 className="w-4 h-4" /> : doc.type === "file" ? <Paperclip className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-foreground">{doc.name}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">{doc.type}</Badge>
                     </div>
-                    {doc.type === "link" && doc.url && (
+                    {(doc.type === "link" || doc.type === "file") && doc.url && (
                       <a
                         href={doc.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5 transition-colors truncate"
                       >
-                        {doc.url}
+                        {doc.type === "file" ? doc.name : doc.url}
                         <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                       </a>
+                    )}
+                    {doc.fileSize && (
+                      <p className="text-[10px] text-muted-foreground/50 mt-0.5">{doc.fileSize}</p>
                     )}
                     {doc.content && (
                       <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-wrap">
@@ -293,7 +342,7 @@ export default function DocumentsList() {
           )}
         </div>
 
-        <Dialog open={showAddDoc} onOpenChange={setShowAddDoc}>
+        <Dialog open={showAddDoc} onOpenChange={(open) => { setShowAddDoc(open); if (!open) { setDocForm({ name: "", type: "link", url: "", content: "" }); setUploading(false); } }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add Document</DialogTitle>
@@ -312,7 +361,7 @@ export default function DocumentsList() {
                 <Label className="text-xs">Type</Label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setDocForm((f) => ({ ...f, type: "link" }))}
+                    onClick={() => setDocForm((f) => ({ ...f, type: "link", url: "", fileSize: undefined }))}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${
                       docForm.type === "link"
                         ? "border-primary bg-primary/10 text-primary font-medium"
@@ -322,7 +371,7 @@ export default function DocumentsList() {
                     <Link2 className="w-4 h-4" /> Link
                   </button>
                   <button
-                    onClick={() => setDocForm((f) => ({ ...f, type: "text" }))}
+                    onClick={() => setDocForm((f) => ({ ...f, type: "text", url: "", fileSize: undefined }))}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${
                       docForm.type === "text"
                         ? "border-primary bg-primary/10 text-primary font-medium"
@@ -330,6 +379,16 @@ export default function DocumentsList() {
                     }`}
                   >
                     <FileText className="w-4 h-4" /> Text
+                  </button>
+                  <button
+                    onClick={() => setDocForm((f) => ({ ...f, type: "file", url: "", fileSize: undefined }))}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${
+                      docForm.type === "file"
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" /> File
                   </button>
                 </div>
               </div>
@@ -344,6 +403,33 @@ export default function DocumentsList() {
                   />
                 </div>
               )}
+              {docForm.type === "file" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Upload File *</Label>
+                  {docForm.url ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/40">
+                      <Paperclip className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="text-sm text-foreground flex-1 truncate">{docForm.name || "Uploaded file"}</span>
+                      {docForm.fileSize && <span className="text-xs text-muted-foreground">{docForm.fileSize}</span>}
+                      <button
+                        onClick={() => setDocForm((f) => ({ ...f, url: "", fileSize: undefined }))}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className={`flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        {uploading ? "Uploading..." : "Click to upload (max 50 MB)"}
+                      </span>
+                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                    </label>
+                  )}
+                </div>
+              )}
+              {docForm.type !== "file" && (
               <div className="space-y-1.5">
                 <Label className="text-xs">
                   {docForm.type === "link" ? "Notes (optional)" : "Content *"}
@@ -355,6 +441,7 @@ export default function DocumentsList() {
                   rows={4}
                 />
               </div>
+              )}
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={() => setShowAddDoc(false)}>Cancel</Button>
                 <Button className="flex-1" onClick={addDoc}>Add Document</Button>
@@ -420,12 +507,15 @@ export default function DocumentsList() {
               {filteredChildren.map((f) => {
                 const color = fileColor(f.name);
                 return (
-                  <button
+                  <div
                     key={f.id}
-                    onClick={() => { setSelectedFile(f.id); setSearch(""); }}
-                    className="group text-left rounded-xl border border-border bg-card p-4 hover:border-foreground/20 transition-all hover:shadow-md"
+                    className="group relative text-left rounded-xl border border-border bg-card p-4 hover:border-foreground/20 transition-all hover:shadow-md"
                   >
-                    <div className="flex items-start gap-3">
+                    <button
+                      className="absolute inset-0 w-full h-full rounded-xl"
+                      onClick={() => { if (renamingId === f.id) return; setSelectedFile(f.id); setSearch(""); }}
+                    />
+                    <div className="relative flex items-start gap-3">
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg font-bold transition-transform group-hover:scale-105"
                         style={{ background: `${color}22`, color }}
@@ -433,7 +523,28 @@ export default function DocumentsList() {
                         {f.name[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate">{f.name}</p>
+                        {renamingId === f.id ? (
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <Input
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              className="h-6 text-sm py-0 px-1.5"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") commitRename(f.id);
+                                if (e.key === "Escape") setRenamingId(null);
+                              }}
+                            />
+                            <button onClick={() => commitRename(f.id)} className="text-green-500 hover:text-green-400 flex-shrink-0">
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setRenamingId(null)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="font-semibold text-sm text-foreground truncate">{f.name}</p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {f.docs.length} {f.docs.length === 1 ? "document" : "documents"}
                         </p>
@@ -441,14 +552,22 @@ export default function DocumentsList() {
                           {new Date(f.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }}
-                        className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 relative z-10">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -543,19 +662,20 @@ export default function DocumentsList() {
               const isSuper = childFiles.length > 0;
 
               return (
-                <button
+                <div
                   key={f.id}
-                  onClick={() => {
-                    setSearch("");
-                    if (isSuper) {
-                      setSelectedSuper(f.id);
-                    } else {
-                      setSelectedFile(f.id);
-                    }
-                  }}
-                  className="group text-left rounded-xl border border-border bg-card p-4 hover:border-foreground/20 transition-all hover:shadow-md"
+                  className="group relative text-left rounded-xl border border-border bg-card p-4 hover:border-foreground/20 transition-all hover:shadow-md"
                 >
-                  <div className="flex items-start gap-3">
+                  <button
+                    className="absolute inset-0 w-full h-full rounded-xl"
+                    onClick={() => {
+                      if (renamingId === f.id) return;
+                      setSearch("");
+                      if (isSuper) setSelectedSuper(f.id);
+                      else setSelectedFile(f.id);
+                    }}
+                  />
+                  <div className="relative flex items-start gap-3">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105"
                       style={{ background: `${color}22`, color }}
@@ -567,18 +687,39 @@ export default function DocumentsList() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-semibold text-sm text-foreground truncate">{f.name}</p>
-                        {isSuper && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 shrink-0"
-                            style={{ borderColor: color, color }}
-                          >
-                            super
-                          </Badge>
-                        )}
-                      </div>
+                      {renamingId === f.id ? (
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            className="h-6 text-sm py-0 px-1.5"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitRename(f.id);
+                              if (e.key === "Escape") setRenamingId(null);
+                            }}
+                          />
+                          <button onClick={() => commitRename(f.id)} className="text-green-500 hover:text-green-400 flex-shrink-0">
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setRenamingId(null)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-sm text-foreground truncate">{f.name}</p>
+                          {isSuper && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 shrink-0"
+                              style={{ borderColor: color, color }}
+                            >
+                              super
+                            </Badge>
+                          )}
+                        </div>
+                      )}
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {isSuper
                           ? `${childFiles.length} ${childFiles.length === 1 ? "file" : "files"}`
@@ -588,14 +729,22 @@ export default function DocumentsList() {
                         {new Date(f.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }}
-                      className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 relative z-10">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRename(f.id, f.name); }}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteFile(f.id); }}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
