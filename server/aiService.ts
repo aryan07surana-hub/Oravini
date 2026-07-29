@@ -13,10 +13,30 @@ const DEFAULT_MODELS = [
 ];
 
 function getKey(): string {
-  const key = process.env.API_KEY_1 || process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("AI API key not configured (set API_KEY_1 or OPENROUTER_API_KEY)");
+  const key =
+    process.env.API_KEY_1 ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.OPENROUTER_KEY ||
+    process.env.OR_API_KEY ||
+    process.env.AI_API_KEY;
+  if (!key) {
+    const available = Object.keys(process.env).filter(k =>
+      k.includes("KEY") || k.includes("TOKEN") || k.includes("SECRET")
+    ).join(", ");
+    console.error("[aiService] No AI key found. Available env keys:", available || "none");
+    throw new Error("AI API key not configured");
+  }
   return key;
 }
+
+// Log key status on module load
+const _startupKey =
+  process.env.API_KEY_1 ||
+  process.env.OPENROUTER_API_KEY ||
+  process.env.OPENROUTER_KEY ||
+  process.env.OR_API_KEY ||
+  process.env.AI_API_KEY;
+console.log(`[aiService] Key status: ${_startupKey ? "FOUND (" + _startupKey.slice(0, 12) + "...)" : "MISSING — set API_KEY_1 or OPENROUTER_API_KEY on Render"}`);
 
 function extractJson(raw: string): string {
   const trimmed = raw.trim();
