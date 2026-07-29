@@ -1,5 +1,5 @@
 import SuperAdminLayout from "./Layout";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   FolderOpen, Plus, Trash2, Link2, FileText, ArrowLeft,
   Search, X, ExternalLink, Folder, Folders, RefreshCw, Download, Upload,
-  Edit2, Check,
+  Edit2, Check, Paperclip,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
 const LS_KEY = "super_admin_documents_v1";
 const LS_MIGRATED_KEY = "super_admin_docs_migrated_v1";
 
-type DocType = "link" | "text";
+type DocType = "link" | "text" | "file";
 
 interface Doc {
   id: string;
@@ -71,6 +71,7 @@ export default function DocumentsList() {
 
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
     name: "", type: "link", url: "", content: "",
   });
@@ -181,9 +182,28 @@ export default function DocumentsList() {
     }
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      const { fileUrl, fileName, fileSize } = await res.json();
+      setDocForm((f) => ({ ...f, url: fileUrl, name: f.name || fileName, content: fileSize }));
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function addDoc() {
     if (!docForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
     if (docForm.type === "link" && !docForm.url.trim()) { toast({ title: "URL required", variant: "destructive" }); return; }
+    if (docForm.type === "file" && !docForm.url.trim()) { toast({ title: "Upload a file first", variant: "destructive" }); return; }
     const id = uid();
     try {
       const doc: Doc = await apiFetch(`/api/super-admin/doc-files/${selectedFile}/docs`, {
@@ -327,20 +347,21 @@ export default function DocumentsList() {
             <div className="space-y-2">
               {filteredDocs.map((doc) => (
                 <div key={doc.id} className="group rounded-xl border border-border bg-card p-4 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: doc.type === "link" ? "#3b82f622" : `${GOLD}22`, color: doc.type === "link" ? "#3b82f6" : GOLD }}>
-                    {doc.type === "link" ? <Link2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: doc.type === "link" ? "#3b82f622" : doc.type === "file" ? "#22c55e22" : `${GOLD}22`, color: doc.type === "link" ? "#3b82f6" : doc.type === "file" ? "#22c55e" : GOLD }}>
+                    {doc.type === "link" ? <Link2 className="w-4 h-4" /> : doc.type === "file" ? <Paperclip className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-foreground">{doc.name}</span>
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0">{doc.type}</Badge>
                     </div>
-                    {doc.type === "link" && doc.url && (
+                    {(doc.type === "link" || doc.type === "file") && doc.url && (
                       <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-0.5 transition-colors truncate">
-                        {doc.url} <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                        {doc.type === "file" ? doc.name : doc.url} <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                       </a>
                     )}
-                    {doc.content && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-wrap">{doc.content}</p>}
+                    {doc.type === "file" && doc.content && <p className="text-[10px] text-muted-foreground/50 mt-0.5">{doc.content}</p>}
+                    {doc.type !== "file" && doc.content && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-wrap">{doc.content}</p>}
                     <p className="text-[10px] text-muted-foreground/50 mt-1.5">{new Date(doc.createdAt).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5">
@@ -374,10 +395,9 @@ export default function DocumentsList() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Type</Label>
                 <div className="flex gap-2">
-                  {(["link", "text"] as DocType[]).map((t) => (
-                    <button key={t} onClick={() => setDocForm((f) => ({ ...f, type: t }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${docForm.type === t ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:text-foreground"}`}>
-                      {t === "link" ? <Link2 className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                  {([["link", <Link2 className="w-4 h-4" />], ["text", <FileText className="w-4 h-4" />], ["file", <Upload className="w-4 h-4" />]] as [DocType, React.ReactNode][]).map(([t, icon]) => (
+                    <button key={t} onClick={() => setDocForm((f) => ({ ...f, type: t, url: "", content: "" }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${docForm.type === t ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                      {icon}{t.charAt(0).toUpperCase() + t.slice(1)}
                     </button>
                   ))}
                 </div>
@@ -388,12 +408,33 @@ export default function DocumentsList() {
                   <Input value={docForm.url} onChange={(e) => setDocForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://..." type="url" />
                 </div>
               )}
-              <div className="space-y-1.5">
-                <Label className="text-xs">{docForm.type === "link" ? "Notes (optional)" : "Content *"}</Label>
-                <Textarea value={docForm.content} onChange={(e) => setDocForm((f) => ({ ...f, content: e.target.value }))} placeholder={docForm.type === "link" ? "Add notes..." : "Paste or type content..."} rows={4} />
-              </div>
+              {docForm.type === "file" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Upload File *</Label>
+                  {docForm.url ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/40">
+                      <Paperclip className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="text-sm text-foreground flex-1 truncate">{docForm.name || "Uploaded"}</span>
+                      {docForm.content && <span className="text-xs text-muted-foreground">{docForm.content}</span>}
+                      <button onClick={() => setDocForm((f) => ({ ...f, url: "", content: "" }))} className="text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <label className={`flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                      <Upload className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{uploading ? "Uploading..." : "Click to upload (max 50 MB)"}</span>
+                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                    </label>
+                  )}
+                </div>
+              )}
+              {docForm.type !== "file" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">{docForm.type === "link" ? "Notes (optional)" : "Content *"}</Label>
+                  <Textarea value={docForm.content} onChange={(e) => setDocForm((f) => ({ ...f, content: e.target.value }))} placeholder={docForm.type === "link" ? "Add notes..." : "Paste or type content..."} rows={4} />
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setShowAddDoc(false)}>Cancel</Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setShowAddDoc(false); setDocForm({ name: "", type: "link", url: "", content: "" }); }}>Cancel</Button>
                 <Button className="flex-1" onClick={addDoc}>Add Document</Button>
               </div>
             </div>
