@@ -72,6 +72,7 @@ export default function DocumentsList() {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [importing, setImporting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; url: string; size: string }[]>([]);
   const [docForm, setDocForm] = useState<{ name: string; type: DocType; url: string; content: string }>({
     name: "", type: "link", url: "", content: "",
   });
@@ -183,27 +184,51 @@ export default function DocumentsList() {
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = Array.from(e.target.files ?? []);
+    if (!picked.length) return;
     setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!res.ok) throw new Error(await res.text());
-      const { fileUrl, fileName, fileSize } = await res.json();
-      setDocForm((f) => ({ ...f, url: fileUrl, name: f.name || fileName, content: fileSize }));
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    } finally {
-      setUploading(false);
+    const failed: string[] = [];
+    for (const file of picked) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        const { fileUrl, fileName, fileSize } = await res.json();
+        setUploadedFiles((prev) => [...prev, { name: fileName, url: fileUrl, size: fileSize }]);
+      } catch {
+        failed.push(file.name);
+      }
     }
+    setUploading(false);
+    e.target.value = "";
+    if (failed.length) toast({ title: `Failed to upload: ${failed.join(", ")}`, variant: "destructive" });
   }
 
   async function addDoc() {
+    if (docForm.type === "file") {
+      if (!uploadedFiles.length) { toast({ title: "Upload at least one file first", variant: "destructive" }); return; }
+      try {
+        const newDocs: Doc[] = [];
+        for (const uf of uploadedFiles) {
+          const doc: Doc = await apiFetch(`/api/super-admin/doc-files/${selectedFile}/docs`, {
+            method: "POST",
+            body: JSON.stringify({ id: uid(), name: uf.name, type: "file", url: uf.url, content: uf.size }),
+          });
+          newDocs.push(doc);
+        }
+        setFiles((prev) => prev.map((f) => f.id === selectedFile ? { ...f, docs: [...newDocs, ...f.docs] } : f));
+        setUploadedFiles([]);
+        setDocForm({ name: "", type: "link", url: "", content: "" });
+        setShowAddDoc(false);
+        toast({ title: `${newDocs.length} file(s) added` });
+      } catch (e: any) {
+        toast({ title: "Failed to add documents", description: e.message, variant: "destructive" });
+      }
+      return;
+    }
     if (!docForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
     if (docForm.type === "link" && !docForm.url.trim()) { toast({ title: "URL required", variant: "destructive" }); return; }
-    if (docForm.type === "file" && !docForm.url.trim()) { toast({ title: "Upload a file first", variant: "destructive" }); return; }
     const id = uid();
     try {
       const doc: Doc = await apiFetch(`/api/super-admin/doc-files/${selectedFile}/docs`, {
@@ -396,7 +421,7 @@ export default function DocumentsList() {
                 <Label className="text-xs">Type</Label>
                 <div className="flex gap-2">
                   {([["link", <Link2 className="w-4 h-4" />], ["text", <FileText className="w-4 h-4" />], ["file", <Upload className="w-4 h-4" />]] as [DocType, React.ReactNode][]).map(([t, icon]) => (
-                    <button key={t} onClick={() => setDocForm((f) => ({ ...f, type: t, url: "", content: "" }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${docForm.type === t ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                    <button key={t} onClick={() => { setDocForm((f) => ({ ...f, type: t, url: "", content: "" })); setUploadedFiles([]); }} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm transition-colors ${docForm.type === t ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:text-foreground"}`}>
                       {icon}{t.charAt(0).toUpperCase() + t.slice(1)}
                     </button>
                   ))}
@@ -410,20 +435,30 @@ export default function DocumentsList() {
               )}
               {docForm.type === "file" && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Upload File *</Label>
-                  {docForm.url ? (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/40">
-                      <Paperclip className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span className="text-sm text-foreground flex-1 truncate">{docForm.name || "Uploaded"}</span>
-                      {docForm.content && <span className="text-xs text-muted-foreground">{docForm.content}</span>}
-                      <button onClick={() => setDocForm((f) => ({ ...f, url: "", content: "" }))} className="text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>
+                  <Label className="text-xs">Upload Files *</Label>
+                  <label className={`flex flex-col items-center justify-center gap-2 py-5 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">{uploading ? "Uploading..." : "Click to upload — select multiple files"}</span>
+                    <span className="text-xs text-muted-foreground/60">Max 50 MB each</span>
+                    <input type="file" multiple className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                  </label>
+                  {uploadedFiles.length > 0 && (
+                    <div className="space-y-1 mt-1">
+                      {uploadedFiles.map((uf, i) => (
+                        <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/40">
+                          <Paperclip className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                          <Input
+                            value={uf.name}
+                            onChange={(e) => setUploadedFiles((prev) => prev.map((f, j) => j === i ? { ...f, name: e.target.value } : f))}
+                            className="h-6 text-xs py-0 px-1.5 flex-1 border-transparent bg-transparent hover:border-border focus:border-border"
+                          />
+                          <span className="text-[10px] text-muted-foreground shrink-0">{uf.size}</span>
+                          <button onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive shrink-0">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <label className={`flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-                      <Upload className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">{uploading ? "Uploading..." : "Click to upload (max 50 MB)"}</span>
-                      <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                    </label>
                   )}
                 </div>
               )}
@@ -434,7 +469,7 @@ export default function DocumentsList() {
                 </div>
               )}
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => { setShowAddDoc(false); setDocForm({ name: "", type: "link", url: "", content: "" }); }}>Cancel</Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setShowAddDoc(false); setDocForm({ name: "", type: "link", url: "", content: "" }); setUploadedFiles([]); }}>Cancel</Button>
                 <Button className="flex-1" onClick={addDoc}>Add Document</Button>
               </div>
             </div>
