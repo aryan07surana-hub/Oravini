@@ -35,6 +35,7 @@ interface DocFile {
   docs: Doc[];
   createdAt: string;
   parentId?: string | null;
+  isSuper?: boolean;
 }
 
 function uid() {
@@ -151,7 +152,7 @@ export default function DocumentsList() {
     try {
       const superFile: DocFile = await apiFetch("/api/super-admin/doc-files", {
         method: "POST",
-        body: JSON.stringify({ id, name: newSuperName.trim(), parentId: null }),
+        body: JSON.stringify({ id, name: newSuperName.trim(), parentId: null, isSuper: true }),
       });
       // reparent selected files
       await Promise.all(
@@ -166,6 +167,7 @@ export default function DocumentsList() {
       setNewSuperName("");
       setSelectedForSuper([]);
       setShowNewSuper(false);
+      setSelectedSuper(superFile.id);
       toast({ title: `"${superFile.name}" created with ${selectedForSuper.length} file(s)` });
     } catch (e: any) {
       toast({ title: "Failed to create super file", description: e.message, variant: "destructive" });
@@ -674,7 +676,7 @@ export default function DocumentsList() {
             {filteredRoot.map((f) => {
               const color = fileColor(f.name);
               const childFiles = files.filter((c) => c.parentId === f.id);
-              const isSuper = childFiles.length > 0;
+              const isSuper = f.isSuper || childFiles.length > 0;
               return (
                 <button
                   key={f.id}

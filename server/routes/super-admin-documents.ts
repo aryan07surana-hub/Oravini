@@ -7,7 +7,7 @@ export function registerSuperAdminDocumentRoutes(app: Express, requireAdmin: any
     try {
       const { rows: files } = await pool.query(
         `SELECT f.id, f.name, f.parent_id AS "parentId", f.created_at AS "createdAt",
-                COUNT(d.id)::int AS "docCount"
+                f.is_super AS "isSuper", COUNT(d.id)::int AS "docCount"
          FROM super_admin_doc_files f
          LEFT JOIN super_admin_docs d ON d.file_id = f.id
          GROUP BY f.id
@@ -35,13 +35,13 @@ export function registerSuperAdminDocumentRoutes(app: Express, requireAdmin: any
   // Create file
   app.post("/api/super-admin/doc-files", requireAdmin, async (req: Request, res: Response) => {
     try {
-      const { id, name, parentId } = req.body;
+      const { id, name, parentId, isSuper } = req.body;
       if (!id || !name) return res.status(400).json({ error: "id and name required" });
       const { rows } = await pool.query(
-        `INSERT INTO super_admin_doc_files (id, name, parent_id)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, parent_id AS "parentId", created_at AS "createdAt"`,
-        [id, name, parentId ?? null]
+        `INSERT INTO super_admin_doc_files (id, name, parent_id, is_super)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, parent_id AS "parentId", created_at AS "createdAt", is_super AS "isSuper"`,
+        [id, name, parentId ?? null, isSuper ?? false]
       );
       res.json({ ...rows[0], docs: [] });
     } catch (e: any) {

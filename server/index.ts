@@ -993,6 +993,7 @@ async function runMigrations() {
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    await pool.query(`ALTER TABLE super_admin_doc_files ADD COLUMN IF NOT EXISTS is_super BOOLEAN DEFAULT FALSE`);
     console.log("[migration] super_admin_doc tables ensured");
   } catch (e: any) {
     console.warn("[migration] super_admin_doc tables skipped:", e.message);
