@@ -994,6 +994,14 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE super_admin_doc_files ADD COLUMN IF NOT EXISTS is_super BOOLEAN DEFAULT FALSE`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS super_admin_compulsory_reads (
+        id VARCHAR PRIMARY KEY,
+        text TEXT NOT NULL,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
     console.log("[migration] super_admin_doc tables ensured");
   } catch (e: any) {
     console.warn("[migration] super_admin_doc tables skipped:", e.message);

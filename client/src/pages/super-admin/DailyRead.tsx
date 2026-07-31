@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
   BookOpenCheck, Plus, Trash2, ArrowLeft, ChevronRight,
-  ChevronLeft, BookOpen, Clock, Sparkles, X
+  ChevronLeft, BookOpen, Clock, Sparkles, X, ShieldCheck,
 } from "lucide-react";
 
 const GOLD = "#d4b461";
@@ -28,7 +28,7 @@ const TIME_OPTIONS = [
   { label: "30 min", minutes: 30, cards: 15 },
 ];
 
-type View = "library" | "book" | "pick-time" | "reading";
+type View = "library" | "book" | "pick-time" | "reading" | "compulsory";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function bookColor(title: string) {
@@ -45,7 +45,7 @@ function bookInitials(title: string) {
 function ReadingCard({
   card, index, total, onNext, onPrev, onDone,
 }: {
-  card: { excerpt: string; note: string | null; bookTitle: string; bookColor: string };
+  card: { excerpt: string; note: string | null; bookTitle: string; bookColor: string; isCompulsory?: boolean };
   index: number; total: number;
   onNext: () => void; onPrev: () => void; onDone: () => void;
 }) {
@@ -61,7 +61,7 @@ function ReadingCard({
         {/* source badge */}
         <div className="flex items-center gap-2 mb-6">
           <div className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold" style={{ background: `${card.bookColor}22`, color: card.bookColor }}>
-            {bookInitials(card.bookTitle)}
+            {card.isCompulsory ? <ShieldCheck className="w-3.5 h-3.5" /> : bookInitials(card.bookTitle)}
           </div>
           <span className="text-xs text-muted-foreground">{card.bookTitle}</span>
           <span className="text-xs text-muted-foreground ml-auto">{index + 1} / {total}</span>
@@ -117,6 +117,11 @@ export default function DailyRead() {
   const [cText, setCText] = useState("");
   const [cNote, setCNote] = useState("");
 
+  // compulsory form
+  const [compulsoryDialog, setCompulsoryDialog] = useState(false);
+  const [compText, setCompText] = useState("");
+  const [compNote, setCompNote] = useState("");
+
   // ── Queries ────────────────────────────────────────────────────────────────
   const { data: books = [], isLoading: booksLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/reading-materials"],
@@ -127,6 +132,12 @@ export default function DailyRead() {
     queryFn: () => apiRequest("GET", `/api/admin/reading-materials/${selectedBook.id}/highlights`),
     enabled: !!selectedBook?.id,
   });
+
+  const { data: compulsoryItems = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/compulsory-reads"],
+  });
+
+  function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const addBook = useMutation({
@@ -177,9 +188,34 @@ export default function DailyRead() {
     },
   });
 
+  const addCompulsory = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/compulsory-reads", { id: uid(), text: compText.trim(), note: compNote.trim() || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/compulsory-reads"] });
+      toast({ title: "Added to Compulsory" });
+      setCompulsoryDialog(false);
+      setCompText(""); setCompNote("");
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteCompulsory = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/compulsory-reads/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/admin/compulsory-reads"] }),
+  });
+
   // ── Start reading session ─────────────────────────────────────────────────
   const startReading = async (cardCount: number) => {
-    // Gather all content from all books
+    // Compulsory cards always first
+    const compCards = compulsoryItems.map((c) => ({
+      excerpt: c.text,
+      note: c.note,
+      bookTitle: "Compulsory",
+      bookColor: GOLD,
+      isCompulsory: true,
+    }));
+
+    // Gather book content
     const all: any[] = [];
     for (const book of books) {
       const hs: any[] = await apiRequest("GET", `/api/admin/reading-materials/${book.id}/highlights`).catch(() => []);
@@ -191,29 +227,27 @@ export default function DailyRead() {
       }));
     }
 
-    if (all.length === 0) {
-      toast({ title: "No content yet", description: "Add content to your books first.", variant: "destructive" });
+    if (all.length === 0 && compCards.length === 0) {
+      toast({ title: "No content yet", description: "Add content or compulsory reads first.", variant: "destructive" });
       return;
     }
 
-    // Shuffle and pick cards, trying to vary books
+    // Shuffle and pick book cards
     const shuffled = [...all].sort(() => Math.random() - 0.5);
     const picked: any[] = [];
     const usedBooks = new Set<string>();
-
-    // First pass: one per book
     for (const c of shuffled) {
       if (!usedBooks.has(c.bookTitle) && picked.length < cardCount) {
         picked.push(c); usedBooks.add(c.bookTitle);
       }
     }
-    // Fill remaining from any book
     for (const c of shuffled) {
       if (picked.length >= cardCount) break;
       if (!picked.includes(c)) picked.push(c);
     }
 
-    setReadingCards(picked.slice(0, cardCount));
+    // Compulsory always prepended
+    setReadingCards([...compCards, ...picked.slice(0, cardCount)]);
     setCardIndex(0);
     setView("reading");
   };
@@ -246,6 +280,48 @@ export default function DailyRead() {
                 <Plus className="w-4 h-4" /> Add Book
               </Button>
             </div>
+          </div>
+
+          {/* ── Compulsory section ── */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" style={{ color: GOLD }} />
+                <h2 className="font-semibold text-sm text-foreground">Compulsory</h2>
+                {compulsoryItems.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">{compulsoryItems.length} always read</Badge>
+                )}
+              </div>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => setCompulsoryDialog(true)}>
+                <Plus className="w-3.5 h-3.5" /> Add
+              </Button>
+            </div>
+            {compulsoryItems.length === 0 ? (
+              <div className="flex items-center justify-center py-6 border border-dashed border-border rounded-xl text-muted-foreground text-xs">
+                Nothing compulsory yet — these will appear in every reading session.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {compulsoryItems.map((c: any) => (
+                  <div key={c.id} className="rounded-xl border border-border bg-card p-3 group relative">
+                    <p className="text-sm text-foreground leading-relaxed pr-6">{c.text}</p>
+                    {c.note && <p className="text-xs text-muted-foreground mt-1.5 italic border-l-2 pl-3 mt-2" style={{ borderColor: GOLD }}>{c.note}</p>}
+                    <button
+                      onClick={() => deleteCompulsory.mutate(c.id)}
+                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen className="w-4 h-4 text-muted-foreground" />
+            <h2 className="font-semibold text-sm text-foreground">Your Library</h2>
+            <span className="text-xs text-muted-foreground">({books.length} books)</span>
           </div>
 
           {booksLoading ? (
@@ -294,6 +370,35 @@ export default function DailyRead() {
             </div>
           )}
         </div>
+
+        {/* Add compulsory dialog */}
+        <Dialog open={compulsoryDialog} onOpenChange={setCompulsoryDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" style={{ color: GOLD }} /> Add Compulsory Read
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-2">
+              <div>
+                <Label className="text-xs mb-1.5 block">Text *</Label>
+                <Textarea value={compText} onChange={(e) => setCompText(e.target.value)} placeholder="Write the text you must read every day..." rows={5} autoFocus />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Note (optional)</Label>
+                <Textarea value={compNote} onChange={(e) => setCompNote(e.target.value)} placeholder="Why this matters to you..." rows={2} />
+              </div>
+              <Button
+                className="w-full"
+                style={{ background: GOLD, color: "#0a0910" }}
+                onClick={() => addCompulsory.mutate()}
+                disabled={!compText.trim() || addCompulsory.isPending}
+              >
+                {addCompulsory.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Add book dialog */}
         <Dialog open={bookDialog} onOpenChange={setBookDialog}>

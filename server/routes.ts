@@ -14,7 +14,7 @@ import { hashPassword } from "./auth";
 import { getTokenInfo, getConnectedIGAccount, getIGProfile, getIGMedia, getMediaInsights, syncPostByPermalink, exchangeForLongLivedToken, saveTokenToDB, sendInstagramDM } from "./meta";
 import { insertUserSchema, insertDocumentSchema, insertProgressSchema, insertCallFeedbackSchema, insertTaskSchema, insertNotificationSchema, insertContentPostSchema, insertIncomeGoalSchema, insertUserFeedbackSchema, videoEvents, videoAbTests, videoInteractiveElements } from "@shared/schema";
 import { createDefaultProjectTracker, getProjectCompletion, getProjectTrackerSummary, getCurrentPhase, normalizeProjectTracker, type ProjectTracker, type ActionStatus, type ProjectHealth, type ProjectStatus, type PhaseStatus } from "@shared/projectTracker";
-import { seedDatabase, seedSuperAdminDocs } from "./seed";
+import { seedDatabase, seedSuperAdminDocs, seedCompulsoryReads } from "./seed";
 import { extractYouTubeVideoId, extractYouTubeChannelId, getYouTubeVideoStats, getYouTubeChannelStats, getYouTubeChannelRecentVideos } from "./youtube";
 import { checkScanRateLimit, scanWatchlistForUser } from "./cron";
 import { isLiveKitConfigured, getLiveKitUrl, createHostToken, createViewerToken, createPanelistToken, createBreakoutRoom, createBreakoutToken, deleteBreakoutRoom, promoteViewerToPanelist, startSimulcast, stopSimulcast, getActiveEgresses, startCloudRecording, createWebinarRoom, deleteWebinarRoom, getWebinarParticipantCount, listWebinarParticipants } from "./livekit";
@@ -212,6 +212,7 @@ function appendProjectUpdate(tracker: ProjectTracker, title: string, message: st
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await seedDatabase();
   await seedSuperAdminDocs();
+  await seedCompulsoryReads();
 
   // ── Auto-migration for screen recorder tables (idempotent) ────────────────
   try {
@@ -13527,6 +13528,34 @@ Return ONLY a valid JSON object with a "conditions" key (no markdown):
     try {
       await storage.deleteReadingHighlight(p(req.params.id));
       res.json({ message: "Deleted" });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ── Compulsory Reads ────────────────────────────────────────────────────────
+  app.get("/api/admin/compulsory-reads", requireAdmin, async (_req, res) => {
+    try {
+      const { rows } = await pool.query(`SELECT id, text, note, created_at AS "createdAt" FROM super_admin_compulsory_reads ORDER BY created_at ASC`);
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/admin/compulsory-reads", requireAdmin, async (req, res) => {
+    try {
+      const { id, text, note } = req.body;
+      if (!id || !text?.trim()) return res.status(400).json({ message: "id and text required" });
+      const { rows } = await pool.query(
+        `INSERT INTO super_admin_compulsory_reads (id, text, note) VALUES ($1, $2, $3)
+         RETURNING id, text, note, created_at AS "createdAt"`,
+        [id, text.trim(), note?.trim() || null]
+      );
+      res.json(rows[0]);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/admin/compulsory-reads/:id", requireAdmin, async (req, res) => {
+    try {
+      await pool.query(`DELETE FROM super_admin_compulsory_reads WHERE id = $1`, [req.params.id]);
+      res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
