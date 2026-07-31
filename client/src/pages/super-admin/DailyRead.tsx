@@ -41,6 +41,106 @@ function bookInitials(title: string) {
   return title.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("");
 }
 
+const COMPULSORY_COLORS: Record<string, string> = {
+  comp_four_things:    "#d4b461",
+  comp_paradigm_1:     "#3b82f6",
+  comp_paradigm_2:     "#8b5cf6",
+  comp_truths_selling: "#a855f7",
+  comp_important_1:    "#22c55e",
+  comp_important_2:    "#10b981",
+  comp_affirmations_1: "#f97316",
+  comp_affirmations_2: "#ec4899",
+  comp_affirmations_3: "#06b6d4",
+  comp_affirmations_4: "#6366f1",
+  comp_affirmations_5: "#d4b461",
+};
+
+function renderCompulsoryText(text: string, accent: string) {
+  const blocks = text.split(/\n{2,}/);
+  return blocks.map((block, bi) => {
+    const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return null;
+
+    // ALL CAPS single-line title
+    if (lines.length === 1 && lines[0] === lines[0].toUpperCase() && lines[0].length > 4 && !/^[•\d]/.test(lines[0])) {
+      return (
+        <h2 key={bi} className="text-2xl md:text-3xl font-black tracking-tight leading-tight" style={{ color: accent }}>
+          {lines[0]}
+        </h2>
+      );
+    }
+
+    // First line ALL CAPS = section header + content below
+    if (lines[0] === lines[0].toUpperCase() && lines[0].length > 4 && !/^[•\d]/.test(lines[0])) {
+      return (
+        <div key={bi} className="space-y-3">
+          <h3 className="text-lg font-bold tracking-wide uppercase" style={{ color: accent }}>{lines[0]}</h3>
+          {renderLines(lines.slice(1), accent)}
+        </div>
+      );
+    }
+
+    return <div key={bi} className="space-y-2">{renderLines(lines, accent)}</div>;
+  });
+}
+
+function renderLines(lines: string[], accent: string) {
+  return lines.map((line, i) => {
+    // Numbered  1. text
+    const numMatch = line.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      return (
+        <div key={i} className="flex gap-4 items-start">
+          <span className="text-3xl font-black leading-none shrink-0 w-9 text-right" style={{ color: accent }}>{numMatch[1]}</span>
+          <p className="text-base leading-relaxed text-foreground font-medium">{numMatch[2]}</p>
+        </div>
+      );
+    }
+    // Bullet • text
+    if (line.startsWith("•")) {
+      return (
+        <div key={i} className="flex gap-3 items-start">
+          <span className="text-xl font-black shrink-0 leading-snug" style={{ color: accent }}>•</span>
+          <p className="text-sm leading-relaxed text-foreground">{line.slice(1).trim()}</p>
+        </div>
+      );
+    }
+    // Affirmation lines: start with "I "
+    if (/^I [a-z]/i.test(line)) {
+      return (
+        <p key={i} className="text-base leading-relaxed font-medium pl-4 border-l-2" style={{ borderColor: accent, color: "#e5e5e5" }}>
+          {line}
+        </p>
+      );
+    }
+    // Regular line
+    return <p key={i} className="text-sm leading-relaxed text-muted-foreground">{line}</p>;
+  });
+}
+
+function CompulsoryCard({ item, onDelete }: { item: any; onDelete: () => void }) {
+  const accent = COMPULSORY_COLORS[item.id] ?? GOLD;
+  return (
+    <div className="group relative rounded-2xl overflow-hidden border border-border" style={{ background: `linear-gradient(135deg, ${accent}08 0%, transparent 60%)` }}>
+      <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl" style={{ background: accent }} />
+      <div className="pl-6 pr-6 py-6 space-y-4">
+        {renderCompulsoryText(item.text, accent)}
+        {item.note && (
+          <div className="mt-2 px-4 py-3 rounded-xl" style={{ background: `${accent}18` }}>
+            <p className="text-sm font-semibold italic" style={{ color: accent }}>↳ {item.note}</p>
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onDelete}
+        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Reading card ─────────────────────────────────────────────────────────────
 function ReadingCard({
   card, index, total, onNext, onPrev, onDone,
@@ -256,7 +356,7 @@ export default function DailyRead() {
   if (view === "library") {
     return (
       <SuperAdminLayout>
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-start justify-between mb-8">
             <div>
               <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -301,18 +401,9 @@ export default function DailyRead() {
                 Nothing compulsory yet — these will appear in every reading session.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {compulsoryItems.map((c: any) => (
-                  <div key={c.id} className="rounded-xl border border-border bg-card p-3 group relative">
-                    <p className="text-sm text-foreground leading-relaxed pr-6">{c.text}</p>
-                    {c.note && <p className="text-xs text-muted-foreground mt-1.5 italic border-l-2 pl-3 mt-2" style={{ borderColor: GOLD }}>{c.note}</p>}
-                    <button
-                      onClick={() => deleteCompulsory.mutate(c.id)}
-                      className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <CompulsoryCard key={c.id} item={c} onDelete={() => deleteCompulsory.mutate(c.id)} />
                 ))}
               </div>
             )}
